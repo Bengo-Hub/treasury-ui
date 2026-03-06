@@ -1,5 +1,6 @@
 'use client';
 
+import { useMe } from '@/hooks/useMe';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth';
 import {
@@ -20,8 +21,11 @@ export function Sidebar() {
   const pathname = usePathname();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
+  const session = useAuthStore((state) => state.session);
   const user = useAuthStore((state) => state.user);
-  const isSuperAdmin = user?.roles?.includes('super_admin');
+  const { data: me } = useMe(!!session);
+  const roles = me?.roles ?? user?.roles ?? [];
+  const isSuperAdmin = roles.includes('super_admin');
 
   const routes = [
     {

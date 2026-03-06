@@ -56,3 +56,7 @@
 - [ ] Rider payout management.
 - [ ] Merchant settlement dashboard.
 - [ ] Integration with bank/mobile money APIs.
+
+**Tenant/brand (2026-03-06):** Tenant slug from `[orgSlug]` or `NEXT_PUBLIC_TENANT_SLUG`. Tenant info: auth-api `GET /api/v1/tenants/by-slug/{slug}`. Branding: notifications-api `GET /api/v1/{tenantId}/branding`. `BrandingProvider` applies logo and theme colours; Settings page links to Notifications branding.
+
+**RBAC & data fetching (2026-03-06):** Roles and permissions are loaded from auth-api `GET /me` (or service API proxy) via TanStack Query with 5 min TTL (`hooks/useMe`). Used for nav visibility (sidebar platform section for super_admin) and route protection. All data fetches should use TanStack Query; `QueryClientProvider` is in `[orgSlug]/layout`. Treasury-api: Redis and NATS/outbox documented in backend plan and sprint-1-auth-rbac.

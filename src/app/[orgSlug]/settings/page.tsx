@@ -8,10 +8,15 @@ import {
   Save,
   Shield
 } from 'lucide-react';
+import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+const NOTIFICATIONS_URL = process.env.NEXT_PUBLIC_NOTIFICATIONS_URL || 'https://notifications.codevertexitsolutions.com';
+
 export default function SettingsPage() {
+  const params = useParams();
+  const orgSlug = (params?.orgSlug as string) || '';
   const [settings, setSettings] = useState({
     defaultCurrency: 'KES',
     autoSettlement: true,
@@ -37,6 +42,24 @@ export default function SettingsPage() {
         <h1 className="text-3xl font-bold tracking-tight">Treasury Settings</h1>
         <p className="text-muted-foreground mt-1">Configure settlement rules, notifications, and security policies.</p>
       </div>
+
+      <Card>
+        <CardHeader className="border-b border-border/50 py-4">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-primary" />
+            <h3 className="font-bold text-sm uppercase tracking-tight">Brand & organisation</h3>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <p className="text-sm text-muted-foreground">
+            Logo and brand colours are managed in the Notifications service. To change your organisation logo, primary colour, or secondary colour, open the{' '}
+            <a href={orgSlug ? `${NOTIFICATIONS_URL}/${orgSlug}/settings/branding` : '#'} className="text-primary underline" target="_blank" rel="noopener noreferrer">
+              Branding settings
+            </a>
+            {' '}page in Notifications (opens in new tab). Theme is applied automatically on this app from that config.
+          </p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="border-b border-border/50 py-4">
