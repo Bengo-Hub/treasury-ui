@@ -59,4 +59,6 @@
 
 **Tenant/brand (2026-03-06):** Tenant slug from `[orgSlug]` or `NEXT_PUBLIC_TENANT_SLUG`. Tenant info: auth-api `GET /api/v1/tenants/by-slug/{slug}`. Branding: notifications-api `GET /api/v1/{tenantId}/branding`. `BrandingProvider` applies logo and theme colours; Settings page links to Notifications branding.
 
+**RBAC & TanStack Query (2026-03):** Current user from auth GET /me via `useMe` (TanStack Query, 5 min TTL). Sidebar shows platform section only for `super_admin`. AuthProvider redirects unauthenticated to SSO, 401 to SSO, and platform routes without super_admin to `/[orgSlug]/unauthorized`. 404 (`not-found.tsx`) and unauthorized page added. Gateways and platform gateways use `useTenantGateways`, `usePlatformGateways`, `useTestPlatformGateway` (TanStack Query).
+
 **RBAC & data fetching (2026-03-06):** Roles and permissions are loaded from auth-api `GET /me` (or service API proxy) via TanStack Query with 5 min TTL (`hooks/useMe`). Used for nav visibility (sidebar platform section for super_admin) and route protection. All data fetches should use TanStack Query; `QueryClientProvider` is in `[orgSlug]/layout`. Treasury-api: Redis and NATS/outbox documented in backend plan and sprint-1-auth-rbac.

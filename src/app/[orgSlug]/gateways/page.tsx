@@ -1,6 +1,8 @@
 'use client';
 
 import { Badge, Button, Card, CardContent } from '@/components/ui/base';
+import { useTenantGateways } from '@/hooks/use-gateways';
+import { useMe } from '@/hooks/useMe';
 import { cn } from '@/lib/utils';
 import {
   CreditCard,
@@ -9,46 +11,16 @@ import {
   Plus,
   Smartphone,
 } from 'lucide-react';
-import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
-import { listTenantAvailableGateways } from '@/lib/api/gateways';
 import Link from 'next/link';
-import { useAuthStore } from '@/store/auth';
-
-interface TenantGatewayOption {
-  gateway_type: string;
-  name: string;
-  transaction_fee_type: string;
-  supports_stk_push: boolean;
-}
+import { useParams } from 'next/navigation';
 
 export default function GatewaysPage() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
-  const user = useAuthStore((state) => state.user);
-  const [gateways, setGateways] = useState<TenantGatewayOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchGateways = useCallback(async () => {
-    if (!orgSlug) return;
-    try {
-      setError(null);
-      const res = await listTenantAvailableGateways(orgSlug);
-      setGateways(res.gateways || []);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load gateways');
-      setGateways([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [orgSlug]);
-
-  useEffect(() => {
-    fetchGateways();
-  }, [fetchGateways]);
-
+  const { data: gateways = [], isLoading: loading, error: queryError } = useTenantGateways(orgSlug);
+  const { user } = useMe();
   const isSuperAdmin = user?.roles?.includes('super_admin');
+  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load gateways') : null;
 
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 max-w-7xl mx-auto">

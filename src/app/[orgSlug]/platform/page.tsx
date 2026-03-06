@@ -1,13 +1,13 @@
 'use client';
 
-import { useAuthStore } from '@/store/auth';
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { usePlatformGateways, useTestPlatformGateway } from '@/hooks/use-gateways';
+import { useMe } from '@/hooks/useMe';
 import { cn } from '@/lib/utils';
 import {
   AlertTriangle,
   CreditCard,
   DollarSign,
-  Key,
   Loader2,
   Plus,
   Save,
@@ -15,44 +15,22 @@ import {
   Wrench
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
-import {
-  listPlatformGateways,
-  type GatewayConfig,
-  testPlatformGateway,
-} from '@/lib/api/gateways';
+import { useEffect, useState } from 'react';
 
 export default function PlatformPage() {
-  const user = useAuthStore((state) => state.user);
+  const { user } = useMe();
   const router = useRouter();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
   const [activeTab, setActiveTab] = useState<'gateways' | 'fees'>('gateways');
-  const [gateways, setGateways] = useState<GatewayConfig[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
 
-  const fetchGateways = useCallback(async () => {
-    try {
-      setError(null);
-      const res = await listPlatformGateways();
-      setGateways(res.gateways || []);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load gateways');
-      setGateways([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const isSuperAdmin = user?.roles?.includes('super_admin');
+  const { data: gatewaysData, isLoading: loading, error: queryError, refetch: fetchGateways } = usePlatformGateways(!!isSuperAdmin);
+  const gateways = gatewaysData?.gateways ?? [];
+  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load gateways') : null;
 
-  useEffect(() => {
-    if (user?.roles?.includes('super_admin')) {
-      fetchGateways();
-    } else {
-      setLoading(false);
-    }
-  }, [user, fetchGateways]);
+  const testMutation = useTestPlatformGateway();
 
   useEffect(() => {
     if (user && !user.roles?.includes('super_admin')) {
@@ -143,11 +121,11 @@ export default function PlatformPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={testingId === gw.id}
+                          disabled={testingId === gw.id || testMutation.isPending}
                           onClick={async () => {
                             setTestingId(gw.id);
                             try {
-                              await testPlatformGateway(gw.id);
+                              await testMutation.mutateAsync(gw.id);
                               await fetchGateways();
                             } finally {
                               setTestingId(null);
