@@ -6,7 +6,8 @@ import {
   CreditCard,
   ExternalLink,
   Loader2,
-  Smartphone
+  Plus,
+  Smartphone,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
