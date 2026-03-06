@@ -8,13 +8,19 @@ import {
   CreditCard,
   DollarSign,
   Key,
+  Loader2,
   Plus,
   Save,
   Shield,
   Wrench
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  listPlatformGateways,
+  type GatewayConfig,
+  testPlatformGateway,
+} from '@/lib/api/gateways';
 
 export default function PlatformPage() {
   const user = useAuthStore((state) => state.user);
@@ -22,6 +28,31 @@ export default function PlatformPage() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
   const [activeTab, setActiveTab] = useState<'gateways' | 'fees'>('gateways');
+  const [gateways, setGateways] = useState<GatewayConfig[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
+
+  const fetchGateways = useCallback(async () => {
+    try {
+      setError(null);
+      const res = await listPlatformGateways();
+      setGateways(res.gateways || []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load gateways');
+      setGateways([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user?.roles?.includes('super_admin')) {
+      fetchGateways();
+    } else {
+      setLoading(false);
+    }
+  }, [user, fetchGateways]);
 
   useEffect(() => {
     if (user && !user.roles?.includes('super_admin')) {
@@ -75,38 +106,62 @@ export default function PlatformPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between py-4">
               <div className="flex items-center gap-2">
-                <Key className="h-4 w-4 text-primary" />
-                <h3 className="font-bold text-sm uppercase tracking-tight">Global API Secrets</h3>
+                <CreditCard className="h-4 w-4 text-primary" />
+                <h3 className="font-bold text-sm uppercase tracking-tight">Platform payment gateways</h3>
               </div>
-              <Button size="sm" className="gap-2">
-                <Plus className="h-3.5 w-3.5" /> Add Secret
-              </Button>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-border">
-                {[
-                  { name: 'MPESA_CONSUMER_KEY', env: 'production', lastRotated: '2026-02-15' },
-                  { name: 'MPESA_CONSUMER_SECRET', env: 'production', lastRotated: '2026-02-15' },
-                  { name: 'STRIPE_SECRET_KEY', env: 'production', lastRotated: '2026-01-20' },
-                  { name: 'STRIPE_WEBHOOK_SECRET', env: 'production', lastRotated: '2026-01-20' },
-                ].map((secret) => (
-                  <div key={secret.name} className="px-6 py-4 flex items-center justify-between hover:bg-accent/5 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-lg bg-accent/30 flex items-center justify-center">
-                        <Key className="h-4 w-4 text-muted-foreground" />
+              {loading ? (
+                <div className="px-6 py-8 flex items-center justify-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading gateways…
+                </div>
+              ) : error ? (
+                <div className="px-6 py-4 text-sm text-destructive">{error}</div>
+              ) : gateways.length === 0 ? (
+                <div className="px-6 py-8 text-center text-sm text-muted-foreground">
+                  No platform gateways configured. Configure Paystack (or M-Pesa) via env and run seed, or use the API to create gateways.
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {gateways.map((gw) => (
+                    <div key={gw.id} className="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-accent/5 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <CreditCard className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">{gw.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{gw.gateway_type}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant={gw.is_active ? 'success' : 'outline'}>{gw.is_active ? 'Active' : 'Inactive'}</Badge>
+                            <Badge variant="outline">{gw.status}</Badge>
+                            {gw.is_primary && <Badge variant="secondary">Primary</Badge>}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-mono font-bold">{secret.name}</p>
-                        <p className="text-[10px] text-muted-foreground">Last rotated: {secret.lastRotated}</p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={testingId === gw.id}
+                          onClick={async () => {
+                            setTestingId(gw.id);
+                            try {
+                              await testPlatformGateway(gw.id);
+                              await fetchGateways();
+                            } finally {
+                              setTestingId(null);
+                            }
+                          }}
+                        >
+                          {testingId === gw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                          Test
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant="success">{secret.env}</Badge>
-                      <Button variant="ghost" size="sm">Rotate</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -115,8 +170,8 @@ export default function PlatformPage() {
               <div className="flex items-start gap-4">
                 <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-sm font-bold">Secret Rotation Policy</h4>
-                  <p className="text-xs text-muted-foreground mt-1">API secrets should be rotated every 90 days. Automated rotation can be enabled per gateway.</p>
+                  <h4 className="text-sm font-bold">Paystack &amp; integrations</h4>
+                  <p className="text-xs text-muted-foreground mt-1">Use the same env keys as isp-billing (PAYSTACK_SECRET_KEY, PAYSTACK_PUBLIC_KEY, AFRICASTALKING_*, etc.) and run seed to create the default Paystack gateway. All tenant payments route through treasury and default to Paystack.</p>
                 </div>
               </div>
             </CardContent>
