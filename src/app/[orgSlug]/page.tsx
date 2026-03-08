@@ -1,31 +1,75 @@
 'use client';
 
 import { Badge, Card, CardContent } from '@/components/ui/base';
+import { useAnalyticsSummary, useTransactions } from '@/hooks/use-analytics';
 import {
-  ArrowDownRight,
-  ArrowUpRight,
-  Banknote,
-  CreditCard,
-  DollarSign,
-  Wallet
+    ArrowUpRight,
+    Banknote,
+    CreditCard,
+    DollarSign,
+    Loader2,
+    Wallet
 } from 'lucide-react';
+import { useParams } from 'next/navigation';
+
+function formatDateRange(from: Date, to: Date): { from: string; to: string } {
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+  };
+}
 
 export default function DashboardPage() {
+  const params = useParams();
+  const orgSlug = params?.orgSlug as string;
+  const now = new Date();
+  const last30 = new Date(now);
+  last30.setDate(last30.getDate() - 30);
+  const range = formatDateRange(last30, now);
+
+  const { data: summary, isLoading: summaryLoading, error: summaryError } = useAnalyticsSummary(orgSlug, range);
+  const { data: txData, isLoading: txLoading, error: txError } = useTransactions(orgSlug, { ...range }, !!orgSlug);
+
+  const recentTransactions = txData?.transactions?.slice(0, 6) ?? [];
+  const currency = summary?.currency ?? 'KES';
+
   const kpis = [
-    { label: 'Total Revenue', value: 'KES 2,847,500', trend: '+12.3%', up: true, icon: DollarSign, color: 'text-green-500 bg-green-500/10' },
-    { label: 'Pending Settlements', value: 'KES 342,100', trend: '8 batches', up: false, icon: Wallet, color: 'text-amber-500 bg-amber-500/10' },
-    { label: 'Payment Methods', value: '4 Active', trend: 'M-Pesa, Stripe, Card, Cash', up: true, icon: CreditCard, color: 'text-blue-500 bg-blue-500/10' },
-    { label: 'Today\'s Transactions', value: '1,284', trend: '+8.1%', up: true, icon: Banknote, color: 'text-purple-500 bg-purple-500/10' },
+    {
+      label: 'Total Revenue',
+      value: summary ? `${currency} ${Number(summary.total_revenue).toLocaleString('en-KE', { maximumFractionDigits: 0 })}` : '—',
+      trend: summary ? `${summary.succeeded_count} succeeded` : '',
+      up: true,
+      icon: DollarSign,
+      color: 'text-green-500 bg-green-500/10',
+    },
+    {
+      label: 'Pending',
+      value: summary ? `${summary.pending_count} txns` : '—',
+      trend: summary ? `${summary.pending_count} pending` : '',
+      up: false,
+      icon: Wallet,
+      color: 'text-amber-500 bg-amber-500/10',
+    },
+    {
+      label: 'Payment methods',
+      value: '—',
+      trend: 'From gateways',
+      up: true,
+      icon: CreditCard,
+      color: 'text-blue-500 bg-blue-500/10',
+    },
+    {
+      label: 'Transactions (period)',
+      value: summary ? String(summary.succeeded_count + summary.pending_count + summary.failed_count) : '—',
+      trend: summary ? `${summary.succeeded_count} ok, ${summary.failed_count} failed` : '',
+      up: true,
+      icon: Banknote,
+      color: 'text-purple-500 bg-purple-500/10',
+    },
   ];
 
-  const recentTransactions = [
-    { id: 'TXN-001', type: 'M-Pesa', amount: 'KES 15,000', status: 'completed', time: '2 min ago' },
-    { id: 'TXN-002', type: 'Stripe', amount: 'KES 42,300', status: 'completed', time: '8 min ago' },
-    { id: 'TXN-003', type: 'M-Pesa', amount: 'KES 8,750', status: 'pending', time: '15 min ago' },
-    { id: 'TXN-004', type: 'Card', amount: 'KES 120,000', status: 'completed', time: '22 min ago' },
-    { id: 'TXN-005', type: 'Cash', amount: 'KES 3,200', status: 'completed', time: '30 min ago' },
-    { id: 'TXN-006', type: 'M-Pesa', amount: 'KES 67,500', status: 'failed', time: '45 min ago' },
-  ];
+  const loading = summaryLoading || txLoading;
+  const hasError = summaryError || txError;
 
   return (
     <div className="p-8">
@@ -35,6 +79,17 @@ export default function DashboardPage() {
           <p className="text-muted-foreground mt-1">Monitor revenue, settlements, and payment operations.</p>
         </div>
 
+        {loading && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading analytics…
+          </div>
+        )}
+        {hasError && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Failed to load dashboard data. Check your connection and try again.
+          </div>
+        )}
+
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {kpis.map((kpi) => (
             <Card key={kpi.label} className="group hover:border-primary/30 transition-all">
@@ -43,13 +98,9 @@ export default function DashboardPage() {
                   <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${kpi.color}`}>
                     <kpi.icon className="h-5 w-5" />
                   </div>
-                  {kpi.up ? (
-                    <div className="flex items-center gap-0.5 text-xs font-bold text-green-500">
-                      <ArrowUpRight className="h-3 w-3" />
-                      {kpi.trend}
-                    </div>
-                  ) : (
+                  {kpi.trend && (
                     <div className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
+                      {kpi.up && <ArrowUpRight className="h-3 w-3" />}
                       {kpi.trend}
                     </div>
                   )}
@@ -64,9 +115,12 @@ export default function DashboardPage() {
         <Card>
           <div className="px-6 py-4 border-b border-border flex items-center justify-between">
             <h3 className="font-bold">Recent Transactions</h3>
-            <Badge variant="outline">Last 1 hour</Badge>
+            <Badge variant="outline">{summary?.period ?? 'Last 30 days'}</Badge>
           </div>
           <div className="divide-y divide-border">
+            {recentTransactions.length === 0 && !txLoading && (
+              <div className="px-6 py-12 text-center text-muted-foreground">No transactions in this period.</div>
+            )}
             {recentTransactions.map((txn) => (
               <div key={txn.id} className="px-6 py-4 flex items-center justify-between hover:bg-accent/5 transition-colors">
                 <div className="flex items-center gap-4">
@@ -74,16 +128,16 @@ export default function DashboardPage() {
                     <Banknote className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold">{txn.id}</p>
-                    <p className="text-xs text-muted-foreground">{txn.type}</p>
+                    <p className="text-sm font-semibold font-mono">{txn.reference_id}</p>
+                    <p className="text-xs text-muted-foreground">{txn.payment_method}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-6">
-                  <p className="text-sm font-bold">{txn.amount}</p>
-                  <Badge variant={txn.status === 'completed' ? 'success' : txn.status === 'pending' ? 'warning' : 'error'}>
+                  <p className="text-sm font-bold">{txn.currency} {txn.amount}</p>
+                  <Badge variant={txn.status === 'succeeded' ? 'success' : txn.status === 'pending' || txn.status === 'processing' ? 'warning' : 'error'}>
                     {txn.status}
                   </Badge>
-                  <p className="text-xs text-muted-foreground w-20 text-right">{txn.time}</p>
+                  <p className="text-xs text-muted-foreground w-32 text-right">{new Date(txn.created_at).toLocaleString()}</p>
                 </div>
               </div>
             ))}

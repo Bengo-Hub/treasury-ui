@@ -48,11 +48,13 @@
 - [ ] Core layout with financial dashboard shell.
 
 ### Sprint 2: Payment Monitoring
-- [ ] Real-time transaction list with status filters.
+- [x] Real-time transaction list with status filters (GET /api/v1/{tenant}/analytics/transactions).
+- [x] Dashboard metrics and recent transactions (GET /api/v1/{tenant}/analytics/summary, transactions).
 - [ ] Detailed payment intent view.
 - [ ] Reconciliation tools.
 
 ### Sprint 3: Payouts & Settlements
+- [x] Payout/settlement history (GET /api/v1/{tenant}/payout/history).
 - [ ] Rider payout management.
 - [ ] Merchant settlement dashboard.
 - [ ] Integration with bank/mobile money APIs.
@@ -62,3 +64,5 @@
 **RBAC & TanStack Query (2026-03):** Current user from auth GET /me via `useMe` (TanStack Query, 5 min TTL). Sidebar shows platform section only for `super_admin`. AuthProvider redirects unauthenticated to SSO, 401 to SSO, and platform routes without super_admin to `/[orgSlug]/unauthorized`. 404 (`not-found.tsx`) and unauthorized page added. Gateways and platform gateways use `useTenantGateways`, `usePlatformGateways`, `useTestPlatformGateway` (TanStack Query).
 
 **RBAC & data fetching (2026-03-06):** Roles and permissions are loaded from auth-api `GET /me` (or service API proxy) via TanStack Query with 5 min TTL (`hooks/useMe`). Used for nav visibility (sidebar platform section for super_admin) and route protection. All data fetches should use TanStack Query; `QueryClientProvider` is in `[orgSlug]/layout`. Treasury-api: Redis and NATS/outbox documented in backend plan and sprint-1-auth-rbac.
+
+**MVP docs (March 2026):** [ux-ui.md](ux-ui.md), [sprint-mvp-launch.md](sprints/sprint-mvp-launch.md), [INTEGRATIONS.md](INTEGRATIONS.md), [mvp-critical-path.md](mvp-critical-path.md). Payment gateway configuration moved from auth-ui to treasury-ui; auth-ui redirects platform admins here.
