@@ -1,9 +1,15 @@
 'use client';
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
-import { usePlatformGateways, useTestPlatformGateway } from '@/hooks/use-gateways';
+import {
+  useCreatePlatformGateway,
+  usePlatformGateways,
+  useTestPlatformGateway,
+  useUpdatePlatformGateway,
+} from '@/hooks/use-gateways';
 import { useMe } from '@/hooks/useMe';
 import { cn } from '@/lib/utils';
+import type { GatewayConfig } from '@/lib/api/gateways';
 import {
   AlertTriangle,
   CreditCard,
@@ -12,18 +18,37 @@ import {
   Plus,
   Save,
   Shield,
-  Wrench
+  Wrench,
+  X,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+
+const GATEWAY_TYPES = [
+  { value: 'paystack', label: 'Paystack' },
+  { value: 'mpesa_paybill', label: 'M-Pesa Paybill' },
+  { value: 'mpesa_till', label: 'M-Pesa Till' },
+  { value: 'cod', label: 'Cash on Delivery (COD)' },
+] as const;
+
+const CREDENTIAL_KEYS: Record<string, string[]> = {
+  paystack: ['secret_key', 'public_key'],
+  mpesa_paybill: ['consumer_key', 'consumer_secret', 'passkey'],
+  mpesa_till: ['consumer_key', 'consumer_secret', 'passkey'],
+  cod: [],
+};
 
 export default function PlatformPage() {
-  const { user } = useMe();
+  const { data: user } = useMe();
   const router = useRouter();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
   const [activeTab, setActiveTab] = useState<'gateways' | 'fees'>('gateways');
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [showAddGateway, setShowAddGateway] = useState(false);
+  const [editingGateway, setEditingGateway] = useState<GatewayConfig | null>(null);
+  const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
 
   const isSuperAdmin = user?.roles?.includes('super_admin');
   const { data: gatewaysData, isLoading: loading, error: queryError, refetch: fetchGateways } = usePlatformGateways(!!isSuperAdmin);
@@ -31,6 +56,8 @@ export default function PlatformPage() {
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load gateways') : null;
 
   const testMutation = useTestPlatformGateway();
+  const createGateway = useCreatePlatformGateway();
+  const updateGateway = useUpdatePlatformGateway();
 
   useEffect(() => {
     if (user && !user.roles?.includes('super_admin')) {
@@ -87,6 +114,9 @@ export default function PlatformPage() {
                 <CreditCard className="h-4 w-4 text-primary" />
                 <h3 className="font-bold text-sm uppercase tracking-tight">Platform payment gateways</h3>
               </div>
+              <Button size="sm" className="gap-2" onClick={() => { setShowAddGateway(true); setCredentialValues({}); }}>
+                <Plus className="h-3.5 w-3.5" /> Activate gateway
+              </Button>
             </CardHeader>
             <CardContent className="p-0">
               {loading ? (
@@ -97,7 +127,7 @@ export default function PlatformPage() {
                 <div className="px-6 py-4 text-sm text-destructive">{error}</div>
               ) : gateways.length === 0 ? (
                 <div className="px-6 py-8 text-center text-sm text-muted-foreground">
-                  No platform gateways configured. Configure Paystack (or M-Pesa) via env and run seed, or use the API to create gateways.
+                  No platform gateways configured. Use &quot;Activate gateway&quot; to add Paystack, M-Pesa, or COD with credentials.
                 </div>
               ) : (
                 <div className="divide-y divide-border">
@@ -118,6 +148,13 @@ export default function PlatformPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => { setEditingGateway(gw); setCredentialValues({}); }}
+                        >
+                          Edit credentials
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -142,6 +179,58 @@ export default function PlatformPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Add gateway modal */}
+          {showAddGateway && (
+            <GatewayCredentialsModal
+              title="Activate gateway"
+              gatewayType={null}
+              name=""
+              credentialKeys={[]}
+              credentialValues={credentialValues}
+              setCredentialValues={setCredentialValues}
+              onClose={() => setShowAddGateway(false)}
+              onSubmit={async (type, name, creds) => {
+                try {
+                  await createGateway.mutateAsync({ gateway_type: type, name, credentials: creds });
+                  toast.success('Gateway created');
+                  setShowAddGateway(false);
+                  fetchGateways();
+                } catch (e: any) {
+                  toast.error(e?.response?.data?.message || e?.message || 'Failed to create gateway');
+                }
+              }}
+              isSubmitting={createGateway.isPending}
+              gatewayTypes={GATEWAY_TYPES}
+              credentialKeysByType={CREDENTIAL_KEYS}
+            />
+          )}
+
+          {/* Edit credentials modal */}
+          {editingGateway && (
+            <GatewayCredentialsModal
+              title="Update credentials"
+              gatewayType={editingGateway.gateway_type}
+              name={editingGateway.name}
+              credentialKeys={CREDENTIAL_KEYS[editingGateway.gateway_type] ?? []}
+              credentialValues={credentialValues}
+              setCredentialValues={setCredentialValues}
+              onClose={() => setEditingGateway(null)}
+              onSubmit={async (_type, _name, creds) => {
+                if (!editingGateway) return;
+                try {
+                  await updateGateway.mutateAsync({ id: editingGateway.id, body: { credentials: creds } });
+                  toast.success('Credentials updated');
+                  setEditingGateway(null);
+                  fetchGateways();
+                } catch (e: any) {
+                  toast.error(e?.response?.data?.message || e?.message || 'Failed to update');
+                }
+              }}
+              isSubmitting={updateGateway.isPending}
+              editMode
+            />
+          )}
 
           <Card className="border-amber-500/20 bg-amber-500/5">
             <CardContent className="p-6">
@@ -213,6 +302,118 @@ export default function PlatformPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function GatewayCredentialsModal({
+  title,
+  gatewayType,
+  name,
+  credentialKeys,
+  credentialValues,
+  setCredentialValues,
+  onClose,
+  onSubmit,
+  isSubmitting,
+  gatewayTypes,
+  credentialKeysByType,
+  editMode = false,
+}: {
+  title: string;
+  gatewayType: string | null;
+  name: string;
+  credentialKeys: string[];
+  credentialValues: Record<string, string>;
+  setCredentialValues: (v: Record<string, string>) => void;
+  onClose: () => void;
+  onSubmit: (type: string, name: string, credentials: Record<string, string>) => Promise<void>;
+  isSubmitting: boolean;
+  gatewayTypes?: readonly { value: string; label: string }[];
+  credentialKeysByType?: Record<string, string[]>;
+  editMode?: boolean;
+}) {
+  const [selectedType, setSelectedType] = useState(gatewayType ?? 'paystack');
+  const [nameVal, setNameVal] = useState(name);
+
+  const keys = editMode ? credentialKeys : (credentialKeysByType?.[selectedType] ?? credentialKeys);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const creds: Record<string, string> = {};
+    keys.forEach((k) => { if (credentialValues[k]) creds[k] = credentialValues[k]; });
+    onSubmit(editMode ? (gatewayType ?? selectedType) : selectedType, editMode ? name : nameVal, creds);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-card rounded-xl shadow-xl border border-border max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">{title}</h3>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-accent">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!editMode && gatewayTypes && (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Gateway type</label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {gatewayTypes.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
+                <input
+                  type="text"
+                  value={nameVal}
+                  onChange={(e) => setNameVal(e.target.value)}
+                  placeholder="e.g. Paystack Production"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+            </>
+          )}
+          {keys.length > 0 && (
+            <div className="space-y-3">
+              <span className="text-xs font-medium text-muted-foreground">Credentials (stored securely)</span>
+              {keys.map((k) => (
+                <div key={k}>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    {k.replace(/_/g, ' ')}
+                  </label>
+                  <input
+                    type="password"
+                    value={credentialValues[k] ?? ''}
+                    onChange={(e) => setCredentialValues({ ...credentialValues, [k]: e.target.value })}
+                    placeholder={editMode ? 'Leave blank to keep current' : ''}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
+                    autoComplete="off"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          {selectedType === 'cod' && !editMode && (
+            <p className="text-xs text-muted-foreground">COD has no credentials; name only.</p>
+          )}
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {editMode ? 'Update' : 'Create'}
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

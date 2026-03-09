@@ -84,3 +84,56 @@ export function testPlatformGateway(id: string): Promise<{ success: boolean; gat
 export function listTenantAvailableGateways(tenantSlugOrId: string): Promise<{ gateways: { gateway_type: string; name: string; transaction_fee_type: string; supports_stk_push: boolean }[] }> {
   return apiClient.get(`${BASE}/${tenantSlugOrId}/gateways/available`);
 }
+
+/** Tenant: get currently selected gateway( s). */
+export function getTenantSelectedGateways(tenantSlugOrId: string): Promise<{ selected: GatewayConfig[] }> {
+  return apiClient.get<{ selected: GatewayConfig[] }>(`${BASE}/${tenantSlugOrId}/gateways/selected`);
+}
+
+/** Tenant: select a preferred gateway. */
+export function selectTenantGateway(tenantSlugOrId: string, gatewayType: string): Promise<{ message: string; gateway_type: string }> {
+  return apiClient.post<{ message: string; gateway_type: string }>(`${BASE}/${tenantSlugOrId}/gateways/select/${encodeURIComponent(gatewayType)}`, {});
+}
+
+export interface PayoutConfigResponse {
+  id: string;
+  tenant_id: string;
+  schedule_type: string;
+  schedule_day: number;
+  min_payout_amount: string;
+  recipient_type: string;
+  bank_name?: string;
+  bank_code?: string;
+  account_number?: string;
+  account_name?: string;
+  mobile_number?: string;
+  mpesa_paybill?: string;
+  is_verified: boolean;
+  total_payouts: number;
+  total_payout_amount: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayoutConfigRequest {
+  schedule_type?: string;
+  schedule_day?: number;
+  min_payout_amount?: number;
+  recipient_type: string;
+  bank_name?: string;
+  bank_code?: string;
+  account_number?: string;
+  account_name?: string;
+  mobile_number?: string;
+  mpesa_paybill?: string;
+}
+
+/** Tenant: get payout configuration (for Paystack payout destination). */
+export function getTenantPayoutConfig(tenantSlugOrId: string): Promise<PayoutConfigResponse> {
+  return apiClient.get<PayoutConfigResponse>(`${BASE}/${tenantSlugOrId}/payout/config`);
+}
+
+/** Tenant: create or update payout configuration. */
+export function upsertTenantPayoutConfig(tenantSlugOrId: string, body: PayoutConfigRequest): Promise<PayoutConfigResponse> {
+  return apiClient.post<PayoutConfigResponse>(`${BASE}/${tenantSlugOrId}/payout/config`, body);
+}

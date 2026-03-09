@@ -165,8 +165,9 @@ Treasury UI follows the **BengoBox Design System** with financial-focused patter
 
 ### Sidebar Navigation
 - Logo / Tenant brand
-- Main sections: Dashboard, Transactions, Payouts, Reports, Gateways, Settings
-- Role-based visibility (e.g., Gateways only for super_admin)
+- **Tenant sections**: Dashboard, Transactions, Settlements (Payouts), Gateways, Accounts, Settings — visible to all authenticated tenant users.
+- **Platform section** (visible only for `super_admin`): Platform gateways, Equity — links under `/[orgSlug]/platform/*`.
+- Role-based visibility: platform items and platform routes are permission-gated; others see 404/unauthorized.
 - Active section highlight
 - Collapsible on mobile
 

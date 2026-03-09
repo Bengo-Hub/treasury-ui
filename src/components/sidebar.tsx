@@ -9,10 +9,10 @@ import {
   CreditCard,
   Landmark,
   LayoutDashboard,
+  PieChart,
   Settings,
   Shield,
-  Wallet,
-  Wrench
+  Wallet
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
@@ -27,6 +27,7 @@ export function Sidebar() {
   const roles = me?.roles ?? user?.roles ?? [];
   const isSuperAdmin = roles.includes('super_admin');
 
+  // Tenant dashboard: transactions, settlements, gateways, accounts, settings
   const routes = [
     {
       label: 'Dashboard',
@@ -66,18 +67,19 @@ export function Sidebar() {
     },
   ];
 
+  // Platform dashboard: gateways & integration secrets, equity (superuser only)
   const platformRoutes = [
     {
-      label: 'System Gateways',
+      label: 'Gateways & secrets',
       icon: Shield,
       href: `/${orgSlug}/platform`,
       active: pathname === `/${orgSlug}/platform`,
     },
     {
-      label: 'Fee Config',
-      icon: Wrench,
-      href: `/${orgSlug}/platform?tab=fees`,
-      active: pathname === `/${orgSlug}/platform` && pathname.includes('fees'),
+      label: 'Equity',
+      icon: PieChart,
+      href: `/${orgSlug}/platform/equity`,
+      active: pathname?.startsWith(`/${orgSlug}/platform/equity`),
     },
   ];
 

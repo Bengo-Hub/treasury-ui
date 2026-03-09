@@ -32,6 +32,7 @@ Treasury UI is the central financial portal. It integrates with:
 - **Gateways**: Platform gateways (super_admin) and tenant gateways; CRUD via treasury-api endpoints.
 - **Transactions**: List/filter payment transactions; reconcile status.
 - **Settlements**: Payout and settlement batches; status and reports.
+- **Payment workflow**: Invoice-first — services create intents with `payment_method: "pending"`, then redirect users to the **shared pay page** (`/pay`). Pay page shows invoice summary and gateway options; modals (Paystack, M-Pesa, COD) support QR and “I paid at till”. See [shared-docs/payment-workflow.md](../../../shared-docs/payment-workflow.md).
 
 ---
 

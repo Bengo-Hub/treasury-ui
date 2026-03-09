@@ -26,6 +26,7 @@
 
 ### P1 — Should have
 - [x] Settlements list and detail (payout history from treasury-api)
+- [x] Shared public pay page (`/pay`) with gateway picker and payment modals (Paystack, M-Pesa, COD); QR and “I paid at till” support (see [payment-workflow.md](../../../shared-docs/payment-workflow.md))
 - [ ] Payout management
 - [ ] Export (CSV/Excel)
 - [ ] Branding from notifications-api (optional)
