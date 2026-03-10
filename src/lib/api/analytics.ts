@@ -19,6 +19,7 @@ export interface AnalyticsSummary {
 
 export interface TransactionItem {
   id: string;
+  tenant_id?: string;
   reference_id: string;
   reference_type: string;
   source_service: string;

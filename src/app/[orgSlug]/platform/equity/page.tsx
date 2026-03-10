@@ -332,7 +332,7 @@ function HolderRow({
                 <div className="text-right hidden sm:block">
                     <p className="text-xs text-muted-foreground font-medium mb-1">Projected Payout</p>
                     <p className="text-sm font-black">
-                        KES {projection?.projected_amount.toLocaleString() ?? '0'}
+                        KES {projection?.projected_amount?.toLocaleString() ?? '0'}
                     </p>
                 </div>
 

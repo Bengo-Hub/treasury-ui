@@ -7,9 +7,9 @@ import { PaystackPaymentModal } from '@/components/payments/PaystackPaymentModal
 import type { GatewayType, PaymentDetails } from '@/components/payments/types';
 import { GATEWAY_LABELS } from '@/components/payments/types';
 import { Card } from '@/components/ui/base';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, Suspense } from 'react';
 
 const DEFAULT_GATEWAYS: GatewayType[] = ['paystack', 'mpesa', 'cod'];
 
@@ -23,7 +23,7 @@ function parseGateways(param: string | null): GatewayType[] {
   return allowed.length > 0 ? allowed : DEFAULT_GATEWAYS;
 }
 
-export default function PayPage() {
+function PayPageContent() {
   const searchParams = useSearchParams();
   const [openGateway, setOpenGateway] = useState<GatewayType | null>(null);
 
@@ -171,5 +171,22 @@ export default function PayPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function PayPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+        <div className="text-center w-full max-w-md p-8">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          </div>
+          <h1 className="text-xl font-semibold text-foreground mb-2">Loading checkout...</h1>
+        </div>
+      </div>
+    }>
+      <PayPageContent />
+    </Suspense>
   );
 }

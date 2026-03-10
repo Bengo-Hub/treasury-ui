@@ -26,6 +26,7 @@ export function Sidebar() {
   const { data: me } = useMe(!!session);
   const roles = me?.roles ?? user?.roles ?? [];
   const isSuperAdmin = roles.includes('super_admin');
+  const isPlatformOwner = orgSlug === 'codevertex';
 
   // Tenant dashboard: transactions, settlements, gateways, accounts, settings
   const routes = [
@@ -70,14 +71,32 @@ export function Sidebar() {
   // Platform dashboard: gateways & integration secrets, equity (superuser only)
   const platformRoutes = [
     {
+      label: 'Analytics',
+      icon: PieChart,
+      href: `/${orgSlug}/platform/analytics`,
+      active: pathname?.startsWith(`/${orgSlug}/platform/analytics`),
+    },
+    {
       label: 'Gateways & secrets',
       icon: Shield,
       href: `/${orgSlug}/platform`,
       active: pathname === `/${orgSlug}/platform`,
     },
     {
+      label: 'Settlements',
+      icon: Banknote,
+      href: `/${orgSlug}/platform/payouts`,
+      active: pathname?.startsWith(`/${orgSlug}/platform/payouts`),
+    },
+    {
+      label: 'Global Ledger',
+      icon: Landmark,
+      href: `/${orgSlug}/platform/ledger`,
+      active: pathname?.startsWith(`/${orgSlug}/platform/ledger`),
+    },
+    {
       label: 'Equity',
-      icon: PieChart,
+      icon: Wallet,
       href: `/${orgSlug}/platform/equity`,
       active: pathname?.startsWith(`/${orgSlug}/platform/equity`),
     },
@@ -110,7 +129,7 @@ export function Sidebar() {
           ))}
         </div>
 
-        {isSuperAdmin && (
+        {isPlatformOwner && (
           <div className="mt-8">
             <div className="px-3 mb-2 text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
               Platform

@@ -4,14 +4,14 @@ import { Button, Card } from '@/components/ui/base';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, Suspense } from 'react';
 
 /**
  * Flexible Paystack callback page (public).
  * Query params: reference (from Paystack), redirect_url, button_text.
  * See shared-docs/paystack-callback-page.md. Reuse this pattern in ordering-frontend, subscription-ui, etc.
  */
-export default function PaymentCallbackPage() {
+function PaymentCallbackContent() {
   const searchParams = useSearchParams();
   const reference = searchParams.get('reference') || searchParams.get('trxref');
   const redirectUrl = searchParams.get('redirect_url') || '/';
@@ -130,5 +130,20 @@ export default function PaymentCallbackPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+export default function PaymentCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+        <div className="text-center w-full max-w-md p-8">
+          <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+          <h1 className="text-xl font-semibold text-foreground mb-2">Loading...</h1>
+        </div>
+      </div>
+    }>
+      <PaymentCallbackContent />
+    </Suspense>
   );
 }

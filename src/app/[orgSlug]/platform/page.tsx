@@ -50,8 +50,8 @@ export default function PlatformPage() {
   const [editingGateway, setEditingGateway] = useState<GatewayConfig | null>(null);
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
 
-  const isSuperAdmin = user?.roles?.includes('super_admin');
-  const { data: gatewaysData, isLoading: loading, error: queryError, refetch: fetchGateways } = usePlatformGateways(!!isSuperAdmin);
+  const isPlatformOwner = orgSlug === 'codevertex';
+  const { data: gatewaysData, isLoading: loading, error: queryError, refetch: fetchGateways } = usePlatformGateways(!!isPlatformOwner);
   const gateways = gatewaysData?.gateways ?? [];
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load gateways') : null;
 
@@ -60,18 +60,18 @@ export default function PlatformPage() {
   const updateGateway = useUpdatePlatformGateway();
 
   useEffect(() => {
-    if (user && !user.roles?.includes('super_admin')) {
+    if (user && orgSlug !== 'codevertex') {
       router.replace(`/${orgSlug}`);
     }
   }, [user, orgSlug, router]);
 
-  if (!user?.roles?.includes('super_admin')) {
+  if (orgSlug !== 'codevertex') {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center space-y-3">
           <Shield className="h-12 w-12 text-muted-foreground mx-auto opacity-30" />
           <h2 className="text-xl font-bold">Access Restricted</h2>
-          <p className="text-sm text-muted-foreground">This section requires super_admin privileges.</p>
+          <p className="text-sm text-muted-foreground">This section requires Platform Owner privileges.</p>
         </div>
       </div>
     );
