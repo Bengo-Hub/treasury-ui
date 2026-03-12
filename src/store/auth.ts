@@ -57,7 +57,7 @@ export const useAuthStore = create<AuthState>()(
         set({ status: 'loading' });
 
         try {
-          const user = await fetchProfile();
+          const user = await fetchProfile(session.accessToken);
           set({ user, status: 'authenticated' });
         } catch {
           set({ status: 'idle', session: null, user: null });
@@ -119,7 +119,7 @@ export const useAuthStore = create<AuthState>()(
           let attempts = 0;
           while (attempts < 5) {
             try {
-              const user = await fetchProfile();
+              const user = await fetchProfile(session.accessToken);
               set({ user, status: 'authenticated' });
               return;
             } catch {
@@ -141,8 +141,10 @@ export const useAuthStore = create<AuthState>()(
       },
 
       fetchUser: async () => {
+        const { session } = get();
+        if (!session?.accessToken) return;
         try {
-          const user = await fetchProfile();
+          const user = await fetchProfile(session.accessToken);
           set({ user });
         } catch (error) {
           console.error('Fetch user failed:', error);

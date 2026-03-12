@@ -1,7 +1,8 @@
-import { apiClient } from '@/lib/api/client';
-
 const SSO_BASE_URL = process.env.NEXT_PUBLIC_SSO_URL || 'https://sso.codevertexitsolutions.com';
 const SSO_CLIENT_ID = process.env.NEXT_PUBLIC_SSO_CLIENT_ID || 'treasury-ui';
+
+/** SSO auth/me URL — profile must be fetched from auth-api (SSO), not from treasury-api. */
+export const SSO_ME_URL = `${SSO_BASE_URL}/api/v1/auth/me`;
 
 export interface AuthorizeParams {
   codeChallenge: string;
@@ -65,6 +66,17 @@ export async function exchangeCodeForTokens(params: TokenExchangeParams) {
   return response.json();
 }
 
-export async function fetchProfile() {
-  return apiClient.get<any>('auth/me');
+/**
+ * Fetch current user profile (roles, permissions) from SSO auth-api.
+ * Must call SSO, not treasury-api — treasury-api does not expose /auth/me.
+ */
+export async function fetchProfile(accessToken: string): Promise<any> {
+  const res = await fetch(SSO_ME_URL, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error_description || err.error || `Profile failed: ${res.status}`);
+  }
+  return res.json();
 }

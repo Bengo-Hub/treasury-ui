@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api/client';
+import { useAuthStore } from '@/store/auth';
+import { SSO_ME_URL } from '@/lib/auth/api';
 
 /** Auth-api GET /me response: user profile with roles and permissions (source of truth for RBAC). */
 export interface MeResponse {
@@ -18,11 +19,20 @@ const ME_QUERY_KEY = ['auth', 'me'] as const;
 const ME_STALE_MS = 5 * 60 * 1000; // 5 min TTL
 
 async function fetchMe(): Promise<MeResponse> {
-  const data = await apiClient.get<MeResponse>('auth/me');
+  const token = useAuthStore.getState().session?.accessToken;
+  if (!token) throw new Error('No session');
+  const res = await fetch(SSO_ME_URL, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error_description || err.error || `Me failed: ${res.status}`);
+  }
+  const data = await res.json();
   return {
     ...data,
-    roles: Array.isArray((data as any).roles) ? (data as any).roles : [],
-    permissions: Array.isArray((data as any).permissions) ? (data as any).permissions : [],
+    roles: Array.isArray(data.roles) ? data.roles : [],
+    permissions: Array.isArray(data.permissions) ? data.permissions : [],
   };
 }
 

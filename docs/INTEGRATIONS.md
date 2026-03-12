@@ -21,7 +21,7 @@ Treasury UI is the central financial portal. It integrates with:
 
 - **Login**: Redirect to auth-ui (accounts.codevertexitsolutions.com) with client_id, redirect_uri, PKCE.
 - **Callback**: `/[orgSlug]/auth/callback` exchanges code for tokens; store in Zustand; redirect to dashboard.
-- **Profile**: GET /api/v1/auth/me (Bearer token) for roles and permissions; use for sidebar (platform section for super_admin).
+- **Profile**: Call **SSO (auth-api)** `GET /api/v1/auth/me` with Bearer token — not treasury-api. Implemented in `lib/auth/api.ts` (`fetchProfile(accessToken)`) and `hooks/useMe.ts` (TanStack Query). Use for sidebar (platform section for super_admin).
 - **Logout**: Clear local state; redirect to auth logout or landing.
 
 ---
