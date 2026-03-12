@@ -1,10 +1,11 @@
 import { apiClient } from '@/lib/api/client';
 import { buildAuthorizeUrl, buildLogoutUrl, exchangeCodeForTokens, fetchProfile } from '@/lib/auth/api';
 import {
-    consumeVerifier,
     generateCodeChallenge,
     generateCodeVerifier,
     generateState,
+    getVerifier,
+    removeVerifier,
     storeState,
     storeVerifier
 } from '@/lib/auth/pkce';
@@ -94,7 +95,7 @@ export const useAuthStore = create<AuthState>()(
 
       handleSSOCallback: async (orgSlug: string, code: string, callbackUrl: string) => {
         set({ status: 'syncing', error: null });
-        const verifier = consumeVerifier();
+        const verifier = getVerifier();
 
         if (!verifier) {
           set({ status: 'error', error: 'Session expired' });
@@ -108,6 +109,7 @@ export const useAuthStore = create<AuthState>()(
             redirectUri: callbackUrl,
           });
 
+          removeVerifier();
           const session: Session = {
             accessToken: tokens.access_token,
             refreshToken: tokens.refresh_token || '',

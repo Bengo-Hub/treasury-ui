@@ -2,7 +2,10 @@
 
 import { useAuthStore } from '@/store/auth';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useRef } from 'react';
+import { Suspense, useEffect } from 'react';
+
+// Module-level guard so callback runs only once (avoids React Strict Mode double-mount consuming PKCE verifier twice)
+let callbackInvoked = false;
 
 function AuthCallbackContent() {
   const router = useRouter();
@@ -12,14 +15,12 @@ function AuthCallbackContent() {
   const code = searchParams?.get('code');
   const error = searchParams?.get('error');
   const { handleSSOCallback, status, error: authError } = useAuthStore();
-  const hasStarted = useRef(false);
 
   useEffect(() => {
-    if (code && orgSlug && !hasStarted.current) {
-      hasStarted.current = true;
-      const callbackUrl = `${window.location.origin}/${orgSlug}/auth/callback`;
-      handleSSOCallback(orgSlug, code, callbackUrl);
-    }
+    if (!code || !orgSlug || callbackInvoked) return;
+    callbackInvoked = true;
+    const callbackUrl = `${window.location.origin}/${orgSlug}/auth/callback`;
+    handleSSOCallback(orgSlug, code, callbackUrl);
   }, [code, orgSlug, handleSSOCallback]);
 
   useEffect(() => {

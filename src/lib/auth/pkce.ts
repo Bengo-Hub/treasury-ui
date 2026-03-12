@@ -28,6 +28,14 @@ export function storeVerifier(verifier: string) {
   sessionStorage.setItem('pkce_verifier', verifier);
 }
 
+export function getVerifier(): string | null {
+  return sessionStorage.getItem('pkce_verifier');
+}
+
+export function removeVerifier(): void {
+  sessionStorage.removeItem('pkce_verifier');
+}
+
 export function consumeVerifier(): string | null {
   const v = sessionStorage.getItem('pkce_verifier');
   sessionStorage.removeItem('pkce_verifier');
