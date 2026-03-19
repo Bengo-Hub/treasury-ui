@@ -2,9 +2,13 @@ import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexitsolutions.com';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 class ApiClient {
   private instance: AxiosInstance;
   private accessToken: string | null = null;
+  private tenantId: string | null = null;
+  private tenantSlug: string | null = null;
 
   constructor() {
     this.instance = axios.create({
@@ -23,8 +27,19 @@ class ApiClient {
     if (this.accessToken) {
       config.headers.Authorization = `Bearer ${this.accessToken}`;
     }
+    if (this.tenantSlug) {
+      config.headers['X-Tenant-Slug'] = this.tenantSlug;
+    }
+    if (this.tenantId && UUID_REGEX.test(this.tenantId)) {
+      config.headers['X-Tenant-ID'] = this.tenantId;
+    }
     return config;
   };
+
+  public setTenantContext(tenantId: string | null, tenantSlug: string | null) {
+    this.tenantId = tenantId;
+    this.tenantSlug = tenantSlug;
+  }
 
   private handleResponse = (response: AxiosResponse) => response;
 

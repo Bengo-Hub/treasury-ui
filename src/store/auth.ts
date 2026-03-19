@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 import { buildAuthorizeUrl, buildLogoutUrl, exchangeCodeForTokens, fetchProfile } from '@/lib/auth/api';
+import { checkSubscription } from '@/lib/auth/subscription';
 import {
     generateCodeChallenge,
     generateCodeVerifier,
@@ -18,6 +19,8 @@ interface UserProfile {
   fullName: string;
   roles: string[];
   organizationId: string;
+  tenantId: string;
+  tenantSlug: string;
 }
 
 interface Session {
@@ -27,7 +30,7 @@ interface Session {
 }
 
 interface AuthState {
-  status: 'idle' | 'loading' | 'authenticated' | 'error' | 'syncing';
+  status: 'idle' | 'loading' | 'authenticated' | 'error' | 'syncing' | 'subscription_required';
   user: UserProfile | null;
   session: Session | null;
   error: string | null;
@@ -59,6 +62,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const user = await fetchProfile(session.accessToken);
+          apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
           set({ user, status: 'authenticated' });
         } catch {
           set({ status: 'idle', session: null, user: null });
@@ -123,6 +127,14 @@ export const useAuthStore = create<AuthState>()(
           while (attempts < 5) {
             try {
               const user = await fetchProfile(session.accessToken);
+              if (user.tenantSlug !== 'codevertex' && user.tenantId) {
+                const active = await checkSubscription(user.tenantId, user.tenantSlug ?? '', session.accessToken);
+                if (!active) {
+                  set({ status: 'subscription_required' });
+                  return;
+                }
+              }
+              apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
               set({ user, status: 'authenticated' });
               return;
             } catch {
@@ -148,6 +160,7 @@ export const useAuthStore = create<AuthState>()(
         if (!session?.accessToken) return;
         try {
           const user = await fetchProfile(session.accessToken);
+          apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
           set({ user });
         } catch (error) {
           console.error('Fetch user failed:', error);

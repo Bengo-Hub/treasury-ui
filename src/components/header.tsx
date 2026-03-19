@@ -34,14 +34,14 @@ export function Header({ onMenuClick }: HeaderProps) {
   return (
     <header className="h-20 border-b border-slate-200 dark:border-white/5 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md sticky top-0 z-30 px-4 sm:px-8 flex items-center justify-between">
       <div className="flex items-center gap-4 flex-1">
-        <button type="button" onClick={onMenuClick} className="lg:hidden p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors" aria-label="Open menu">
+        <button type="button" onClick={onMenuClick} className="md:hidden p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors" aria-label="Open menu">
           <Menu className="h-5 w-5 text-slate-500" />
         </button>
         <div className="flex items-center gap-6">
             <h1 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase truncate max-w-[150px] sm:max-w-none">
                 {getServiceTitle('Treasury')}
             </h1>
-            <div className="hidden lg:flex relative w-80 max-w-full group ml-4">
+            <div className="hidden md:flex relative w-80 max-w-full group ml-4">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
               <input
                 placeholder="Search transactions, accounts..."

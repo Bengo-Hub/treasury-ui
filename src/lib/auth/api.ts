@@ -72,7 +72,15 @@ export async function exchangeCodeForTokens(params: TokenExchangeParams) {
  * Fetch current user profile (roles, permissions) from SSO auth-api.
  * Must call SSO, not treasury-api — treasury-api does not expose /auth/me.
  */
-export async function fetchProfile(accessToken: string): Promise<any> {
+export async function fetchProfile(accessToken: string): Promise<{
+  id: string;
+  email: string;
+  fullName: string;
+  roles: string[];
+  organizationId: string;
+  tenantId: string;
+  tenantSlug: string;
+}> {
   const res = await fetch(SSO_ME_URL, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -80,5 +88,14 @@ export async function fetchProfile(accessToken: string): Promise<any> {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error_description || err.error || `Profile failed: ${res.status}`);
   }
-  return res.json();
+  const data = await res.json();
+  return {
+    id: data.id ?? '',
+    email: data.email ?? '',
+    fullName: data.profile?.name ?? data.full_name ?? data.email ?? '',
+    roles: data.roles ?? [],
+    organizationId: data.tenant_id ?? data.primary_tenant ?? '',
+    tenantId: data.tenant_id ?? data.primary_tenant ?? '',
+    tenantSlug: data.tenant_slug ?? data.tenant?.slug ?? '',
+  };
 }
