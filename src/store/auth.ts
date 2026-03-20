@@ -21,6 +21,7 @@ interface UserProfile {
   organizationId: string;
   tenantId: string;
   tenantSlug: string;
+  isPlatformOwner?: boolean;
 }
 
 interface Session {
@@ -63,6 +64,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const user = await fetchProfile(session.accessToken);
           apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
+          apiClient.setPlatformOwner(user.isPlatformOwner || user.tenantSlug === 'codevertex');
           set({ user, status: 'authenticated' });
         } catch {
           set({ status: 'idle', session: null, user: null });
@@ -135,6 +137,7 @@ export const useAuthStore = create<AuthState>()(
                 }
               }
               apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
+          apiClient.setPlatformOwner(user.isPlatformOwner || user.tenantSlug === 'codevertex');
               set({ user, status: 'authenticated' });
               return;
             } catch {
@@ -161,6 +164,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const user = await fetchProfile(session.accessToken);
           apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
+          apiClient.setPlatformOwner(user.isPlatformOwner || user.tenantSlug === 'codevertex');
           set({ user });
         } catch (error) {
           console.error('Fetch user failed:', error);

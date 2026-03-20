@@ -9,6 +9,7 @@ class ApiClient {
   private accessToken: string | null = null;
   private tenantId: string | null = null;
   private tenantSlug: string | null = null;
+  private platformOwner = false;
 
   constructor() {
     this.instance = axios.create({
@@ -27,11 +28,15 @@ class ApiClient {
     if (this.accessToken) {
       config.headers.Authorization = `Bearer ${this.accessToken}`;
     }
-    if (this.tenantSlug) {
-      config.headers['X-Tenant-Slug'] = this.tenantSlug;
-    }
-    if (this.tenantId && UUID_REGEX.test(this.tenantId)) {
-      config.headers['X-Tenant-ID'] = this.tenantId;
+    // Platform owners have global access — skip tenant headers so backend
+    // does not filter by tenant. Scope is resolved from JWT claims instead.
+    if (!this.platformOwner) {
+      if (this.tenantSlug) {
+        config.headers['X-Tenant-Slug'] = this.tenantSlug;
+      }
+      if (this.tenantId && UUID_REGEX.test(this.tenantId)) {
+        config.headers['X-Tenant-ID'] = this.tenantId;
+      }
     }
     return config;
   };
@@ -39,6 +44,10 @@ class ApiClient {
   public setTenantContext(tenantId: string | null, tenantSlug: string | null) {
     this.tenantId = tenantId;
     this.tenantSlug = tenantSlug;
+  }
+
+  public setPlatformOwner(isPlatformOwner: boolean) {
+    this.platformOwner = isPlatformOwner;
   }
 
   private handleResponse = (response: AxiosResponse) => response;
