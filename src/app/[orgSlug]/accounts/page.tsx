@@ -15,6 +15,7 @@ import {
 import { useState } from 'react';
 
 interface Account {
+  id: string;
   code: string;
   name: string;
   type: 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
@@ -36,7 +37,7 @@ const typeColors: Record<string, string> = {
 export default function AccountsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const tenantID = useAuthStore((s) => s.user?.tenant_id ?? '');
+  const tenantID = useAuthStore((s) => s.user?.tenantId ?? '');
 
   const { data: accountsData, isLoading } = useQuery({
     queryKey: ['ledger-accounts', tenantID],

@@ -80,6 +80,7 @@ export async function fetchProfile(accessToken: string): Promise<{
   organizationId: string;
   tenantId: string;
   tenantSlug: string;
+  isPlatformOwner: boolean;
 }> {
   const res = await fetch(SSO_ME_URL, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -89,6 +90,7 @@ export async function fetchProfile(accessToken: string): Promise<{
     throw new Error(err.error_description || err.error || `Profile failed: ${res.status}`);
   }
   const data = await res.json();
+  const slug = data.tenant_slug ?? data.tenant?.slug ?? '';
   return {
     id: data.id ?? '',
     email: data.email ?? '',
@@ -96,6 +98,7 @@ export async function fetchProfile(accessToken: string): Promise<{
     roles: data.roles ?? [],
     organizationId: data.tenant_id ?? data.primary_tenant ?? '',
     tenantId: data.tenant_id ?? data.primary_tenant ?? '',
-    tenantSlug: data.tenant_slug ?? data.tenant?.slug ?? '',
+    tenantSlug: slug,
+    isPlatformOwner: data.is_platform_owner === true || slug === 'codevertex',
   };
 }
