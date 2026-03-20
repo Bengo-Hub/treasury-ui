@@ -2,34 +2,28 @@
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api/client';
+import { useAuthStore } from '@/store/auth';
+import { useQuery } from '@tanstack/react-query';
 import {
   ArrowUpRight,
   Landmark,
+  Loader2,
   Plus,
   Search
 } from 'lucide-react';
 import { useState } from 'react';
 
 interface Account {
-  id: string;
   code: string;
   name: string;
   type: 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
   balance: string;
   currency: string;
-  status: 'active' | 'inactive';
+  category: string;
+  allowPostings: boolean;
+  status: string;
 }
-
-const mockAccounts: Account[] = [
-  { id: '1', code: '1000', name: 'Cash and Cash Equivalents', type: 'asset', balance: '2,450,000', currency: 'KES', status: 'active' },
-  { id: '2', code: '1100', name: 'M-Pesa Float', type: 'asset', balance: '850,000', currency: 'KES', status: 'active' },
-  { id: '3', code: '1200', name: 'Stripe Holding', type: 'asset', balance: '1,240,000', currency: 'KES', status: 'active' },
-  { id: '4', code: '2000', name: 'Accounts Payable', type: 'liability', balance: '342,100', currency: 'KES', status: 'active' },
-  { id: '5', code: '2100', name: 'Pending Settlements', type: 'liability', balance: '580,000', currency: 'KES', status: 'active' },
-  { id: '6', code: '4000', name: 'Transaction Revenue', type: 'revenue', balance: '2,847,500', currency: 'KES', status: 'active' },
-  { id: '7', code: '4100', name: 'Platform Fee Income', type: 'revenue', balance: '96,826', currency: 'KES', status: 'active' },
-  { id: '8', code: '5000', name: 'Gateway Processing Fees', type: 'expense', balance: '78,200', currency: 'KES', status: 'active' },
-];
 
 const typeColors: Record<string, string> = {
   asset: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
@@ -42,8 +36,18 @@ const typeColors: Record<string, string> = {
 export default function AccountsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const tenantID = useAuthStore((s) => s.user?.tenant_id ?? '');
 
-  const filtered = mockAccounts.filter((acc) => {
+  const { data: accountsData, isLoading } = useQuery({
+    queryKey: ['ledger-accounts', tenantID],
+    queryFn: () => apiClient.get<{ accounts: Account[]; total: number }>(`/api/v1/${tenantID}/ledger/chart-of-accounts`),
+    enabled: !!tenantID,
+    staleTime: 5 * 60_000,
+  });
+
+  const accounts = accountsData?.accounts ?? [];
+
+  const filtered = accounts.filter((acc) => {
     const matchesSearch = acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       acc.code.includes(searchQuery);
     const matchesType = typeFilter === 'all' || acc.type === typeFilter;
