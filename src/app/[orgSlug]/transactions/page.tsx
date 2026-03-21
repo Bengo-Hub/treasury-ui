@@ -3,6 +3,7 @@
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useTransactions } from '@/hooks/use-analytics';
 import type { TransactionItem } from '@/lib/api/analytics';
+import { Pagination } from '@/components/ui/pagination';
 import { cn } from '@/lib/utils';
 import {
     ArrowUpRight,
@@ -14,6 +15,8 @@ import {
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
+
+const ITEMS_PER_PAGE = 20;
 
 function defaultDateRange(): { from: string; to: string } {
   const to = new Date();
@@ -28,6 +31,7 @@ export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
   const dateRange = useMemo(() => defaultDateRange(), []);
 
   const queryParams = useMemo(() => ({
@@ -49,6 +53,12 @@ export default function TransactionsPage() {
         txn.source_service?.toLowerCase().includes(q)
     );
   }, [list, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginatedItems = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
+  // Reset to page 1 when filters change
+  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, typeFilter]);
 
   const statusOptions = ['all', 'succeeded', 'pending', 'processing', 'failed', 'cancelled'];
   const methodOptions = ['all', 'mpesa', 'card', 'cash', 'bank_transfer'];
@@ -137,7 +147,7 @@ export default function TransactionsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filtered.map((txn: TransactionItem) => (
+                  {paginatedItems.map((txn: TransactionItem) => (
                     <tr key={txn.id} className="hover:bg-accent/5 transition-colors cursor-pointer">
                       <td className="px-6 py-4 font-mono text-xs font-bold">{txn.reference_id}</td>
                       <td className="px-6 py-4">
@@ -164,6 +174,9 @@ export default function TransactionsPage() {
               <div className="p-12 text-center text-muted-foreground">No transactions match your filters.</div>
             )}
           </div>
+          {!isLoading && filtered.length > 0 && (
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+          )}
         </CardContent>
       </Card>
     </div>
