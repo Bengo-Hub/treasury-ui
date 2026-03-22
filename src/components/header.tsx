@@ -32,74 +32,77 @@ export function Header({ onMenuClick }: HeaderProps) {
   const role = (user as any)?.roles?.[0] || (user as any)?.role;
 
   return (
-    <header className="h-20 border-b border-slate-200 dark:border-white/5 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md sticky top-0 z-30 px-4 sm:px-8 flex items-center justify-between">
-      <div className="flex items-center gap-4 flex-1">
-        <button type="button" onClick={onMenuClick} className="md:hidden p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors" aria-label="Open menu">
-          <Menu className="h-5 w-5 text-slate-500" />
+    <header className="sticky top-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between">
+      <div className="flex items-center gap-3 flex-1">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="md:hidden inline-flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu className="h-5 w-5" />
         </button>
-        <div className="flex items-center gap-6">
-            <h1 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase truncate max-w-[150px] sm:max-w-none">
-                {getServiceTitle('Treasury')}
-            </h1>
-            <div className="hidden md:flex relative w-80 max-w-full group ml-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-              <input
-                placeholder="Search transactions, accounts..."
-                className="w-full h-10 bg-slate-50 dark:bg-white/5 border-none rounded-xl py-1.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary/30 transition-all outline-none"
-              />
-            </div>
+        <div className="flex items-center gap-4">
+          <h1 className="text-base sm:text-lg font-bold text-foreground truncate max-w-40 sm:max-w-none">
+            {getServiceTitle('Treasury')}
+          </h1>
+          <div className="hidden md:flex relative w-72 max-w-full group ml-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <input
+              placeholder="Search transactions, accounts..."
+              className="w-full h-10 bg-muted/30 border border-border rounded-full py-2 pl-10 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all"
+            />
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-3">
-        <button className="relative group p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-all">
-          <Bell className="h-5 w-5 text-slate-500 group-hover:text-primary transition-colors" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-slate-950"></span>
+      <div className="flex items-center gap-1 sm:gap-2">
+        <button className="relative inline-flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+          <Bell className="h-5 w-5" />
+          <span className="absolute top-2 right-2 w-2 h-2 bg-destructive rounded-full border-2 border-background" />
         </button>
 
         <ThemeToggle />
 
-        <div className="h-8 w-[1px] bg-slate-200 dark:bg-white/10 mx-1 hidden sm:block"></div>
+        <div className="h-6 w-px bg-border mx-1 hidden sm:block" />
 
         {isAuthenticated && (
           <div className="relative" ref={profileRef}>
             <button
               type="button"
               onClick={() => setProfileOpen((v) => !v)}
-              className="flex items-center gap-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-white/5 p-1 transition-all group"
+              className="flex items-center gap-2 rounded-full hover:bg-muted p-1 pr-2 transition-colors"
               aria-expanded={profileOpen}
               aria-haspopup="true"
               aria-label="Open profile menu"
             >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-400 flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-primary/20 transition-transform group-hover:scale-105">
-                {name[0]?.toUpperCase() ?? <User className="h-5 w-5" />}
+              <div className="size-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shadow-sm">
+                {name[0]?.toUpperCase() ?? <User className="h-4 w-4" />}
               </div>
-              <div className="hidden md:block text-left mr-1">
-                <p className="text-xs font-black text-slate-900 dark:text-white truncate max-w-[120px]">{name}</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{role || 'Accountant'}</p>
+              <div className="hidden md:block text-left">
+                <p className="text-xs font-semibold text-foreground truncate max-w-30">{name}</p>
+                <p className="text-[10px] font-medium text-muted-foreground capitalize">{role || 'Accountant'}</p>
               </div>
-              <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-300 ${profileOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 hidden sm:block ${profileOpen ? 'rotate-180' : ''}`} />
             </button>
             {profileOpen && (
               <>
                 <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setProfileOpen(false)} />
-                <div className="absolute right-0 top-full mt-2 z-50 w-64 rounded-[1.5rem] p-3 shadow-2xl border border-slate-100 dark:border-white/5 bg-white dark:bg-slate-900 overflow-hidden">
-                  <div className="mb-2 px-3 py-2">
-                    <p className="text-sm font-black text-slate-900 dark:text-white">{name}</p>
-                    <p className="text-[10px] text-slate-400 truncate font-bold uppercase tracking-widest mt-0.5">{role || 'Accountant'}</p>
+                <div className="absolute right-0 top-full mt-2 z-50 w-56 rounded-2xl p-2 shadow-xl border border-border bg-popover overflow-hidden">
+                  <div className="mb-1 px-3 py-2">
+                    <p className="text-sm font-bold text-foreground">{name}</p>
+                    <p className="text-xs text-muted-foreground capitalize mt-0.5">{role || 'Accountant'}</p>
                   </div>
-                  
-                  <div className="h-[1px] bg-slate-100 dark:bg-white/5 my-2 mx-1" />
 
-                  <div className="grid gap-1">
+                  <div className="h-px bg-border my-1" />
+
+                  <div className="grid gap-0.5">
                     <Link
                       href={`/${orgSlug}/settings`}
                       onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 transition-all group"
+                      className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/10 flex items-center justify-center group-hover:text-primary transition-colors">
-                        <Settings className="h-4 w-4" />
-                      </div>
+                      <Settings className="h-4 w-4 text-muted-foreground" />
                       Settings
                     </Link>
                     <button
@@ -108,12 +111,10 @@ export function Header({ onMenuClick }: HeaderProps) {
                         setProfileOpen(false);
                         void logout();
                       }}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all group"
+                      className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center transition-colors">
-                        <LogOut className="h-4 w-4" />
-                      </div>
-                      Logout
+                      <LogOut className="h-4 w-4" />
+                      Sign out
                     </button>
                   </div>
                 </div>

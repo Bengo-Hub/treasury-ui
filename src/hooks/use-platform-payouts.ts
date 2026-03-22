@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient as api } from '@/lib/api/client';
 
+const BASE = '/api/v1';
+
 export interface PaystackBank {
   name: string;
   slug: string;
@@ -26,8 +28,7 @@ export function usePlatformBanks(country = 'kenya') {
   return useQuery({
     queryKey: ['platform_banks', country],
     queryFn: async () => {
-      const data = await api.get<{ banks: PaystackBank[]; country: string }>(`/platform/payouts/banks?country=${country}`);
-      return data;
+      return api.get<{ banks: PaystackBank[]; country: string }>(`${BASE}/platform/payouts/banks`, { country });
     },
   });
 }
@@ -36,8 +37,7 @@ export function usePlatformBalance() {
   return useQuery({
     queryKey: ['platform_balance'],
     queryFn: async () => {
-      const data = await api.get<PlatformBalance[]>('/platform/balance');
-      return data;
+      return api.get<PlatformBalance[]>(`${BASE}/platform/balance`);
     },
   });
 }
@@ -54,8 +54,7 @@ export function useCreatePlatformRecipient() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (req: CreateRecipientRequest) => {
-      const data = await api.post('/platform/payouts/recipients', req);
-      return data;
+      return api.post(`${BASE}/platform/payouts/recipients`, req);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['platform_recipients'] });
