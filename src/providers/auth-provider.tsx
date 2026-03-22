@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/auth';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useEffect } from 'react';
 
-/** Uses TanStack Query (useMe) for auth GET /me with TTL; redirects unauthenticated to SSO, 401 to SSO, and platform routes without super_admin to unauthorized. */
+/** Uses TanStack Query (useMe) for auth GET /me with TTL; redirects unauthenticated to SSO, 401 to SSO, and platform routes without superuser/platform-owner to unauthorized. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { status, initialize } = useAuthStore();
   const session = useAuthStore((s) => s.session);
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const isPlatform = pathname?.includes('/platform');
-    const hasAccess = me?.roles?.includes('super_admin');
+    const hasAccess = me?.isPlatformOwner || me?.isSuperUser || me?.roles?.includes('superuser');
     if (status === 'authenticated' && me && isPlatform && !hasAccess) {
       router.replace(orgSlug ? `/${orgSlug}/unauthorized` : '/');
     }

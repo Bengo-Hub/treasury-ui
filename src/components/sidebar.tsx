@@ -32,7 +32,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const { tenant, getServiceTitle } = useBranding();
-  const isPlatformOwner = orgSlug === 'codevertex';
+  const isPlatformOwner = user?.isPlatformOwner || user?.isSuperUser || orgSlug === 'codevertex';
 
   const userName = (() => {
     if (!user) return 'Account';

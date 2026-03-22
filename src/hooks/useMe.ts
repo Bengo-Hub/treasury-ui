@@ -12,6 +12,10 @@ export interface MeResponse {
   organizationId?: string;
   roles: string[];
   permissions: string[];
+  isPlatformOwner: boolean;
+  isSuperUser: boolean;
+  tenantSlug?: string;
+  tenantId?: string;
   [key: string]: unknown;
 }
 
@@ -29,10 +33,16 @@ async function fetchMe(): Promise<MeResponse> {
     throw new Error(err.error_description || err.error || `Me failed: ${res.status}`);
   }
   const data = await res.json();
+  const roles: string[] = Array.isArray(data.roles) ? data.roles : [];
+  const slug = data.tenant_slug ?? data.tenant?.slug ?? '';
   return {
     ...data,
-    roles: Array.isArray(data.roles) ? data.roles : [],
+    roles,
     permissions: Array.isArray(data.permissions) ? data.permissions : [],
+    isPlatformOwner: data.is_platform_owner === true || slug === 'codevertex',
+    isSuperUser: roles.includes('superuser'),
+    tenantSlug: slug,
+    tenantId: data.tenant_id ?? data.primary_tenant ?? '',
   };
 }
 
@@ -62,5 +72,10 @@ export function useHasPermission(permission: string): boolean {
 }
 
 export function useIsSuperAdmin(): boolean {
-  return useHasRole('super_admin');
+  return useHasRole('superuser');
+}
+
+export function useIsPlatformOwner(): boolean {
+  const { data } = useMe();
+  return data?.isPlatformOwner ?? false;
 }

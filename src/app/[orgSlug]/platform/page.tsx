@@ -50,7 +50,7 @@ export default function PlatformPage() {
   const [editingGateway, setEditingGateway] = useState<GatewayConfig | null>(null);
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
 
-  const isPlatformOwner = orgSlug === 'codevertex';
+  const isPlatformOwner = user?.isPlatformOwner || user?.isSuperUser || orgSlug === 'codevertex';
   const { data: gatewaysData, isLoading: loading, error: queryError, refetch: fetchGateways } = usePlatformGateways(!!isPlatformOwner);
   const gateways = gatewaysData?.gateways ?? [];
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load gateways') : null;
@@ -60,12 +60,12 @@ export default function PlatformPage() {
   const updateGateway = useUpdatePlatformGateway();
 
   useEffect(() => {
-    if (user && orgSlug !== 'codevertex') {
+    if (user && !isPlatformOwner) {
       router.replace(`/${orgSlug}`);
     }
-  }, [user, orgSlug, router]);
+  }, [user, isPlatformOwner, orgSlug, router]);
 
-  if (orgSlug !== 'codevertex') {
+  if (!isPlatformOwner) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center space-y-3">
