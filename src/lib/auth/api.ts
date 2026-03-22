@@ -77,10 +77,12 @@ export async function fetchProfile(accessToken: string): Promise<{
   email: string;
   fullName: string;
   roles: string[];
+  permissions: string[];
   organizationId: string;
   tenantId: string;
   tenantSlug: string;
   isPlatformOwner: boolean;
+  isSuperUser: boolean;
 }> {
   const res = await fetch(SSO_ME_URL, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -91,14 +93,17 @@ export async function fetchProfile(accessToken: string): Promise<{
   }
   const data = await res.json();
   const slug = data.tenant_slug ?? data.tenant?.slug ?? '';
+  const roles: string[] = data.roles ?? [];
   return {
     id: data.id ?? '',
     email: data.email ?? '',
     fullName: data.profile?.name ?? data.full_name ?? data.email ?? '',
-    roles: data.roles ?? [],
+    roles,
+    permissions: data.permissions ?? [],
     organizationId: data.tenant_id ?? data.primary_tenant ?? '',
     tenantId: data.tenant_id ?? data.primary_tenant ?? '',
     tenantSlug: slug,
     isPlatformOwner: data.is_platform_owner === true || slug === 'codevertex',
+    isSuperUser: roles.includes('superuser'),
   };
 }

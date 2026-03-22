@@ -18,10 +18,12 @@ interface UserProfile {
   email: string;
   fullName: string;
   roles: string[];
+  permissions: string[];
   organizationId: string;
   tenantId: string;
   tenantSlug: string;
   isPlatformOwner?: boolean;
+  isSuperUser?: boolean;
 }
 
 interface Session {
