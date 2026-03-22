@@ -2,6 +2,7 @@
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { usePayoutHistory } from '@/hooks/use-analytics';
+import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import type { PayoutRecord } from '@/lib/api/analytics';
 import { cn } from '@/lib/utils';
 import {
@@ -13,15 +14,13 @@ import {
     Loader2,
     Wallet
 } from 'lucide-react';
-import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 export default function SettlementsPage() {
-  const params = useParams();
-  const orgSlug = params?.orgSlug as string;
+  const { tenantPathId } = useResolvedTenant();
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const { data, isLoading, error } = usePayoutHistory(orgSlug, !!orgSlug);
+  const { data, isLoading, error } = usePayoutHistory(tenantPathId, !!tenantPathId);
   const payouts = data?.payouts ?? [];
 
   const filtered = useMemo(() => {

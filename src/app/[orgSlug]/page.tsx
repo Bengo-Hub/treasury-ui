@@ -2,6 +2,7 @@
 
 import { Badge, Card, CardContent } from '@/components/ui/base';
 import { useAnalyticsSummary, useTransactions } from '@/hooks/use-analytics';
+import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
     ArrowUpRight,
     Banknote,
@@ -10,7 +11,6 @@ import {
     Loader2,
     Wallet
 } from 'lucide-react';
-import { useParams } from 'next/navigation';
 
 function formatDateRange(from: Date, to: Date): { from: string; to: string } {
   return {
@@ -20,15 +20,15 @@ function formatDateRange(from: Date, to: Date): { from: string; to: string } {
 }
 
 export default function DashboardPage() {
-  const params = useParams();
-  const orgSlug = params?.orgSlug as string;
+  const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
   const now = new Date();
   const last30 = new Date(now);
   last30.setDate(last30.getDate() - 30);
   const range = formatDateRange(last30, now);
+  const extra = isPlatformOwner && tenantQueryParam ? { tenantId: tenantQueryParam } : {};
 
-  const { data: summary, isLoading: summaryLoading, error: summaryError } = useAnalyticsSummary(orgSlug, range);
-  const { data: txData, isLoading: txLoading, error: txError } = useTransactions(orgSlug, { ...range }, !!orgSlug);
+  const { data: summary, isLoading: summaryLoading, error: summaryError } = useAnalyticsSummary(tenantPathId, { ...range, ...extra });
+  const { data: txData, isLoading: txLoading, error: txError } = useTransactions(tenantPathId, { ...range, ...extra }, !!tenantPathId);
 
   const recentTransactions = txData?.transactions?.slice(0, 6) ?? [];
   const currency = summary?.currency ?? 'KES';

@@ -46,13 +46,13 @@ export interface TransactionsParams extends AnalyticsSummaryParams {
   source_service?: string;
 }
 
-/** Get analytics summary for a tenant (revenue, counts). */
-export function getAnalyticsSummary(tenantIdOrSlug: string, params?: AnalyticsSummaryParams): Promise<AnalyticsSummary> {
+/** Get analytics summary for a tenant (revenue, counts). Platform owners can pass tenantId override. */
+export function getAnalyticsSummary(tenantIdOrSlug: string, params?: AnalyticsSummaryParams & { tenantId?: string }): Promise<AnalyticsSummary> {
   return apiClient.get<AnalyticsSummary>(`${BASE}/${tenantIdOrSlug}/analytics/summary`, params);
 }
 
-/** Get paginated transactions with optional filters. */
-export function getTransactions(tenantIdOrSlug: string, params?: TransactionsParams): Promise<TransactionsResponse> {
+/** Get paginated transactions with optional filters. Platform owners can pass tenantId override. */
+export function getTransactions(tenantIdOrSlug: string, params?: TransactionsParams & { tenantId?: string }): Promise<TransactionsResponse> {
   return apiClient.get<TransactionsResponse>(`${BASE}/${tenantIdOrSlug}/analytics/transactions`, params);
 }
 

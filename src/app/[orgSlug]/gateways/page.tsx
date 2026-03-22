@@ -20,6 +20,7 @@ import {
   Save,
   Smartphone,
 } from 'lucide-react';
+import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -43,8 +44,10 @@ const SCHEDULE_TYPES = [
 export default function GatewaysPage() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
-  const { data: gateways = [], isLoading: loading, error: queryError } = useTenantGateways(orgSlug);
-  const { data: selectedData } = useTenantSelectedGateways(orgSlug);
+  const { tenantPathId } = useResolvedTenant();
+  const tenantSlug = tenantPathId || orgSlug;
+  const { data: gateways = [], isLoading: loading, error: queryError } = useTenantGateways(tenantSlug);
+  const { data: selectedData } = useTenantSelectedGateways(tenantSlug);
   const selected = selectedData?.selected ?? [];
   const selectedGateway = selected[0]; // primary
   const isPaystack = selectedGateway?.gateway_type === 'paystack';
@@ -54,9 +57,9 @@ export default function GatewaysPage() {
   const isSuperAdmin = user?.roles?.includes('super_admin');
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load gateways') : null;
 
-  const selectMutation = useSelectTenantGateway(orgSlug);
-  const { data: payoutConfig, isLoading: loadingPayout } = useTenantPayoutConfig(orgSlug, isPaystack);
-  const upsertPayout = useUpsertTenantPayoutConfig(orgSlug);
+  const selectMutation = useSelectTenantGateway(tenantSlug);
+  const { data: payoutConfig, isLoading: loadingPayout } = useTenantPayoutConfig(tenantSlug, isPaystack);
+  const upsertPayout = useUpsertTenantPayoutConfig(tenantSlug);
 
   const { data: mpesaConfig, isLoading: loadingMpesa } = useQuery({
     queryKey: ['mpesa-config', orgSlug],

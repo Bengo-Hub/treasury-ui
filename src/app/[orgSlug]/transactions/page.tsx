@@ -2,6 +2,7 @@
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useTransactions } from '@/hooks/use-analytics';
+import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import type { TransactionItem } from '@/lib/api/analytics';
 import { Pagination } from '@/components/ui/pagination';
 import { cn } from '@/lib/utils';
@@ -13,7 +14,6 @@ import {
     Loader2,
     Search
 } from 'lucide-react';
-import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
@@ -26,8 +26,7 @@ function defaultDateRange(): { from: string; to: string } {
 }
 
 export default function TransactionsPage() {
-  const params = useParams();
-  const orgSlug = params?.orgSlug as string;
+  const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -39,9 +38,10 @@ export default function TransactionsPage() {
     to: dateRange.to,
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     ...(typeFilter !== 'all' ? { payment_method: typeFilter } : {}),
-  }), [dateRange, statusFilter, typeFilter]);
+    ...(isPlatformOwner && tenantQueryParam ? { tenantId: tenantQueryParam } : {}),
+  }), [dateRange, statusFilter, typeFilter, isPlatformOwner, tenantQueryParam]);
 
-  const { data, isLoading, error } = useTransactions(orgSlug, queryParams, !!orgSlug);
+  const { data, isLoading, error } = useTransactions(tenantPathId, queryParams, !!tenantPathId);
   const list = data?.transactions ?? [];
 
   const filtered = useMemo(() => {

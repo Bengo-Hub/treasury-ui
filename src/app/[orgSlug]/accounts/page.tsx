@@ -1,9 +1,10 @@
 'use client';
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { TenantFilter } from '@/components/tenant-filter';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api/client';
-import { useAuthStore } from '@/store/auth';
+import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowUpRight,
@@ -37,12 +38,19 @@ const typeColors: Record<string, string> = {
 export default function AccountsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const tenantID = useAuthStore((s) => s.user?.tenantId ?? '');
+  const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
 
   const { data: accountsData, isLoading } = useQuery({
-    queryKey: ['ledger-accounts', tenantID],
-    queryFn: () => apiClient.get<{ accounts: Account[]; total: number }>(`/api/v1/${tenantID}/ledger/chart-of-accounts`),
-    enabled: !!tenantID,
+    queryKey: ['ledger-accounts', tenantPathId, tenantQueryParam],
+    queryFn: () => {
+      const params: Record<string, string> = {};
+      if (isPlatformOwner && tenantQueryParam) params.tenantId = tenantQueryParam;
+      return apiClient.get<{ accounts: Account[]; total: number }>(
+        `/api/v1/${tenantPathId}/ledger/chart-of-accounts`,
+        params,
+      );
+    },
+    enabled: !!tenantPathId,
     staleTime: 5 * 60_000,
   });
 

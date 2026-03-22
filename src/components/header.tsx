@@ -8,6 +8,7 @@ import { useRef, useState } from 'react';
 import { ThemeToggle } from './theme-toggle';
 
 import { useBranding } from '@/providers/branding-provider';
+import { TenantFilter } from './tenant-filter';
 
 function displayName(user: { fullName?: string; name?: string; email?: string } | null): string {
   if (!user) return 'Account';
@@ -54,6 +55,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             />
           </div>
         </div>
+        <TenantFilter className="hidden md:block" />
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
