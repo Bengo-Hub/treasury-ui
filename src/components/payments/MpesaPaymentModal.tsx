@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/base';
+import { sendToParent } from '@/lib/embed-messages';
 import { Banknote, Loader2, Phone } from 'lucide-react';
 import { useState } from 'react';
 import { PaymentModal } from './PaymentModal';
@@ -33,10 +34,12 @@ export function MpesaPaymentModal({
   details,
   onClose,
   onSuccess,
+  embed = false,
 }: {
   details: PaymentDetails;
   onClose: () => void;
   onSuccess?: (data: { checkout_request_id?: string }) => void;
+  embed?: boolean;
 }) {
   const [phone, setPhone] = useState(details.phone_number ?? '');
   const [loading, setLoading] = useState(false);
@@ -77,6 +80,14 @@ export function MpesaPaymentModal({
       });
       const data = await res.json().catch(() => ({}));
       if (data.checkout_request_id || data.status === 'processing') {
+        if (embed) {
+          sendToParent({ type: 'treasury:payment_initiated', intentId: details.intent_id || '', method: 'mpesa' });
+          onSuccess?.(data);
+          setError('');
+          setLoading(false);
+          onClose();
+          return;
+        }
         onSuccess?.(data);
         setError('');
         setLoading(false);
@@ -85,8 +96,10 @@ export function MpesaPaymentModal({
         return;
       }
       setError(data.message || 'Could not send M-Pesa prompt. Please try again.');
+      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: data.message || 'Could not send M-Pesa prompt' });
     } catch {
       setError('Network error. Please try again.');
+      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: 'Network error' });
     } finally {
       setLoading(false);
     }
@@ -104,14 +117,21 @@ export function MpesaPaymentModal({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success !== false) {
+        if (embed) {
+          sendToParent({ type: 'treasury:payment_confirmed', intentId: details.intent_id || '', amount: details.amount, reference: details.reference_id, channel: 'manual' });
+          onClose();
+          return;
+        }
         onClose();
         if (data.redirect_url) window.location.href = data.redirect_url;
         else if (details.redirect_url) window.location.href = details.redirect_url.startsWith('http') ? details.redirect_url : `${window.location.origin}${details.redirect_url}`;
         return;
       }
       setError(data.message || 'Could not confirm. Try again.');
+      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: data.message || 'Could not confirm' });
     } catch {
       setError('Network error. Please try again.');
+      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: 'Network error' });
     } finally {
       setManualLoading(false);
     }

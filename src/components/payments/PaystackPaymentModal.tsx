@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/base';
+import { sendToParent } from '@/lib/embed-messages';
 import { ExternalLink, Loader2, Banknote } from 'lucide-react';
 import { useState } from 'react';
 import { PaymentModal } from './PaymentModal';
@@ -34,10 +35,12 @@ export function PaystackPaymentModal({
   details,
   onClose,
   onSuccess,
+  embed = false,
 }: {
   details: PaymentDetails;
   onClose: () => void;
   onSuccess?: (data: { authorization_url?: string }) => void;
+  embed?: boolean;
 }) {
   const [email, setEmail] = useState(details.customer_email ?? '');
   const [loading, setLoading] = useState(false);
@@ -66,12 +69,14 @@ export function PaystackPaymentModal({
       });
       const data = await res.json().catch(() => ({}));
       if (data.authorization_url) {
+        if (embed) sendToParent({ type: 'treasury:payment_initiated', intentId: details.intent_id || '', method: 'paystack' });
         onSuccess?.(data);
         setAuthorizationUrl(data.authorization_url);
         setError('');
         return;
       }
       setError(data.message || 'Could not start payment. Please try again.');
+      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: data.message || 'Could not start payment' });
     } catch {
       setError('Network error. Please try again.');
     } finally {
@@ -91,14 +96,21 @@ export function PaystackPaymentModal({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success !== false)) {
+        if (embed) {
+          sendToParent({ type: 'treasury:payment_confirmed', intentId: details.intent_id || '', amount: details.amount, reference: details.reference_id, channel: 'manual' });
+          onClose();
+          return;
+        }
         onClose();
         if (data.redirect_url) window.location.href = data.redirect_url;
         else if (details.redirect_url) window.location.href = details.redirect_url.startsWith('http') ? details.redirect_url : `${window.location.origin}${details.redirect_url}`;
         return;
       }
       setError(data.message || 'Could not confirm. Try again.');
+      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: data.message || 'Could not confirm' });
     } catch {
       setError('Network error. Please try again.');
+      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: 'Network error' });
     } finally {
       setManualLoading(false);
     }

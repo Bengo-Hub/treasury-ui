@@ -7,9 +7,10 @@ import { PaystackPaymentModal } from '@/components/payments/PaystackPaymentModal
 import type { GatewayType, PaymentDetails } from '@/components/payments/types';
 import { GATEWAY_LABELS } from '@/components/payments/types';
 import { Card } from '@/components/ui/base';
+import { sendToParent } from '@/lib/embed-messages';
 import { ChevronRight, Loader2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useMemo, useState, Suspense } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
 
 const DEFAULT_GATEWAYS: GatewayType[] = ['paystack', 'mpesa', 'cod'];
 
@@ -26,6 +27,9 @@ function parseGateways(param: string | null): GatewayType[] {
 function PayPageContent() {
   const searchParams = useSearchParams();
   const [openGateway, setOpenGateway] = useState<GatewayType | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const embed = searchParams.get('embed') === 'true';
 
   const details: PaymentDetails = useMemo(() => {
     const amount = Number(searchParams.get('amount')) || 0;
@@ -57,6 +61,21 @@ function PayPageContent() {
     };
   }, [searchParams]);
 
+  // Auto-resize: notify parent of content height changes in embed mode
+  const sendResize = useCallback(() => {
+    if (embed && contentRef.current) {
+      sendToParent({ type: 'treasury:resize', height: contentRef.current.scrollHeight });
+    }
+  }, [embed]);
+
+  useEffect(() => {
+    if (!embed) return;
+    sendResize();
+    const observer = new ResizeObserver(sendResize);
+    if (contentRef.current) observer.observe(contentRef.current);
+    return () => observer.disconnect();
+  }, [embed, sendResize]);
+
   const gateways = useMemo(
     () => parseGateways(searchParams.get('gateways')),
     [searchParams],
@@ -71,7 +90,7 @@ function PayPageContent() {
   const hasIntentId = !!details.intent_id;
   if (!hasValidAmount && !hasIntentId) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+      <div className={embed ? 'p-4 bg-background' : 'min-h-screen flex items-center justify-center p-4 bg-background'}>
         <Card className="w-full max-w-md p-8 text-center">
           <h1 className="text-xl font-bold text-foreground mb-2">Invalid payment link</h1>
           <p className="text-muted-foreground text-sm">
@@ -83,7 +102,7 @@ function PayPageContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+    <div ref={contentRef} className={embed ? 'flex flex-col items-center p-4 bg-background' : 'min-h-screen flex flex-col items-center justify-center p-4 bg-background'}>
       <div className="w-full max-w-lg space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">Complete payment</h1>
@@ -148,25 +167,28 @@ function PayPageContent() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          Payment is processed securely. You will be redirected after completion.
+          {embed ? 'Payment is processed securely.' : 'Payment is processed securely. You will be redirected after completion.'}
         </p>
       </div>
 
       {openGateway === 'paystack' && (
         <PaystackPaymentModal
           details={details}
+          embed={embed}
           onClose={() => setOpenGateway(null)}
         />
       )}
       {openGateway === 'mpesa' && (
         <MpesaPaymentModal
           details={details}
+          embed={embed}
           onClose={() => setOpenGateway(null)}
         />
       )}
       {openGateway === 'cod' && (
         <CodPaymentModal
           details={details}
+          embed={embed}
           onClose={() => setOpenGateway(null)}
         />
       )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/base';
+import { sendToParent } from '@/lib/embed-messages';
 import { Banknote } from 'lucide-react';
 import { useState } from 'react';
 import { PaymentModal } from './PaymentModal';
@@ -10,10 +11,12 @@ export function CodPaymentModal({
   details,
   onClose,
   onConfirm,
+  embed = false,
 }: {
   details: PaymentDetails;
   onClose: () => void;
   onConfirm?: () => void;
+  embed?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,6 +29,7 @@ export function CodPaymentModal({
   const handleConfirm = async () => {
     setError('');
     if (!details.initiate_url) {
+      if (embed) sendToParent({ type: 'treasury:payment_confirmed', intentId: details.intent_id || '', amount: details.amount, reference: details.reference_id, channel: 'cod' });
       onConfirm?.();
       onClose();
       return;
@@ -50,14 +54,22 @@ export function CodPaymentModal({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.intent_id)) {
+        if (embed) {
+          sendToParent({ type: 'treasury:payment_confirmed', intentId: details.intent_id || '', amount: details.amount, reference: details.reference_id, channel: 'cod' });
+          onConfirm?.();
+          onClose();
+          return;
+        }
         onConfirm?.();
         onClose();
         if (data.redirect_url) window.location.href = data.redirect_url;
         return;
       }
       setError(data.message || 'Could not confirm. Please try again.');
+      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: data.message || 'Could not confirm' });
     } catch {
       setError('Network error. Please try again.');
+      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: 'Network error' });
     } finally {
       setLoading(false);
     }
