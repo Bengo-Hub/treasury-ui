@@ -42,6 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (meError && orgSlug && !pathname?.includes('/auth')) {
+      // Skip SSO redirect for subscription 403 — user is authenticated, just lacks subscription
+      const data = (meError as any)?.response?.data;
+      if (data?.code === 'subscription_inactive' || data?.upgrade === true) return;
       useAuthStore.getState().redirectToSSO(orgSlug, window.location.href);
     }
   }, [meError, orgSlug, pathname]);

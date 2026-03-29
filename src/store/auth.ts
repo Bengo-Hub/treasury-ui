@@ -1,6 +1,5 @@
 import { apiClient } from '@/lib/api/client';
 import { buildAuthorizeUrl, buildLogoutUrl, exchangeCodeForTokens, fetchProfile } from '@/lib/auth/api';
-import { checkSubscription } from '@/lib/auth/subscription';
 import {
     generateCodeChallenge,
     generateCodeVerifier,
@@ -38,6 +37,10 @@ interface AuthState {
   session: Session | null;
   error: string | null;
 
+  /** Subscription info fetched lazily after login (undefined = not started, null = loading). */
+  subscriptionInfo: Record<string, unknown> | null | undefined;
+  setSubscriptionInfo: (info: Record<string, unknown> | null) => void;
+
   initialize: () => Promise<void>;
   redirectToSSO: (orgSlug: string, returnTo?: string) => Promise<void>;
   handleSSOCallback: (orgSlug: string, code: string, callbackUrl: string) => Promise<void>;
@@ -49,6 +52,8 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       status: 'idle',
+      subscriptionInfo: undefined,
+      setSubscriptionInfo: (info: Record<string, unknown> | null) => set({ subscriptionInfo: info }),
       user: null,
       session: null,
       error: null,
@@ -131,13 +136,6 @@ export const useAuthStore = create<AuthState>()(
           while (attempts < 5) {
             try {
               const user = await fetchProfile(session.accessToken);
-              if (user.tenantSlug !== 'codevertex' && user.tenantId) {
-                const active = await checkSubscription(user.tenantId, user.tenantSlug ?? '', session.accessToken);
-                if (!active) {
-                  set({ status: 'subscription_required' });
-                  return;
-                }
-              }
               apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
           apiClient.setPlatformOwner(user.isPlatformOwner || user.tenantSlug === 'codevertex');
               set({ user, status: 'authenticated' });
