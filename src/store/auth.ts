@@ -36,6 +36,7 @@ interface AuthState {
   user: UserProfile | null;
   session: Session | null;
   error: string | null;
+  lastAuthenticatedAt: number | null;
 
   /** Subscription info fetched lazily after login (undefined = not started, null = loading). */
   subscriptionInfo: Record<string, unknown> | null | undefined;
@@ -57,6 +58,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       session: null,
       error: null,
+      lastAuthenticatedAt: null,
 
       initialize: async () => {
         const { session } = get();
@@ -72,7 +74,7 @@ export const useAuthStore = create<AuthState>()(
           const user = await fetchProfile(session.accessToken);
           apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
           apiClient.setPlatformOwner(user.isPlatformOwner || user.tenantSlug === 'codevertex');
-          set({ user, status: 'authenticated' });
+          set({ user, status: 'authenticated', lastAuthenticatedAt: Date.now() });
         } catch {
           set({ status: 'idle', session: null, user: null });
         }
@@ -138,7 +140,7 @@ export const useAuthStore = create<AuthState>()(
               const user = await fetchProfile(session.accessToken);
               apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
           apiClient.setPlatformOwner(user.isPlatformOwner || user.tenantSlug === 'codevertex');
-              set({ user, status: 'authenticated' });
+              set({ user, status: 'authenticated', lastAuthenticatedAt: Date.now() });
               return;
             } catch {
               attempts++;
@@ -146,14 +148,14 @@ export const useAuthStore = create<AuthState>()(
             }
           }
 
-          set({ status: 'authenticated' });
+          set({ status: 'authenticated', lastAuthenticatedAt: Date.now() });
         } catch {
           set({ status: 'error', error: 'Sign-in failed' });
         }
       },
 
       logout: async () => {
-        set({ status: 'idle', user: null, session: null, subscriptionInfo: undefined });
+        set({ status: 'idle', user: null, session: null, subscriptionInfo: undefined, lastAuthenticatedAt: null });
         apiClient.setAccessToken(null);
         if (typeof window !== 'undefined') {
           try { localStorage.removeItem('tenantId'); } catch { /* no-op */ }
