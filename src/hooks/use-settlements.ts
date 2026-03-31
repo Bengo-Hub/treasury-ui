@@ -2,11 +2,11 @@ import * as settlementsApi from '@/lib/api/settlements';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-export function useSettlements(tenantSlug: string, params?: settlementsApi.ListSettlementsParams) {
+export function useSettlements(tenantSlug: string, params?: settlementsApi.ListSettlementsParams, enabled = true) {
     return useQuery({
         queryKey: ['settlements', tenantSlug, params],
         queryFn: () => settlementsApi.listSettlements(tenantSlug, params),
-        enabled: !!tenantSlug,
+        enabled: !!tenantSlug && enabled,
     });
 }
 

@@ -4,6 +4,7 @@ import { useSettlements } from '@/hooks/use-settlements';
 import { Card, CardContent, Badge } from '@/components/ui/base';
 import { Loader2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { useEmbedAuth } from '../layout';
 
 function formatCurrency(amount: number, currency = 'KES') {
   try {
@@ -24,9 +25,10 @@ export default function EmbedSettlementsPage() {
   const searchParams = useSearchParams();
   const tenant = searchParams?.get('tenant') ?? '';
 
-  const { data, isLoading, isError } = useSettlements(tenant);
+  const { ready } = useEmbedAuth();
+  const { data, isLoading, isError } = useSettlements(tenant, undefined, ready);
 
-  if (isLoading) {
+  if (!ready || isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

@@ -1,9 +1,10 @@
 'use client';
 
 import { useAnalyticsSummary } from '@/hooks/use-analytics';
-import { Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Card, CardContent } from '@/components/ui/base';
 import { Loader2, TrendingUp, CreditCard, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { useEmbedAuth } from '../layout';
 
 function formatCurrency(amount: number, currency = 'KES') {
   try {
@@ -16,10 +17,12 @@ function formatCurrency(amount: number, currency = 'KES') {
 export default function EmbedDashboardPage() {
   const searchParams = useSearchParams();
   const tenant = searchParams?.get('tenant') ?? '';
+  const { ready } = useEmbedAuth();
 
-  const { data: summary, isLoading, isError } = useAnalyticsSummary(tenant, {});
+  // Wait for auth token before firing API calls
+  const { data: summary, isLoading, isError } = useAnalyticsSummary(tenant, {}, ready);
 
-  if (isLoading) {
+  if (!ready || isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

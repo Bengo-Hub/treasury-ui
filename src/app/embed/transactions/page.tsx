@@ -4,6 +4,7 @@ import { useTransactions } from '@/hooks/use-analytics';
 import { Card, CardContent, Badge } from '@/components/ui/base';
 import { Loader2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { useEmbedAuth } from '../layout';
 function formatCurrency(amount: number | string, currency = 'KES') {
   const num = typeof amount === 'string' ? parseFloat(amount) || 0 : amount;
   try {
@@ -25,9 +26,10 @@ export default function EmbedTransactionsPage() {
   const searchParams = useSearchParams();
   const tenant = searchParams?.get('tenant') ?? '';
 
-  const { data, isLoading, isError } = useTransactions(tenant);
+  const { ready } = useEmbedAuth();
+  const { data, isLoading, isError } = useTransactions(tenant, undefined, ready);
 
-  if (isLoading) {
+  if (!ready || isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
