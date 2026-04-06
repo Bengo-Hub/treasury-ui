@@ -5,8 +5,10 @@ import {
   createPlatformGateway,
   getTenantPayoutConfig,
   getTenantSelectedGateways,
+  listBanks,
   listPlatformGateways,
   listTenantAvailableGateways,
+  resolveAccount,
   selectTenantGateway,
   testPlatformGateway,
   updatePlatformGateway,
@@ -128,5 +130,23 @@ export function useUpdatePlatformGateway() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: gatewayKeys.platform() });
     },
+  });
+}
+
+/** Fetch banks by country for payout config dropdowns. */
+export function useBanks(orgSlug: string, country: string) {
+  return useQuery({
+    queryKey: ['banks', orgSlug, country],
+    queryFn: () => listBanks(orgSlug, country),
+    enabled: !!country,
+    staleTime: 24 * 60 * 60 * 1000, // 24h — bank list rarely changes
+  });
+}
+
+/** Mutation to verify a bank account number. */
+export function useResolveAccount(orgSlug: string) {
+  return useMutation({
+    mutationFn: ({ accountNumber, bankCode }: { accountNumber: string; bankCode: string }) =>
+      resolveAccount(orgSlug, accountNumber, bankCode),
   });
 }

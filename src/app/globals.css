@@ -30,6 +30,9 @@
   --color-brand-surface: rgb(var(--brand-surface));
   --color-brand-dark: rgb(var(--brand-dark));
 
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -194,7 +197,6 @@ button:focus-visible {
   }
   body {
     @apply bg-background text-foreground min-h-screen antialiased transition-colors duration-150 ease-out;
-    font-family: system-ui, sans-serif;
   }
 }
 

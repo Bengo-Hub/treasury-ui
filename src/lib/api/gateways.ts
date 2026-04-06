@@ -16,6 +16,9 @@ export interface GatewayConfig {
   status: string;
   callback_url?: string;
   webhook_url?: string;
+  mpesa_callback_url?: string;
+  mpesa_validation_url?: string;
+  mpesa_confirmation_url?: string;
   transaction_fee_type: string;
   total_transactions: number;
   created_at: string;
@@ -136,4 +139,16 @@ export function getTenantPayoutConfig(tenantSlugOrId: string): Promise<PayoutCon
 /** Tenant: create or update payout configuration. */
 export function upsertTenantPayoutConfig(tenantSlugOrId: string, body: PayoutConfigRequest): Promise<PayoutConfigResponse> {
   return apiClient.post<PayoutConfigResponse>(`${BASE}/${tenantSlugOrId}/payout/config`, body);
+}
+
+/** List banks by country via Paystack (tenant route). */
+export function listBanks(tenantSlugOrId: string, country: string) {
+  return apiClient.get(`${BASE}/${tenantSlugOrId}/gateways/banks/${country}`);
+}
+
+/** Verify a bank account number via Paystack (tenant route). */
+export function resolveAccount(tenantSlugOrId: string, accountNumber: string, bankCode: string) {
+  return apiClient.get(`${BASE}/${tenantSlugOrId}/gateways/resolve-account`, {
+    params: { account_number: accountNumber, bank_code: bankCode },
+  });
 }
