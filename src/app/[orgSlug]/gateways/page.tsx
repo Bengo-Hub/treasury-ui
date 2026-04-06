@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge, Button, Card, CardContent } from '@/components/ui/base';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   useBanks,
   useResolveAccount,
@@ -275,8 +276,24 @@ export default function GatewaysPage() {
             </CardContent>
           </Card>
 
-          {/* Paystack: payout config — shown when paystack is ANY active gateway */}
-          {hasPaystack && (
+          {/* Gateway config tabs — shown when at least one gateway is active */}
+          {(hasPaystack || hasMpesa) && (
+            <Tabs defaultValue={hasPaystack ? 'paystack' : 'mpesa'}>
+              <TabsList>
+                {hasPaystack && (
+                  <TabsTrigger value="paystack">
+                    <CreditCard className="h-4 w-4 mr-1.5 inline" /> Paystack
+                  </TabsTrigger>
+                )}
+                {hasMpesa && (
+                  <TabsTrigger value="mpesa">
+                    <Smartphone className="h-4 w-4 mr-1.5 inline" /> M-Pesa
+                  </TabsTrigger>
+                )}
+              </TabsList>
+
+              {hasPaystack && (
+              <TabsContent value="paystack">
             <Card>
               <CardContent className="p-6 space-y-6">
                 <div className="flex items-center gap-2">
@@ -601,10 +618,11 @@ export default function GatewaysPage() {
                 )}
               </CardContent>
             </Card>
-          )}
+              </TabsContent>
+              )}
 
-          {/* M-Pesa: short code & initiator — shown when any mpesa gateway is active */}
-          {hasMpesa && mpesaGateway && (
+              {hasMpesa && (
+              <TabsContent value="mpesa">
             <Card>
               <CardContent className="p-6 space-y-6">
                 <div className="flex items-center gap-2">
@@ -667,6 +685,9 @@ export default function GatewaysPage() {
                 )}
               </CardContent>
             </Card>
+              </TabsContent>
+              )}
+            </Tabs>
           )}
 
           {selected.length > 0 && !hasPaystack && !hasMpesa && (
