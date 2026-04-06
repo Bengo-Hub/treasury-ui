@@ -4,31 +4,32 @@ import { Badge, Button, Card, CardContent } from '@/components/ui/base';
 import {
   useBanks,
   useResolveAccount,
+  useSelectTenantGateway,
   useTenantGateways,
   useTenantPayoutConfig,
   useTenantSelectedGateways,
-  useSelectTenantGateway,
   useUpsertTenantPayoutConfig,
 } from '@/hooks/use-gateways';
+import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useMe } from '@/hooks/useMe';
 import { getTenantMpesaConfig, updateTenantMpesaConfig, type UpdateTenantMpesaConfigRequest } from '@/lib/api/revenue';
 import { cn } from '@/lib/utils';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
   CheckCircle2,
   CreditCard,
-  ExternalLink,
+  Crown,
   Loader2,
   Plus,
+  Power,
   Save,
   Smartphone,
-  XCircle,
+  XCircle
 } from 'lucide-react';
-import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 const PAYSTACK_RECIPIENT_TYPES = [
@@ -70,16 +71,19 @@ export default function GatewaysPage() {
   const { data: gateways = [], isLoading: loading, error: queryError } = useTenantGateways(tenantSlug);
   const { data: selectedData } = useTenantSelectedGateways(tenantSlug);
   const selected = selectedData?.selected ?? [];
-  const selectedGateway = selected[0]; // primary
-  const isPaystack = selectedGateway?.gateway_type === 'paystack';
-  const isMpesa = selectedGateway?.gateway_type?.startsWith('mpesa');
+  // The first selected gateway is the primary; all selected gateways are active
+  const primaryGateway = selected[0];
+  const activeGatewayTypes = new Set(selected.map((g) => g.gateway_type));
+  const hasPaystack = activeGatewayTypes.has('paystack');
+  const hasMpesa = selected.some((g) => g.gateway_type?.startsWith('mpesa'));
+  const mpesaGateway = selected.find((g) => g.gateway_type?.startsWith('mpesa'));
 
   const { data: user } = useMe();
   const isSuperAdmin = user?.isPlatformOwner || user?.isSuperUser;
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load gateways') : null;
 
   const selectMutation = useSelectTenantGateway(tenantSlug);
-  const { data: payoutConfig, isLoading: loadingPayout } = useTenantPayoutConfig(tenantSlug, isPaystack);
+  const { data: payoutConfig, isLoading: loadingPayout } = useTenantPayoutConfig(tenantSlug, hasPaystack);
   const upsertPayout = useUpsertTenantPayoutConfig(tenantSlug);
 
   // Bank resolution state
@@ -94,7 +98,7 @@ export default function GatewaysPage() {
   const { data: mpesaConfig, isLoading: loadingMpesa } = useQuery({
     queryKey: ['mpesa-config', orgSlug],
     queryFn: () => getTenantMpesaConfig(orgSlug),
-    enabled: !!orgSlug && isMpesa,
+    enabled: !!orgSlug && hasMpesa,
   });
   const queryClient = useQueryClient();
   const updateMpesa = useMutation({
@@ -154,7 +158,7 @@ export default function GatewaysPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Payment Gateways</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Select your preferred gateway. Configure payout (Paystack) or short code (M-Pesa) below.
+            Activate gateways for your pay pages. The primary gateway is used by default; customers can choose any active gateway.
           </p>
         </div>
         {isSuperAdmin && (
@@ -180,21 +184,29 @@ export default function GatewaysPage() {
         </Card>
       ) : (
         <>
-          {/* Available gateways: select one */}
+          {/* Available gateways: toggleable cards */}
           <Card>
             <CardContent className="p-6">
-              <h3 className="font-bold text-sm uppercase tracking-tight text-muted-foreground mb-4">Preferred gateway</h3>
+              <h3 className="font-bold text-sm uppercase tracking-tight text-muted-foreground mb-4">Payment gateways</h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Activate gateways to show them on your pay pages. Set one as primary — it will be the default option for customers.
+              </p>
               <div className="flex flex-wrap gap-3">
                 {gateways.map((gw) => {
-                  const isSelected = selectedGateway?.gateway_type === gw.gateway_type;
+                  const isActive = activeGatewayTypes.has(gw.gateway_type);
+                  const isPrimary = primaryGateway?.gateway_type === gw.gateway_type;
                   const isPaystackGw = gw.gateway_type === 'paystack';
                   const isMpesaGw = gw.gateway_type?.startsWith('mpesa');
                   return (
                     <div
                       key={gw.gateway_type}
                       className={cn(
-                        'flex items-center gap-3 rounded-xl border-2 p-4 min-w-[200px]',
-                        isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'
+                        'flex items-center gap-3 rounded-xl border-2 p-4 min-w-[220px] transition-all',
+                        isActive
+                          ? isPrimary
+                            ? 'border-primary bg-primary/5 shadow-sm shadow-primary/10'
+                            : 'border-green-500/50 bg-green-500/5'
+                          : 'border-border hover:border-primary/30 opacity-75'
                       )}
                     >
                       <div className={cn(
@@ -204,29 +216,67 @@ export default function GatewaysPage() {
                         {isMpesaGw ? <Smartphone className="h-5 w-5 text-muted-foreground" /> : <CreditCard className="h-5 w-5 text-muted-foreground" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm">{gw.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm">{gw.name}</p>
+                          {isPrimary && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-bold uppercase">
+                              <Crown className="h-3 w-3" /> Primary
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground font-mono">{gw.gateway_type}</p>
                       </div>
-                      {isSelected ? (
-                        <Badge variant="success">Selected</Badge>
-                      ) : (
-                        <Button
-                          size="sm"
-                          disabled={selectMutation.isPending}
-                          onClick={() => selectMutation.mutate(gw.gateway_type)}
-                        >
-                          {selectMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Select'}
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {isActive && !isPrimary && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-[10px] h-7 px-2"
+                            disabled={selectMutation.isPending}
+                            onClick={() => {
+                              selectMutation.mutate(gw.gateway_type, {
+                                onSuccess: () => toast.success(`${gw.name} set as primary`),
+                              });
+                            }}
+                            title="Set as primary gateway"
+                          >
+                            <Crown className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {isActive ? (
+                          <Badge variant="success">Active</Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            disabled={selectMutation.isPending}
+                            onClick={() => {
+                              selectMutation.mutate(gw.gateway_type, {
+                                onSuccess: () => toast.success(`${gw.name} activated`),
+                              });
+                            }}
+                          >
+                            {selectMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (
+                              <span className="flex items-center gap-1.5">
+                                <Power className="h-3.5 w-3.5" /> Activate
+                              </span>
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
+              {selected.length > 0 && (
+                <p className="text-[11px] text-muted-foreground mt-3">
+                  {selected.length} gateway{selected.length !== 1 ? 's' : ''} active. All active gateways will appear on your shared pay pages.
+                </p>
+              )}
             </CardContent>
           </Card>
 
-          {/* Paystack: payout config */}
-          {isPaystack && selectedGateway && (
+          {/* Paystack: payout config — shown when paystack is ANY active gateway */}
+          {hasPaystack && (
             <Card>
               <CardContent className="p-6 space-y-6">
                 <div className="flex items-center gap-2">
@@ -234,7 +284,7 @@ export default function GatewaysPage() {
                   <h3 className="font-bold text-sm uppercase tracking-tight">Paystack payout configuration</h3>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Money-in goes to the platform Paystack account; payouts to you use the details below. Transaction costs are borne by you.
+                  Payouts to you use the details below. Transaction costs are borne by you.
                 </p>
                 <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
@@ -553,8 +603,8 @@ export default function GatewaysPage() {
             </Card>
           )}
 
-          {/* M-Pesa: short code & initiator */}
-          {isMpesa && selectedGateway && (
+          {/* M-Pesa: short code & initiator — shown when any mpesa gateway is active */}
+          {hasMpesa && mpesaGateway && (
             <Card>
               <CardContent className="p-6 space-y-6">
                 <div className="flex items-center gap-2">
@@ -619,7 +669,7 @@ export default function GatewaysPage() {
             </Card>
           )}
 
-          {selectedGateway && !isPaystack && !isMpesa && (
+          {selected.length > 0 && !hasPaystack && !hasMpesa && (
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center gap-2">
@@ -627,7 +677,7 @@ export default function GatewaysPage() {
                   <span className="text-sm font-semibold">Connected via Treasury</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  All payments for this tenant route through treasury. No extra tenant config for this gateway.
+                  All payments for this tenant route through treasury. No extra tenant config for these gateways.
                 </p>
               </CardContent>
             </Card>

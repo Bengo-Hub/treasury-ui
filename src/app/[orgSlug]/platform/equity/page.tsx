@@ -1,6 +1,10 @@
 'use client';
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { FormField } from '@/components/ui/form-field';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
     useCreateEquityHolder,
     useEquityHolders,
@@ -9,7 +13,9 @@ import {
     useTriggerEquityPayout,
     useUpdateEquityHolder,
 } from '@/hooks/use-equity';
+import { useBanks, useResolveAccount } from '@/hooks/use-gateways';
 import { useMe } from '@/hooks/useMe';
+import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import type { CreateEquityHolderRequest, EquityHolder, EquityPayout } from '@/lib/api/equity';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -19,6 +25,7 @@ import {
     Calendar,
     CheckCircle2,
     DollarSign,
+    Info,
     Loader2,
     MoreVertical,
     PieChart,
@@ -28,10 +35,44 @@ import {
     TrendingUp,
     Users,
     Wallet,
-    X
+    X,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
+
+const SERVICE_OPTIONS = [
+    { value: 'ordering', label: 'Ordering' },
+    { value: 'subscriptions', label: 'Subscriptions' },
+    { value: 'pos', label: 'POS' },
+    { value: 'logistics', label: 'Logistics' },
+    { value: 'inventory', label: 'Inventory' },
+    { value: 'treasury', label: 'Treasury' },
+];
+
+const PAYOUT_METHODS = [
+    { value: 'paystack_transfer', label: 'Paystack Transfer' },
+    { value: 'bank', label: 'Bank Transfer (Manual)' },
+    { value: 'mpesa_paybill', label: 'M-Pesa Paybill' },
+    { value: 'mpesa_till', label: 'M-Pesa Till' },
+];
+
+const RECIPIENT_TYPES = [
+    { value: 'nuban', label: 'NUBAN (Nigeria)' },
+    { value: 'kepss', label: 'KEPSS (Kenya)' },
+    { value: 'ghipss', label: 'GHIPSS (Ghana)' },
+    { value: 'basa', label: 'BASA (South Africa)' },
+    { value: 'mobile_money', label: 'Mobile Money' },
+    { value: 'mobile_money_business', label: 'Mobile Money Business' },
+];
+
+const CURRENCY_OPTIONS = ['KES', 'NGN', 'GHS', 'ZAR'] as const;
+
+const currencyToCountry: Record<string, string> = {
+    KES: 'kenya',
+    NGN: 'nigeria',
+    GHS: 'ghana',
+    ZAR: 'south-africa',
+};
 
 export default function EquityManagementPage() {
     const { data: user } = useMe();
@@ -187,30 +228,29 @@ export default function EquityManagementPage() {
                         </CardContent>
                     </Card>
 
-                    {showAddHolder && (
-                        <HolderFormModal
-                            title="Add holder"
-                            initial={null}
-                            onClose={() => setShowAddHolder(false)}
-                            onSubmit={async (data) => {
-                                await createHolder.mutateAsync(data);
-                                setShowAddHolder(false);
-                            }}
-                            isSubmitting={createHolder.isPending}
-                        />
-                    )}
-                    {editingHolder && (
-                        <HolderFormModal
-                            title="Edit holder"
-                            initial={editingHolder}
-                            onClose={() => setEditingHolder(null)}
-                            onSubmit={async (data) => {
-                                await updateHolder.mutateAsync({ id: editingHolder.id, data });
-                                setEditingHolder(null);
-                            }}
-                            isSubmitting={updateHolder.isPending}
-                        />
-                    )}
+                    <HolderFormModal
+                        title="Add holder"
+                        open={showAddHolder}
+                        initial={null}
+                        onClose={() => setShowAddHolder(false)}
+                        onSubmit={async (data) => {
+                            await createHolder.mutateAsync(data);
+                            setShowAddHolder(false);
+                        }}
+                        isSubmitting={createHolder.isPending}
+                    />
+                    <HolderFormModal
+                        title="Edit holder"
+                        open={!!editingHolder}
+                        initial={editingHolder}
+                        onClose={() => setEditingHolder(null)}
+                        onSubmit={async (data) => {
+                            if (!editingHolder) return;
+                            await updateHolder.mutateAsync({ id: editingHolder.id, data });
+                            setEditingHolder(null);
+                        }}
+                        isSubmitting={updateHolder.isPending}
+                    />
                     {historyHolderId && (
                         <PayoutHistoryModal
                             holderId={historyHolderId}
@@ -365,149 +405,405 @@ function HolderRow({
 
 function HolderFormModal({
     title,
+    open,
     initial,
     onClose,
     onSubmit,
     isSubmitting,
 }: {
     title: string;
+    open: boolean;
     initial: EquityHolder | null;
     onClose: () => void;
     onSubmit: (data: CreateEquityHolderRequest) => Promise<void>;
     isSubmitting: boolean;
 }) {
+    const params = useParams();
+    const orgSlug = params?.orgSlug as string;
+    const { tenantPathId } = useResolvedTenant();
+    const tenantSlug = tenantPathId || orgSlug;
+
+    const [activeTab, setActiveTab] = useState('basic');
     const [name, setName] = useState(initial?.name ?? '');
     const [holderType, setHolderType] = useState<'shareholder' | 'royalty'>(initial?.holder_type ?? 'shareholder');
     const [email, setEmail] = useState(initial?.email ?? '');
     const [percentageShare, setPercentageShare] = useState(initial?.percentage_share ?? 0);
-    const [sourceServices, setSourceServices] = useState((initial?.source_services ?? []).join(', '));
-    const [payoutMethod, setPayoutMethod] = useState(initial?.payout_method ?? 'paystack_transfer');
-    const [payoutAccountDetails, setPayoutAccountDetails] = useState(
-        typeof initial?.payout_account_details === 'string' && initial.payout_account_details
-            ? initial.payout_account_details
-            : '{}'
-    );
-    const [payoutThreshold, setPayoutThreshold] = useState(initial?.payout_threshold ?? 0);
     const [payoutFrequency, setPayoutFrequency] = useState<'manual' | 'monthly' | 'quarterly'>(initial?.payout_frequency ?? 'monthly');
+
+    // Tab 2: Services
+    const [selectedServices, setSelectedServices] = useState<string[]>(initial?.source_services ?? []);
+
+    // Tab 3: Payout Method
+    const [payoutMethod, setPayoutMethod] = useState(initial?.payout_method ?? 'paystack_transfer');
+    const [payoutThreshold, setPayoutThreshold] = useState(initial?.payout_threshold ?? 1000);
+
+    // Paystack transfer fields
+    const [recipientType, setRecipientType] = useState('nuban');
+    const [payoutCurrency, setPayoutCurrency] = useState('NGN');
+    const [bankCode, setBankCode] = useState('');
+    const [accountNumber, setAccountNumber] = useState('');
+    const [accountName, setAccountName] = useState('');
+
+    // Bank fields
+    const [bankName, setBankName] = useState('');
+    const [manualBankCode, setManualBankCode] = useState('');
+    const [manualAccountNumber, setManualAccountNumber] = useState('');
+    const [manualAccountName, setManualAccountName] = useState('');
+
+    // M-Pesa fields
+    const [paybillNumber, setPaybillNumber] = useState('');
+    const [mpesaAccountNumber, setMpesaAccountNumber] = useState('');
+    const [tillNumber, setTillNumber] = useState('');
+
+    // Bank resolution
+    const bankCountry = currencyToCountry[payoutCurrency] || '';
+    const { data: banksData, isLoading: loadingBanks } = useBanks(tenantSlug, bankCountry);
+    const banks: { name: string; code: string }[] = (banksData as any)?.data ?? (banksData as any)?.banks ?? [];
+    const resolveAccountMutation = useResolveAccount(tenantSlug);
+    const [verifiedName, setVerifiedName] = useState<string | null>(null);
+    const [verifyError, setVerifyError] = useState<string | null>(null);
+
+    // Hydrate payout details from initial holder
+    useEffect(() => {
+        if (!initial?.payout_account_details) return;
+        try {
+            const details = typeof initial.payout_account_details === 'string'
+                ? JSON.parse(initial.payout_account_details)
+                : initial.payout_account_details;
+            const method = initial.payout_method ?? 'paystack_transfer';
+            if (method === 'paystack_transfer') {
+                setRecipientType(details.recipient_type ?? 'nuban');
+                setPayoutCurrency(details.currency ?? 'NGN');
+                setBankCode(details.bank_code ?? '');
+                setAccountNumber(details.account_number ?? '');
+                setAccountName(details.account_name ?? '');
+            } else if (method === 'bank') {
+                setBankName(details.bank_name ?? '');
+                setManualBankCode(details.bank_code ?? '');
+                setManualAccountNumber(details.account_number ?? '');
+                setManualAccountName(details.account_name ?? '');
+            } else if (method === 'mpesa_paybill') {
+                setPaybillNumber(details.paybill_number ?? '');
+                setMpesaAccountNumber(details.account_number ?? '');
+            } else if (method === 'mpesa_till') {
+                setTillNumber(details.till_number ?? '');
+            }
+        } catch {
+            // ignore parse errors
+        }
+    }, [initial]);
+
+    const buildPayoutDetails = (): string => {
+        if (payoutMethod === 'paystack_transfer') {
+            return JSON.stringify({
+                recipient_type: recipientType,
+                currency: payoutCurrency,
+                bank_code: bankCode,
+                account_number: accountNumber,
+                account_name: accountName || verifiedName || '',
+            });
+        }
+        if (payoutMethod === 'bank') {
+            return JSON.stringify({
+                bank_name: bankName,
+                bank_code: manualBankCode,
+                account_number: manualAccountNumber,
+                account_name: manualAccountName,
+            });
+        }
+        if (payoutMethod === 'mpesa_paybill') {
+            return JSON.stringify({
+                paybill_number: paybillNumber,
+                account_number: mpesaAccountNumber,
+            });
+        }
+        if (payoutMethod === 'mpesa_till') {
+            return JSON.stringify({ till_number: tillNumber });
+        }
+        return '{}';
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const sourceList = sourceServices ? sourceServices.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
         await onSubmit({
             name,
             holder_type: holderType,
             email: email || undefined,
             percentage_share: percentageShare,
-            source_services: sourceList?.length ? sourceList : undefined,
+            source_services: selectedServices.length > 0 ? selectedServices : undefined,
             payout_method: payoutMethod,
-            payout_account_details: payoutAccountDetails || '{}',
+            payout_account_details: buildPayoutDetails(),
             payout_threshold: payoutThreshold,
             payout_frequency: payoutFrequency,
         });
     };
 
+    const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm';
+    const selectClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm';
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-            <div className="bg-card rounded-xl shadow-xl border border-border max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold">{title}</h3>
-                    <button type="button" onClick={onClose} className="p-1 rounded hover:bg-accent">
-                        <X className="h-5 w-5" />
-                    </button>
-                </div>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
-                        <input
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                            required
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">Type</label>
-                        <select
-                            value={holderType}
-                            onChange={(e) => setHolderType(e.target.value as 'shareholder' | 'royalty')}
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                        >
-                            <option value="shareholder">Shareholder</option>
-                            <option value="royalty">Royalty</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">Email</label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">% share</label>
-                        <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step={0.01}
-                            value={percentageShare || ''}
-                            onChange={(e) => setPercentageShare(parseFloat(e.target.value) || 0)}
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                            required
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">Source services (comma-separated)</label>
-                        <input
-                            value={sourceServices}
-                            onChange={(e) => setSourceServices(e.target.value)}
-                            placeholder="e.g. ordering, subscriptions"
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">Payout method</label>
-                        <input
-                            value={payoutMethod}
-                            onChange={(e) => setPayoutMethod(e.target.value)}
-                            placeholder="paystack_transfer"
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">Payout account details (JSON)</label>
-                        <textarea
-                            value={payoutAccountDetails}
-                            onChange={(e) => setPayoutAccountDetails(e.target.value)}
-                            rows={3}
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">Payout threshold</label>
-                        <input
-                            type="number"
-                            min={0}
-                            value={payoutThreshold || ''}
-                            onChange={(e) => setPayoutThreshold(parseFloat(e.target.value) || 0)}
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">Payout frequency</label>
-                        <select
-                            value={payoutFrequency}
-                            onChange={(e) => setPayoutFrequency(e.target.value as 'manual' | 'monthly' | 'quarterly')}
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                        >
-                            <option value="manual">Manual</option>
-                            <option value="monthly">Monthly</option>
-                            <option value="quarterly">Quarterly</option>
-                        </select>
-                    </div>
-                    <div className="flex gap-2 justify-end pt-2">
+        <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+            <DialogContent title={title} onClose={onClose} className="max-w-lg">
+                <form onSubmit={handleSubmit} className="space-y-5">
+                    <Tabs value={activeTab} onValueChange={setActiveTab}>
+                        <TabsList className="w-full mb-4">
+                            <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                            <TabsTrigger value="services">Services</TabsTrigger>
+                            <TabsTrigger value="payout">Payout Method</TabsTrigger>
+                        </TabsList>
+
+                        {/* Tab 1: Basic Info */}
+                        <TabsContent value="basic" className="space-y-4">
+                            <FormField label="Name" required>
+                                <input
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    className={inputClass}
+                                    required
+                                />
+                            </FormField>
+                            <FormField label="Holder Type">
+                                <select
+                                    value={holderType}
+                                    onChange={(e) => setHolderType(e.target.value as 'shareholder' | 'royalty')}
+                                    className={selectClass}
+                                >
+                                    <option value="shareholder">Shareholder</option>
+                                    <option value="royalty">Royalty</option>
+                                </select>
+                            </FormField>
+                            <FormField label="Email">
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className={inputClass}
+                                />
+                            </FormField>
+                            <FormField label="Percentage Share" required>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    step={0.01}
+                                    value={percentageShare || ''}
+                                    onChange={(e) => setPercentageShare(parseFloat(e.target.value) || 0)}
+                                    className={inputClass}
+                                    required
+                                />
+                            </FormField>
+                            <FormField label="Payout Frequency">
+                                <select
+                                    value={payoutFrequency}
+                                    onChange={(e) => setPayoutFrequency(e.target.value as 'manual' | 'monthly' | 'quarterly')}
+                                    className={selectClass}
+                                >
+                                    <option value="manual">Manual</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="quarterly">Quarterly</option>
+                                </select>
+                            </FormField>
+                        </TabsContent>
+
+                        {/* Tab 2: Services */}
+                        <TabsContent value="services" className="space-y-4">
+                            <FormField label="Source Services" description="Select which services this holder earns from.">
+                                <MultiSelect
+                                    options={SERVICE_OPTIONS}
+                                    value={selectedServices}
+                                    onChange={setSelectedServices}
+                                    placeholder="Select services..."
+                                />
+                            </FormField>
+                            {selectedServices.length === 0 && (
+                                <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/10 text-sm text-blue-600 dark:text-blue-400">
+                                    <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                                    <span>All services (default for shareholders)</span>
+                                </div>
+                            )}
+                        </TabsContent>
+
+                        {/* Tab 3: Payout Method */}
+                        <TabsContent value="payout" className="space-y-4">
+                            <FormField label="Payout Method">
+                                <select
+                                    value={payoutMethod}
+                                    onChange={(e) => setPayoutMethod(e.target.value)}
+                                    className={selectClass}
+                                >
+                                    {PAYOUT_METHODS.map((m) => (
+                                        <option key={m.value} value={m.value}>{m.label}</option>
+                                    ))}
+                                </select>
+                            </FormField>
+
+                            {/* Paystack Transfer Fields */}
+                            {payoutMethod === 'paystack_transfer' && (
+                                <div className="space-y-4 rounded-lg border border-border p-4">
+                                    <FormField label="Recipient Type">
+                                        <select
+                                            value={recipientType}
+                                            onChange={(e) => setRecipientType(e.target.value)}
+                                            className={selectClass}
+                                        >
+                                            {RECIPIENT_TYPES.map((r) => (
+                                                <option key={r.value} value={r.value}>{r.label}</option>
+                                            ))}
+                                        </select>
+                                    </FormField>
+                                    <FormField label="Currency">
+                                        <select
+                                            value={payoutCurrency}
+                                            onChange={(e) => {
+                                                setPayoutCurrency(e.target.value);
+                                                setBankCode('');
+                                                setAccountName('');
+                                                setVerifiedName(null);
+                                                setVerifyError(null);
+                                            }}
+                                            className={selectClass}
+                                        >
+                                            {CURRENCY_OPTIONS.map((c) => (
+                                                <option key={c} value={c}>{c} ({currencyToCountry[c]})</option>
+                                            ))}
+                                        </select>
+                                    </FormField>
+                                    <FormField label="Bank">
+                                        {loadingBanks ? (
+                                            <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading banks...
+                                            </div>
+                                        ) : (
+                                            <select
+                                                value={bankCode}
+                                                onChange={(e) => {
+                                                    setBankCode(e.target.value);
+                                                    setVerifiedName(null);
+                                                    setVerifyError(null);
+                                                }}
+                                                className={selectClass}
+                                            >
+                                                <option value="">Select bank...</option>
+                                                {banks.map((b) => (
+                                                    <option key={b.code} value={b.code}>{b.name}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </FormField>
+                                    <FormField label="Account Number">
+                                        <div className="flex gap-2">
+                                            <input
+                                                value={accountNumber}
+                                                onChange={(e) => {
+                                                    setAccountNumber(e.target.value);
+                                                    setVerifiedName(null);
+                                                    setVerifyError(null);
+                                                }}
+                                                className={cn(inputClass, 'flex-1')}
+                                                placeholder="Enter account number"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="shrink-0"
+                                                disabled={!bankCode || !accountNumber || resolveAccountMutation.isPending}
+                                                onClick={() => {
+                                                    setVerifyError(null);
+                                                    resolveAccountMutation.mutate(
+                                                        { accountNumber, bankCode },
+                                                        {
+                                                            onSuccess: (data: any) => {
+                                                                const resolved = data?.data?.account_name ?? data?.account_name ?? '';
+                                                                setVerifiedName(resolved);
+                                                                setAccountName(resolved);
+                                                            },
+                                                            onError: (err: any) => {
+                                                                setVerifyError(err?.response?.data?.message || err?.message || 'Verification failed');
+                                                            },
+                                                        },
+                                                    );
+                                                }}
+                                            >
+                                                {resolveAccountMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Verify'}
+                                            </Button>
+                                        </div>
+                                    </FormField>
+                                    {verifiedName && (
+                                        <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            {verifiedName}
+                                        </div>
+                                    )}
+                                    {verifyError && (
+                                        <div className="flex items-center gap-2 text-sm text-destructive">
+                                            <AlertCircle className="h-4 w-4" />
+                                            {verifyError}
+                                        </div>
+                                    )}
+                                    <FormField label="Account Name" description="Auto-filled on verification, or enter manually.">
+                                        <input
+                                            value={accountName}
+                                            onChange={(e) => setAccountName(e.target.value)}
+                                            className={inputClass}
+                                            placeholder="Account holder name"
+                                        />
+                                    </FormField>
+                                </div>
+                            )}
+
+                            {/* Bank (manual) Fields */}
+                            {payoutMethod === 'bank' && (
+                                <div className="space-y-4 rounded-lg border border-border p-4">
+                                    <FormField label="Bank Name">
+                                        <input value={bankName} onChange={(e) => setBankName(e.target.value)} className={inputClass} placeholder="e.g. Equity Bank" />
+                                    </FormField>
+                                    <FormField label="Bank Code">
+                                        <input value={manualBankCode} onChange={(e) => setManualBankCode(e.target.value)} className={inputClass} placeholder="e.g. 068" />
+                                    </FormField>
+                                    <FormField label="Account Number">
+                                        <input value={manualAccountNumber} onChange={(e) => setManualAccountNumber(e.target.value)} className={inputClass} />
+                                    </FormField>
+                                    <FormField label="Account Name">
+                                        <input value={manualAccountName} onChange={(e) => setManualAccountName(e.target.value)} className={inputClass} />
+                                    </FormField>
+                                </div>
+                            )}
+
+                            {/* M-Pesa Paybill Fields */}
+                            {payoutMethod === 'mpesa_paybill' && (
+                                <div className="space-y-4 rounded-lg border border-border p-4">
+                                    <FormField label="Paybill Number">
+                                        <input value={paybillNumber} onChange={(e) => setPaybillNumber(e.target.value)} className={inputClass} placeholder="e.g. 888880" />
+                                    </FormField>
+                                    <FormField label="Account Number">
+                                        <input value={mpesaAccountNumber} onChange={(e) => setMpesaAccountNumber(e.target.value)} className={inputClass} placeholder="Account number" />
+                                    </FormField>
+                                </div>
+                            )}
+
+                            {/* M-Pesa Till Fields */}
+                            {payoutMethod === 'mpesa_till' && (
+                                <div className="space-y-4 rounded-lg border border-border p-4">
+                                    <FormField label="Till Number">
+                                        <input value={tillNumber} onChange={(e) => setTillNumber(e.target.value)} className={inputClass} placeholder="e.g. 5199900" />
+                                    </FormField>
+                                </div>
+                            )}
+
+                            <FormField label="Payout Threshold" description="Minimum amount before a payout is triggered.">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={payoutThreshold || ''}
+                                    onChange={(e) => setPayoutThreshold(parseFloat(e.target.value) || 0)}
+                                    className={inputClass}
+                                />
+                            </FormField>
+                        </TabsContent>
+                    </Tabs>
+
+                    <div className="flex gap-2 justify-end pt-2 border-t border-border">
                         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
                         <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -515,8 +811,8 @@ function HolderFormModal({
                         </Button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 
