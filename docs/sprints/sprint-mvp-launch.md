@@ -52,6 +52,24 @@
 - [x] Revamp tenant payout config page: bank dropdown, account verification, recipient type fields
 - [x] Add `useBanks` and `useResolveAccount` hooks for bank resolution
 - [x] Add `listBanks` and `resolveAccount` API functions
+- [x] Invoices page: full CRUD + send/void/record-payment
+- [x] Quotations page: full CRUD + send/accept/decline
+- [x] Expenses page: CRUD + submit/approve/reject/reimburse workflow
+- [x] Bills page: CRUD + pay + AP aging
+- [x] Vendors page: vendor list with bill history
+- [x] Journal Entries page: CRUD + submit/approve/post/reverse + trial balance
+- [x] Reports page: P&L, Balance Sheet, Cash Flow, Tax Summary (tabbed)
+- [x] Tax page: Tax Codes, Tax Periods, eTIMS Devices (tabbed)
+- [x] Budgets page: CRUD + approve + budget vs actual tracking
+- [x] Accounts page: full CRUD (create/edit/deactivate)
+- [x] Reconciliation page: bank accounts, statement import, auto/manual reconcile
+- [x] Referral Programs page: programs CRUD, referrals, rewards
+- [x] Fee Configuration: wired to real fee rules API
+- [x] Settings page: fully redesigned with 5 tabs, wired to ServiceConfig API
+- [x] Equity form: tabbed redesign with MultiSelect services + proper payout method forms
+- [x] Gateway selection: multi-activate with Paystack default
+- [x] Sidebar: removed profile section, added Referrals nav
+- [x] UI components: Tabs, Dialog, MultiSelect, FormField
 
 ### Nice to Have (P2)
 

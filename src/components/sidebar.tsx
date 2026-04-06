@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   CreditCard,
   FileText,
+  Gift,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -244,6 +245,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       href: `/${orgSlug}/platform/equity`,
       active: pathname?.startsWith(`/${orgSlug}/platform/equity`) ?? false,
     },
+    {
+      label: 'Referrals',
+      icon: Gift,
+      href: `/${orgSlug}/platform/referrals`,
+      active: pathname?.startsWith(`/${orgSlug}/platform/referrals`) ?? false,
+    },
   ];
 
   const menuLogo = tenant?.logoUrl;
@@ -275,21 +282,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           <X className="h-5 w-5" />
         </button>
       </div>
-
-      {/* Profile Section */}
-      {user && (
-        <div className="px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary to-primary-dark overflow-hidden">
-              <User className="size-6 text-primary-foreground" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-sm font-bold text-foreground">{userName}</h2>
-              <p className="text-xs font-medium text-muted-foreground capitalize">{userRole}</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 pt-2">
