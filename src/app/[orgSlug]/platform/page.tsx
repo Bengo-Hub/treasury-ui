@@ -12,14 +12,22 @@ import { cn } from '@/lib/utils';
 import type { GatewayConfig } from '@/lib/api/gateways';
 import {
   AlertTriangle,
+  Banknote,
+  Check,
+  CheckCircle2,
+  Copy,
   CreditCard,
   DollarSign,
+  Eye,
+  EyeOff,
+  Info,
   Loader2,
   Plus,
-  Save,
   Shield,
+  Smartphone,
   Wrench,
   X,
+  XCircle,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -33,11 +41,75 @@ const GATEWAY_TYPES = [
 ] as const;
 
 const CREDENTIAL_KEYS: Record<string, string[]> = {
-  paystack: ['secret_key', 'public_key'],
-  mpesa_paybill: ['consumer_key', 'consumer_secret', 'passkey'],
-  mpesa_till: ['consumer_key', 'consumer_secret', 'passkey'],
+  paystack: ['secret_key', 'public_key', 'webhook_secret'],
+  mpesa_paybill: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password'],
+  mpesa_till: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password'],
   cod: [],
 };
+
+function getGatewayIcon(gatewayType: string) {
+  if (gatewayType === 'paystack') {
+    return <CreditCard className="h-5 w-5 text-blue-600" />;
+  }
+  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till') {
+    return <Smartphone className="h-5 w-5 text-green-600" />;
+  }
+  if (gatewayType === 'cod') {
+    return <Banknote className="h-5 w-5 text-amber-600" />;
+  }
+  return <CreditCard className="h-5 w-5 text-primary" />;
+}
+
+function getGatewayIconBg(gatewayType: string) {
+  if (gatewayType === 'paystack') return 'bg-blue-100 dark:bg-blue-900/30';
+  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till') return 'bg-green-100 dark:bg-green-900/30';
+  if (gatewayType === 'cod') return 'bg-amber-100 dark:bg-amber-900/30';
+  return 'bg-primary/10';
+}
+
+function getIntegrationTip(gatewayType: string) {
+  if (gatewayType === 'paystack') return 'Configure these URLs in your Paystack dashboard';
+  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till') return 'Configure these URLs in your Safaricom portal';
+  return '';
+}
+
+function isMpesa(gatewayType: string) {
+  return gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till';
+}
+
+function CopyableUrl({ label, url }: { label: string; url?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  if (!url) return null;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground shrink-0 w-28">{label}:</span>
+      <code className="text-xs bg-muted/50 px-2 py-1 rounded font-mono truncate flex-1">{url}</code>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="p-1 rounded hover:bg-accent shrink-0"
+        title="Copy to clipboard"
+      >
+        {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
+      </button>
+    </div>
+  );
+}
+
+interface TestResult {
+  success: boolean;
+  error?: string;
+  supports_stk?: boolean;
+  supports_refund?: boolean;
+}
 
 export default function PlatformPage() {
   const { data: user } = useMe();
@@ -46,6 +118,7 @@ export default function PlatformPage() {
   const orgSlug = params?.orgSlug as string;
   const [activeTab, setActiveTab] = useState<'gateways' | 'fees'>('gateways');
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [showAddGateway, setShowAddGateway] = useState(false);
   const [editingGateway, setEditingGateway] = useState<GatewayConfig | null>(null);
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
@@ -76,6 +149,28 @@ export default function PlatformPage() {
       </div>
     );
   }
+
+  const handleTestGateway = async (gw: GatewayConfig) => {
+    setTestingId(gw.id);
+    // Clear previous result for this gateway
+    setTestResults((prev) => {
+      const next = { ...prev };
+      delete next[gw.id];
+      return next;
+    });
+    try {
+      const result = await testMutation.mutateAsync(gw.id);
+      setTestResults((prev) => ({ ...prev, [gw.id]: result }));
+      await fetchGateways();
+    } catch (e: any) {
+      setTestResults((prev) => ({
+        ...prev,
+        [gw.id]: { success: false, error: e?.response?.data?.error || e?.message || 'Connection failed' },
+      }));
+    } finally {
+      setTestingId(null);
+    }
+  };
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
@@ -131,50 +226,123 @@ export default function PlatformPage() {
                 </div>
               ) : (
                 <div className="divide-y divide-border">
-                  {gateways.map((gw) => (
-                    <div key={gw.id} className="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-accent/5 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <CreditCard className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-sm">{gw.name}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{gw.gateway_type}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge variant={gw.is_active ? 'success' : 'outline'}>{gw.is_active ? 'Active' : 'Inactive'}</Badge>
-                            <Badge variant="outline">{gw.status}</Badge>
-                            {gw.is_primary && <Badge variant="secondary">Primary</Badge>}
+                  {gateways.map((gw) => {
+                    const tip = getIntegrationTip(gw.gateway_type);
+                    const testResult = testResults[gw.id];
+                    const isTesting = testingId === gw.id;
+
+                    return (
+                      <div key={gw.id} className="px-6 py-5 hover:bg-accent/5 transition-colors space-y-3">
+                        {/* Header row */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center", getGatewayIconBg(gw.gateway_type))}>
+                              {getGatewayIcon(gw.gateway_type)}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-sm">{gw.name}</p>
+                              <p className="text-xs text-muted-foreground font-mono">{gw.gateway_type}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant={gw.is_active ? 'success' : 'outline'}>{gw.is_active ? 'Active' : 'Inactive'}</Badge>
+                                <Badge variant="outline">{gw.status}</Badge>
+                                {gw.is_primary && <Badge variant="secondary">Primary</Badge>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => { setEditingGateway(gw); setCredentialValues({}); }}
+                            >
+                              Edit credentials
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isTesting || testMutation.isPending}
+                              onClick={() => handleTestGateway(gw)}
+                            >
+                              {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                              Test
+                            </Button>
                           </div>
                         </div>
+
+                        {/* Test result feedback */}
+                        {isTesting && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground pl-13">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Testing connection...
+                          </div>
+                        )}
+                        {testResult && !isTesting && (
+                          <div className={cn(
+                            "rounded-lg border px-4 py-3",
+                            testResult.success
+                              ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20"
+                              : "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20"
+                          )}>
+                            {testResult.success ? (
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                  <span className="text-sm font-medium text-green-700 dark:text-green-400">Connected</span>
+                                </div>
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground ml-6">
+                                  {testResult.supports_stk !== undefined && (
+                                    <span className="flex items-center gap-1">
+                                      {testResult.supports_stk ? <Check className="h-3 w-3 text-green-600" /> : <X className="h-3 w-3 text-muted-foreground" />}
+                                      STK Push
+                                    </span>
+                                  )}
+                                  {testResult.supports_refund !== undefined && (
+                                    <span className="flex items-center gap-1">
+                                      {testResult.supports_refund ? <Check className="h-3 w-3 text-green-600" /> : <X className="h-3 w-3 text-muted-foreground" />}
+                                      Refunds
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <XCircle className="h-4 w-4 text-red-600" />
+                                <span className="text-sm font-medium text-red-700 dark:text-red-400">
+                                  {testResult.error || 'Connection failed'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* URLs section */}
+                        {(gw.webhook_url || gw.callback_url || (isMpesa(gw.gateway_type) && (gw.mpesa_callback_url || gw.mpesa_validation_url || gw.mpesa_confirmation_url))) && (
+                          <div className="space-y-2 bg-muted/30 rounded-lg p-3 border border-border/50">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Integration URLs</span>
+                              {tip && (
+                                <span className="group relative">
+                                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                  <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover:block bg-popover text-popover-foreground text-xs rounded-md px-2 py-1 shadow-md border whitespace-nowrap z-10">
+                                    {tip}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+                            <CopyableUrl label="Webhook URL" url={gw.webhook_url} />
+                            <CopyableUrl label="Callback URL" url={gw.callback_url} />
+                            {isMpesa(gw.gateway_type) && (
+                              <>
+                                <CopyableUrl label="M-Pesa Callback" url={gw.mpesa_callback_url} />
+                                <CopyableUrl label="M-Pesa Validation" url={gw.mpesa_validation_url} />
+                                <CopyableUrl label="M-Pesa Confirm" url={gw.mpesa_confirmation_url} />
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => { setEditingGateway(gw); setCredentialValues({}); }}
-                        >
-                          Edit credentials
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={testingId === gw.id || testMutation.isPending}
-                          onClick={async () => {
-                            setTestingId(gw.id);
-                            try {
-                              await testMutation.mutateAsync(gw.id);
-                              await fetchGateways();
-                            } finally {
-                              setTestingId(null);
-                            }
-                          }}
-                        >
-                          {testingId === gw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                          Test
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -258,52 +426,24 @@ export default function PlatformPage() {
                 <Plus className="h-3.5 w-3.5" /> Add Rule
               </Button>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-accent/5">
-                      <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Gateway</th>
-                      <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Fee Type</th>
-                      <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Percentage</th>
-                      <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Flat Fee</th>
-                      <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Cap</th>
-                      <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {[
-                      { gateway: 'M-Pesa', feeType: 'Transaction', pct: '2.0%', flat: 'KES 0', cap: 'KES 2,000', active: true },
-                      { gateway: 'Stripe', feeType: 'Transaction', pct: '2.9%', flat: 'KES 30', cap: '-', active: true },
-                      { gateway: 'Card', feeType: 'Transaction', pct: '2.5%', flat: 'KES 0', cap: 'KES 5,000', active: true },
-                      { gateway: 'All', feeType: 'Platform Fee', pct: '0.5%', flat: 'KES 0', cap: 'KES 1,000', active: true },
-                    ].map((fee, i) => (
-                      <tr key={i} className="hover:bg-accent/5 transition-colors">
-                        <td className="px-6 py-4 font-medium text-xs">{fee.gateway}</td>
-                        <td className="px-6 py-4 text-xs">{fee.feeType}</td>
-                        <td className="px-6 py-4 text-right font-mono text-xs font-bold">{fee.pct}</td>
-                        <td className="px-6 py-4 text-right text-xs">{fee.flat}</td>
-                        <td className="px-6 py-4 text-right text-xs">{fee.cap}</td>
-                        <td className="px-6 py-4 text-center">
-                          <Badge variant={fee.active ? 'success' : 'outline'}>{fee.active ? 'Active' : 'Disabled'}</Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <CardContent className="p-6">
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <DollarSign className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  Fee configuration will be available when the fee rules API is implemented.
+                </p>
               </div>
             </CardContent>
           </Card>
 
-          <div className="flex justify-end">
-            <Button className="gap-2 px-8 shadow-lg shadow-primary/10">
-              <Save className="h-4 w-4" /> Save Fee Config
-            </Button>
-          </div>
         </div>
       )}
     </div>
   );
+}
+
+function isSensitiveField(key: string): boolean {
+  return /secret|password|key/i.test(key);
 }
 
 function GatewayCredentialsModal({
@@ -335,8 +475,13 @@ function GatewayCredentialsModal({
 }) {
   const [selectedType, setSelectedType] = useState(gatewayType ?? 'paystack');
   const [nameVal, setNameVal] = useState(name);
+  const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>({});
 
   const keys = editMode ? credentialKeys : (credentialKeysByType?.[selectedType] ?? credentialKeys);
+
+  const toggleFieldVisibility = (key: string) => {
+    setVisibleFields((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -347,7 +492,7 @@ function GatewayCredentialsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-card rounded-xl shadow-xl border border-border max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-card rounded-xl shadow-xl border border-border max-w-md w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold">{title}</h3>
           <button type="button" onClick={onClose} className="p-1 rounded hover:bg-accent">
@@ -384,22 +529,46 @@ function GatewayCredentialsModal({
           )}
           {keys.length > 0 && (
             <div className="space-y-3">
-              <span className="text-xs font-medium text-muted-foreground">Credentials (stored securely)</span>
-              {keys.map((k) => (
-                <div key={k}>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">
-                    {k.replace(/_/g, ' ')}
-                  </label>
-                  <input
-                    type="password"
-                    value={credentialValues[k] ?? ''}
-                    onChange={(e) => setCredentialValues({ ...credentialValues, [k]: e.target.value })}
-                    placeholder={editMode ? 'Leave blank to keep current' : ''}
-                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
-                    autoComplete="off"
-                  />
-                </div>
-              ))}
+              <div className="flex items-center gap-2 border-b border-border pb-2">
+                <Shield className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-semibold uppercase tracking-wide text-foreground">API Credentials</span>
+              </div>
+              {keys.map((k) => {
+                const sensitive = isSensitiveField(k);
+                const isVisible = visibleFields[k] ?? false;
+
+                return (
+                  <div key={k}>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">
+                      {k.replace(/_/g, ' ')}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={sensitive && !isVisible ? 'password' : 'text'}
+                        value={credentialValues[k] ?? ''}
+                        onChange={(e) => setCredentialValues({ ...credentialValues, [k]: e.target.value })}
+                        placeholder={editMode ? 'Leave blank to keep current' : ''}
+                        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono pr-10"
+                        autoComplete="off"
+                      />
+                      {sensitive && (
+                        <button
+                          type="button"
+                          onClick={() => toggleFieldVisibility(k)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-accent"
+                          tabIndex={-1}
+                        >
+                          {isVisible ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
           {selectedType === 'cod' && !editMode && (
@@ -412,6 +581,12 @@ function GatewayCredentialsModal({
               {editMode ? 'Update' : 'Create'}
             </Button>
           </div>
+          {keys.length > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1 border-t border-border/50">
+              <Shield className="h-3 w-3 shrink-0" />
+              <span>Credentials are encrypted at rest (AES-256-GCM)</span>
+            </div>
+          )}
         </form>
       </div>
     </div>
