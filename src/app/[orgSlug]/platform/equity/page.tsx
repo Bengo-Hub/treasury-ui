@@ -56,7 +56,7 @@ export default function EquityManagementPage() {
     const holders = holdersData?.holders ?? [];
     const summary = summaryData;
 
-    const isSuperAdmin = user?.roles?.includes('super_admin');
+    const isSuperAdmin = user?.isPlatformOwner || user?.isSuperUser;
 
     if (!isSuperAdmin) {
         return (
