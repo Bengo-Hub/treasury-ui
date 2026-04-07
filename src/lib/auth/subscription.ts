@@ -32,7 +32,7 @@ export async function fetchSubscriptionInfo(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
-    const resp = await fetch(`${baseUrl}/api/v1/subscription`, {
+    const resp = await fetch(`${baseUrl}/api/v1/tenants/${tenantId}/subscription`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "X-Tenant-ID": tenantId,
