@@ -52,6 +52,17 @@ const currencyToCountry: Record<string, string> = {
   ZAR: 'south-africa',
 };
 
+/** Derive the currency from the Paystack recipient type. */
+const recipientTypeToCurrency: Record<string, string> = {
+  kepss: 'KES',
+  nuban: 'NGN',
+  ghipss: 'GHS',
+  basa: 'ZAR',
+  mobile_money: 'KES',
+  mobile_money_business: 'KES',
+  mpesa_paybill: 'KES',
+};
+
 /** Recipient types that use bank details (bank_code, account_number, account_name). */
 const BANK_RECIPIENT_TYPES = ['nuban', 'kepss', 'ghipss', 'basa'];
 
@@ -144,6 +155,11 @@ export default function GatewaysPage() {
         mobile_number: payoutConfig.mobile_number ?? '',
         mpesa_paybill: payoutConfig.mpesa_paybill ?? '',
       }));
+      // Derive currency from saved recipient_type so bank list loads for the correct country
+      const savedCurrency = recipientTypeToCurrency[payoutConfig.recipient_type ?? ''];
+      if (savedCurrency) {
+        setPayoutCurrency(savedCurrency);
+      }
     }
   }, [payoutConfig]);
 
