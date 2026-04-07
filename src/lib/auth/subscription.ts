@@ -28,17 +28,24 @@ export async function fetchSubscriptionInfo(
     process.env.NEXT_PUBLIC_SUBSCRIPTIONS_API_URL ||
     "https://pricingapi.codevertexitsolutions.com";
 
+  // Guard: need at least one identifier to query subscription
+  if (!tenantId && !tenantSlug) return null;
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
-    const resp = await fetch(`${baseUrl}/api/v1/subscription`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "X-Tenant-ID": tenantId,
-        "X-Tenant-Slug": tenantSlug,
-        "Content-Type": "application/json",
-      },
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    };
+    if (tenantId) headers["X-Tenant-ID"] = tenantId;
+    if (tenantSlug) headers["X-Tenant-Slug"] = tenantSlug;
+
+    // Primary: query by tenant UUID
+    const identifier = tenantId || tenantSlug;
+    const resp = await fetch(`${baseUrl}/api/v1/tenants/${identifier}/subscription`, {
+      headers,
       signal: controller.signal,
     });
 
