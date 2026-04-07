@@ -20,7 +20,8 @@ export function useSubscription() {
     const tenantId = (user as any).tenantId ?? (user as any).tenant_id;
     const tenantSlug = (user as any).tenantSlug ?? (user as any).tenant_slug;
 
-    if (!tenantId || tenantSlug === "codevertex") {
+    const isPlatformOwner = (user as any).isPlatformOwner || (user as any).is_platform_owner;
+    if (!tenantId || tenantSlug === "codevertex" || isPlatformOwner) {
       setSubscriptionInfo({ status: "active", planCode: "enterprise", planName: "Enterprise", features: [], limits: {} } as any);
       return;
     }
