@@ -22,23 +22,64 @@ export interface MeResponse {
 const ME_QUERY_KEY = ['auth', 'me'] as const;
 const ME_STALE_MS = 5 * 60 * 1000; // 5 min TTL
 
+const TREASURY_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexitsolutions.com';
+
+/** Merge arrays, deduplicating values. */
+function mergeUnique(a: string[], b: string[]): string[] {
+  const set = new Set(a);
+  for (const v of b) set.add(v);
+  return Array.from(set);
+}
+
+/**
+ * Fetch service-level roles/permissions from treasury-api GET /api/v1/auth/me.
+ * Returns null on any error (non-blocking — SSO profile is the primary source).
+ */
+async function fetchServiceMe(token: string): Promise<{ roles: string[]; permissions: string[] } | null> {
+  try {
+    const res = await fetch(`${TREASURY_API_URL}/api/v1/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      roles: Array.isArray(data.roles) ? data.roles : [],
+      permissions: Array.isArray(data.permissions) ? data.permissions : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchMe(): Promise<MeResponse> {
   const token = useAuthStore.getState().session?.accessToken;
   if (!token) throw new Error('No session');
-  const res = await fetch(SSO_ME_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error_description || err.error || `Me failed: ${res.status}`);
+
+  // Fetch SSO profile (primary) and treasury-api service-level RBAC in parallel
+  const [ssoRes, serviceData] = await Promise.all([
+    fetch(SSO_ME_URL, { headers: { Authorization: `Bearer ${token}` } }),
+    fetchServiceMe(token),
+  ]);
+
+  if (!ssoRes.ok) {
+    const err = await ssoRes.json().catch(() => ({}));
+    throw new Error(err.error_description || err.error || `Me failed: ${ssoRes.status}`);
   }
-  const data = await res.json();
-  const roles: string[] = Array.isArray(data.roles) ? data.roles : [];
+  const data = await ssoRes.json();
+  let roles: string[] = Array.isArray(data.roles) ? data.roles : [];
+  let permissions: string[] = Array.isArray(data.permissions) ? data.permissions : [];
   const slug = data.tenant_slug ?? data.tenant?.slug ?? '';
+
+  // Merge service-level roles/permissions from treasury-api
+  if (serviceData) {
+    roles = mergeUnique(roles, serviceData.roles);
+    permissions = mergeUnique(permissions, serviceData.permissions);
+  }
+
   return {
     ...data,
     roles,
-    permissions: Array.isArray(data.permissions) ? data.permissions : [],
+    permissions,
     isPlatformOwner: data.is_platform_owner === true || slug === 'codevertex',
     isSuperUser: roles.includes('superuser'),
     tenantSlug: slug,

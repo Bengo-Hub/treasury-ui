@@ -148,7 +148,5 @@ export function listBanks(tenantSlugOrId: string, country: string) {
 
 /** Verify a bank account number via Paystack (tenant route). */
 export function resolveAccount(tenantSlugOrId: string, accountNumber: string, bankCode: string) {
-  return apiClient.get(`${BASE}/${tenantSlugOrId}/gateways/resolve-account`, {
-    params: { account_number: accountNumber, bank_code: bankCode },
-  });
+  return apiClient.get(`${BASE}/${tenantSlugOrId}/gateways/resolve-account?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`);
 }

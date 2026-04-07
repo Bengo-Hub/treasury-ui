@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 
 interface TabsContextValue {
   value: string;
@@ -11,16 +11,22 @@ interface TabsContextValue {
 const TabsContext = createContext<TabsContextValue>({ value: '', onValueChange: () => {} });
 
 export function Tabs({
-  value,
-  onValueChange,
+  value: controlledValue,
+  onValueChange: controlledOnChange,
+  defaultValue,
   children,
   className,
 }: {
-  value: string;
-  onValueChange: (value: string) => void;
+  value?: string;
+  onValueChange?: (value: string) => void;
+  defaultValue?: string;
   children: ReactNode;
   className?: string;
 }) {
+  const [internalValue, setInternalValue] = useState(defaultValue ?? '');
+  const value = controlledValue ?? internalValue;
+  const onValueChange = controlledOnChange ?? setInternalValue;
+
   return (
     <TabsContext.Provider value={{ value, onValueChange }}>
       <div className={className}>{children}</div>
