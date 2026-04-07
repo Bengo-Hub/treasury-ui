@@ -669,7 +669,7 @@ export default function GatewaysPage() {
                       <input
                         value={mpesaForm.shortcode}
                         onChange={(e) => setMpesaForm((f) => ({ ...f, shortcode: e.target.value }))}
-                        placeholder="e.g. 174379"
+                        placeholder="Leave empty to keep current value"
                         className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                       />
                     </div>
@@ -678,7 +678,7 @@ export default function GatewaysPage() {
                       <input
                         value={mpesaForm.initiator_name}
                         onChange={(e) => setMpesaForm((f) => ({ ...f, initiator_name: e.target.value }))}
-                        placeholder="Initiator name"
+                        placeholder="Leave empty to keep current value"
                         className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                       />
                     </div>
