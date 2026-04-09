@@ -71,7 +71,12 @@ export default function AccountsPage() {
 
   const accounts = accountsData?.accounts ?? [];
 
+  // Platform-only account codes: not visible to regular tenants
+  const PLATFORM_ONLY_CODES = ['4000', '4200', '4300', '2000', '2100', '5000', '5100', '5200', '5300'];
+
   const filtered = accounts.filter((acc) => {
+    // Hide platform-only accounts from non-platform users
+    if (!isPlatformOwner && PLATFORM_ONLY_CODES.includes(acc.account_code)) return false;
     const name = acc.account_name ?? '';
     const code = acc.account_code ?? '';
     const matchesSearch =
