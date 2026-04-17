@@ -28,7 +28,10 @@ export interface EquityHolder {
     payout_method: string;
     payout_account_details: string; // JSON, parsed by UI
     payout_threshold: number;
-    payout_frequency: 'manual' | 'monthly' | 'quarterly';
+    payout_frequency: 'manual' | 'monthly' | 'quarterly' | 'annually';
+    payout_schedule_day: number;
+    financial_year_end_month: number;
+    close_of_books_day: number;
     is_active: boolean;
     created_at: string;
     updated_at: string;
@@ -43,7 +46,10 @@ export interface CreateEquityHolderRequest {
     payout_method?: string;
     payout_account_details?: string;
     payout_threshold?: number;
-    payout_frequency?: 'manual' | 'monthly' | 'quarterly';
+    payout_frequency?: 'manual' | 'monthly' | 'quarterly' | 'annually';
+    payout_schedule_day?: number;
+    financial_year_end_month?: number;
+    close_of_books_day?: number;
 }
 
 export interface EquityPayout {
