@@ -27,6 +27,7 @@ export interface TransactionItem {
   amount: string;
   currency: string;
   status: string;
+  transaction_cost?: string;
   created_at: string;
 }
 

@@ -152,6 +152,7 @@ export default function TransactionsPage() {
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Source</th>
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Method</th>
                     <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Amount</th>
+                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Fee</th>
                     <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
                     <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Date</th>
                   </tr>
@@ -169,6 +170,7 @@ export default function TransactionsPage() {
                       <td className="px-6 py-4 text-xs">{txn.source_service || '—'}</td>
                       <td className="px-6 py-4 text-xs">{txn.payment_method}</td>
                       <td className="px-6 py-4 text-right font-bold text-xs">{txn.currency} {txn.amount}</td>
+                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">{txn.transaction_cost && parseFloat(txn.transaction_cost) > 0 ? `${txn.currency} ${txn.transaction_cost}` : '—'}</td>
                       <td className="px-6 py-4 text-center">
                         <Badge variant={txn.status === 'succeeded' ? 'success' : txn.status === 'pending' || txn.status === 'processing' ? 'warning' : 'error'}>
                           {txn.status}
