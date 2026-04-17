@@ -3,7 +3,7 @@
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useTransactions } from '@/hooks/use-analytics';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import type { TransactionItem } from '@/lib/api/analytics';
+import { exportTransactionsCSV, type TransactionItem } from '@/lib/api/analytics';
 import { Pagination } from '@/components/ui/pagination';
 import { cn } from '@/lib/utils';
 import {
@@ -70,7 +70,17 @@ export default function TransactionsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
           <p className="text-muted-foreground mt-1">View and filter all payment transactions across gateways.</p>
         </div>
-        <Button variant="outline" className="gap-2" disabled>
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => {
+            if (!tenantPathId) return;
+            exportTransactionsCSV(tenantPathId, {
+              ...queryParams,
+            });
+          }}
+          disabled={!tenantPathId}
+        >
           <Download className="h-4 w-4" /> Export CSV
         </Button>
       </div>
