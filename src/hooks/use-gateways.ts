@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createPlatformGateway,
+  getPlatformBalance,
   getTenantPayoutConfig,
   getTenantSelectedGateways,
   listBanks,
@@ -130,6 +131,17 @@ export function useUpdatePlatformGateway() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: gatewayKeys.platform() });
     },
+  });
+}
+
+/** Fetch the live Paystack platform balance. */
+export function usePlatformBalance(enabled = true) {
+  return useQuery({
+    queryKey: ['platform-balance'],
+    queryFn: getPlatformBalance,
+    enabled,
+    staleTime: 60 * 1000, // 1 minute — balance changes frequently
+    refetchInterval: 5 * 60 * 1000, // auto-refresh every 5 minutes
   });
 }
 

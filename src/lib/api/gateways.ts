@@ -83,6 +83,11 @@ export function testPlatformGateway(id: string): Promise<{ success: boolean; gat
   return apiClient.post(`${BASE}/platform/gateways/${id}/test`, {});
 }
 
+/** Fetch the live Paystack platform balance. */
+export function getPlatformBalance(): Promise<{ currency: string; balance: string; ledger_balance?: string }> {
+  return apiClient.get(`${BASE}/platform/balance`);
+}
+
 /** Tenant: list gateways available for this tenant (platform gateways). */
 export function listTenantAvailableGateways(tenantSlugOrId: string): Promise<{ gateways: { gateway_type: string; name: string; transaction_fee_type: string; supports_stk_push: boolean }[] }> {
   return apiClient.get(`${BASE}/${tenantSlugOrId}/gateways/available`);

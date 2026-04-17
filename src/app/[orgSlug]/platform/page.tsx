@@ -30,6 +30,7 @@ import {
   Info,
   Loader2,
   MoreVertical,
+  Pencil,
   Plus,
   Shield,
   Smartphone,
@@ -113,29 +114,77 @@ function isMpesa(gatewayType: string) {
   return gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till';
 }
 
-function CopyableUrl({ label, url }: { label: string; url?: string }) {
+function CopyableUrl({ label, url, onSave }: { label: string; url?: string; onSave?: (newUrl: string) => void }) {
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(url ?? '');
 
-  if (!url) return null;
+  if (!url && !editing) return null;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(url);
+    await navigator.clipboard.writeText(url ?? editValue);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSave = () => {
+    if (onSave && editValue.trim()) {
+      onSave(editValue.trim());
+    }
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditValue(url ?? '');
+    setEditing(false);
   };
 
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs text-muted-foreground shrink-0 w-28">{label}:</span>
-      <code className="text-xs bg-muted/50 px-2 py-1 rounded font-mono truncate flex-1">{url}</code>
-      <button
-        type="button"
-        onClick={handleCopy}
-        className="p-1 rounded hover:bg-accent shrink-0"
-        title="Copy to clipboard"
-      >
-        {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
-      </button>
+      {editing ? (
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <input
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            className="text-xs bg-background border border-input px-2 py-1 rounded font-mono flex-1 min-w-0 focus:ring-1 focus:ring-primary/30 outline-none"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSave();
+              if (e.key === 'Escape') handleCancel();
+            }}
+          />
+          <button type="button" onClick={handleSave} className="p-1 rounded hover:bg-accent shrink-0" title="Save">
+            <Check className="h-3.5 w-3.5 text-green-600" />
+          </button>
+          <button type="button" onClick={handleCancel} className="p-1 rounded hover:bg-accent shrink-0" title="Cancel">
+            <X className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        </div>
+      ) : (
+        <>
+          <code className="text-xs bg-muted/50 px-2 py-1 rounded font-mono truncate flex-1">{url}</code>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="p-1 rounded hover:bg-accent shrink-0"
+            title="Copy to clipboard"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
+          </button>
+          {onSave && (
+            <button
+              type="button"
+              onClick={() => { setEditValue(url ?? ''); setEditing(true); }}
+              className="p-1 rounded hover:bg-accent shrink-0"
+              title="Edit URL"
+            >
+              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -373,8 +422,32 @@ export default function PlatformPage() {
                                 </span>
                               )}
                             </div>
-                            <CopyableUrl label="Webhook URL" url={gw.webhook_url} />
-                            <CopyableUrl label="Callback URL" url={gw.callback_url} />
+                            <CopyableUrl
+                              label="Webhook URL"
+                              url={gw.webhook_url}
+                              onSave={async (newUrl) => {
+                                try {
+                                  await updateGateway.mutateAsync({ id: gw.id, body: { webhook_url: newUrl } });
+                                  toast.success('Webhook URL updated');
+                                  fetchGateways();
+                                } catch (e: any) {
+                                  toast.error(e?.response?.data?.message || 'Failed to update webhook URL');
+                                }
+                              }}
+                            />
+                            <CopyableUrl
+                              label="Callback URL"
+                              url={gw.callback_url}
+                              onSave={async (newUrl) => {
+                                try {
+                                  await updateGateway.mutateAsync({ id: gw.id, body: { callback_url: newUrl } });
+                                  toast.success('Callback URL updated');
+                                  fetchGateways();
+                                } catch (e: any) {
+                                  toast.error(e?.response?.data?.message || 'Failed to update callback URL');
+                                }
+                              }}
+                            />
                             {isMpesa(gw.gateway_type) && (
                               <>
                                 <CopyableUrl label="M-Pesa Callback" url={gw.mpesa_callback_url} />

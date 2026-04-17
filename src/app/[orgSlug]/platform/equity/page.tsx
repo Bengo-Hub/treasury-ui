@@ -13,7 +13,7 @@ import {
     useTriggerEquityPayout,
     useUpdateEquityHolder,
 } from '@/hooks/use-equity';
-import { useBanks, useResolveAccount } from '@/hooks/use-gateways';
+import { useBanks, usePlatformBalance, useResolveAccount } from '@/hooks/use-gateways';
 import { useMe } from '@/hooks/useMe';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import type { CreateEquityHolderRequest, EquityHolder, EquityPayout } from '@/lib/api/equity';
@@ -90,12 +90,15 @@ export default function EquityManagementPage() {
 
     const { data: holdersData, isLoading: loadingHolders } = useEquityHolders();
     const { data: summaryData, isLoading: loadingSummary } = useEquitySummary(dateRange.from, dateRange.to);
+    const { data: balanceData, isLoading: loadingBalance } = usePlatformBalance();
     const triggerPayout = useTriggerEquityPayout();
     const createHolder = useCreateEquityHolder();
     const updateHolder = useUpdateEquityHolder();
 
     const holders = holdersData?.holders ?? [];
     const summary = summaryData;
+    const paystackBalance = balanceData ? Number(balanceData.balance) : null;
+    const paystackCurrency = balanceData?.currency ?? 'KES';
 
     const isSuperAdmin = user?.isPlatformOwner || user?.isSuperUser;
 
@@ -262,30 +265,11 @@ export default function EquityManagementPage() {
 
                 {/* Sidebar Projections & Config */}
                 <div className="space-y-6">
-                    <Card className="border-none shadow-xl shadow-black/5 bg-primary/5">
-                        <CardHeader className="bg-transparent border-none">
-                            <h3 className="font-bold flex items-center gap-2">
-                                <RefreshCcw className="h-4 w-4 text-primary" />
-                                Next Payout Projection
-                            </h3>
-                        </CardHeader>
-                        <CardContent className="space-y-4 pt-0 text-sm">
-                            <div className="flex justify-between items-center p-3 rounded-xl bg-background/50 border border-border/50">
-                                <span className="text-muted-foreground">Cycle Status</span>
-                                <Badge variant="success" className="animate-pulse">Active</Badge>
-                            </div>
-                            <div className="flex justify-between items-center p-3 rounded-xl bg-background/50 border border-border/50">
-                                <span className="text-muted-foreground">Next Auto-Run</span>
-                                <span className="font-mono font-bold">2026-04-01</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground px-1 leading-relaxed">
-                                Profit is calculated from `{dateRange.from}` to `{dateRange.to}`. Payouts are triggered automatically if threshold is met.
-                            </p>
-                            <Button variant="outline" className="w-full bg-card shadow-sm hover:shadow-md transition-all border-none font-bold text-xs" onClick={() => router.push(`/${orgSlug}/platform`)}>
-                                Configure Frequency <ArrowRight className="h-3 w-3 ml-2" />
-                            </Button>
-                        </CardContent>
-                    </Card>
+                    <NextPayoutProjectionCard
+                        holders={holders}
+                        dateRange={dateRange}
+                        onConfigure={() => router.push(`/${orgSlug}/platform`)}
+                    />
 
                     <Card className="border-none shadow-xl shadow-black/5">
                         <CardHeader className="bg-transparent border-none">
@@ -297,7 +281,13 @@ export default function EquityManagementPage() {
                         <CardContent className="space-y-4 pt-0">
                             <div className="p-4 rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/20">
                                 <p className="text-xs opacity-70 mb-1">Available for Payouts</p>
-                                <p className="text-3xl font-black">KES 1,240,500</p>
+                                {loadingBalance ? (
+                                    <div className="h-9 w-40 bg-primary-foreground/10 animate-pulse rounded-md" />
+                                ) : paystackBalance !== null ? (
+                                    <p className="text-3xl font-black">{paystackCurrency} {paystackBalance.toLocaleString()}</p>
+                                ) : (
+                                    <p className="text-sm opacity-70">Unable to fetch balance</p>
+                                )}
                             </div>
                             <Button variant="ghost" className="w-full text-xs text-muted-foreground h-8" onClick={() => window.open('https://dashboard.paystack.com', '_blank')}>
                                 View on Paystack <ExternalLink className="h-3 w-3 ml-2" />
@@ -307,6 +297,91 @@ export default function EquityManagementPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+/** Compute the next auto-run date from holders' payout frequencies. */
+function getNextPayoutDate(holders: EquityHolder[]): { date: string; frequency: string } {
+    const now = new Date();
+    const activeHolders = holders.filter(h => h.is_active);
+    if (activeHolders.length === 0) return { date: '-', frequency: 'none' };
+
+    // Count frequencies
+    const freqCounts: Record<string, number> = {};
+    for (const h of activeHolders) {
+        const f = h.payout_frequency ?? 'manual';
+        freqCounts[f] = (freqCounts[f] ?? 0) + 1;
+    }
+
+    // Most common frequency
+    const dominant = Object.entries(freqCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'manual';
+
+    if (dominant === 'manual') return { date: 'Manual', frequency: 'manual' };
+
+    if (dominant === 'monthly') {
+        // First of next month
+        const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        return { date: format(next, 'yyyy-MM-dd'), frequency: 'monthly' };
+    }
+
+    if (dominant === 'quarterly') {
+        // First of next quarter
+        const currentQuarter = Math.floor(now.getMonth() / 3);
+        const nextQuarterMonth = (currentQuarter + 1) * 3;
+        const next = nextQuarterMonth > 11
+            ? new Date(now.getFullYear() + 1, nextQuarterMonth - 12, 1)
+            : new Date(now.getFullYear(), nextQuarterMonth, 1);
+        return { date: format(next, 'yyyy-MM-dd'), frequency: 'quarterly' };
+    }
+
+    return { date: '-', frequency: dominant };
+}
+
+function NextPayoutProjectionCard({
+    holders,
+    dateRange,
+    onConfigure,
+}: {
+    holders: EquityHolder[];
+    dateRange: { from: string; to: string };
+    onConfigure: () => void;
+}) {
+    const { date: nextDate, frequency } = getNextPayoutDate(holders);
+    const hasActiveHolders = holders.some(h => h.is_active);
+
+    return (
+        <Card className="border-none shadow-xl shadow-black/5 bg-primary/5">
+            <CardHeader className="bg-transparent border-none">
+                <h3 className="font-bold flex items-center gap-2">
+                    <RefreshCcw className="h-4 w-4 text-primary" />
+                    Next Payout Projection
+                </h3>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-0 text-sm">
+                <div className="flex justify-between items-center p-3 rounded-xl bg-background/50 border border-border/50">
+                    <span className="text-muted-foreground">Cycle Status</span>
+                    {hasActiveHolders ? (
+                        <Badge variant="success" className="animate-pulse">Active</Badge>
+                    ) : (
+                        <Badge variant="outline">No Active Holders</Badge>
+                    )}
+                </div>
+                <div className="flex justify-between items-center p-3 rounded-xl bg-background/50 border border-border/50">
+                    <span className="text-muted-foreground">Frequency</span>
+                    <span className="font-mono font-bold text-xs uppercase">{frequency}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 rounded-xl bg-background/50 border border-border/50">
+                    <span className="text-muted-foreground">Next Auto-Run</span>
+                    <span className="font-mono font-bold">{nextDate}</span>
+                </div>
+                <p className="text-xs text-muted-foreground px-1 leading-relaxed">
+                    Profit is calculated from {dateRange.from} to {dateRange.to}. Payouts are triggered automatically if threshold is met.
+                </p>
+                <Button variant="outline" className="w-full bg-card shadow-sm hover:shadow-md transition-all border-none font-bold text-xs" onClick={onConfigure}>
+                    Configure Frequency <ArrowRight className="h-3 w-3 ml-2" />
+                </Button>
+            </CardContent>
+        </Card>
     );
 }
 
