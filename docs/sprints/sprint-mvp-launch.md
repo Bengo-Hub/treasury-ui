@@ -1,7 +1,7 @@
 # Treasury UI - Sprint MVP Launch
 
 **Target**: March 2026 (aligned with BengoBox MVP)  
-**Status**: In Progress  
+**Status**: Complete  
 **Goal**: Ship Codevertex Books (treasury-ui) with SSO, gateway management, transaction visibility, and payout/equity flows for platform and tenant admins.
 
 ---
@@ -70,6 +70,14 @@
 - [x] Gateway selection: multi-activate with Paystack default
 - [x] Sidebar: removed profile section, added Referrals nav
 - [x] UI components: Tabs, Dialog, MultiSelect, FormField
+
+### Completed (2026-04-18)
+
+- [x] Real Paystack balance on equity page: replaced hardcoded KES 1,240,500 with live `GET /platform/balance` API
+- [x] Editable integration URLs: pencil edit buttons on auto-generated webhook/callback URLs with inline editing and backend save
+- [x] Real payout schedule projection: computed next auto-run date from holder payout frequencies (monthly/quarterly/manual)
+- [x] `usePlatformBalance` hook with 1min stale time and 5min auto-refresh
+- [x] `getPlatformBalance` API client function
 
 ### Nice to Have (P2)
 

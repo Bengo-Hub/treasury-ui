@@ -1,6 +1,6 @@
 # Treasury UI - Service Integrations
 
-**Last Updated**: March 2026  
+**Last Updated**: April 2026  
 **Purpose**: Document integration points for Codevertex Books (treasury-ui) with auth-service, treasury-api, and other BengoBox services.
 
 ---
@@ -50,4 +50,9 @@ Payment gateway configuration is **owned by treasury-api and treasury-ui**. Auth
 - [x] Transactions list wired to treasury-api (useTransactions, filters: status, payment_method, from, to)
 - [x] Dashboard metrics wired to treasury-api (useAnalyticsSummary, useTransactions for recent)
 - [x] Settlements list wired to treasury-api (usePayoutHistory → GET /api/v1/{tenant}/payout/history)
-- [ ] Reconciliation and reporting views
+- [x] Platform equity page: real Paystack balance (usePlatformBalance → GET /platform/balance), editable URLs, real payout schedule
+- [x] Fee configuration wired to real fee rules API (usePlatformFeeRules)
+- [x] Invoices, Quotations, Expenses, Bills, Vendors, Journals, Reports, Tax, Budgets, Accounts, Reconciliation, Referrals pages
+- [ ] Payout management (rider/merchant payouts)
+- [ ] Export (CSV/Excel) for transactions
+- [ ] Reconciliation and reporting views (enhanced)
