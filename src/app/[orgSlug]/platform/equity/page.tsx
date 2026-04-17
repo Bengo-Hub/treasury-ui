@@ -325,13 +325,23 @@ function getNextPayoutDate(holders: EquityHolder[]): { date: string; frequency: 
     }
 
     if (dominant === 'quarterly') {
-        // First of next quarter
         const currentQuarter = Math.floor(now.getMonth() / 3);
         const nextQuarterMonth = (currentQuarter + 1) * 3;
         const next = nextQuarterMonth > 11
             ? new Date(now.getFullYear() + 1, nextQuarterMonth - 12, 1)
             : new Date(now.getFullYear(), nextQuarterMonth, 1);
         return { date: format(next, 'yyyy-MM-dd'), frequency: 'quarterly' };
+    }
+
+    if (dominant === 'annually') {
+        // Use the most common financial_year_end_month from holders, default 12 (December)
+        const fyMonths = activeHolders.map(h => h.financial_year_end_month ?? 12);
+        const fyMonth = fyMonths.sort((a, b) =>
+            fyMonths.filter(v => v === b).length - fyMonths.filter(v => v === a).length
+        )[0] ?? 12;
+        const fyYear = now.getMonth() < fyMonth - 1 ? now.getFullYear() : now.getFullYear() + 1;
+        const next = new Date(fyYear, fyMonth - 1, 1); // 1st of FY-end month
+        return { date: format(next, 'yyyy-MM-dd'), frequency: 'annually' };
     }
 
     return { date: '-', frequency: dominant };
@@ -503,7 +513,10 @@ function HolderFormModal({
     const [holderType, setHolderType] = useState<'shareholder' | 'royalty'>(initial?.holder_type ?? 'shareholder');
     const [email, setEmail] = useState(initial?.email ?? '');
     const [percentageShare, setPercentageShare] = useState(initial?.percentage_share ?? 0);
-    const [payoutFrequency, setPayoutFrequency] = useState<'manual' | 'monthly' | 'quarterly'>(initial?.payout_frequency ?? 'monthly');
+    const [payoutFrequency, setPayoutFrequency] = useState<'manual' | 'monthly' | 'quarterly' | 'annually'>(initial?.payout_frequency ?? 'monthly');
+    const [payoutScheduleDay, setPayoutScheduleDay] = useState(initial?.payout_schedule_day ?? 0);
+    const [financialYearEndMonth, setFinancialYearEndMonth] = useState(initial?.financial_year_end_month ?? 12);
+    const [closeOfBooksDay, setCloseOfBooksDay] = useState(initial?.close_of_books_day ?? 0);
 
     // Tab 2: Services
     const [selectedServices, setSelectedServices] = useState<string[]>(initial?.source_services ?? []);
@@ -538,33 +551,94 @@ function HolderFormModal({
     const [verifiedName, setVerifiedName] = useState<string | null>(null);
     const [verifyError, setVerifyError] = useState<string | null>(null);
 
-    // Hydrate payout details from initial holder
+    // Hydrate ALL fields when initial changes (edit mode) or reset to defaults (create mode)
     useEffect(() => {
-        if (!initial?.payout_account_details) return;
-        try {
-            const details = typeof initial.payout_account_details === 'string'
-                ? JSON.parse(initial.payout_account_details)
-                : initial.payout_account_details;
-            const method = initial.payout_method ?? 'paystack_transfer';
-            if (method === 'paystack_transfer') {
-                setRecipientType(details.recipient_type ?? 'nuban');
-                setPayoutCurrency(details.currency ?? 'NGN');
-                setBankCode(details.bank_code ?? '');
-                setAccountNumber(details.account_number ?? '');
-                setAccountName(details.account_name ?? '');
-            } else if (method === 'bank') {
-                setBankName(details.bank_name ?? '');
-                setManualBankCode(details.bank_code ?? '');
-                setManualAccountNumber(details.account_number ?? '');
-                setManualAccountName(details.account_name ?? '');
-            } else if (method === 'mpesa_paybill') {
-                setPaybillNumber(details.paybill_number ?? '');
-                setMpesaAccountNumber(details.account_number ?? '');
-            } else if (method === 'mpesa_till') {
-                setTillNumber(details.till_number ?? '');
+        // Always reset tab and bank resolution state
+        setActiveTab('basic');
+        setVerifiedName(null);
+        setVerifyError(null);
+
+        if (initial) {
+            // Sync basic fields
+            setName(initial.name ?? '');
+            setHolderType(initial.holder_type ?? 'shareholder');
+            setEmail(initial.email ?? '');
+            setPercentageShare(initial.percentage_share ?? 0);
+            setPayoutFrequency(initial.payout_frequency ?? 'monthly');
+            setSelectedServices(initial.source_services ?? []);
+            setPayoutMethod(initial.payout_method ?? 'paystack_transfer');
+            setPayoutThreshold(initial.payout_threshold ?? 1000);
+            setPayoutScheduleDay(initial.payout_schedule_day ?? 0);
+            setFinancialYearEndMonth(initial.financial_year_end_month ?? 12);
+            setCloseOfBooksDay(initial.close_of_books_day ?? 0);
+
+            // Hydrate payout account details
+            if (initial.payout_account_details) {
+                try {
+                    const details = typeof initial.payout_account_details === 'string'
+                        ? JSON.parse(initial.payout_account_details)
+                        : initial.payout_account_details;
+                    const method = initial.payout_method ?? 'paystack_transfer';
+                    if (method === 'paystack_transfer') {
+                        setRecipientType(details.recipient_type ?? 'nuban');
+                        setPayoutCurrency(details.currency ?? 'NGN');
+                        setBankCode(details.bank_code ?? '');
+                        setAccountNumber(details.account_number ?? '');
+                        setAccountName(details.account_name ?? '');
+                    } else if (method === 'bank') {
+                        setBankName(details.bank_name ?? '');
+                        setManualBankCode(details.bank_code ?? '');
+                        setManualAccountNumber(details.account_number ?? '');
+                        setManualAccountName(details.account_name ?? '');
+                    } else if (method === 'mpesa_paybill') {
+                        setPaybillNumber(details.paybill_number ?? '');
+                        setMpesaAccountNumber(details.account_number ?? '');
+                    } else if (method === 'mpesa_till') {
+                        setTillNumber(details.till_number ?? '');
+                    }
+                } catch {
+                    // ignore parse errors
+                }
+            } else {
+                // No payout details — reset payout fields to defaults
+                setRecipientType('nuban');
+                setPayoutCurrency('NGN');
+                setBankCode('');
+                setAccountNumber('');
+                setAccountName('');
+                setBankName('');
+                setManualBankCode('');
+                setManualAccountNumber('');
+                setManualAccountName('');
+                setPaybillNumber('');
+                setMpesaAccountNumber('');
+                setTillNumber('');
             }
-        } catch {
-            // ignore parse errors
+        } else {
+            // Create mode — reset all to defaults
+            setName('');
+            setHolderType('shareholder');
+            setEmail('');
+            setPercentageShare(0);
+            setPayoutFrequency('monthly');
+            setPayoutScheduleDay(0);
+            setFinancialYearEndMonth(12);
+            setCloseOfBooksDay(0);
+            setSelectedServices([]);
+            setPayoutMethod('paystack_transfer');
+            setPayoutThreshold(1000);
+            setRecipientType('nuban');
+            setPayoutCurrency('NGN');
+            setBankCode('');
+            setAccountNumber('');
+            setAccountName('');
+            setBankName('');
+            setManualBankCode('');
+            setManualAccountNumber('');
+            setManualAccountName('');
+            setPaybillNumber('');
+            setMpesaAccountNumber('');
+            setTillNumber('');
         }
     }, [initial]);
 
@@ -610,6 +684,9 @@ function HolderFormModal({
             payout_account_details: buildPayoutDetails(),
             payout_threshold: payoutThreshold,
             payout_frequency: payoutFrequency,
+            payout_schedule_day: payoutScheduleDay,
+            financial_year_end_month: financialYearEndMonth,
+            close_of_books_day: closeOfBooksDay,
         });
     };
 
@@ -670,14 +747,55 @@ function HolderFormModal({
                             <FormField label="Payout Frequency">
                                 <select
                                     value={payoutFrequency}
-                                    onChange={(e) => setPayoutFrequency(e.target.value as 'manual' | 'monthly' | 'quarterly')}
+                                    onChange={(e) => setPayoutFrequency(e.target.value as 'manual' | 'monthly' | 'quarterly' | 'annually')}
                                     className={selectClass}
                                 >
                                     <option value="manual">Manual</option>
                                     <option value="monthly">Monthly</option>
                                     <option value="quarterly">Quarterly</option>
+                                    <option value="annually">Annually (Financial Year-End)</option>
                                 </select>
                             </FormField>
+                            {payoutFrequency !== 'manual' && (
+                                <div className="space-y-4 rounded-lg border border-border p-4">
+                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Payout Schedule Config</p>
+                                    {payoutFrequency === 'monthly' && (
+                                        <FormField label="Day of Month" description="Day when payout is calculated (1-28). 0 = last day.">
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                max={28}
+                                                value={payoutScheduleDay || ''}
+                                                onChange={(e) => setPayoutScheduleDay(parseInt(e.target.value) || 0)}
+                                                className={inputClass}
+                                                placeholder="0 = last day of month"
+                                            />
+                                        </FormField>
+                                    )}
+                                    <FormField label="Financial Year-End Month" description="Month when the financial year ends (used for annual payouts and defaults).">
+                                        <select
+                                            value={financialYearEndMonth}
+                                            onChange={(e) => setFinancialYearEndMonth(parseInt(e.target.value))}
+                                            className={selectClass}
+                                        >
+                                            {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
+                                                <option key={i + 1} value={i + 1}>{m}</option>
+                                            ))}
+                                        </select>
+                                    </FormField>
+                                    <FormField label="Close of Books Day" description="Day of month when books close. 0 = last day of the month.">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={28}
+                                            value={closeOfBooksDay || ''}
+                                            onChange={(e) => setCloseOfBooksDay(parseInt(e.target.value) || 0)}
+                                            className={inputClass}
+                                            placeholder="0 = last day of month"
+                                        />
+                                    </FormField>
+                                </div>
+                            )}
                         </TabsContent>
 
                         {/* Tab 2: Services */}
