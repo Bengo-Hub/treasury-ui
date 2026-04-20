@@ -251,6 +251,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       href: `/${orgSlug}/platform/referrals`,
       active: pathname?.startsWith(`/${orgSlug}/platform/referrals`) ?? false,
     },
+    {
+      label: 'Audit Log',
+      icon: ClipboardCheck,
+      href: `/${orgSlug}/platform/audit`,
+      active: pathname?.startsWith(`/${orgSlug}/platform/audit`) ?? false,
+    },
   ];
 
   const menuLogo = tenant?.logoUrl;

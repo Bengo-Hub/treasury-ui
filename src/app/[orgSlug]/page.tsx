@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { Badge, Card, CardContent } from '@/components/ui/base';
 import { useAnalyticsSummary, useTransactions } from '@/hooks/use-analytics';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
@@ -11,6 +12,17 @@ import {
     Loader2,
     Wallet
 } from 'lucide-react';
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 function formatDateRange(from: Date, to: Date): { from: string; to: string } {
   return {
@@ -68,6 +80,38 @@ export default function DashboardPage() {
     },
   ];
 
+  // --- Chart data: Revenue Over Time (by day) ---
+  const revenueOverTime = useMemo(() => {
+    const txns = txData?.transactions ?? [];
+    const byDay: Record<string, number> = {};
+    for (const txn of txns) {
+      if (txn.status !== 'succeeded') continue;
+      const day = txn.created_at.slice(0, 10); // YYYY-MM-DD
+      byDay[day] = (byDay[day] ?? 0) + Number(txn.amount);
+    }
+    return Object.entries(byDay)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .reduce<{ date: string; revenue: number; cumulative: number }[]>((acc, [date, revenue]) => {
+        const prev = acc.length > 0 ? acc[acc.length - 1].cumulative : 0;
+        acc.push({ date, revenue, cumulative: prev + revenue });
+        return acc;
+      }, []);
+  }, [txData]);
+
+  // --- Chart data: Revenue by Payment Method ---
+  const revenueByMethod = useMemo(() => {
+    const txns = txData?.transactions ?? [];
+    const byMethod: Record<string, number> = {};
+    for (const txn of txns) {
+      if (txn.status !== 'succeeded') continue;
+      const method = txn.payment_method || 'unknown';
+      byMethod[method] = (byMethod[method] ?? 0) + Number(txn.amount);
+    }
+    return Object.entries(byMethod)
+      .map(([method, total]) => ({ method, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [txData]);
+
   const loading = summaryLoading || txLoading;
   const hasError = summaryError || txError;
 
@@ -111,6 +155,63 @@ export default function DashboardPage() {
             </Card>
           ))}
         </div>
+
+        {/* Charts */}
+        {!loading && !hasError && (
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Revenue Over Time */}
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="font-bold mb-4">Revenue Over Time</h3>
+                {revenueOverTime.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">No succeeded transactions in this period.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <AreaChart data={revenueOverTime}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip
+                        formatter={(value) => [`${currency} ${Number(value).toLocaleString()}`, 'Cumulative']}
+                        labelFormatter={(label) => `Date: ${label}`}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="cumulative"
+                        stroke="hsl(142, 76%, 36%)"
+                        fill="hsl(142, 76%, 36%)"
+                        fillOpacity={0.15}
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Revenue by Payment Method */}
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="font-bold mb-4">Revenue by Payment Method</h3>
+                {revenueByMethod.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">No succeeded transactions in this period.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={revenueByMethod} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis type="number" tick={{ fontSize: 12 }} />
+                      <YAxis dataKey="method" type="category" tick={{ fontSize: 12 }} width={100} />
+                      <Tooltip
+                        formatter={(value) => [`${currency} ${Number(value).toLocaleString()}`, 'Revenue']}
+                      />
+                      <Bar dataKey="total" fill="hsl(221, 83%, 53%)" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         <Card>
           <div className="px-6 py-4 border-b border-border flex items-center justify-between">
