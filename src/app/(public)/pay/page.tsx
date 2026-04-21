@@ -12,21 +12,27 @@ import { ChevronRight, Loader2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
 
-const DEFAULT_GATEWAYS: GatewayType[] = ['paystack', 'mpesa', 'cod'];
-
 function parseGateways(param: string | null): GatewayType[] {
-  if (!param) return DEFAULT_GATEWAYS;
+  if (!param) return [];
   const list = param.split(',').map((g) => g.trim().toLowerCase());
   const allowed: GatewayType[] = [];
   if (list.includes('paystack')) allowed.push('paystack');
   if (list.includes('mpesa')) allowed.push('mpesa');
   if (list.includes('cod')) allowed.push('cod');
-  return allowed.length > 0 ? allowed : DEFAULT_GATEWAYS;
+  return allowed;
+}
+
+function gatewaysUrlFromInitiateUrl(initiateUrl: string): string | null {
+  // initiate_url: https://treasury.example.com/api/v1/pay/{tenantUUID}/intents/{intentID}/initiate
+  // gateways URL: https://treasury.example.com/api/v1/pay/{tenantUUID}/gateways
+  const match = initiateUrl.match(/^(https?:\/\/.+\/api\/v1\/pay\/[0-9a-f-]+)/i);
+  return match ? `${match[1]}/gateways` : null;
 }
 
 function PayPageContent() {
   const searchParams = useSearchParams();
   const [openGateway, setOpenGateway] = useState<GatewayType | null>(null);
+  const [gateways, setGateways] = useState<GatewayType[] | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const embed = searchParams.get('embed') === 'true';
@@ -76,10 +82,34 @@ function PayPageContent() {
     return () => observer.disconnect();
   }, [embed, sendResize]);
 
-  const gateways = useMemo(
+  const gatewaysParam = useMemo(
     () => parseGateways(searchParams.get('gateways')),
     [searchParams],
   );
+
+  // Fetch active gateways from treasury-api (derived from initiate_url) so only
+  // configured + tenant-activated gateways are shown. Fall back to `gateways` param.
+  useEffect(() => {
+    const initiateUrl = details.initiate_url;
+    if (!initiateUrl) {
+      setGateways(gatewaysParam.length > 0 ? gatewaysParam : ['cod']);
+      return;
+    }
+    const url = gatewaysUrlFromInitiateUrl(initiateUrl);
+    if (!url) {
+      setGateways(gatewaysParam.length > 0 ? gatewaysParam : ['cod']);
+      return;
+    }
+    fetch(url)
+      .then((r) => r.json())
+      .then((data) => {
+        const list = parseGateways((data.gateways as string[])?.join(',') ?? '');
+        setGateways(list.length > 0 ? list : ['cod']);
+      })
+      .catch(() => {
+        setGateways(gatewaysParam.length > 0 ? gatewaysParam : ['cod']);
+      });
+  }, [details.initiate_url, gatewaysParam]);
 
   const formatAmount = () =>
     details.amount > 0
@@ -122,47 +152,55 @@ function PayPageContent() {
         </div>
 
         <div className="grid gap-3">
-          {gateways.includes('paystack') && (
-            <button
-              type="button"
-              onClick={() => setOpenGateway('paystack')}
-              className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
-            >
-              <PaystackLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground">{GATEWAY_LABELS.paystack}</p>
-                <p className="text-xs text-muted-foreground">Card, bank, mobile money via Paystack</p>
-              </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-            </button>
-          )}
-          {gateways.includes('mpesa') && (
-            <button
-              type="button"
-              onClick={() => setOpenGateway('mpesa')}
-              className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
-            >
-              <MpesaLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground">{GATEWAY_LABELS.mpesa}</p>
-                <p className="text-xs text-muted-foreground">M-Pesa STK Push on your phone</p>
-              </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-            </button>
-          )}
-          {gateways.includes('cod') && (
-            <button
-              type="button"
-              onClick={() => setOpenGateway('cod')}
-              className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
-            >
-              <CodLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground">{GATEWAY_LABELS.cod}</p>
-                <p className="text-xs text-muted-foreground">Pay when you receive your order</p>
-              </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-            </button>
+          {gateways === null ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              {gateways.includes('paystack') && (
+                <button
+                  type="button"
+                  onClick={() => setOpenGateway('paystack')}
+                  className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                >
+                  <PaystackLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground">{GATEWAY_LABELS.paystack}</p>
+                    <p className="text-xs text-muted-foreground">Card, bank, mobile money via Paystack</p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                </button>
+              )}
+              {gateways.includes('mpesa') && (
+                <button
+                  type="button"
+                  onClick={() => setOpenGateway('mpesa')}
+                  className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                >
+                  <MpesaLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground">{GATEWAY_LABELS.mpesa}</p>
+                    <p className="text-xs text-muted-foreground">M-Pesa STK Push on your phone</p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                </button>
+              )}
+              {gateways.includes('cod') && (
+                <button
+                  type="button"
+                  onClick={() => setOpenGateway('cod')}
+                  className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                >
+                  <CodLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground">{GATEWAY_LABELS.cod}</p>
+                    <p className="text-xs text-muted-foreground">Pay when you receive your order</p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                </button>
+              )}
+            </>
           )}
         </div>
 
