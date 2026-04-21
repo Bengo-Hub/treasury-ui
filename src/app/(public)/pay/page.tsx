@@ -54,7 +54,7 @@ function PayPageContent() {
       description: searchParams.get('description') || undefined,
       redirect_url,
       button_text,
-      customer_email: searchParams.get('customer_email') || undefined,
+      customer_email: searchParams.get('email') || searchParams.get('customer_email') || undefined,
       phone_number: searchParams.get('phone_number') || undefined,
       initiate_url,
       verify_url: searchParams.get('verify_url') || undefined,
