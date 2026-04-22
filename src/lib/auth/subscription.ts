@@ -42,9 +42,9 @@ export async function fetchSubscriptionInfo(
     if (tenantId) headers["X-Tenant-ID"] = tenantId;
     if (tenantSlug) headers["X-Tenant-Slug"] = tenantSlug;
 
-    // Primary: query by tenant UUID
-    const identifier = tenantId || tenantSlug;
-    const resp = await fetch(`${baseUrl}/api/v1/tenants/${identifier}/subscription`, {
+    // Use the tenant-scoped subscription endpoint (requires JWT with tenant claims).
+    // The /api/v1/tenants/{id}/subscription route is S2S-only (platform API key).
+    const resp = await fetch(`${baseUrl}/api/v1/subscription`, {
       headers,
       signal: controller.signal,
     });
