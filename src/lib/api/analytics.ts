@@ -53,8 +53,12 @@ export function getAnalyticsSummary(tenantIdOrSlug: string, params?: AnalyticsSu
 }
 
 /** Get paginated transactions with optional filters. Platform owners can pass tenantId override. */
-export function getTransactions(tenantIdOrSlug: string, params?: TransactionsParams & { tenantId?: string }): Promise<TransactionsResponse> {
-  return apiClient.get<TransactionsResponse>(`${BASE}/${tenantIdOrSlug}/analytics/transactions`, params);
+export async function getTransactions(tenantIdOrSlug: string, params?: TransactionsParams & { tenantId?: string }): Promise<TransactionsResponse> {
+  const raw = await apiClient.get<{ transactions?: TransactionItem[]; data?: TransactionItem[]; count?: number; total?: number }>(`${BASE}/${tenantIdOrSlug}/analytics/transactions`, params);
+  return {
+    transactions: raw.transactions ?? raw.data ?? [],
+    count: raw.count ?? raw.total ?? 0,
+  };
 }
 
 // --- Payouts (settlements) ---

@@ -2,8 +2,10 @@
 
 import { CodPaymentModal } from '@/components/payments/CodPaymentModal';
 import { CodLogo, MpesaLogo, PaystackLogo } from '@/components/payments/logos';
+import { WalletLogo } from '@/components/payments/logos/WalletLogo';
 import { MpesaPaymentModal } from '@/components/payments/MpesaPaymentModal';
 import { PaystackPaymentModal } from '@/components/payments/PaystackPaymentModal';
+import { WalletPaymentModal } from '@/components/payments/WalletPaymentModal';
 import type { GatewayType, PaymentDetails } from '@/components/payments/types';
 import { GATEWAY_LABELS } from '@/components/payments/types';
 import { Card } from '@/components/ui/base';
@@ -18,6 +20,7 @@ function parseGateways(param: string | null): GatewayType[] {
   const allowed: GatewayType[] = [];
   if (list.includes('paystack')) allowed.push('paystack');
   if (list.includes('mpesa')) allowed.push('mpesa');
+  if (list.includes('wallet')) allowed.push('wallet');
   if (list.includes('cod')) allowed.push('cod');
   return allowed;
 }
@@ -186,6 +189,20 @@ function PayPageContent() {
                   <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                 </button>
               )}
+              {gateways.includes('wallet') && (
+                <button
+                  type="button"
+                  onClick={() => setOpenGateway('wallet')}
+                  className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                >
+                  <WalletLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground">{GATEWAY_LABELS.wallet}</p>
+                    <p className="text-xs text-muted-foreground">Deduct from your wallet balance instantly</p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                </button>
+              )}
               {gateways.includes('cod') && (
                 <button
                   type="button"
@@ -225,6 +242,13 @@ function PayPageContent() {
       )}
       {openGateway === 'cod' && (
         <CodPaymentModal
+          details={details}
+          embed={embed}
+          onClose={() => setOpenGateway(null)}
+        />
+      )}
+      {openGateway === 'wallet' && (
+        <WalletPaymentModal
           details={details}
           embed={embed}
           onClose={() => setOpenGateway(null)}
