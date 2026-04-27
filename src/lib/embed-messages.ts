@@ -3,7 +3,8 @@ export type TreasuryEmbedMessage =
   | { type: 'treasury:payment_confirmed'; intentId: string; amount: number; reference: string; channel: string }
   | { type: 'treasury:payment_failed'; intentId: string; error: string }
   | { type: 'treasury:payment_cancelled'; intentId: string }
-  | { type: 'treasury:resize'; height: number };
+  | { type: 'treasury:resize'; height: number }
+  | { type: 'treasury:wallet_payment_request'; intentId: string; amount: number; reference: string; channel: string };
 
 export function sendToParent(message: TreasuryEmbedMessage) {
   if (typeof window !== 'undefined' && window.parent !== window) {

@@ -30,10 +30,11 @@ export interface PaymentDetails {
   verify_url?: string;
 }
 
-export type GatewayType = 'paystack' | 'mpesa' | 'cod';
+export type GatewayType = 'paystack' | 'mpesa' | 'cod' | 'wallet';
 
 export const GATEWAY_LABELS: Record<GatewayType, string> = {
   paystack: 'Paystack',
   mpesa: 'M-Pesa',
   cod: 'Cash on Delivery',
+  wallet: 'Pay with Wallet',
 };
