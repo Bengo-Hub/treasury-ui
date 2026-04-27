@@ -4,6 +4,7 @@ import { Badge, Button, Card, CardContent } from '@/components/ui/base';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   useBanks,
+  useDeactivateTenantGateway,
   useResolveAccount,
   useSelectTenantGateway,
   useTenantGateways,
@@ -24,6 +25,7 @@ import {
   Loader2,
   Plus,
   Power,
+  PowerOff,
   Save,
   Smartphone,
   XCircle
@@ -95,6 +97,7 @@ export default function GatewaysPage() {
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load gateways') : null;
 
   const selectMutation = useSelectTenantGateway(tenantSlug);
+  const deactivateMutation = useDeactivateTenantGateway(tenantSlug);
   const { data: payoutConfig, isLoading: loadingPayout } = useTenantPayoutConfig(tenantSlug, hasPaystack);
   const upsertPayout = useUpsertTenantPayoutConfig(tenantSlug);
 
@@ -261,7 +264,24 @@ export default function GatewaysPage() {
                           </Button>
                         )}
                         {isActive ? (
-                          <Badge variant="success">Active</Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="success">Active</Badge>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-[10px] h-7 px-2 text-destructive hover:bg-destructive/10"
+                              disabled={deactivateMutation.isPending}
+                              onClick={() => {
+                                deactivateMutation.mutate(gw.gateway_type, {
+                                  onSuccess: () => toast.success(`${gw.name} deactivated`),
+                                  onError: (e: any) => toast.error(e?.response?.data?.message || 'Failed to deactivate'),
+                                });
+                              }}
+                              title="Deactivate gateway"
+                            >
+                              {deactivateMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PowerOff className="h-3.5 w-3.5" />}
+                            </Button>
+                          </div>
                         ) : (
                           <Button
                             size="sm"

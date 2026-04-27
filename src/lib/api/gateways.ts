@@ -103,6 +103,11 @@ export function selectTenantGateway(tenantSlugOrId: string, gatewayType: string)
   return apiClient.post<{ message: string; gateway_type: string }>(`${BASE}/${tenantSlugOrId}/gateways/select/${encodeURIComponent(gatewayType)}`, {});
 }
 
+/** Tenant: deactivate an active gateway. */
+export function deactivateTenantGateway(tenantSlugOrId: string, gatewayType: string): Promise<{ message: string; gateway_type: string }> {
+  return apiClient.delete<{ message: string; gateway_type: string }>(`${BASE}/${tenantSlugOrId}/gateways/select/${encodeURIComponent(gatewayType)}`);
+}
+
 export interface PayoutConfigResponse {
   id: string;
   tenant_id: string;
