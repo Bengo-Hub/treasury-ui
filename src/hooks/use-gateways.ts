@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createPlatformGateway,
+  deactivateTenantGateway,
   getPlatformBalance,
   getTenantPayoutConfig,
   getTenantSelectedGateways,
@@ -77,6 +78,17 @@ export function useSelectTenantGateway(orgSlug: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (gatewayType: string) => selectTenantGateway(orgSlug, gatewayType),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: gatewayKeys.tenant(orgSlug) });
+      queryClient.invalidateQueries({ queryKey: gatewayKeys.tenantSelected(orgSlug) });
+    },
+  });
+}
+
+export function useDeactivateTenantGateway(orgSlug: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (gatewayType: string) => deactivateTenantGateway(orgSlug, gatewayType),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: gatewayKeys.tenant(orgSlug) });
       queryClient.invalidateQueries({ queryKey: gatewayKeys.tenantSelected(orgSlug) });
