@@ -25,6 +25,8 @@ export interface EquityHolder {
     email?: string;
     percentage_share: number;
     source_services?: string[];
+    linked_tenant_ids?: string[]; // UUIDs of referred tenants this holder earns from
+    referral_id?: string;         // FK to a referral programme record
     payout_method: string;
     payout_account_details: string; // JSON, parsed by UI
     payout_threshold: number;
@@ -43,6 +45,8 @@ export interface CreateEquityHolderRequest {
     email?: string;
     percentage_share: number;
     source_services?: string[];
+    linked_tenant_ids?: string[]; // restrict earnings to specific referred tenants
+    referral_id?: string;         // referral programme FK
     payout_method?: string;
     payout_account_details?: string;
     payout_threshold?: number;

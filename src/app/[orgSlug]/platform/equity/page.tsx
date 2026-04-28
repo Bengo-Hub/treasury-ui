@@ -453,10 +453,24 @@ function HolderRow({
                         {holder.name}
                         {holder.is_active ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <AlertCircle className="h-3 w-3 text-red-500" />}
                     </h4>
-                    <div className="flex items-center gap-3 mt-1">
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <span className="text-xs font-mono font-medium">{holder.percentage_share}% Share</span>
                         <span className="h-1 w-1 rounded-full bg-border" />
                         <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{holder.holder_type}</span>
+                        {holder.linked_tenant_ids && holder.linked_tenant_ids.length > 0 && (
+                            <>
+                                <span className="h-1 w-1 rounded-full bg-border" />
+                                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
+                                    {holder.linked_tenant_ids.length} tenant{holder.linked_tenant_ids.length !== 1 ? 's' : ''}
+                                </span>
+                            </>
+                        )}
+                        {holder.source_services && holder.source_services.length > 0 && (
+                            <>
+                                <span className="h-1 w-1 rounded-full bg-border" />
+                                <span className="text-[10px] text-muted-foreground">{holder.source_services.join(', ')}</span>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
@@ -528,6 +542,9 @@ function HolderFormModal({
 
     // Tab 2: Services
     const [selectedServices, setSelectedServices] = useState<string[]>(initial?.source_services ?? []);
+    const [linkedTenantIds, setLinkedTenantIds] = useState<string[]>(initial?.linked_tenant_ids ?? []);
+    const [linkedTenantInput, setLinkedTenantInput] = useState('');
+    const [referralId, setReferralId] = useState(initial?.referral_id ?? '');
 
     // Tab 3: Payout Method
     const [payoutMethod, setPayoutMethod] = useState(initial?.payout_method ?? 'paystack_transfer');
@@ -574,6 +591,8 @@ function HolderFormModal({
             setPercentageShare(initial.percentage_share ?? 0);
             setPayoutFrequency(initial.payout_frequency ?? 'monthly');
             setSelectedServices(initial.source_services ?? []);
+            setLinkedTenantIds(initial.linked_tenant_ids ?? []);
+            setReferralId(initial.referral_id ?? '');
             setPayoutMethod(initial.payout_method ?? 'paystack_transfer');
             setPayoutThreshold(initial.payout_threshold ?? 1000);
             setPayoutScheduleDay(initial.payout_schedule_day ?? 0);
@@ -633,6 +652,9 @@ function HolderFormModal({
             setFinancialYearEndMonth(12);
             setCloseOfBooksDay(0);
             setSelectedServices([]);
+            setLinkedTenantIds([]);
+            setLinkedTenantInput('');
+            setReferralId('');
             setPayoutMethod('paystack_transfer');
             setPayoutThreshold(1000);
             setRecipientType('nuban');
@@ -688,6 +710,8 @@ function HolderFormModal({
             email: email || undefined,
             percentage_share: percentageShare,
             source_services: selectedServices.length > 0 ? selectedServices : undefined,
+            linked_tenant_ids: linkedTenantIds.length > 0 ? linkedTenantIds : undefined,
+            referral_id: referralId || undefined,
             payout_method: payoutMethod,
             payout_account_details: buildPayoutDetails(),
             payout_threshold: payoutThreshold,
@@ -808,7 +832,7 @@ function HolderFormModal({
 
                         {/* Tab 2: Services */}
                         <TabsContent value="services" className="space-y-4">
-                            <FormField label="Source Services" description="Select which services this holder earns from.">
+                            <FormField label="Source Services" description="Select which services this holder earns from. Leave empty to earn from all services.">
                                 <MultiSelect
                                     options={SERVICE_OPTIONS}
                                     value={selectedServices}
@@ -822,6 +846,83 @@ function HolderFormModal({
                                     <span>All services (default for shareholders)</span>
                                 </div>
                             )}
+
+                            <div className="border-t border-border pt-4 space-y-4">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Referral Scope (Optional)</p>
+                                <FormField
+                                    label="Referral ID"
+                                    description="Link this holder to a referral programme. Earnings are then scoped to tenants who came via that referral."
+                                >
+                                    <input
+                                        type="text"
+                                        value={referralId}
+                                        onChange={(e) => setReferralId(e.target.value)}
+                                        className={inputClass}
+                                        placeholder="UUID of the referral record"
+                                    />
+                                </FormField>
+                                <FormField
+                                    label="Linked Tenant IDs"
+                                    description="Restrict earnings to specific referred tenants. Paste a tenant UUID and press Enter or Add."
+                                >
+                                    <div className="space-y-2">
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={linkedTenantInput}
+                                                onChange={(e) => setLinkedTenantInput(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        const id = linkedTenantInput.trim();
+                                                        if (id && !linkedTenantIds.includes(id)) {
+                                                            setLinkedTenantIds([...linkedTenantIds, id]);
+                                                        }
+                                                        setLinkedTenantInput('');
+                                                    }
+                                                }}
+                                                className={inputClass}
+                                                placeholder="Paste tenant UUID..."
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const id = linkedTenantInput.trim();
+                                                    if (id && !linkedTenantIds.includes(id)) {
+                                                        setLinkedTenantIds([...linkedTenantIds, id]);
+                                                    }
+                                                    setLinkedTenantInput('');
+                                                }}
+                                                className="shrink-0 px-3 py-2 rounded-lg border border-input text-xs font-medium hover:bg-accent transition-colors"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                        {linkedTenantIds.length > 0 && (
+                                            <div className="flex flex-wrap gap-2">
+                                                {linkedTenantIds.map((tid) => (
+                                                    <span
+                                                        key={tid}
+                                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs font-mono"
+                                                    >
+                                                        {tid.slice(0, 8)}…
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setLinkedTenantIds(linkedTenantIds.filter((t) => t !== tid))}
+                                                            className="ml-0.5 hover:text-destructive"
+                                                        >
+                                                            <X className="h-3 w-3" />
+                                                        </button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {linkedTenantIds.length === 0 && (
+                                            <p className="text-xs text-muted-foreground">No tenants linked — holder earns from all tenants.</p>
+                                        )}
+                                    </div>
+                                </FormField>
+                            </div>
                         </TabsContent>
 
                         {/* Tab 3: Payout Method */}
