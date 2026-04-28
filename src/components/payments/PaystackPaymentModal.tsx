@@ -8,9 +8,17 @@ import { PaymentModal } from './PaymentModal';
 import { PaymentQRCode } from './PaymentQRCode';
 import type { PaymentDetails } from './types';
 
+// Paystack Kenya fee: 1.5% of transaction amount, capped at KES 2,000.
+// International cards carry an additional KES 100 flat fee (not applied here — local only).
+function calcPaystackFee(amount: number): number {
+  const fee = amount * 0.015;
+  return Math.min(fee, 2000);
+}
+
 function buildInitiatePayload(
   details: PaymentDetails,
   paymentMethod: string,
+  transactionFee: number,
   extra: { customer_email?: string; phone_number?: string } = {}
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {
@@ -25,9 +33,14 @@ function buildInitiatePayload(
     ...extra,
   };
   if (details.intent_id) body.intent_id = details.intent_id;
-  if (paymentMethod === 'paystack') body.gateway = 'paystack';
-  else if (paymentMethod === 'mpesa') body.gateway = 'mpesa';
-  else if (paymentMethod === 'cod') body.gateway = 'cod';
+  if (paymentMethod === 'paystack') {
+    body.gateway = 'paystack';
+    if (transactionFee > 0) body.transaction_fee = transactionFee;
+  } else if (paymentMethod === 'mpesa') {
+    body.gateway = 'mpesa';
+  } else if (paymentMethod === 'cod') {
+    body.gateway = 'cod';
+  }
   return body;
 }
 
@@ -48,10 +61,13 @@ export function PaystackPaymentModal({
   const [error, setError] = useState('');
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
 
-  const formatAmount = () =>
-    details.amount > 0
-      ? new Intl.NumberFormat('en-KE', { style: 'currency', currency: details.currency }).format(details.amount)
-      : '—';
+  const transactionFee = details.amount > 0 ? calcPaystackFee(details.amount) : 0;
+  const grandTotal = details.amount + transactionFee;
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('en-KE', { style: 'currency', currency: details.currency || 'KES' }).format(n);
+
+  const formatAmount = () => (details.amount > 0 ? fmt(grandTotal) : '—');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +81,7 @@ export function PaystackPaymentModal({
       const res = await fetch(details.initiate_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildInitiatePayload(details, 'paystack', { customer_email: email || undefined })),
+        body: JSON.stringify(buildInitiatePayload(details, 'paystack', transactionFee, { customer_email: email || undefined })),
       });
       const data = await res.json().catch(() => ({}));
       if (data.authorization_url) {
@@ -92,7 +108,7 @@ export function PaystackPaymentModal({
       const res = await fetch(details.initiate_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildInitiatePayload(details, 'manual')),
+        body: JSON.stringify(buildInitiatePayload(details, 'manual', 0)),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success !== false)) {
@@ -123,8 +139,18 @@ export function PaystackPaymentModal({
       <div className="space-y-4">
         <div className="p-4 rounded-lg bg-muted/50 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Amount</span>
-            <span className="font-semibold">{formatAmount()}</span>
+            <span className="text-muted-foreground">Order total</span>
+            <span>{fmt(details.amount)}</span>
+          </div>
+          {transactionFee > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Paystack fee (1.5%)</span>
+              <span>{fmt(transactionFee)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm border-t border-border pt-2 mt-1">
+            <span className="font-semibold">Total payable</span>
+            <span className="font-bold text-primary">{fmt(grandTotal)}</span>
           </div>
           {(details.invoice_number || details.reference_id) && (
             <div className="flex justify-between text-sm">
