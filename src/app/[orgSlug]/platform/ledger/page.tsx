@@ -2,20 +2,39 @@
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useTransactions } from '@/hooks/use-analytics';
+import { useMe } from '@/hooks/useMe';
 import type { TransactionItem } from '@/lib/api/analytics';
 import { cn } from '@/lib/utils';
-import { useMe } from '@/hooks/useMe';
 import {
-    ArrowUpRight,
-    Calendar,
-    Download,
-    Filter,
-    Loader2,
-    Search,
-    Shield
+  ArrowUpRight,
+  Calendar,
+  Download,
+  Filter,
+  Loader2,
+  Search,
+  Shield
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useMemo, useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+const SERVICE_OPTIONS = [
+  { value: 'all', label: 'All Services' },
+  { value: 'ordering', label: 'Ordering (Food/Delivery)' },
+  { value: 'subscriptions', label: 'Subscriptions' },
+  { value: 'pos', label: 'Point of Sale (POS)' },
+  { value: 'logistics', label: 'Logistics / Dispatch' },
+  { value: 'inventory', label: 'Inventory Management' },
+  { value: 'treasury', label: 'Treasury (Finance)' },
+  { value: 'ticketing', label: 'Ticketing' },
+  { value: 'cafe', label: 'Cafe & Hospitality' },
+  { value: 'isp_billing', label: 'ISP Billing' },
+  { value: 'marketflow', label: 'Marketing & CRM' },
+  { value: 'notifications', label: 'Notifications Service' },
+  { value: 'projects', label: 'Projects & Invoicing' },
+  { value: 'erp', label: 'ERP / Accounting' },
+  { value: 'truload', label: 'Transport & Axle Load' },
+  { value: 'auth', label: 'Auth & Identity' },
+];
 
 function defaultDateRange(): { from: string; to: string } {
   const to = new Date();
@@ -32,6 +51,7 @@ export default function GlobalLedgerPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [serviceFilter, setServiceFilter] = useState<string>('all');
   const dateRange = useMemo(() => defaultDateRange(), []);
 
   useEffect(() => {
@@ -45,7 +65,8 @@ export default function GlobalLedgerPage() {
     to: dateRange.to,
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     ...(typeFilter !== 'all' ? { payment_method: typeFilter } : {}),
-  }), [dateRange, statusFilter, typeFilter]);
+    ...(serviceFilter !== 'all' ? { source_service: serviceFilter } : {}),
+  }), [dateRange, statusFilter, typeFilter, serviceFilter]);
 
   // For platform owners (codevertex), the backend returns all transactions globally.
   const { data, isLoading, error } = useTransactions(orgSlug, queryParams, orgSlug === 'codevertex');
@@ -63,7 +84,7 @@ export default function GlobalLedgerPage() {
   }, [list, searchQuery]);
 
   const statusOptions = ['all', 'succeeded', 'pending', 'processing', 'failed', 'cancelled'];
-  const methodOptions = ['all', 'mpesa', 'card', 'cash', 'bank_transfer'];
+  const methodOptions = ['all', 'mpesa', 'card', 'cash', 'bank_transfer', 'cod'];
 
   if (orgSlug !== 'codevertex') {
     return (
@@ -138,9 +159,19 @@ export default function GlobalLedgerPage() {
                   typeFilter === t ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:text-foreground"
                 )}
               >
-                {t.replace('_', ' ')}
+                {t.replace(/_/g, ' ')}
               </button>
             ))}
+            <div className="w-px h-5 bg-border mx-2" />
+            <select
+              value={serviceFilter}
+              onChange={(e) => setServiceFilter(e.target.value)}
+              className="h-7 rounded-full border border-border bg-accent/30 px-3 text-xs font-bold text-muted-foreground focus:text-foreground focus:outline-none"
+            >
+              {SERVICE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -167,7 +198,7 @@ export default function GlobalLedgerPage() {
                 <tbody className="divide-y divide-border">
                   {filtered.map((txn: TransactionItem) => (
                     <tr key={txn.id} className="hover:bg-accent/5 transition-colors cursor-pointer">
-                      <td className="px-6 py-4 font-mono text-xs text-muted-foreground truncate max-w-[120px]" title={txn.tenant_id}>{txn.tenant_id || 'System'}</td>
+                      <td className="px-6 py-4 font-mono text-xs text-muted-foreground truncate max-w-30" title={txn.tenant_id}>{txn.tenant_id || 'System'}</td>
                       <td className="px-6 py-4 font-mono text-xs font-bold">{txn.reference_id}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">

@@ -1,9 +1,9 @@
 'use client';
 
 import { Card, CardContent, CardHeader } from '@/components/ui/base';
-import { usePlatformByTenant, usePlatformOverview } from '@/hooks/use-platform-analytics';
+import { usePlatformByService, usePlatformByTenant, usePlatformOverview } from '@/hooks/use-platform-analytics';
 import { formatCurrency } from '@/lib/utils/currency';
-import { Activity, BarChart, Building2, Download, TrendingUp } from 'lucide-react';
+import { Activity, BarChart, Building2, Download, Layers, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 
 export default function PlatformAnalyticsPage() {
@@ -13,6 +13,7 @@ export default function PlatformAnalyticsPage() {
 
   const { data: overview, isLoading: loadingOverview } = usePlatformOverview();
   const { data: byTenant, isLoading: loadingTenants } = usePlatformByTenant();
+  const { data: byService, isLoading: loadingServices } = usePlatformByService();
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -141,6 +142,54 @@ export default function PlatformAnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Revenue by Ecosystem Service */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Layers className="h-5 w-5 text-primary" />
+            <h3 className="text-lg font-bold">Revenue by Ecosystem Service</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">Platform-wide revenue split across all Codevertex services.</p>
+        </CardHeader>
+        <CardContent>
+          {loadingServices ? (
+            <div className="min-h-50 flex items-center justify-center text-muted-foreground">Loading service breakdown...</div>
+          ) : !byService?.breakdown?.length ? (
+            <div className="min-h-50 flex flex-col items-center justify-center text-muted-foreground">
+              <BarChart className="h-12 w-12 mb-4 opacity-20" />
+              <p>No service revenue in this period</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="text-left py-3 pr-4 font-bold">Service</th>
+                    <th className="text-right py-3 px-4 font-bold">Gross Revenue</th>
+                    <th className="text-right py-3 px-4 font-bold">Fees</th>
+                    <th className="text-right py-3 px-4 font-bold">Net Revenue</th>
+                    <th className="text-right py-3 pl-4 font-bold">Transactions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {byService.breakdown
+                    .sort((a, b) => parseFloat(b.gross_revenue) - parseFloat(a.gross_revenue))
+                    .map((row) => (
+                      <tr key={row.source_service} className="hover:bg-accent/5 transition-colors">
+                        <td className="py-3 pr-4 font-medium capitalize">{row.source_service.replace(/_/g, ' ')}</td>
+                        <td className="py-3 px-4 text-right font-bold">{formatCurrency(parseFloat(row.gross_revenue), 'KES')}</td>
+                        <td className="py-3 px-4 text-right text-muted-foreground">{formatCurrency(parseFloat(row.transaction_costs), 'KES')}</td>
+                        <td className="py-3 px-4 text-right font-bold text-emerald-600">{formatCurrency(parseFloat(row.net_revenue), 'KES')}</td>
+                        <td className="py-3 pl-4 text-right text-muted-foreground">{row.transaction_count}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
