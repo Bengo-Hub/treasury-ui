@@ -18,6 +18,14 @@ export interface TenantRevenue {
   transaction_count: number;
 }
 
+export interface ServiceRevenue {
+  source_service: string;
+  gross_revenue: string;
+  transaction_costs: string;
+  net_revenue: string;
+  transaction_count: number;
+}
+
 export function usePlatformOverview(from?: string, to?: string) {
   return useQuery({
     queryKey: ['platform_analytics_overview', from, to],
@@ -38,6 +46,18 @@ export function usePlatformByTenant(from?: string, to?: string) {
       if (from) params.from = from;
       if (to) params.to = to;
       return api.get<{ tenants: TenantRevenue[] }>(`${BASE}/platform/analytics/by-tenant`, params);
+    },
+  });
+}
+
+export function usePlatformByService(from?: string, to?: string) {
+  return useQuery({
+    queryKey: ['platform_analytics_by_service', from, to],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (from) params.from = from;
+      if (to) params.to = to;
+      return api.get<{ breakdown: ServiceRevenue[] }>(`${BASE}/platform/analytics/revenue-by-service`, params);
     },
   });
 }

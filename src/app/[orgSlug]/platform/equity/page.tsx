@@ -41,12 +41,20 @@ import { useParams, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 
 const SERVICE_OPTIONS = [
-    { value: 'ordering', label: 'Ordering' },
+    { value: 'ordering', label: 'Ordering (Food/Delivery)' },
     { value: 'subscriptions', label: 'Subscriptions' },
-    { value: 'pos', label: 'POS' },
-    { value: 'logistics', label: 'Logistics' },
-    { value: 'inventory', label: 'Inventory' },
-    { value: 'treasury', label: 'Treasury' },
+    { value: 'pos', label: 'Point of Sale (POS)' },
+    { value: 'logistics', label: 'Logistics / Dispatch' },
+    { value: 'inventory', label: 'Inventory Management' },
+    { value: 'treasury', label: 'Treasury (Finance)' },
+    { value: 'cafe', label: 'Cafe & Hospitality' },
+    { value: 'isp_billing', label: 'ISP Billing' },
+    { value: 'marketflow', label: 'MarketFlow (AI Marketing)' },
+    { value: 'notifications', label: 'Notifications Service' },
+    { value: 'projects', label: 'Projects & Invoicing' },
+    { value: 'erp', label: 'ERP / Accounting' },
+    { value: 'truload', label: 'Axle Load' },
+    { value: 'auth', label: 'Auth & Identity' },
 ];
 
 const PAYOUT_METHODS = [

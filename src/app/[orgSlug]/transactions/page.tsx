@@ -18,6 +18,24 @@ import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
 
+const SERVICE_OPTIONS = [
+  { value: 'all', label: 'All Services' },
+  { value: 'ordering', label: 'Ordering (Food/Delivery)' },
+  { value: 'subscriptions', label: 'Subscriptions' },
+  { value: 'pos', label: 'Point of Sale (POS)' },
+  { value: 'logistics', label: 'Logistics / Dispatch' },
+  { value: 'inventory', label: 'Inventory Management' },
+  { value: 'treasury', label: 'Treasury (Finance)' },
+  { value: 'cafe', label: 'Cafe & Hospitality' },
+  { value: 'isp_billing', label: 'ISP Billing' },
+  { value: 'marketflow', label: 'MarketFlow (AI Marketing)' },
+  { value: 'notifications', label: 'Notifications Service' },
+  { value: 'projects', label: 'Projects & Invoicing' },
+  { value: 'erp', label: 'ERP / Accounting' },
+  { value: 'truload', label: 'Axle Load' },
+  { value: 'auth', label: 'Auth & Identity' },
+];
+
 function defaultDateRange(): { from: string; to: string } {
   const to = new Date();
   const from = new Date(to);
@@ -30,6 +48,7 @@ export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [serviceFilter, setServiceFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const dateRange = useMemo(() => defaultDateRange(), []);
 
@@ -38,8 +57,9 @@ export default function TransactionsPage() {
     to: dateRange.to,
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     ...(typeFilter !== 'all' ? { payment_method: typeFilter } : {}),
+    ...(serviceFilter !== 'all' ? { source_service: serviceFilter } : {}),
     ...(isPlatformOwner && tenantQueryParam ? { tenantId: tenantQueryParam } : {}),
-  }), [dateRange, statusFilter, typeFilter, isPlatformOwner, tenantQueryParam]);
+  }), [dateRange, statusFilter, typeFilter, serviceFilter, isPlatformOwner, tenantQueryParam]);
 
   const { data, isLoading, error } = useTransactions(tenantPathId, queryParams, !!tenantPathId);
   const list = data?.transactions ?? [];
@@ -58,10 +78,10 @@ export default function TransactionsPage() {
   const paginatedItems = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   // Reset to page 1 when filters change
-  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, typeFilter]);
+  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, typeFilter, serviceFilter]);
 
   const statusOptions = ['all', 'succeeded', 'pending', 'processing', 'failed', 'cancelled'];
-  const methodOptions = ['all', 'mpesa', 'card', 'cash', 'bank_transfer'];
+  const methodOptions = ['all', 'mpesa', 'card', 'cash', 'bank_transfer', 'cod'];
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
@@ -131,9 +151,19 @@ export default function TransactionsPage() {
                   typeFilter === t ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:text-foreground"
                 )}
               >
-                {t.replace('_', ' ')}
+                {t.replace(/_/g, ' ')}
               </button>
             ))}
+            <div className="w-px h-5 bg-border mx-2" />
+            <select
+              value={serviceFilter}
+              onChange={(e) => { setServiceFilter(e.target.value); setPage(1); }}
+              className="h-7 rounded-full border border-border bg-accent/30 px-3 text-xs font-bold text-muted-foreground focus:text-foreground focus:outline-none"
+            >
+              {SERVICE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           </div>
         </CardHeader>
         <CardContent className="p-0">
