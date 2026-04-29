@@ -167,3 +167,77 @@ export function triggerEquityPayout(
         body,
     );
 }
+
+// ─── Entitlements ─────────────────────────────────────────────────────────────
+
+export interface EquityEntitlement {
+    id: string;
+    holder_id: string;
+    service_id: string;
+    equity_pct: string;
+    vesting_start: string;
+    vesting_end?: string;
+    cliff_months: number;
+    vesting_type: 'cliff' | 'graded';
+    is_active: boolean;
+    created_at: string;
+}
+
+export interface CreateEntitlementRequest {
+    service_id: string;
+    equity_pct: number;
+    vesting_start: string;
+    vesting_end?: string | null;
+    cliff_months?: number;
+    vesting_type?: 'cliff' | 'graded';
+}
+
+export function listEntitlements(holderId: string): Promise<{ entitlements: EquityEntitlement[] }> {
+    return apiClient.get<{ entitlements: EquityEntitlement[] }>(
+        `${BASE}/platform/equity-holders/${holderId}/entitlements`,
+    );
+}
+
+export function createEntitlement(
+    holderId: string,
+    body: CreateEntitlementRequest,
+): Promise<EquityEntitlement> {
+    return apiClient.post<EquityEntitlement>(
+        `${BASE}/platform/equity-holders/${holderId}/entitlements`,
+        body,
+    );
+}
+
+export function updateEntitlement(
+    holderId: string,
+    entitlementId: string,
+    body: Partial<CreateEntitlementRequest>,
+): Promise<EquityEntitlement> {
+    return apiClient.put<EquityEntitlement>(
+        `${BASE}/platform/equity-holders/${holderId}/entitlements/${entitlementId}`,
+        body,
+    );
+}
+
+export function deactivateEntitlement(
+    holderId: string,
+    entitlementId: string,
+): Promise<{ status: string }> {
+    return apiClient.delete<{ status: string }>(
+        `${BASE}/platform/equity-holders/${holderId}/entitlements/${entitlementId}`,
+    );
+}
+
+// ─── Portal Link ──────────────────────────────────────────────────────────────
+
+export interface PortalLinkResponse {
+    url: string;
+    expires_at: string;
+}
+
+export function generatePortalLink(holderId: string): Promise<PortalLinkResponse> {
+    return apiClient.post<PortalLinkResponse>(
+        `${BASE}/platform/equity-holders/${holderId}/generate-portal-link`,
+        {},
+    );
+}
