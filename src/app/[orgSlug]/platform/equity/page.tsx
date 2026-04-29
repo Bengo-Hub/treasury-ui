@@ -13,6 +13,12 @@ import {
     useTriggerEquityPayout,
     useUpdateEquityHolder,
 } from '@/hooks/use-equity';
+import {
+    useCreateEntitlement,
+    useDeactivateEntitlement,
+    useEquityEntitlements,
+    useGeneratePortalLink,
+} from '@/hooks/use-equity-entitlements';
 import { useBanks, usePlatformBalance, useResolveAccount } from '@/hooks/use-gateways';
 import { useMe } from '@/hooks/useMe';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
@@ -26,6 +32,7 @@ import {
     CheckCircle2,
     DollarSign,
     Info,
+    Link2,
     Loader2,
     MoreVertical,
     PieChart,
@@ -95,6 +102,8 @@ export default function EquityManagementPage() {
     const [showAddHolder, setShowAddHolder] = useState(false);
     const [editingHolder, setEditingHolder] = useState<EquityHolder | null>(null);
     const [historyHolderId, setHistoryHolderId] = useState<string | null>(null);
+    const [entitlementsHolderId, setEntitlementsHolderId] = useState<string | null>(null);
+    const generatePortalLink = useGeneratePortalLink();
 
     const { data: holdersData, isLoading: loadingHolders } = useEquityHolders();
     const { data: summaryData, isLoading: loadingSummary } = useEquitySummary(dateRange.from, dateRange.to);
@@ -231,7 +240,10 @@ export default function EquityManagementPage() {
                                             }}
                                             onEdit={() => setEditingHolder(holder)}
                                             onHistory={() => setHistoryHolderId(holder.id)}
+                                            onEntitlements={() => setEntitlementsHolderId(holder.id)}
+                                            onPortalLink={() => generatePortalLink.mutate(holder.id)}
                                             isTriggering={triggerPayout.isPending && triggerPayout.variables?.holderId === holder.id}
+                                            isGeneratingLink={generatePortalLink.isPending && generatePortalLink.variables === holder.id}
                                         />
                                     ))}
                                 </div>
@@ -267,6 +279,13 @@ export default function EquityManagementPage() {
                             holderId={historyHolderId}
                             holderName={holders.find(h => h.id === historyHolderId)?.name ?? 'Holder'}
                             onClose={() => setHistoryHolderId(null)}
+                        />
+                    )}
+                    {entitlementsHolderId && (
+                        <EntitlementsModal
+                            holderId={entitlementsHolderId}
+                            holderName={holders.find(h => h.id === entitlementsHolderId)?.name ?? 'Holder'}
+                            onClose={() => setEntitlementsHolderId(null)}
                         />
                     )}
                 </div>
@@ -430,14 +449,20 @@ function HolderRow({
     onTriggerPayout,
     onEdit,
     onHistory,
+    onEntitlements,
+    onPortalLink,
     isTriggering,
+    isGeneratingLink,
 }: {
     holder: EquityHolder;
     projection: { projected_amount?: number } | undefined;
     onTriggerPayout: () => void;
     onEdit: () => void;
     onHistory: () => void;
+    onEntitlements: () => void;
+    onPortalLink: () => void;
     isTriggering?: boolean;
+    isGeneratingLink?: boolean;
 }) {
     return (
         <div className="group flex flex-col sm:flex-row sm:items-center justify-between py-6 px-8 hover:bg-accent/5 transition-all">
@@ -491,6 +516,24 @@ function HolderRow({
                         onClick={onHistory}
                     >
                         History
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-[11px] font-bold border-none bg-accent/30 hover:bg-accent/50 transition-colors"
+                        onClick={onEntitlements}
+                    >
+                        Entitlements
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 border-none bg-accent/30 hover:bg-accent/50 transition-colors"
+                        onClick={onPortalLink}
+                        disabled={isGeneratingLink}
+                        title="Copy portal link"
+                    >
+                        {isGeneratingLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
                     </Button>
                     <Button
                         size="sm"
@@ -1155,6 +1198,155 @@ function PayoutHistoryModal({ holderId, holderName, onClose }: { holderId: strin
                                 </div>
                             ))}
                         </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function EntitlementsModal({ holderId, holderName, onClose }: { holderId: string; holderName: string; onClose: () => void }) {
+    const { data, isLoading } = useEquityEntitlements(holderId);
+    const createEntitlement = useCreateEntitlement(holderId);
+    const deactivateEntitlement = useDeactivateEntitlement(holderId);
+    const entitlements = data?.entitlements ?? [];
+
+    const [showForm, setShowForm] = useState(false);
+    const [serviceId, setServiceId] = useState('');
+    const [equityPct, setEquityPct] = useState('');
+    const [vestingStart, setVestingStart] = useState('');
+    const [vestingEnd, setVestingEnd] = useState('');
+    const [cliffMonths, setCliffMonths] = useState('0');
+    const [vestingType, setVestingType] = useState<'cliff' | 'graded'>('cliff');
+
+    const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm';
+
+    const handleCreate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        await createEntitlement.mutateAsync({
+            service_id: serviceId,
+            equity_pct: parseFloat(equityPct),
+            vesting_start: vestingStart,
+            vesting_end: vestingEnd || null,
+            cliff_months: parseInt(cliffMonths) || 0,
+            vesting_type: vestingType,
+        });
+        setShowForm(false);
+        setServiceId(''); setEquityPct(''); setVestingStart(''); setVestingEnd(''); setCliffMonths('0');
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+            <div className="bg-card rounded-xl shadow-xl border border-border max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-4 border-b border-border">
+                    <div>
+                        <h3 className="text-lg font-bold">Entitlements — {holderName}</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">Per-service equity stakes with vesting schedules</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button size="sm" className="h-8 gap-2 text-xs" onClick={() => setShowForm(true)}>
+                            <Plus className="h-3.5 w-3.5" /> Add
+                        </Button>
+                        <button type="button" onClick={onClose} className="p-1 rounded hover:bg-accent">
+                            <X className="h-5 w-5" />
+                        </button>
+                    </div>
+                </div>
+
+                {showForm && (
+                    <form onSubmit={handleCreate} className="p-4 border-b border-border space-y-3 bg-accent/5">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">New Entitlement</p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-xs font-medium mb-1 block">Service ID</label>
+                                <select value={serviceId} onChange={e => setServiceId(e.target.value)} className={inputClass} required>
+                                    <option value="">Select service...</option>
+                                    <option value="*">* (All Services)</option>
+                                    {SERVICE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium mb-1 block">Equity %</label>
+                                <input type="number" min="0.01" max="100" step="0.01" value={equityPct} onChange={e => setEquityPct(e.target.value)} className={inputClass} required placeholder="e.g. 2.5" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium mb-1 block">Vesting Start</label>
+                                <input type="date" value={vestingStart} onChange={e => setVestingStart(e.target.value)} className={inputClass} required />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium mb-1 block">Vesting End (optional)</label>
+                                <input type="date" value={vestingEnd} onChange={e => setVestingEnd(e.target.value)} className={inputClass} />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium mb-1 block">Cliff Months</label>
+                                <input type="number" min="0" value={cliffMonths} onChange={e => setCliffMonths(e.target.value)} className={inputClass} />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium mb-1 block">Vesting Type</label>
+                                <select value={vestingType} onChange={e => setVestingType(e.target.value as 'cliff' | 'graded')} className={inputClass}>
+                                    <option value="cliff">Cliff</option>
+                                    <option value="graded">Graded (Linear)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                            <Button type="button" variant="outline" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
+                            <Button type="submit" size="sm" disabled={createEntitlement.isPending}>
+                                {createEntitlement.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Save
+                            </Button>
+                        </div>
+                    </form>
+                )}
+
+                <div className="p-4 overflow-y-auto flex-1">
+                    {isLoading ? (
+                        <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+                            <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+                        </div>
+                    ) : entitlements.length === 0 ? (
+                        <div className="py-8 text-center text-muted-foreground">
+                            <p className="text-sm">No entitlements defined.</p>
+                            <p className="text-xs mt-1">Legacy % share will be used as fallback.</p>
+                        </div>
+                    ) : (
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-xs text-muted-foreground border-b border-border">
+                                    <th className="text-left py-2 font-medium">Service</th>
+                                    <th className="text-right py-2 font-medium">Equity %</th>
+                                    <th className="text-right py-2 font-medium">Vesting</th>
+                                    <th className="text-right py-2 font-medium">Status</th>
+                                    <th className="py-2" />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {entitlements.map(e => (
+                                    <tr key={e.id} className="border-b border-border/50 last:border-0">
+                                        <td className="py-3 font-mono text-xs">{e.service_id}</td>
+                                        <td className="py-3 text-right font-bold">{parseFloat(e.equity_pct).toFixed(2)}%</td>
+                                        <td className="py-3 text-right text-xs text-muted-foreground">
+                                            {e.vesting_type} {e.cliff_months > 0 ? `(${e.cliff_months}m cliff)` : ''}
+                                        </td>
+                                        <td className="py-3 text-right">
+                                            <Badge variant={e.is_active ? 'success' : 'outline'}>{e.is_active ? 'Active' : 'Inactive'}</Badge>
+                                        </td>
+                                        <td className="py-3 text-right">
+                                            {e.is_active && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-7 text-xs text-destructive hover:text-destructive"
+                                                    onClick={() => deactivateEntitlement.mutate(e.id)}
+                                                    disabled={deactivateEntitlement.isPending}
+                                                >
+                                                    Deactivate
+                                                </Button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     )}
                 </div>
             </div>
