@@ -1,7 +1,10 @@
 /**
- * Tenant API (auth-api). Used for tenant-by-slug lookup.
+ * Tenant API (auth-api). Used for tenant-by-slug lookup and platform admin listing.
  * Auth-api: GET /api/v1/tenants/by-slug/{slug} (public).
+ * Auth-api: GET /api/v1/admin/tenants (platform admin, JWT required).
  */
+
+import { useAuthStore } from '@/store/auth';
 
 const AUTH_API_URL =
   process.env.NEXT_PUBLIC_AUTH_API_URL ||
@@ -53,6 +56,32 @@ export function parseBrandFromTenant(t: TenantResponse): TenantBrand {
     secondaryColor: typeof secondaryColor === 'string' ? secondaryColor : null,
     orgName: typeof orgName === 'string' ? orgName : (t.name ?? ''),
   };
+}
+
+/**
+ * List all active tenants (platform admin only).
+ * Calls auth-api GET /api/v1/admin/tenants with the current JWT.
+ */
+export async function listPlatformTenants(search?: string): Promise<TenantResponse[]> {
+  const token = useAuthStore.getState().session?.accessToken;
+  if (!token) return [];
+  const url = new URL(`${AUTH_API_URL}/api/v1/admin/tenants`);
+  if (search) url.searchParams.set('search', search);
+  try {
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    // auth-api returns an array directly
+    return Array.isArray(data) ? data : (data.tenants ?? []);
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchTenantBySlug(slug: string): Promise<TenantBrand | null> {
