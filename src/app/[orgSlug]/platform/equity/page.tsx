@@ -21,6 +21,8 @@ import {
 } from '@/hooks/use-equity-entitlements';
 import { useBanks, usePlatformBalance, useResolveAccount } from '@/hooks/use-gateways';
 import { useMe } from '@/hooks/useMe';
+import { usePlatformTenants } from '@/hooks/use-platform-tenants';
+import { useReferrals } from '@/hooks/use-referrals';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import type { CreateEquityHolderRequest, EquityHolder, EquityPayout } from '@/lib/api/equity';
 import { cn } from '@/lib/utils';
@@ -586,8 +588,12 @@ function HolderFormModal({
     // Tab 2: Services
     const [selectedServices, setSelectedServices] = useState<string[]>(initial?.source_services ?? []);
     const [linkedTenantIds, setLinkedTenantIds] = useState<string[]>(initial?.linked_tenant_ids ?? []);
-    const [linkedTenantInput, setLinkedTenantInput] = useState('');
     const [referralId, setReferralId] = useState(initial?.referral_id ?? '');
+
+    // Referral and tenant selects
+    const { data: referralsData, isLoading: loadingReferrals } = useReferrals();
+    const referrals = referralsData?.referrals ?? [];
+    const { data: platformTenants, isLoading: loadingTenants } = usePlatformTenants();
 
     // Tab 3: Payout Method
     const [payoutMethod, setPayoutMethod] = useState(initial?.payout_method ?? 'paystack_transfer');
@@ -696,7 +702,6 @@ function HolderFormModal({
             setCloseOfBooksDay(0);
             setSelectedServices([]);
             setLinkedTenantIds([]);
-            setLinkedTenantInput('');
             setReferralId('');
             setPayoutMethod('paystack_transfer');
             setPayoutThreshold(1000);
@@ -893,77 +898,95 @@ function HolderFormModal({
                             <div className="border-t border-border pt-4 space-y-4">
                                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Referral Scope (Optional)</p>
                                 <FormField
-                                    label="Referral ID"
+                                    label="Referral"
                                     description="Link this holder to a referral programme. Earnings are then scoped to tenants who came via that referral."
                                 >
-                                    <input
-                                        type="text"
-                                        value={referralId}
-                                        onChange={(e) => setReferralId(e.target.value)}
-                                        className={inputClass}
-                                        placeholder="UUID of the referral record"
-                                    />
+                                    {loadingReferrals ? (
+                                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading referrals...
+                                        </div>
+                                    ) : (
+                                        <select
+                                            value={referralId}
+                                            onChange={(e) => setReferralId(e.target.value)}
+                                            className={selectClass}
+                                        >
+                                            <option value="">None</option>
+                                            {referrals.map((r) => (
+                                                <option key={r.id} value={r.id}>
+                                                    {r.referral_code} — {r.referred_tenant_id.slice(0, 8)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
                                 </FormField>
                                 <FormField
-                                    label="Linked Tenant IDs"
-                                    description="Restrict earnings to specific referred tenants. Paste a tenant UUID and press Enter or Add."
+                                    label="Linked Tenants"
+                                    description="Restrict earnings to specific referred tenants. Select one or more tenants from the list."
                                 >
-                                    <div className="space-y-2">
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                value={linkedTenantInput}
-                                                onChange={(e) => setLinkedTenantInput(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        e.preventDefault();
-                                                        const id = linkedTenantInput.trim();
-                                                        if (id && !linkedTenantIds.includes(id)) {
-                                                            setLinkedTenantIds([...linkedTenantIds, id]);
-                                                        }
-                                                        setLinkedTenantInput('');
-                                                    }
-                                                }}
-                                                className={inputClass}
-                                                placeholder="Paste tenant UUID..."
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const id = linkedTenantInput.trim();
-                                                    if (id && !linkedTenantIds.includes(id)) {
-                                                        setLinkedTenantIds([...linkedTenantIds, id]);
-                                                    }
-                                                    setLinkedTenantInput('');
-                                                }}
-                                                className="shrink-0 px-3 py-2 rounded-lg border border-input text-xs font-medium hover:bg-accent transition-colors"
-                                            >
-                                                Add
-                                            </button>
+                                    {loadingTenants ? (
+                                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading tenants...
                                         </div>
-                                        {linkedTenantIds.length > 0 && (
-                                            <div className="flex flex-wrap gap-2">
-                                                {linkedTenantIds.map((tid) => (
-                                                    <span
-                                                        key={tid}
-                                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs font-mono"
-                                                    >
-                                                        {tid.slice(0, 8)}…
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setLinkedTenantIds(linkedTenantIds.filter((t) => t !== tid))}
-                                                            className="ml-0.5 hover:text-destructive"
-                                                        >
-                                                            <X className="h-3 w-3" />
-                                                        </button>
-                                                    </span>
-                                                ))}
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <div className="max-h-40 overflow-y-auto rounded-lg border border-input bg-background p-2 space-y-1">
+                                                {(platformTenants ?? []).length === 0 ? (
+                                                    <p className="text-xs text-muted-foreground px-1 py-1">No tenants available.</p>
+                                                ) : (
+                                                    (platformTenants ?? []).map((t) => {
+                                                        const checked = linkedTenantIds.includes(t.id);
+                                                        return (
+                                                            <label
+                                                                key={t.id}
+                                                                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent/40 cursor-pointer text-sm"
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={checked}
+                                                                    onChange={() => {
+                                                                        if (checked) {
+                                                                            setLinkedTenantIds(linkedTenantIds.filter((id) => id !== t.id));
+                                                                        } else {
+                                                                            setLinkedTenantIds([...linkedTenantIds, t.id]);
+                                                                        }
+                                                                    }}
+                                                                    className="accent-primary"
+                                                                />
+                                                                <span className="font-medium">{t.name || t.slug}</span>
+                                                                <span className="text-xs text-muted-foreground font-mono ml-auto">{t.slug}</span>
+                                                            </label>
+                                                        );
+                                                    })
+                                                )}
                                             </div>
-                                        )}
-                                        {linkedTenantIds.length === 0 && (
-                                            <p className="text-xs text-muted-foreground">No tenants linked — holder earns from all tenants.</p>
-                                        )}
-                                    </div>
+                                            {linkedTenantIds.length > 0 && (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {linkedTenantIds.map((tid) => {
+                                                        const tenant = (platformTenants ?? []).find((t) => t.id === tid);
+                                                        return (
+                                                            <span
+                                                                key={tid}
+                                                                className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium"
+                                                            >
+                                                                {tenant ? (tenant.name || tenant.slug) : tid.slice(0, 8) + '…'}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setLinkedTenantIds(linkedTenantIds.filter((t) => t !== tid))}
+                                                                    className="ml-0.5 hover:text-destructive"
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                </button>
+                                                            </span>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                            {linkedTenantIds.length === 0 && (
+                                                <p className="text-xs text-muted-foreground">No tenants linked — holder earns from all tenants.</p>
+                                            )}
+                                        </div>
+                                    )}
                                 </FormField>
                             </div>
                         </TabsContent>
