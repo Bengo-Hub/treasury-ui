@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
-import { useTransactions } from '@/hooks/use-analytics';
+import { usePlatformTransactions } from '@/hooks/use-platform-analytics';
 import { useMe } from '@/hooks/useMe';
 import type { TransactionItem } from '@/lib/api/analytics';
 import { cn } from '@/lib/utils';
@@ -68,9 +68,9 @@ export default function GlobalLedgerPage() {
     ...(serviceFilter !== 'all' ? { source_service: serviceFilter } : {}),
   }), [dateRange, statusFilter, typeFilter, serviceFilter]);
 
-  // For platform owners (codevertex), the backend returns all transactions globally.
-  const { data, isLoading, error } = useTransactions(orgSlug, queryParams, orgSlug === 'codevertex');
-  const list = data?.transactions ?? [];
+  // Platform-level endpoint returns transactions across all tenants.
+  const { data, isLoading, error } = usePlatformTransactions(queryParams);
+  const list = data?.data ?? [];
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return list;
@@ -198,7 +198,7 @@ export default function GlobalLedgerPage() {
                 <tbody className="divide-y divide-border">
                   {filtered.map((txn: TransactionItem) => (
                     <tr key={txn.id} className="hover:bg-accent/5 transition-colors cursor-pointer">
-                      <td className="px-6 py-4 font-mono text-xs text-muted-foreground truncate max-w-30" title={txn.tenant_id}>{txn.tenant_id || 'System'}</td>
+                      <td className="px-6 py-4 font-mono text-xs text-muted-foreground truncate max-w-30" title={txn.tenant_id}>{txn.tenant_id ? txn.tenant_id.slice(0, 8) + '…' : '—'}</td>
                       <td className="px-6 py-4 font-mono text-xs font-bold">{txn.reference_id}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">

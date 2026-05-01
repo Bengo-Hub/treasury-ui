@@ -28,15 +28,14 @@ class ApiClient {
     if (this.accessToken) {
       config.headers.Authorization = `Bearer ${this.accessToken}`;
     }
-    // Platform owners have global access — skip tenant headers so backend
-    // does not filter by tenant. Scope is resolved from JWT claims instead.
-    if (!this.platformOwner) {
-      if (this.tenantSlug) {
-        config.headers['X-Tenant-Slug'] = this.tenantSlug;
-      }
-      if (this.tenantId && UUID_REGEX.test(this.tenantId)) {
-        config.headers['X-Tenant-ID'] = this.tenantId;
-      }
+    // Always send tenant headers — backend uses them to scope requests correctly.
+    // Platform owners still need their own tenant slug/ID in headers so the backend
+    // resolves their real tenant UUID. Cross-tenant admin views use /platform/ routes.
+    if (this.tenantSlug) {
+      config.headers['X-Tenant-Slug'] = this.tenantSlug;
+    }
+    if (this.tenantId && UUID_REGEX.test(this.tenantId)) {
+      config.headers['X-Tenant-ID'] = this.tenantId;
     }
     return config;
   };

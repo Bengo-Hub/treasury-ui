@@ -62,6 +62,39 @@ export function usePlatformByService(from?: string, to?: string) {
   });
 }
 
+export interface PlatformTransactionParams {
+  from?: string;
+  to?: string;
+  status?: string;
+  payment_method?: string;
+  source_service?: string;
+  tenant_id?: string;
+  page?: number;
+  limit?: number;
+}
+
+export function usePlatformTransactions(params?: PlatformTransactionParams) {
+  return useQuery({
+    queryKey: ['platform_analytics_transactions', params],
+    queryFn: async () => {
+      const p: Record<string, string> = {};
+      if (params?.from) p.from = params.from;
+      if (params?.to) p.to = params.to;
+      if (params?.status) p.status = params.status;
+      if (params?.payment_method) p.payment_method = params.payment_method;
+      if (params?.source_service) p.source_service = params.source_service;
+      if (params?.tenant_id) p.tenant_id = params.tenant_id;
+      if (params?.page) p.page = String(params.page);
+      if (params?.limit) p.limit = String(params.limit);
+      return api.get<{ data: import('@/lib/api/analytics').TransactionItem[]; total: number; limit: number; page: number; hasMore: boolean }>(
+        `${BASE}/platform/analytics/transactions`,
+        p,
+      );
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
 export function getTransactionsExportURL(from?: string, to?: string, status?: string, source_service?: string, tenant_id?: string) {
   const params = new URLSearchParams();
   if (from) params.append('from', from);
