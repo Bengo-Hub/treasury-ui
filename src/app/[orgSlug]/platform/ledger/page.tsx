@@ -8,14 +8,17 @@ import { cn } from '@/lib/utils';
 import {
   ArrowUpRight,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Filter,
   Loader2,
   Search,
-  Shield
+  Shield,
+  X,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const SERVICE_OPTIONS = [
   { value: 'all', label: 'All Services' },
@@ -36,6 +39,16 @@ const SERVICE_OPTIONS = [
   { value: 'auth', label: 'Auth & Identity' },
 ];
 
+const NULL_UUID = '00000000-0000-0000-0000-000000000000';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function formatTenantId(id: string | undefined): string {
+  if (!id || id === NULL_UUID) return '—';
+  // Show first segment + partial second: e.g. "a1b2c3d4-e5f6…"
+  const parts = id.split('-');
+  return parts.length >= 2 ? `${parts[0]}-${parts[1]}…` : id.slice(0, 13) + '…';
+}
+
 function defaultDateRange(): { from: string; to: string } {
   const to = new Date();
   const from = new Date(to);
@@ -43,15 +56,21 @@ function defaultDateRange(): { from: string; to: string } {
   return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
 }
 
+const PAGE_SIZE = 50;
+
 export default function GlobalLedgerPage() {
   const { data: user } = useMe();
   const router = useRouter();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [serviceFilter, setServiceFilter] = useState<string>('all');
+  const [tenantInput, setTenantInput] = useState('');
+  const [tenantIdFilter, setTenantIdFilter] = useState('');
+  const [page, setPage] = useState(1);
   const dateRange = useMemo(() => defaultDateRange(), []);
 
   useEffect(() => {
@@ -60,28 +79,50 @@ export default function GlobalLedgerPage() {
     }
   }, [user, orgSlug, router]);
 
+  // Reset to page 1 whenever any filter changes
+  useEffect(() => { setPage(1); }, [statusFilter, typeFilter, serviceFilter, tenantIdFilter, dateRange]);
+
   const queryParams = useMemo(() => ({
     from: dateRange.from,
     to: dateRange.to,
+    limit: PAGE_SIZE,
+    page,
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     ...(typeFilter !== 'all' ? { payment_method: typeFilter } : {}),
     ...(serviceFilter !== 'all' ? { source_service: serviceFilter } : {}),
-  }), [dateRange, statusFilter, typeFilter, serviceFilter]);
+    ...(tenantIdFilter ? { tenant_id: tenantIdFilter } : {}),
+  }), [dateRange, statusFilter, typeFilter, serviceFilter, tenantIdFilter, page]);
 
-  // Platform-level endpoint returns transactions across all tenants.
   const { data, isLoading, error } = usePlatformTransactions(queryParams);
-  const list = data?.data ?? [];
+  const list: TransactionItem[] = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const hasMore = data?.hasMore ?? false;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
     return list.filter(
-      (txn: TransactionItem) =>
+      (txn) =>
         txn.reference_id?.toLowerCase().includes(q) ||
         txn.source_service?.toLowerCase().includes(q) ||
-        txn.tenant_id?.toLowerCase().includes(q) // Included tenant searching for global view
+        txn.tenant_id?.toLowerCase().includes(q),
     );
   }, [list, searchQuery]);
+
+  const applyTenantFilter = useCallback(() => {
+    const val = tenantInput.trim();
+    if (!val) { setTenantIdFilter(''); return; }
+    if (UUID_RE.test(val)) {
+      setTenantIdFilter(val);
+    }
+    // non-UUID input ignored — users must supply a valid UUID
+  }, [tenantInput]);
+
+  const clearTenantFilter = useCallback(() => {
+    setTenantInput('');
+    setTenantIdFilter('');
+  }, []);
 
   const statusOptions = ['all', 'succeeded', 'pending', 'processing', 'failed', 'cancelled'];
   const methodOptions = ['all', 'mpesa', 'card', 'cash', 'bank_transfer', 'cod'];
@@ -106,7 +147,10 @@ export default function GlobalLedgerPage() {
             <Badge variant="warning">Platform Admin</Badge>
           </div>
           <h1 className="text-3xl font-bold tracking-tight">Global Ledger</h1>
-          <p className="text-muted-foreground mt-1">Monitor all financial transactions and settlements system-wide across all tenants.</p>
+          <p className="text-muted-foreground mt-1">
+            All financial transactions across all tenants.
+            {total > 0 && <span className="ml-2 font-semibold text-foreground">{total.toLocaleString()} total</span>}
+          </p>
         </div>
         <Button variant="outline" className="gap-2" disabled>
           <Download className="h-4 w-4" /> Export CSV
@@ -120,16 +164,47 @@ export default function GlobalLedgerPage() {
       )}
 
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between py-4">
-          <div className="relative w-full max-w-sm group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-            <input
-              placeholder="Search by reference, source, or tenant ID..."
-              className="w-full bg-accent/30 border-none rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary transition-all"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+        <CardHeader className="flex flex-col gap-4 py-4">
+          {/* Row 1: search + tenant filter */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1 max-w-sm group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+              <input
+                placeholder="Search reference, source, or tenant UUID…"
+                className="w-full bg-accent/30 border-none rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary transition-all"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            {/* Tenant UUID filter — server-side via ?tenant_id= */}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <input
+                  placeholder="Filter by tenant UUID…"
+                  className={cn(
+                    "bg-accent/30 border rounded-lg py-2 pl-3 pr-8 text-xs font-mono w-72 focus:ring-1 focus:ring-primary transition-all",
+                    tenantIdFilter ? "border-primary" : "border-border",
+                  )}
+                  value={tenantInput}
+                  onChange={(e) => setTenantInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && applyTenantFilter()}
+                />
+                {tenantInput && (
+                  <button onClick={clearTenantFilter} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={applyTenantFilter}
+                className="px-3 py-2 rounded-lg bg-accent/30 text-xs font-bold text-muted-foreground hover:text-foreground border border-border transition-all"
+              >
+                Apply
+              </button>
+            </div>
           </div>
+
+          {/* Row 2: status + method + service filters */}
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Filter className="h-3.5 w-3.5" />
@@ -173,7 +248,19 @@ export default function GlobalLedgerPage() {
               ))}
             </select>
           </div>
+
+          {/* Active tenant filter badge */}
+          {tenantIdFilter && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Filtered by tenant:</span>
+              <span className="font-mono text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">{tenantIdFilter}</span>
+              <button onClick={clearTenantFilter} className="text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </CardHeader>
+
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             {isLoading && (
@@ -185,7 +272,7 @@ export default function GlobalLedgerPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-accent/5">
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Tenant ID</th>
+                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Tenant</th>
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Reference</th>
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Type</th>
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Source</th>
@@ -197,8 +284,20 @@ export default function GlobalLedgerPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filtered.map((txn: TransactionItem) => (
-                    <tr key={txn.id} className="hover:bg-accent/5 transition-colors cursor-pointer">
-                      <td className="px-6 py-4 font-mono text-xs text-muted-foreground truncate max-w-30" title={txn.tenant_id}>{txn.tenant_id ? txn.tenant_id.slice(0, 8) + '…' : '—'}</td>
+                    <tr key={txn.id} className="hover:bg-accent/5 transition-colors cursor-pointer group">
+                      <td className="px-6 py-4">
+                        {txn.tenant_id && txn.tenant_id !== NULL_UUID ? (
+                          <button
+                            className="font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
+                            title={`Full UUID: ${txn.tenant_id}\nClick to filter by this tenant`}
+                            onClick={() => { setTenantInput(txn.tenant_id!); setTenantIdFilter(txn.tenant_id!); }}
+                          >
+                            {formatTenantId(txn.tenant_id)}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/40">—</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 font-mono text-xs font-bold">{txn.reference_id}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
@@ -207,14 +306,14 @@ export default function GlobalLedgerPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-xs">{txn.source_service || '—'}</td>
-                      <td className="px-6 py-4 text-xs">{txn.payment_method}</td>
-                      <td className="px-6 py-4 text-right font-bold text-xs">{txn.currency} {txn.amount}</td>
+                      <td className="px-6 py-4 text-xs capitalize">{txn.payment_method?.replace(/_/g, ' ') || '—'}</td>
+                      <td className="px-6 py-4 text-right font-bold text-xs tabular-nums">{txn.currency} {txn.amount}</td>
                       <td className="px-6 py-4 text-center">
                         <Badge variant={txn.status === 'succeeded' ? 'success' : txn.status === 'pending' || txn.status === 'processing' ? 'warning' : 'error'}>
                           {txn.status}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">{new Date(txn.created_at).toLocaleString()}</td>
+                      <td className="px-6 py-4 text-right text-xs text-muted-foreground tabular-nums">{new Date(txn.created_at).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -224,6 +323,31 @@ export default function GlobalLedgerPage() {
               <div className="p-12 text-center text-muted-foreground">No transactions match your filters.</div>
             )}
           </div>
+
+          {/* Pagination */}
+          {total > PAGE_SIZE && (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border">
+              <span className="text-xs text-muted-foreground">
+                Page {page} of {totalPages} · {total.toLocaleString()} transactions
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="p-1.5 rounded-lg border border-border bg-accent/30 disabled:opacity-40 hover:bg-accent/60 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  disabled={!hasMore && page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="p-1.5 rounded-lg border border-border bg-accent/30 disabled:opacity-40 hover:bg-accent/60 transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
