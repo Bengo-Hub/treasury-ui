@@ -18,6 +18,10 @@ const TREASURY_API_URL =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL) ||
   'https://booksapi.codevertexitsolutions.com';
 
+const TREASURY_UI_URL =
+  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_UI_URL) ||
+  'https://books.codevertexitsolutions.com';
+
 function parseGateways(param: string | null): GatewayType[] {
   if (!param) return [];
   const list = param.split(',').map((g) => g.trim().toLowerCase());
@@ -108,8 +112,9 @@ function PayPageContent() {
   // Load active gateways from treasury-api backend (never from URL params).
   // Resolution order:
   //   1. Derive gateways URL from initiate_url (contains tenant UUID — most specific)
-  //   2. Use tenant slug to query /api/v1/pay/{slug}/gateways (slug-based lookup)
-  //   3. If both fail and amount+reference_id are present, auto-create a pending intent first
+  //   2. If intent_id + tenant present but no initiate_url, construct it directly (ordering-backend embeds)
+  //   3. If amount+reference_id+tenant present, auto-create a pending intent via PublicCreateIntent
+  //   4. Fallback: slug-based gateways endpoint (works without initiate_url)
   useEffect(() => {
     let cancelled = false;
     const d = detailsRef.current;
@@ -120,6 +125,15 @@ function PayPageContent() {
       let initiateUrlToUse = d.initiate_url;
 
       if (initiateUrlToUse) {
+        gwUrl = gatewaysUrlFromInitiateUrl(initiateUrlToUse);
+      }
+
+      // If intent_id + tenant present but no initiate_url (e.g. ordering-backend returned intent_id
+      // but treasury client failed to build the URL), construct it directly — slug is accepted by
+      // PublicInitiateIntent which does a DB slug→UUID lookup server-side.
+      if (!initiateUrlToUse && d.intent_id && d.tenant) {
+        initiateUrlToUse = `${TREASURY_API_URL}/api/v1/pay/${encodeURIComponent(d.tenant)}/intents/${d.intent_id}/initiate`;
+        if (!cancelled) setResolvedInitiateUrl(initiateUrlToUse);
         gwUrl = gatewaysUrlFromInitiateUrl(initiateUrlToUse);
       }
 
@@ -137,6 +151,11 @@ function PayPageContent() {
               description: d.description || '',
               customer_email: d.customer_email || '',
               source_service: d.source_service || '',
+              // Build return_url pointing to the centralized success page, passing through
+              // the original redirect_url so the success page can offer a "back to service" button
+              return_url: d.redirect_url && d.redirect_url !== '/'
+                ? `${TREASURY_UI_URL}/pay/success?return_url=${encodeURIComponent(d.redirect_url)}`
+                : undefined,
             }),
           });
           if (res.ok) {
@@ -186,7 +205,7 @@ function PayPageContent() {
     return () => { cancelled = true; };
     // Re-run only when core identity params change (not on every render)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [details.initiate_url, details.tenant, details.amount, details.reference_id]);
+  }, [details.initiate_url, details.intent_id, details.tenant, details.amount, details.reference_id]);
 
   // Merge resolved initiate_url back into details for payment modals
   const effectiveDetails: PaymentDetails = useMemo(
