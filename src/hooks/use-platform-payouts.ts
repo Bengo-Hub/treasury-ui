@@ -21,7 +21,9 @@ export interface PaystackBank {
 
 export interface PlatformBalance {
   currency: string;
-  balance: number;
+  /** Already converted from smallest unit (e.g. kobo → KES) by the API */
+  balance: number | string;
+  ledger_balance?: number | string;
 }
 
 export function usePlatformBanks(country = 'kenya') {
@@ -37,7 +39,8 @@ export function usePlatformBalance() {
   return useQuery({
     queryKey: ['platform_balance'],
     queryFn: async () => {
-      return api.get<PlatformBalance[]>(`${BASE}/platform/balance`);
+      // Backend returns a single BalanceResponse object, not an array.
+      return api.get<PlatformBalance>(`${BASE}/platform/balance`);
     },
   });
 }
