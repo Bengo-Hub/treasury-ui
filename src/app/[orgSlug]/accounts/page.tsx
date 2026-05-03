@@ -53,6 +53,7 @@ export default function AccountsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
 
   // Dialogs
   const [createOpen, setCreateOpen] = useState(false);
@@ -60,14 +61,10 @@ export default function AccountsPage() {
   const [deleteAccount, setDeleteAccount] = useState<Account | null>(null);
   const [formData, setFormData] = useState<AccountFormData>(emptyForm);
 
-  // Build query params
-  const params: Record<string, string> = {};
-  if (isPlatformOwner && tenantQueryParam) params.tenantId = tenantQueryParam;
-
-  const { data: accountsData, isLoading } = useAccounts(tenantPathId, params);
-  const createMutation = useCreateAccount(tenantPathId);
-  const updateMutation = useUpdateAccount(tenantPathId);
-  const deactivateMutation = useDeactivateAccount(tenantPathId);
+  const { data: accountsData, isLoading } = useAccounts(effectiveTenant, {});
+  const createMutation = useCreateAccount(effectiveTenant);
+  const updateMutation = useUpdateAccount(effectiveTenant);
+  const deactivateMutation = useDeactivateAccount(effectiveTenant);
 
   const accounts = accountsData?.accounts ?? [];
 
@@ -155,6 +152,12 @@ export default function AccountsPage() {
           <Plus className="h-4 w-4" /> Add Account
         </Button>
       </div>
+
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
+          Select a tenant from the filter above to view their chart of accounts.
+        </div>
+      )}
 
       <Card>
         <CardHeader className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between py-4">

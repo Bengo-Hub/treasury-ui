@@ -36,6 +36,7 @@ const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' 
 
 export default function BillsPage() {
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
@@ -45,11 +46,10 @@ export default function BillsPage() {
 
   const queryParams = useMemo(() => ({
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-    ...(isPlatformOwner && tenantQueryParam ? { tenantId: tenantQueryParam } : {}),
-  }), [statusFilter, isPlatformOwner, tenantQueryParam]);
+  }), [statusFilter]);
 
-  const { data, isLoading, error } = useBills(tenantPathId, queryParams, !!tenantPathId);
-  const { data: agingData } = useAPAging(tenantPathId, !!tenantPathId);
+  const { data, isLoading, error } = useBills(effectiveTenant, queryParams, !!effectiveTenant);
+  const { data: agingData } = useAPAging(effectiveTenant, !!effectiveTenant);
 
   const list = data?.bills ?? [];
   const agingRows = agingData?.rows ?? [];
@@ -71,8 +71,8 @@ export default function BillsPage() {
 
   const statusOptions = ['all', 'draft', 'pending', 'paid', 'overdue'];
 
-  const createMutation = useCreateBill(tenantPathId);
-  const payMutation = usePayBill(tenantPathId);
+  const createMutation = useCreateBill(effectiveTenant);
+  const payMutation = usePayBill(effectiveTenant);
 
   // Create form state
   const emptyLine: BillLineReq = { description: '', quantity: 1, unit_price: 0 };
@@ -131,6 +131,12 @@ export default function BillsPage() {
           <Plus className="h-4 w-4" /> New Bill
         </Button>
       </div>
+
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
+          Select a tenant from the filter above to view their bills.
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">

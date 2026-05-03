@@ -32,14 +32,11 @@ const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' 
 
 export default function VendorsPage() {
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
 
-  const queryParams = useMemo(() => ({
-    ...(isPlatformOwner && tenantQueryParam ? { tenantId: tenantQueryParam } : {}),
-  }), [isPlatformOwner, tenantQueryParam]);
-
-  const { data, isLoading } = useBills(tenantPathId, queryParams, !!tenantPathId);
+  const { data, isLoading } = useBills(effectiveTenant, {}, !!effectiveTenant);
   const bills = data?.bills ?? [];
 
   // Derive unique vendors from bills
@@ -142,6 +139,12 @@ export default function VendorsPage() {
           <p className="text-muted-foreground mt-1">View vendor activity derived from bill history.</p>
         </div>
       </div>
+
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
+          Select a tenant from the filter above to view their vendors.
+        </div>
+      )}
 
       <Card>
         <CardHeader className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between py-4">

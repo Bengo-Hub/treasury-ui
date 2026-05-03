@@ -41,7 +41,8 @@ const deviceStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'e
 };
 
 export default function TaxPage() {
-  const { tenantPathId } = useResolvedTenant();
+  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [tab, setTab] = useState('codes');
 
   return (
@@ -51,23 +52,29 @@ export default function TaxPage() {
         <p className="text-muted-foreground mt-1">Manage tax codes, filing periods, and eTIMS devices.</p>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="codes">Tax Codes</TabsTrigger>
-          <TabsTrigger value="periods">Tax Periods</TabsTrigger>
-          <TabsTrigger value="etims">eTIMS Devices</TabsTrigger>
-        </TabsList>
+      {isPlatformOwner && !tenantQueryParam ? (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
+          Select a tenant from the filter above to view their tax & compliance data.
+        </div>
+      ) : (
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList>
+            <TabsTrigger value="codes">Tax Codes</TabsTrigger>
+            <TabsTrigger value="periods">Tax Periods</TabsTrigger>
+            <TabsTrigger value="etims">eTIMS Devices</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="codes" className="mt-6">
-          <TaxCodesTab tenantSlug={tenantPathId} />
-        </TabsContent>
-        <TabsContent value="periods" className="mt-6">
-          <TaxPeriodsTab tenantSlug={tenantPathId} />
-        </TabsContent>
-        <TabsContent value="etims" className="mt-6">
-          <EtimsTab tenantSlug={tenantPathId} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="codes" className="mt-6">
+            <TaxCodesTab tenantSlug={effectiveTenant} />
+          </TabsContent>
+          <TabsContent value="periods" className="mt-6">
+            <TaxPeriodsTab tenantSlug={effectiveTenant} />
+          </TabsContent>
+          <TabsContent value="etims" className="mt-6">
+            <EtimsTab tenantSlug={effectiveTenant} />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }

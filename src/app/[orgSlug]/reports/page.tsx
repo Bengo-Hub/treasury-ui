@@ -25,7 +25,8 @@ function getDefaultRange() {
 }
 
 export default function ReportsPage() {
-  const { tenantPathId } = useResolvedTenant();
+  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [tab, setTab] = useState('pl');
   const defaults = getDefaultRange();
   const [plFrom, setPlFrom] = useState(defaults.from);
@@ -43,27 +44,33 @@ export default function ReportsPage() {
         <p className="text-muted-foreground mt-1">View financial statements and summaries.</p>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="pl">Profit & Loss</TabsTrigger>
-          <TabsTrigger value="bs">Balance Sheet</TabsTrigger>
-          <TabsTrigger value="cf">Cash Flow</TabsTrigger>
-          <TabsTrigger value="tax">Tax Summary</TabsTrigger>
-        </TabsList>
+      {isPlatformOwner && !tenantQueryParam ? (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
+          Select a tenant from the filter above to view their financial reports.
+        </div>
+      ) : (
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList>
+            <TabsTrigger value="pl">Profit & Loss</TabsTrigger>
+            <TabsTrigger value="bs">Balance Sheet</TabsTrigger>
+            <TabsTrigger value="cf">Cash Flow</TabsTrigger>
+            <TabsTrigger value="tax">Tax Summary</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="pl" className="mt-6">
-          <ProfitLossTab tenantSlug={tenantPathId} from={plFrom} to={plTo} setFrom={setPlFrom} setTo={setPlTo} />
-        </TabsContent>
-        <TabsContent value="bs" className="mt-6">
-          <BalanceSheetTab tenantSlug={tenantPathId} asOf={bsAsOf} setAsOf={setBsAsOf} />
-        </TabsContent>
-        <TabsContent value="cf" className="mt-6">
-          <CashFlowTab tenantSlug={tenantPathId} from={cfFrom} to={cfTo} setFrom={setCfFrom} setTo={setCfTo} />
-        </TabsContent>
-        <TabsContent value="tax" className="mt-6">
-          <TaxSummaryTab tenantSlug={tenantPathId} from={taxFrom} to={taxTo} setFrom={setTaxFrom} setTo={setTaxTo} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="pl" className="mt-6">
+            <ProfitLossTab tenantSlug={effectiveTenant} from={plFrom} to={plTo} setFrom={setPlFrom} setTo={setPlTo} />
+          </TabsContent>
+          <TabsContent value="bs" className="mt-6">
+            <BalanceSheetTab tenantSlug={effectiveTenant} asOf={bsAsOf} setAsOf={setBsAsOf} />
+          </TabsContent>
+          <TabsContent value="cf" className="mt-6">
+            <CashFlowTab tenantSlug={effectiveTenant} from={cfFrom} to={cfTo} setFrom={setCfFrom} setTo={setCfTo} />
+          </TabsContent>
+          <TabsContent value="tax" className="mt-6">
+            <TaxSummaryTab tenantSlug={effectiveTenant} from={taxFrom} to={taxTo} setFrom={setTaxFrom} setTo={setTaxTo} />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }

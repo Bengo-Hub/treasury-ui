@@ -49,12 +49,13 @@ const statusVariant: Record<string, 'default' | 'warning' | 'success' | 'error' 
 };
 
 export default function JournalsPage() {
-  const { tenantPathId } = useResolvedTenant();
+  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [view, setView] = useState<'entries' | 'trial-balance'>('entries');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data, isLoading } = useJournalEntries(tenantPathId, statusFilter !== 'all' ? { status: statusFilter } : undefined);
+  const { data, isLoading } = useJournalEntries(effectiveTenant, statusFilter !== 'all' ? { status: statusFilter } : undefined);
   const entries = data?.entries ?? [];
 
   const filtered = useMemo(() => entries, [entries]);
@@ -83,23 +84,29 @@ export default function JournalsPage() {
         </div>
       </div>
 
-      {view === 'entries' ? (
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
+          Select a tenant from the filter above to view their journal entries.
+        </div>
+      )}
+
+      {(!isPlatformOwner || tenantQueryParam) && (view === 'entries' ? (
         <JournalEntriesList
           entries={filtered}
           isLoading={isLoading}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
           statusOptions={statusOptions}
-          tenantSlug={tenantPathId}
+          tenantSlug={effectiveTenant}
         />
       ) : (
-        <TrialBalanceView tenantSlug={tenantPathId} />
-      )}
+        <TrialBalanceView tenantSlug={effectiveTenant} />
+      ))}
 
       <CreateJournalDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        tenantSlug={tenantPathId}
+        tenantSlug={effectiveTenant}
       />
     </div>
   );
