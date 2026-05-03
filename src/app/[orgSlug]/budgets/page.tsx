@@ -40,8 +40,9 @@ const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' 
 };
 
 export default function BudgetsPage() {
-  const { tenantPathId } = useResolvedTenant();
-  const { data, isLoading } = useBudgets(tenantPathId);
+  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  const { data, isLoading } = useBudgets(effectiveTenant);
   const budgets = data?.budgets ?? [];
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -58,6 +59,12 @@ export default function BudgetsPage() {
           <Plus className="h-4 w-4" /> New Budget
         </Button>
       </div>
+
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
+          Select a tenant from the filter above to view their budgets.
+        </div>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between py-4">
@@ -109,7 +116,7 @@ export default function BudgetsPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => approveMutation.mutate({ tenantSlug: tenantPathId, budgetID: budget.id })}
+                              onClick={() => approveMutation.mutate({ tenantSlug: effectiveTenant, budgetID: budget.id })}
                               disabled={approveMutation.isPending}
                               title="Approve"
                             >
@@ -131,12 +138,12 @@ export default function BudgetsPage() {
         </CardContent>
       </Card>
 
-      <CreateBudgetDialog open={createOpen} onOpenChange={setCreateOpen} tenantSlug={tenantPathId} />
+      <CreateBudgetDialog open={createOpen} onOpenChange={setCreateOpen} tenantSlug={effectiveTenant} />
       {detailId && (
         <BudgetDetailDialog
           open={!!detailId}
           onOpenChange={(o) => !o && setDetailId(null)}
-          tenantSlug={tenantPathId}
+          tenantSlug={effectiveTenant}
           budgetID={detailId}
         />
       )}

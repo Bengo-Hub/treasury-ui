@@ -45,7 +45,8 @@ function statusBadgeVariant(status: string): 'default' | 'success' | 'warning' |
 const emptyLine = (): LineRequest => ({ description: '', quantity: 1, unit_price: 0 });
 
 export default function QuotationsPage() {
-  const { tenantPathId } = useResolvedTenant();
+  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
@@ -56,7 +57,7 @@ export default function QuotationsPage() {
     limit: ITEMS_PER_PAGE,
   }), [statusFilter, page]);
 
-  const { data, isLoading, error } = useQuotations(tenantPathId, filters, !!tenantPathId);
+  const { data, isLoading, error } = useQuotations(effectiveTenant, filters, !!effectiveTenant);
   const quotations = data?.quotations ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
@@ -98,7 +99,7 @@ export default function QuotationsPage() {
     lines: [emptyLine()],
   });
 
-  const createMutation = useCreateQuotation(tenantPathId);
+  const createMutation = useCreateQuotation(effectiveTenant);
 
   const handleCreate = useCallback(() => {
     const body: CreateQuotationRequest = {
@@ -148,9 +149,9 @@ export default function QuotationsPage() {
 
   // ---- Row Actions ----
   const [actionMenuId, setActionMenuId] = useState<string | null>(null);
-  const sendMutation = useSendQuotation(tenantPathId);
-  const acceptMutation = useAcceptQuotation(tenantPathId);
-  const declineMutation = useDeclineQuotation(tenantPathId);
+  const sendMutation = useSendQuotation(effectiveTenant);
+  const acceptMutation = useAcceptQuotation(effectiveTenant);
+  const declineMutation = useDeclineQuotation(effectiveTenant);
 
   const lineTotal = (l: LineRequest) => Number(l.quantity || 0) * Number(l.unit_price || 0);
   const formTotal = newQuote.lines.reduce((sum, l) => sum + lineTotal(l), 0);
@@ -167,6 +168,12 @@ export default function QuotationsPage() {
           <Plus className="h-4 w-4" /> Create Quotation
         </Button>
       </div>
+
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
+          Select a tenant from the filter above to view their quotations.
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">

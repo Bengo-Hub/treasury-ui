@@ -17,10 +17,11 @@ import {
 import { useMemo, useState } from 'react';
 
 export default function SettlementsPage() {
-  const { tenantPathId } = useResolvedTenant();
+  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const { data, isLoading, error } = usePayoutHistory(tenantPathId, !!tenantPathId);
+  const { data, isLoading, error } = usePayoutHistory(effectiveTenant, !!effectiveTenant);
   const payouts = data?.payouts ?? [];
 
   const filtered = useMemo(() => {
@@ -50,6 +51,12 @@ export default function SettlementsPage() {
           <Download className="h-4 w-4" /> Export
         </Button>
       </div>
+
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
+          Select a tenant from the filter above to view their settlements.
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">

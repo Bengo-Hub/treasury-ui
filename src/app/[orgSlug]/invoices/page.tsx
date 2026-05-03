@@ -63,7 +63,8 @@ function paymentBadgeVariant(status: string): 'default' | 'success' | 'warning' 
 const emptyLine = (): LineRequest => ({ description: '', quantity: 1, unit_price: 0 });
 
 export default function InvoicesPage() {
-  const { tenantPathId } = useResolvedTenant();
+  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
@@ -77,7 +78,7 @@ export default function InvoicesPage() {
     limit: ITEMS_PER_PAGE,
   }), [statusFilter, dateRange, page]);
 
-  const { data, isLoading, error } = useInvoices(tenantPathId, filters, !!tenantPathId);
+  const { data, isLoading, error } = useInvoices(effectiveTenant, filters, !!effectiveTenant);
   const invoices = data?.invoices ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
@@ -118,7 +119,7 @@ export default function InvoicesPage() {
     lines: [emptyLine()],
   });
 
-  const createMutation = useCreateInvoice(tenantPathId);
+  const createMutation = useCreateInvoice(effectiveTenant);
 
   const handleCreate = useCallback(() => {
     const body: CreateInvoiceRequest = {
@@ -171,9 +172,9 @@ export default function InvoicesPage() {
   const [paymentDialog, setPaymentDialog] = useState<{ invoiceId: string; invoiceNumber: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
 
-  const sendMutation = useSendInvoice(tenantPathId);
-  const voidMutation = useVoidInvoice(tenantPathId);
-  const paymentMutation = useRecordPayment(tenantPathId);
+  const sendMutation = useSendInvoice(effectiveTenant);
+  const voidMutation = useVoidInvoice(effectiveTenant);
+  const paymentMutation = useRecordPayment(effectiveTenant);
 
   const handleRecordPayment = useCallback(() => {
     if (!paymentDialog || !paymentAmount) return;
@@ -198,6 +199,12 @@ export default function InvoicesPage() {
           <Plus className="h-4 w-4" /> Create Invoice
         </Button>
       </div>
+
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
+          Select a tenant from the filter above to view their invoices.
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">

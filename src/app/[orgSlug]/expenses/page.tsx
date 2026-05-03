@@ -48,6 +48,7 @@ function defaultDateRange(): { from: string; to: string } {
 
 export default function ExpensesPage() {
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
@@ -60,11 +61,10 @@ export default function ExpensesPage() {
     from: dateRange.from,
     to: dateRange.to,
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-    ...(isPlatformOwner && tenantQueryParam ? { tenantId: tenantQueryParam } : {}),
-  }), [dateRange, statusFilter, isPlatformOwner, tenantQueryParam]);
+  }), [dateRange, statusFilter]);
 
-  const { data, isLoading, error } = useExpenses(tenantPathId, queryParams, !!tenantPathId);
-  const { data: catData } = useExpenseCategories(tenantPathId, !!tenantPathId);
+  const { data, isLoading, error } = useExpenses(effectiveTenant, queryParams, !!effectiveTenant);
+  const { data: catData } = useExpenseCategories(effectiveTenant, !!effectiveTenant);
 
   const list = data?.expenses ?? [];
   const categories = catData?.categories ?? [];
@@ -88,10 +88,10 @@ export default function ExpensesPage() {
   const statusOptions = ['all', 'draft', 'submitted', 'approved', 'rejected', 'reimbursed'];
 
   // Mutations
-  const createMutation = useCreateExpense(tenantPathId);
-  const submitMutation = useSubmitExpense(tenantPathId);
-  const approveMutation = useApproveExpense(tenantPathId);
-  const rejectMutation = useRejectExpense(tenantPathId);
+  const createMutation = useCreateExpense(effectiveTenant);
+  const submitMutation = useSubmitExpense(effectiveTenant);
+  const approveMutation = useApproveExpense(effectiveTenant);
+  const rejectMutation = useRejectExpense(effectiveTenant);
 
   // Create form state
   const [form, setForm] = useState({
@@ -135,6 +135,12 @@ export default function ExpensesPage() {
           <Plus className="h-4 w-4" /> New Expense
         </Button>
       </div>
+
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
+          Select a tenant from the filter above to view their expenses.
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
