@@ -14,32 +14,28 @@ export function useResolvedTenant() {
   const orgSlug = params?.orgSlug as string;
   const user = useAuthStore((s) => s.user);
   const isPlatformOwner = orgSlug === 'codevertex' || !!user?.isPlatformOwner;
-  const selectedTenant = useTenantFilterStore((s) => s.selectedTenant);
+  const tenantIdsParam = useTenantFilterStore((s) => s.tenantIdsParam)();
+  const firstSelected = useTenantFilterStore((s) => s.selectedTenants[0]);
 
   if (!isPlatformOwner) {
-    // Regular tenant: use orgSlug in URL path
     return {
       isPlatformOwner: false,
-      /** Tenant slug or ID to put in the URL path (e.g. /api/v1/{tenantPathId}/...) */
       tenantPathId: orgSlug,
-      /** Query param for ?tenantId= (not used for regular tenants) */
       tenantQueryParam: undefined as string | undefined,
-      /** Whether a specific tenant is selected (always true for regular tenants) */
+      tenantIdsParam: undefined as string | undefined,
       hasTenant: !!orgSlug,
-      /** The orgSlug from URL */
       orgSlug,
     };
   }
 
-  // Platform owner: use filter selection
   return {
     isPlatformOwner: true,
-    /** For platform owners, use orgSlug in path (backend will recognize codevertex as platform) */
     tenantPathId: orgSlug,
-    /** Query param for ?tenantId= override. undefined means "all tenants". */
-    tenantQueryParam: selectedTenant?.id,
-    /** Whether a specific tenant is selected */
-    hasTenant: !!selectedTenant,
+    /** Single-tenant compat: ID of the first selected tenant. undefined means "all tenants". */
+    tenantQueryParam: firstSelected?.id,
+    /** Comma-separated UUIDs for multi-tenant ?tenant_ids= param. */
+    tenantIdsParam: tenantIdsParam || undefined,
+    hasTenant: !!tenantIdsParam,
     orgSlug,
   };
 }

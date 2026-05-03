@@ -5,6 +5,7 @@ import { usePlatformTransactions } from '@/hooks/use-platform-analytics';
 import { useMe } from '@/hooks/useMe';
 import type { TransactionItem } from '@/lib/api/analytics';
 import { cn } from '@/lib/utils';
+import { useTenantFilterStore } from '@/store/tenant-filter';
 import {
   ArrowUpRight,
   Calendar,
@@ -15,10 +16,10 @@ import {
   Loader2,
   Search,
   Shield,
-  X,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
 
 const SERVICE_OPTIONS = [
   { value: 'all', label: 'All Services' },
@@ -40,7 +41,6 @@ const SERVICE_OPTIONS = [
 ];
 
 const NULL_UUID = '00000000-0000-0000-0000-000000000000';
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function formatTenantId(id: string | undefined): string {
   if (!id || id === NULL_UUID) return '—';
@@ -64,12 +64,14 @@ export default function GlobalLedgerPage() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
 
+  const tenantIds = useTenantFilterStore((s) => s.tenantIdsParam)();
+  const selectedTenantCount = useTenantFilterStore((s) => s.selectedTenants.length);
+  const clearTenants = useTenantFilterStore((s) => s.clearTenants);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [serviceFilter, setServiceFilter] = useState<string>('all');
-  const [tenantInput, setTenantInput] = useState('');
-  const [tenantIdFilter, setTenantIdFilter] = useState('');
   const [page, setPage] = useState(1);
   const dateRange = useMemo(() => defaultDateRange(), []);
 
@@ -80,7 +82,7 @@ export default function GlobalLedgerPage() {
   }, [user, orgSlug, router]);
 
   // Reset to page 1 whenever any filter changes
-  useEffect(() => { setPage(1); }, [statusFilter, typeFilter, serviceFilter, tenantIdFilter, dateRange]);
+  useEffect(() => { setPage(1); }, [statusFilter, typeFilter, serviceFilter, tenantIds, dateRange]);
 
   const queryParams = useMemo(() => ({
     from: dateRange.from,
@@ -90,8 +92,8 @@ export default function GlobalLedgerPage() {
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     ...(typeFilter !== 'all' ? { payment_method: typeFilter } : {}),
     ...(serviceFilter !== 'all' ? { source_service: serviceFilter } : {}),
-    ...(tenantIdFilter ? { tenant_id: tenantIdFilter } : {}),
-  }), [dateRange, statusFilter, typeFilter, serviceFilter, tenantIdFilter, page]);
+    ...(tenantIds ? { tenant_ids: tenantIds } : {}),
+  }), [dateRange, statusFilter, typeFilter, serviceFilter, tenantIds, page]);
 
   const { data, isLoading, error } = usePlatformTransactions(queryParams);
   const list: TransactionItem[] = data?.data ?? [];
@@ -109,20 +111,6 @@ export default function GlobalLedgerPage() {
         txn.tenant_id?.toLowerCase().includes(q),
     );
   }, [list, searchQuery]);
-
-  const applyTenantFilter = useCallback(() => {
-    const val = tenantInput.trim();
-    if (!val) { setTenantIdFilter(''); return; }
-    if (UUID_RE.test(val)) {
-      setTenantIdFilter(val);
-    }
-    // non-UUID input ignored — users must supply a valid UUID
-  }, [tenantInput]);
-
-  const clearTenantFilter = useCallback(() => {
-    setTenantInput('');
-    setTenantIdFilter('');
-  }, []);
 
   const statusOptions = ['all', 'succeeded', 'pending', 'processing', 'failed', 'cancelled'];
   const methodOptions = ['all', 'mpesa', 'card', 'cash', 'bank_transfer', 'cod'];
@@ -165,7 +153,7 @@ export default function GlobalLedgerPage() {
 
       <Card>
         <CardHeader className="flex flex-col gap-4 py-4">
-          {/* Row 1: search + tenant filter */}
+          {/* Row 1: search */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1 max-w-sm group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -175,32 +163,6 @@ export default function GlobalLedgerPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
-            </div>
-            {/* Tenant UUID filter — server-side via ?tenant_id= */}
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <input
-                  placeholder="Filter by tenant UUID…"
-                  className={cn(
-                    "bg-accent/30 border rounded-lg py-2 pl-3 pr-8 text-xs font-mono w-72 focus:ring-1 focus:ring-primary transition-all",
-                    tenantIdFilter ? "border-primary" : "border-border",
-                  )}
-                  value={tenantInput}
-                  onChange={(e) => setTenantInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && applyTenantFilter()}
-                />
-                {tenantInput && (
-                  <button onClick={clearTenantFilter} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={applyTenantFilter}
-                className="px-3 py-2 rounded-lg bg-accent/30 text-xs font-bold text-muted-foreground hover:text-foreground border border-border transition-all"
-              >
-                Apply
-              </button>
             </div>
           </div>
 
@@ -249,13 +211,15 @@ export default function GlobalLedgerPage() {
             </select>
           </div>
 
-          {/* Active tenant filter badge */}
-          {tenantIdFilter && (
+          {/* Active tenant filter badge — driven by top-nav TenantFilter */}
+          {selectedTenantCount > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Filtered by tenant:</span>
-              <span className="font-mono text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">{tenantIdFilter}</span>
-              <button onClick={clearTenantFilter} className="text-muted-foreground hover:text-foreground">
-                <X className="h-3.5 w-3.5" />
+              <span className="text-xs text-muted-foreground">Filtered by:</span>
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
+                {selectedTenantCount === 1 ? '1 tenant' : `${selectedTenantCount} tenants`}
+              </span>
+              <button onClick={clearTenants} className="text-xs text-muted-foreground hover:text-foreground underline">
+                Clear
               </button>
             </div>
           )}
@@ -287,13 +251,12 @@ export default function GlobalLedgerPage() {
                     <tr key={txn.id} className="hover:bg-accent/5 transition-colors cursor-pointer group">
                       <td className="px-6 py-4">
                         {txn.tenant_id && txn.tenant_id !== NULL_UUID ? (
-                          <button
-                            className="font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
-                            title={`Full UUID: ${txn.tenant_id}\nClick to filter by this tenant`}
-                            onClick={() => { setTenantInput(txn.tenant_id!); setTenantIdFilter(txn.tenant_id!); }}
+                          <span
+                            className="font-mono text-xs text-muted-foreground"
+                            title={txn.tenant_id}
                           >
                             {formatTenantId(txn.tenant_id)}
-                          </button>
+                          </span>
                         ) : (
                           <span className="text-xs text-muted-foreground/40">—</span>
                         )}
