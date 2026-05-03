@@ -3,17 +3,18 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/base';
 import { usePlatformByService, usePlatformByTenant, usePlatformOverview } from '@/hooks/use-platform-analytics';
 import { formatCurrency } from '@/lib/utils/currency';
+import { useTenantFilterStore } from '@/store/tenant-filter';
 import { Activity, BarChart, Building2, Download, Layers, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 
 export default function PlatformAnalyticsPage() {
-  // Normally use real date pickers, skipping for MVP speeds
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const tenantIds = useTenantFilterStore((s) => s.tenantIdsParam)();
 
-  const { data: overview, isLoading: loadingOverview } = usePlatformOverview();
-  const { data: byTenant, isLoading: loadingTenants } = usePlatformByTenant();
-  const { data: byService, isLoading: loadingServices } = usePlatformByService();
+  const { data: overview, isLoading: loadingOverview } = usePlatformOverview(from || undefined, to || undefined, tenantIds || undefined);
+  const { data: byTenant, isLoading: loadingTenants } = usePlatformByTenant(from || undefined, to || undefined, tenantIds || undefined);
+  const { data: byService, isLoading: loadingServices } = usePlatformByService(from || undefined, to || undefined, tenantIds || undefined);
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
