@@ -2,6 +2,7 @@
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useTransactions } from '@/hooks/use-analytics';
+import { usePlatformTransactions, getTransactionsExportURL } from '@/hooks/use-platform-analytics';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { exportTransactionsCSV, type TransactionItem } from '@/lib/api/analytics';
 import { Pagination } from '@/components/ui/pagination';
@@ -44,7 +45,7 @@ function defaultDateRange(): { from: string; to: string } {
 }
 
 export default function TransactionsPage() {
-  const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  const { tenantPathId, tenantIdsParam, isPlatformOwner } = useResolvedTenant();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -52,17 +53,33 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1);
   const dateRange = useMemo(() => defaultDateRange(), []);
 
-  const queryParams = useMemo(() => ({
+  // Platform admins: use platform endpoint (all tenants by default; tenant_ids filter optional)
+  // Regular tenants: use tenant-scoped endpoint
+  const platformParams = useMemo(() => ({
     from: dateRange.from,
     to: dateRange.to,
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     ...(typeFilter !== 'all' ? { payment_method: typeFilter } : {}),
     ...(serviceFilter !== 'all' ? { source_service: serviceFilter } : {}),
-    ...(isPlatformOwner && tenantQueryParam ? { tenantId: tenantQueryParam } : {}),
-  }), [dateRange, statusFilter, typeFilter, serviceFilter, isPlatformOwner, tenantQueryParam]);
+    ...(tenantIdsParam ? { tenant_ids: tenantIdsParam } : {}),
+  }), [dateRange, statusFilter, typeFilter, serviceFilter, tenantIdsParam]);
 
-  const { data, isLoading, error } = useTransactions(tenantPathId, queryParams, !!tenantPathId);
-  const list = data?.transactions ?? [];
+  const tenantParams = useMemo(() => ({
+    from: dateRange.from,
+    to: dateRange.to,
+    ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+    ...(typeFilter !== 'all' ? { payment_method: typeFilter } : {}),
+    ...(serviceFilter !== 'all' ? { source_service: serviceFilter } : {}),
+  }), [dateRange, statusFilter, typeFilter, serviceFilter]);
+
+  const platformResult = usePlatformTransactions(isPlatformOwner ? platformParams : undefined);
+  const tenantResult = useTransactions(tenantPathId, tenantParams, !isPlatformOwner && !!tenantPathId);
+
+  const isLoading = isPlatformOwner ? platformResult.isLoading : tenantResult.isLoading;
+  const error = isPlatformOwner ? platformResult.error : tenantResult.error;
+  const list: TransactionItem[] = isPlatformOwner
+    ? (platformResult.data?.data ?? [])
+    : (tenantResult.data?.transactions ?? []);
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return list;
@@ -88,18 +105,28 @@ export default function TransactionsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
-          <p className="text-muted-foreground mt-1">View and filter all payment transactions across gateways.</p>
+          <p className="text-muted-foreground mt-1">
+            {isPlatformOwner
+              ? 'All payment transactions across all tenants and gateways.'
+              : 'View and filter all payment transactions across gateways.'}
+          </p>
         </div>
         <Button
           variant="outline"
           className="gap-2"
           onClick={() => {
-            if (!tenantPathId) return;
-            exportTransactionsCSV(tenantPathId, {
-              ...queryParams,
-            });
+            if (isPlatformOwner) {
+              const url = getTransactionsExportURL(
+                dateRange.from, dateRange.to,
+                statusFilter !== 'all' ? statusFilter : undefined,
+                serviceFilter !== 'all' ? serviceFilter : undefined,
+                tenantIdsParam || undefined,
+              );
+              window.open(url, '_blank');
+            } else if (tenantPathId) {
+              exportTransactionsCSV(tenantPathId, tenantParams);
+            }
           }}
-          disabled={!tenantPathId}
         >
           <Download className="h-4 w-4" /> Export CSV
         </Button>

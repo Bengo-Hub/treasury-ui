@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { Badge, Card, CardContent } from '@/components/ui/base';
 import { useAnalyticsSummary, useTransactions } from '@/hooks/use-analytics';
+import { usePlatformOverview, usePlatformTransactions } from '@/hooks/use-platform-analytics';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
     ArrowUpRight,
@@ -32,32 +33,47 @@ function formatDateRange(from: Date, to: Date): { from: string; to: string } {
 }
 
 export default function DashboardPage() {
-  const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  const { tenantPathId, tenantIdsParam, isPlatformOwner } = useResolvedTenant();
   const now = new Date();
   const last30 = new Date(now);
   last30.setDate(last30.getDate() - 30);
   const range = formatDateRange(last30, now);
-  const extra = isPlatformOwner && tenantQueryParam ? { tenantId: tenantQueryParam } : {};
 
-  const { data: summary, isLoading: summaryLoading, error: summaryError } = useAnalyticsSummary(tenantPathId, { ...range, ...extra });
-  const { data: txData, isLoading: txLoading, error: txError } = useTransactions(tenantPathId, { ...range, ...extra }, !!tenantPathId);
+  // Platform owners use platform-level endpoints (all tenants by default; tenant_ids filter optional)
+  const platformOverview = usePlatformOverview(range.from, range.to, tenantIdsParam || undefined);
+  const platformTxs = usePlatformTransactions(isPlatformOwner ? { from: range.from, to: range.to, tenant_ids: tenantIdsParam || undefined, limit: 6 } : undefined);
+  const tenantSummary = useAnalyticsSummary(tenantPathId, { ...range });
+  const tenantTxs = useTransactions(tenantPathId, { ...range }, !isPlatformOwner && !!tenantPathId);
 
-  const recentTransactions = txData?.transactions?.slice(0, 6) ?? [];
-  const currency = summary?.currency ?? 'KES';
+  const summaryLoading = isPlatformOwner ? platformOverview.isLoading : tenantSummary.isLoading;
+  const txLoading = isPlatformOwner ? platformTxs.isLoading : tenantTxs.isLoading;
+  const summaryError = isPlatformOwner ? platformOverview.error : tenantSummary.error;
+  const txError = isPlatformOwner ? platformTxs.error : tenantTxs.error;
+
+  const summary = isPlatformOwner ? platformOverview.data : tenantSummary.data;
+  const recentTransactions = isPlatformOwner
+    ? (platformTxs.data?.data?.slice(0, 6) ?? [])
+    : (tenantTxs.data?.transactions?.slice(0, 6) ?? []);
+  const currency = (summary as any)?.currency ?? 'KES';
+  // Normalise field names that differ between AnalyticsSummary and PlatformOverview
+  const totalRevenue = (summary as any)?.total_revenue ?? 0;
+  const succeededCount = (summary as any)?.succeeded_count ?? 0;
+  const pendingCount = (summary as any)?.pending_count ?? 0;
+  const totalTransactions = (summary as any)?.total_transactions ?? (summary as any)?.total_count ?? 0;
 
   const kpis = [
     {
       label: 'Total Revenue',
-      value: summary ? `${currency} ${Number(summary.total_revenue).toLocaleString('en-KE', { maximumFractionDigits: 0 })}` : '—',
-      trend: summary ? `${summary.succeeded_count} succeeded` : '',
+      value: summary ? `${currency} ${Number(totalRevenue).toLocaleString('en-KE', { maximumFractionDigits: 0 })}` : '—',
+      trend: summary ? `${succeededCount} succeeded` : '',
       up: true,
       icon: DollarSign,
       color: 'text-green-500 bg-green-500/10',
     },
     {
-      label: 'Pending',
-      value: summary ? `${summary.pending_count} txns` : '—',
-      trend: summary ? `${summary.pending_count} pending` : '',
+      label: isPlatformOwner ? 'Transactions' : 'Pending',
+      value: summary ? (isPlatformOwner ? `${totalTransactions} txns` : `${pendingCount} txns`) : '—',
+      trend: summary ? (isPlatformOwner ? `${succeededCount} succeeded` : `${pendingCount} pending`) : '',
       up: false,
       icon: Wallet,
       color: 'text-amber-500 bg-amber-500/10',
@@ -72,8 +88,8 @@ export default function DashboardPage() {
     },
     {
       label: 'Transactions (period)',
-      value: summary ? String(summary.succeeded_count + summary.pending_count + summary.failed_count) : '—',
-      trend: summary ? `${summary.succeeded_count} ok, ${summary.failed_count} failed` : '',
+      value: summary ? String(totalTransactions || (succeededCount + pendingCount + ((summary as any)?.failed_count ?? 0))) : '—',
+      trend: summary ? `${succeededCount} ok, ${(summary as any)?.failed_count ?? 0} failed` : '',
       up: true,
       icon: Banknote,
       color: 'text-purple-500 bg-purple-500/10',
@@ -82,7 +98,7 @@ export default function DashboardPage() {
 
   // --- Chart data: Revenue Over Time (by day) ---
   const revenueOverTime = useMemo(() => {
-    const txns = txData?.transactions ?? [];
+    const txns = recentTransactions;
     const byDay: Record<string, number> = {};
     for (const txn of txns) {
       if (txn.status !== 'succeeded') continue;
@@ -96,11 +112,11 @@ export default function DashboardPage() {
         acc.push({ date, revenue, cumulative: prev + revenue });
         return acc;
       }, []);
-  }, [txData]);
+  }, [recentTransactions]);
 
   // --- Chart data: Revenue by Payment Method ---
   const revenueByMethod = useMemo(() => {
-    const txns = txData?.transactions ?? [];
+    const txns = recentTransactions;
     const byMethod: Record<string, number> = {};
     for (const txn of txns) {
       if (txn.status !== 'succeeded') continue;
@@ -110,7 +126,7 @@ export default function DashboardPage() {
     return Object.entries(byMethod)
       .map(([method, total]) => ({ method, total }))
       .sort((a, b) => b.total - a.total);
-  }, [txData]);
+  }, [recentTransactions]);
 
   const loading = summaryLoading || txLoading;
   const hasError = summaryError || txError;

@@ -234,12 +234,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       active: pathname?.startsWith(`/${orgSlug}/platform/payouts`) ?? false,
     },
     {
-      label: 'Global Ledger',
-      icon: Landmark,
-      href: `/${orgSlug}/platform/ledger`,
-      active: pathname?.startsWith(`/${orgSlug}/platform/ledger`) ?? false,
-    },
-    {
       label: 'Equity',
       icon: Wallet,
       href: `/${orgSlug}/platform/equity`,

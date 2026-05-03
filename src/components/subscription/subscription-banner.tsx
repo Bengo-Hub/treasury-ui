@@ -3,8 +3,10 @@
 import { AlertTriangle, ArrowRight, Clock, X, Zap } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { useParams } from "next/navigation";
 
 import { Button } from "@/components/ui/base";
+import { useAuthStore } from "@/store/auth";
 import { useSubscription } from "@/hooks/use-subscription";
 
 const SUBSCRIBE_URL =
@@ -16,11 +18,19 @@ const SUBSCRIBE_URL =
  * Never blocks access — just informs and encourages upgrade.
  */
 export function SubscriptionBanner() {
+  const params = useParams();
+  const orgSlug = params?.orgSlug as string;
+  const user = useAuthStore((s) => s.user);
+  const isPlatformOwner = orgSlug === 'codevertex'
+    || !!(user as any)?.isPlatformOwner
+    || !!(user as any)?.is_platform_owner;
+
   const { status, isActive, isPastDue, isExpired, needsSubscription, isLoading, info } =
     useSubscription();
   const [dismissed, setDismissed] = useState(false);
 
-  if (dismissed || isLoading || isActive) return null;
+  // Platform owners are never subject to subscription banners
+  if (isPlatformOwner || dismissed || isLoading || isActive) return null;
 
   // Trial ending soon (< 3 days)
   if (status === "trial" && info?.trialEndsAt) {
