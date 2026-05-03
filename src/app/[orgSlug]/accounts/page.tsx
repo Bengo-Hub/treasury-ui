@@ -225,16 +225,18 @@ export default function AccountsPage() {
                         Balance
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteAccount(account);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {isPlatformOwner && (
+                      <button
+                        type="button"
+                        className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteAccount(account);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                     <ArrowUpRight className="h-4 w-4 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
                   </div>
                 </div>

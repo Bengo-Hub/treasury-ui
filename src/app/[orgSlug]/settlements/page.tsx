@@ -28,6 +28,31 @@ export default function SettlementsPage() {
     return statusFilter === 'all' ? payouts : payouts.filter((b) => b.status === statusFilter);
   }, [payouts, statusFilter]);
 
+  function handleExport() {
+    if (filtered.length === 0) return;
+    const headers = ['Reference', 'Transactions', 'Amount', 'Currency', 'Fees', 'Net', 'Status', 'Period Start', 'Period End', 'Created At'];
+    const rows = filtered.map((b) => [
+      b.reference,
+      String(b.transaction_count ?? ''),
+      String(b.amount ?? ''),
+      b.currency ?? '',
+      String(b.fee ?? ''),
+      String(b.net_amount ?? ''),
+      b.status,
+      b.period_start?.slice(0, 10) ?? '',
+      b.period_end?.slice(0, 10) ?? '',
+      new Date(b.created_at).toISOString(),
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `settlements-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const summary = useMemo(() => {
     const settled = payouts.filter((p) => p.status === 'completed' || p.status === 'settled');
     const pending = payouts.filter((p) => p.status === 'pending' || p.status === 'processing');
@@ -47,8 +72,8 @@ export default function SettlementsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Settlements</h1>
           <p className="text-muted-foreground mt-1">Track settlement batches and payout status across gateways.</p>
         </div>
-        <Button variant="outline" className="gap-2" disabled>
-          <Download className="h-4 w-4" /> Export
+        <Button variant="outline" className="gap-2" onClick={handleExport} disabled={filtered.length === 0}>
+          <Download className="h-4 w-4" /> Export CSV
         </Button>
       </div>
 

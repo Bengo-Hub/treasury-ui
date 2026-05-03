@@ -103,8 +103,8 @@ export default function PlatformPayoutsPage() {
     }
   };
 
-  const netBalance = balanceData?.[0]?.balance ?? 0;
-  const currency = balanceData?.[0]?.currency ?? 'KES';
+  const netBalance = Number(balanceData?.balance ?? 0);
+  const currency = balanceData?.currency ?? 'KES';
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -133,7 +133,7 @@ export default function PlatformPayoutsPage() {
               <div className="animate-pulse h-12 bg-slate-700/50 rounded w-48 mb-2"></div>
             ) : (
               <div className="text-5xl font-black mb-2 tracking-tight">
-                {formatCurrency(netBalance / 100, currency)}
+                {formatCurrency(netBalance, currency)}
               </div>
             )}
             <p className="text-slate-400 text-sm font-medium">Available for tenant settlements</p>
