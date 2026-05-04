@@ -97,14 +97,17 @@ export default function EquityManagementPage() {
     const params = useParams();
     const orgSlug = params?.orgSlug as string;
 
-    const [dateRange, setDateRange] = useState({
-        from: format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'),
-        to: format(new Date(), 'yyyy-MM-dd'),
+    const [dateRange, setDateRange] = useState(() => {
+        const to = new Date();
+        const from = new Date(to);
+        from.setDate(from.getDate() - 30);
+        return { from: format(from, 'yyyy-MM-dd'), to: format(to, 'yyyy-MM-dd') };
     });
     const [showAddHolder, setShowAddHolder] = useState(false);
     const [editingHolder, setEditingHolder] = useState<EquityHolder | null>(null);
     const [historyHolderId, setHistoryHolderId] = useState<string | null>(null);
     const [entitlementsHolderId, setEntitlementsHolderId] = useState<string | null>(null);
+    const [freqConfigHolder, setFreqConfigHolder] = useState<EquityHolder | null>(null);
     const generatePortalLink = useGeneratePortalLink();
 
     const { data: holdersData, isLoading: loadingHolders } = useEquityHolders();
@@ -148,9 +151,21 @@ export default function EquityManagementPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" className="gap-2">
+                    <Button variant="outline" className="gap-2" onClick={() => {
+                        const to = new Date();
+                        const from = new Date(to);
+                        from.setDate(from.getDate() - 30);
+                        setDateRange({ from: format(from, 'yyyy-MM-dd'), to: format(to, 'yyyy-MM-dd') });
+                    }}>
                         <Calendar className="h-4 w-4" />
                         Last 30 Days
+                    </Button>
+                    <Button variant="outline" className="gap-2" onClick={() => {
+                        const to = new Date();
+                        const from = new Date(to.getFullYear(), to.getMonth(), 1);
+                        setDateRange({ from: format(from, 'yyyy-MM-dd'), to: format(to, 'yyyy-MM-dd') });
+                    }}>
+                        This Month
                     </Button>
                     <Button className="gap-2 shadow-xl shadow-primary/20" onClick={() => setShowAddHolder(true)}>
                         <Plus className="h-4 w-4" />
@@ -163,22 +178,22 @@ export default function EquityManagementPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatsCard
                     title="Total Gross Revenue"
-                    value={`KES ${summary?.financial_summary.gross_revenue.toLocaleString() ?? '0'}`}
+                    value={`KES ${Number(summary?.financial_summary.gross_revenue ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 2 })}`}
                     subtext="Across all services"
                     icon={<TrendingUp className="h-5 w-5 text-blue-500" />}
                     loading={loadingSummary}
                 />
                 <StatsCard
                     title="Net Profit"
-                    value={`KES ${summary?.financial_summary.net_profit.toLocaleString() ?? '0'}`}
-                    subtext="After taxes & expenses"
+                    value={`KES ${Number(summary?.financial_summary.net_profit ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 2 })}`}
+                    subtext="After expenses"
                     icon={<DollarSign className="h-5 w-5 text-green-500" />}
                     loading={loadingSummary}
                 />
                 <StatsCard
                     title="Total Allocated"
-                    value={`KES ${summary?.total_allocated.toLocaleString() ?? '0'}`}
-                    subtext={`${((summary?.total_allocated ?? 0) / (summary?.financial_summary.net_profit || 1) * 100).toFixed(1)}% of profit`}
+                    value={`KES ${Number(summary?.total_allocated ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 2 })}`}
+                    subtext={`${((Number(summary?.total_allocated ?? 0)) / (Number(summary?.financial_summary.net_profit) || 1) * 100).toFixed(1)}% of profit`}
                     icon={<PieChart className="h-5 w-5 text-purple-500" />}
                     loading={loadingSummary}
                 />
@@ -292,12 +307,27 @@ export default function EquityManagementPage() {
                     )}
                 </div>
 
+                {freqConfigHolder && (
+                    <FrequencyConfigModal
+                        holder={freqConfigHolder}
+                        onClose={() => setFreqConfigHolder(null)}
+                        onSubmit={async (data) => {
+                            await updateHolder.mutateAsync({ id: freqConfigHolder.id, data });
+                            setFreqConfigHolder(null);
+                        }}
+                        isSubmitting={updateHolder.isPending}
+                    />
+                )}
+
                 {/* Sidebar Projections & Config */}
                 <div className="space-y-6">
                     <NextPayoutProjectionCard
                         holders={holders}
                         dateRange={dateRange}
-                        onConfigure={() => router.push(`/${orgSlug}/platform`)}
+                        onConfigure={() => {
+                            const primary = holders.find(h => h.is_active) ?? holders[0] ?? null;
+                            setFreqConfigHolder(primary);
+                        }}
                     />
 
                     <Card className="border-none shadow-xl shadow-black/5">
@@ -506,7 +536,7 @@ function HolderRow({
                 <div className="text-right hidden sm:block">
                     <p className="text-xs text-muted-foreground font-medium mb-1">Projected Payout</p>
                     <p className="text-sm font-black">
-                        KES {projection?.projected_amount?.toLocaleString() ?? '0'}
+                        KES {Number(projection?.projected_amount ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 2 })}
                     </p>
                 </div>
 
@@ -1374,6 +1404,117 @@ function EntitlementsModal({ holderId, holderName, onClose }: { holderId: string
                 </div>
             </div>
         </div>
+    );
+}
+
+// ─── Frequency Config Modal ───────────────────────────────────────────────────
+
+function FrequencyConfigModal({
+    holder,
+    onClose,
+    onSubmit,
+    isSubmitting,
+}: {
+    holder: EquityHolder;
+    onClose: () => void;
+    onSubmit: (data: Partial<CreateEquityHolderRequest>) => Promise<void>;
+    isSubmitting: boolean;
+}) {
+    const [payoutFrequency, setPayoutFrequency] = useState<'manual' | 'monthly' | 'quarterly' | 'annually'>(holder.payout_frequency ?? 'monthly');
+    const [payoutScheduleDay, setPayoutScheduleDay] = useState(holder.payout_schedule_day ?? 0);
+    const [financialYearEndMonth, setFinancialYearEndMonth] = useState(holder.financial_year_end_month ?? 12);
+    const [closeOfBooksDay, setCloseOfBooksDay] = useState(holder.close_of_books_day ?? 0);
+
+    const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm';
+    const selectClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm';
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        await onSubmit({
+            payout_frequency: payoutFrequency,
+            payout_schedule_day: payoutScheduleDay,
+            financial_year_end_month: financialYearEndMonth,
+            close_of_books_day: closeOfBooksDay,
+        });
+    };
+
+    return (
+        <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+            <DialogContent title={`Payout Schedule — ${holder.name}`} onClose={onClose} className="max-w-md">
+                <form onSubmit={handleSubmit} className="space-y-5">
+                    <p className="text-sm text-muted-foreground">
+                        Configure when and how often payouts are calculated and disbursed for this holder.
+                    </p>
+
+                    <FormField label="Payout Frequency">
+                        <select
+                            value={payoutFrequency}
+                            onChange={(e) => setPayoutFrequency(e.target.value as 'manual' | 'monthly' | 'quarterly' | 'annually')}
+                            className={selectClass}
+                        >
+                            <option value="manual">Manual (trigger only)</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="annually">Annually (Financial Year-End)</option>
+                        </select>
+                    </FormField>
+
+                    {payoutFrequency !== 'manual' && (
+                        <div className="space-y-4 rounded-lg border border-border p-4 bg-accent/5">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Schedule Details</p>
+
+                            {payoutFrequency === 'monthly' && (
+                                <FormField label="Day of Month" description="Day when payout is triggered (1–28). 0 = last day of month.">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={28}
+                                        value={payoutScheduleDay || ''}
+                                        onChange={(e) => setPayoutScheduleDay(parseInt(e.target.value) || 0)}
+                                        className={inputClass}
+                                        placeholder="0 = last day"
+                                    />
+                                </FormField>
+                            )}
+
+                            <FormField label="Financial Year-End Month" description="Month when the financial year closes (used for annual payouts).">
+                                <select
+                                    value={financialYearEndMonth}
+                                    onChange={(e) => setFinancialYearEndMonth(parseInt(e.target.value))}
+                                    className={selectClass}
+                                >
+                                    {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
+                                        <option key={i + 1} value={i + 1}>{m}</option>
+                                    ))}
+                                </select>
+                            </FormField>
+
+                            <FormField label="Close of Books Day" description="Day of month when books close for the period. 0 = last day.">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={28}
+                                    value={closeOfBooksDay || ''}
+                                    onChange={(e) => setCloseOfBooksDay(parseInt(e.target.value) || 0)}
+                                    className={inputClass}
+                                    placeholder="0 = last day"
+                                />
+                            </FormField>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                        <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            Save Schedule
+                        </Button>
+                    </div>
+                </form>
+            </DialogContent>
+        </Dialog>
     );
 }
 
