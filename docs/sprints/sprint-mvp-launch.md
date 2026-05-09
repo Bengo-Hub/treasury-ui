@@ -1,7 +1,8 @@
 # Treasury UI - Sprint MVP Launch
 
 **Target**: March 2026 (aligned with BengoBox MVP)  
-**Status**: Complete  
+**Status**: ✅ Complete (2026-04-18)  
+**Last updated**: 2026-05-09  
 **Goal**: Ship Codevertex Books (treasury-ui) with SSO, gateway management, transaction visibility, and payout/equity flows for platform and tenant admins.
 
 ---

@@ -82,3 +82,15 @@
 **RBAC & data fetching (2026-03-06):** Roles and permissions are loaded from auth-api `GET /me` (or service API proxy) via TanStack Query with 5 min TTL (`hooks/useMe`). Used for nav visibility (sidebar platform section for super_admin) and route protection. All data fetches should use TanStack Query; `QueryClientProvider` is in `[orgSlug]/layout`. Treasury-api: Redis and NATS/outbox documented in backend plan and sprint-1-auth-rbac.
 
 **MVP docs (March 2026):** [ux-ui.md](ux-ui.md), [sprint-mvp-launch.md](sprints/sprint-mvp-launch.md), [INTEGRATIONS.md](INTEGRATIONS.md), [mvp-critical-path.md](mvp-critical-path.md). Payment gateway configuration moved from auth-ui to treasury-ui; auth-ui redirects platform admins here.
+
+**Last updated**: 2026-05-09
+
+### Sprint Summary
+
+| Sprint | Status | Notes |
+|--------|--------|-------|
+| Sprint 1: Foundation & SSO | ✅ Complete | SSO, layout, gateway management |
+| Sprint 2: Payment Monitoring | ✅ Complete (P0/P1) | Transactions list, dashboard metrics wired to treasury-api. ❌ Pending: detailed payment intent view, reconciliation tools, transaction cost per transaction |
+| Sprint 3: Payouts & Settlements | 🟡 Partial | Payout/settlement history ✅, tenant payout config UI ✅. ❌ Pending: rider payout management, merchant settlement dashboard |
+| Platform & Permissions | ✅ Complete | Platform gateways, equity, RBAC |
+| Sprint MVP Launch | ✅ Complete (2026-04-18) | All P0+P1 items shipped. ❌ Pending (P2): transaction cost per row, Recharts dashboards, audit log viewer |

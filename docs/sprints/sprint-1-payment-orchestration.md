@@ -2,7 +2,8 @@
 
 **Duration**: March 8 - March 22, 2026 (15 working days)  
 **Goal**: Establish core payment gateway management and transaction monitoring interfaces  
-**Status**: KICKOFF
+**Status**: ✅ Complete (2026-03-22)  
+**Last updated**: 2026-05-09
 
 ---
 
@@ -90,12 +91,13 @@
 - Move `GatewayConfig`, `CreateGatewayPayload` interfaces
 - Adapt gateway page from auth-ui gateways/page.tsx
 
-**API Endpoints** (assume auth-api provides):
-- `GET /api/v1/admin/integrations?service=payment_gateway`
-- `POST /api/v1/admin/integrations`
-- `PUT /api/v1/admin/integrations/{id}`
-- `DELETE /api/v1/admin/integrations/{id}`
-- `POST /api/v1/admin/integrations/{id}/test`
+**API Endpoints** (treasury-api — gateway config moved from auth-api in Sprint 1):
+- `GET /api/v1/platform/gateways` — list platform gateways (superuser)
+- `POST /api/v1/platform/gateways` — create platform gateway
+- `PATCH /api/v1/platform/gateways/{id}` — update gateway
+- `DELETE /api/v1/platform/gateways/{id}` — deactivate gateway
+- `POST /api/v1/platform/gateways/{id}/test` — test gateway connection
+- `GET /api/v1/{tenant}/gateways` — list tenant-available gateways
 
 ---
 
