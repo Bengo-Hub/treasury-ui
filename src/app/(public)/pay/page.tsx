@@ -235,102 +235,108 @@ function PayPageContent() {
     );
   }
 
+  // In embed mode, hide the gateway selection UI while a gateway modal is active
+  // so the inline payment form replaces the list instead of stacking below it.
+  const showGatewayList = !embed || openGateway === null;
+
   return (
     <div ref={contentRef} className={embed ? 'flex flex-col items-center p-4 bg-background' : 'min-h-screen flex flex-col items-center justify-center p-4 bg-background'}>
-      <div className="w-full max-w-lg space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">Complete payment</h1>
-          <p className="text-muted-foreground mt-1">Choose how you want to pay</p>
-          {effectiveDetails.invoice_number && (
-            <p className="text-sm text-muted-foreground mt-2">
-              Invoice <span className="font-mono font-medium text-foreground">{effectiveDetails.invoice_number}</span>
-            </p>
-          )}
-          <p className="text-2xl font-semibold text-primary mt-4">{formatAmount()}</p>
-          {effectiveDetails.reference_id && !effectiveDetails.invoice_number && (
-            <p className="text-xs text-muted-foreground mt-1 font-mono">{effectiveDetails.reference_id}</p>
-          )}
-          {effectiveDetails.description && (
-            <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">{effectiveDetails.description}</p>
-          )}
-        </div>
+      {showGatewayList && (
+        <div className="w-full max-w-lg space-y-6">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-foreground">Complete payment</h1>
+            <p className="text-muted-foreground mt-1">Choose how you want to pay</p>
+            {effectiveDetails.invoice_number && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Invoice <span className="font-mono font-medium text-foreground">{effectiveDetails.invoice_number}</span>
+              </p>
+            )}
+            <p className="text-2xl font-semibold text-primary mt-4">{formatAmount()}</p>
+            {effectiveDetails.reference_id && !effectiveDetails.invoice_number && (
+              <p className="text-xs text-muted-foreground mt-1 font-mono">{effectiveDetails.reference_id}</p>
+            )}
+            {effectiveDetails.description && (
+              <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">{effectiveDetails.description}</p>
+            )}
+          </div>
 
-        <div className="grid gap-3">
-          {gateways === null ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
-            </div>
-          ) : gatewayError && gateways.length === 0 ? (
-            <div className="text-center py-6 text-sm text-muted-foreground">
-              <p>No payment methods are configured for this tenant.</p>
-              <p className="mt-1">Please contact support.</p>
-            </div>
-          ) : (
-            <>
-              {gateways.includes('paystack') && (
-                <button
-                  type="button"
-                  onClick={() => setOpenGateway('paystack')}
-                  className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
-                >
-                  <PaystackLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground">{GATEWAY_LABELS.paystack}</p>
-                    <p className="text-xs text-muted-foreground">Card, bank, mobile money via Paystack</p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                </button>
-              )}
-              {gateways.includes('mpesa') && (
-                <button
-                  type="button"
-                  onClick={() => setOpenGateway('mpesa')}
-                  className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
-                >
-                  <MpesaLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground">{GATEWAY_LABELS.mpesa}</p>
-                    <p className="text-xs text-muted-foreground">M-Pesa STK Push on your phone</p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                </button>
-              )}
-              {gateways.includes('wallet') && (
-                <button
-                  type="button"
-                  onClick={() => setOpenGateway('wallet')}
-                  className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
-                >
-                  <WalletLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground">{GATEWAY_LABELS.wallet}</p>
-                    <p className="text-xs text-muted-foreground">Deduct from your wallet balance instantly</p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                </button>
-              )}
-              {gateways.includes('cod') && (
-                <button
-                  type="button"
-                  onClick={() => setOpenGateway('cod')}
-                  className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
-                >
-                  <CodLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground">{GATEWAY_LABELS.cod}</p>
-                    <p className="text-xs text-muted-foreground">Pay when you receive your order</p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                </button>
-              )}
-            </>
-          )}
-        </div>
+          <div className="grid gap-3">
+            {gateways === null ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : gatewayError && gateways.length === 0 ? (
+              <div className="text-center py-6 text-sm text-muted-foreground">
+                <p>No payment methods are configured for this tenant.</p>
+                <p className="mt-1">Please contact support.</p>
+              </div>
+            ) : (
+              <>
+                {gateways.includes('paystack') && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenGateway('paystack')}
+                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                  >
+                    <PaystackLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.paystack}</p>
+                      <p className="text-xs text-muted-foreground">Card, bank, mobile money via Paystack</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                  </button>
+                )}
+                {gateways.includes('mpesa') && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenGateway('mpesa')}
+                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                  >
+                    <MpesaLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.mpesa}</p>
+                      <p className="text-xs text-muted-foreground">M-Pesa STK Push on your phone</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                  </button>
+                )}
+                {gateways.includes('wallet') && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenGateway('wallet')}
+                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                  >
+                    <WalletLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.wallet}</p>
+                      <p className="text-xs text-muted-foreground">Deduct from your wallet balance instantly</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                  </button>
+                )}
+                {gateways.includes('cod') && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenGateway('cod')}
+                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                  >
+                    <CodLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.cod}</p>
+                      <p className="text-xs text-muted-foreground">Pay when you receive your order</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
 
-        <p className="text-center text-xs text-muted-foreground">
-          {embed ? 'Payment is processed securely.' : 'Payment is processed securely. You will be redirected after completion.'}
-        </p>
-      </div>
+          <p className="text-center text-xs text-muted-foreground">
+            {embed ? 'Payment is processed securely.' : 'Payment is processed securely. You will be redirected after completion.'}
+          </p>
+        </div>
+      )}
 
       {openGateway === 'paystack' && (
         <PaystackPaymentModal
