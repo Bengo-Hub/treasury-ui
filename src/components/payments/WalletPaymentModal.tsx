@@ -76,7 +76,7 @@ export function WalletPaymentModal({
   };
 
   return (
-    <PaymentModal title="Pay with Wallet" onClose={onClose}>
+    <PaymentModal title="Pay with Wallet" onClose={onClose} embed={embed}>
       <div className="space-y-4">
         <div className="p-4 rounded-lg bg-muted/50 space-y-2">
           <div className="flex justify-between text-sm">

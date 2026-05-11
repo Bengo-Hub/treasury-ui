@@ -138,7 +138,7 @@ export function MpesaPaymentModal({
   };
 
   return (
-    <PaymentModal title="Pay with M-Pesa" onClose={onClose}>
+    <PaymentModal title="Pay with M-Pesa" onClose={onClose} embed={embed}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="p-4 rounded-lg bg-muted/50 space-y-2">
           <div className="flex justify-between text-sm">
