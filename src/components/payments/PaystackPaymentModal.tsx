@@ -28,7 +28,7 @@ function buildInitiatePayload(
     reference_id: details.reference_id,
     reference_type: details.reference_type,
     source_service: details.source_service,
-    redirect_url: details.redirect_url,
+    return_url: details.redirect_url,
     button_text: details.button_text,
     ...extra,
   };
