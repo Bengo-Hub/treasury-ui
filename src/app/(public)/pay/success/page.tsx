@@ -17,6 +17,7 @@ function PaySuccessContent() {
   const intentId = searchParams.get('intent_id') ?? '';
   const amount = Number(searchParams.get('amount') ?? 0);
   const channel = searchParams.get('channel') ?? 'paystack';
+  const buttonText = searchParams.get('button_text') ?? '';
 
   const isSuccess = payment === 'succeeded';
 
@@ -40,6 +41,15 @@ function PaySuccessContent() {
       });
     }
   }, [embed, isSuccess, intentId, amount, reference, channel]);
+
+  // In non-embed mode, auto-redirect to returnUrl after a short delay on success.
+  useEffect(() => {
+    if (embed || !isSuccess || !returnUrl) return;
+    const timer = setTimeout(() => {
+      window.location.href = returnUrl;
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [embed, isSuccess, returnUrl]);
 
   // In embed mode let the outer TreasuryPaymentModal handle the success display.
   // Show a minimal spinner while the postMessage propagates.
@@ -97,18 +107,21 @@ function PaySuccessContent() {
 
         <div className="space-y-3 pt-2">
           {returnUrl ? (
-            <button
-              onClick={handleReturn}
-              className="w-full py-3 px-6 bg-black text-white font-medium rounded-xl hover:bg-gray-800 transition-colors"
-            >
-              Return to App
-            </button>
+            <>
+              <p className="text-xs text-gray-400">Redirecting automatically...</p>
+              <button
+                onClick={handleReturn}
+                className="w-full py-3 px-6 bg-black text-white font-medium rounded-xl hover:bg-gray-800 transition-colors"
+              >
+                {buttonText || 'Return to App'}
+              </button>
+            </>
           ) : (
             <button
               onClick={() => window.close()}
               className="w-full py-3 px-6 bg-black text-white font-medium rounded-xl hover:bg-gray-800 transition-colors"
             >
-              Close
+              {buttonText || 'Close'}
             </button>
           )}
         </div>
