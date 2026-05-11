@@ -12,7 +12,7 @@ import type { PaymentDetails } from './types';
 // International cards carry an additional KES 100 flat fee (not applied here — local only).
 function calcPaystackFee(amount: number): number {
   const fee = amount * 0.015;
-  return Math.min(fee, 2000);
+  return Math.ceil(Math.min(fee, 2000));
 }
 
 function buildInitiatePayload(
@@ -62,7 +62,7 @@ export function PaystackPaymentModal({
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
 
   const transactionFee = details.amount > 0 ? calcPaystackFee(details.amount) : 0;
-  const grandTotal = details.amount + transactionFee;
+  const grandTotal = Math.ceil(details.amount + transactionFee);
 
   const fmt = (n: number) =>
     new Intl.NumberFormat('en-KE', { style: 'currency', currency: details.currency || 'KES' }).format(n);
