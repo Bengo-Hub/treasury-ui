@@ -76,7 +76,7 @@ export function CodPaymentModal({
   };
 
   return (
-    <PaymentModal title="Cash on Delivery" onClose={onClose}>
+    <PaymentModal title="Cash on Delivery" onClose={onClose} embed={embed}>
       <div className="space-y-4">
         <div className="p-4 rounded-lg bg-muted/50 space-y-2">
           <div className="flex justify-between text-sm">
