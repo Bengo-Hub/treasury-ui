@@ -96,10 +96,10 @@ export default function PlatformAnalyticsPage() {
                 {byTenant?.tenants.map((t: any) => (
                   <div key={t.tenant_id} className="flex items-center gap-4">
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-xs text-primary shrink-0 uppercase">
-                      {t.tenant_id.slice(0, 2)}
+                      {(t.tenant_name || t.tenant_slug || t.tenant_id).slice(0, 2)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{t.tenant_id}</p>
+                      <p className="text-sm font-medium truncate">{t.tenant_name || t.tenant_slug || t.tenant_id}</p>
                       <p className="text-xs text-muted-foreground">{t.transaction_count} transactions</p>
                     </div>
                     <div className="text-right">
