@@ -27,6 +27,8 @@ export interface Invoice {
   tenant_id: string;
   invoice_number: string;
   customer_id?: string;
+  customer_name?: string;
+  customer_email?: string;
   invoice_type: string;
   invoice_date: string;
   due_date: string;
