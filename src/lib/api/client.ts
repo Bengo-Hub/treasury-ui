@@ -10,6 +10,7 @@ class ApiClient {
   private tenantId: string | null = null;
   private tenantSlug: string | null = null;
   private platformOwner = false;
+  private outletId: string | null = null;
 
   constructor() {
     this.instance = axios.create({
@@ -37,6 +38,9 @@ class ApiClient {
     if (this.tenantId && UUID_REGEX.test(this.tenantId)) {
       config.headers['X-Tenant-ID'] = this.tenantId;
     }
+    if (this.outletId) {
+      config.headers['X-Outlet-ID'] = this.outletId;
+    }
     return config;
   };
 
@@ -47,6 +51,10 @@ class ApiClient {
 
   public setPlatformOwner(isPlatformOwner: boolean) {
     this.platformOwner = isPlatformOwner;
+  }
+
+  public setOutletID(outletId: string | null) {
+    this.outletId = outletId;
   }
 
   private handleResponse = (response: AxiosResponse) => response;
