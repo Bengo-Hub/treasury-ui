@@ -25,6 +25,11 @@ import {
   Check,
   X,
   Trash2,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  CalendarRange,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -44,12 +49,216 @@ function statusBadgeVariant(status: string): 'default' | 'success' | 'warning' |
 
 const emptyLine = (): LineRequest => ({ description: '', quantity: 1, unit_price: 0 });
 
+// ─── Filters Panel ─────────────────────────────────────────────────────────────
+interface FiltersPanelProps {
+  statusFilter: string;
+  onStatusChange: (v: string) => void;
+  clientSearch: string;
+  onClientSearchChange: (v: string) => void;
+  dateFrom: string;
+  onDateFromChange: (v: string) => void;
+  dateTo: string;
+  onDateToChange: (v: string) => void;
+  onClearAll: () => void;
+}
+
+function FiltersPanel({
+  statusFilter,
+  onStatusChange,
+  clientSearch,
+  onClientSearchChange,
+  dateFrom,
+  onDateFromChange,
+  dateTo,
+  onDateToChange,
+  onClearAll,
+}: FiltersPanelProps) {
+  const [open, setOpen] = useState(true);
+
+  const hasActiveFilters =
+    statusFilter !== 'all' || clientSearch.trim() !== '' || dateFrom !== '' || dateTo !== '';
+
+  const appliedTags: { label: string; onRemove: () => void }[] = [];
+  if (statusFilter !== 'all')
+    appliedTags.push({ label: `Status: ${statusFilter}`, onRemove: () => onStatusChange('all') });
+  if (clientSearch.trim())
+    appliedTags.push({ label: `Client: ${clientSearch}`, onRemove: () => onClientSearchChange('') });
+  if (dateFrom)
+    appliedTags.push({ label: `From: ${dateFrom}`, onRemove: () => onDateFromChange('') });
+  if (dateTo)
+    appliedTags.push({ label: `To: ${dateTo}`, onRemove: () => onDateToChange('') });
+
+  return (
+    <div className="rounded-xl border border-border bg-card shadow-sm">
+      {/* Panel header */}
+      <button
+        className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-semibold text-foreground hover:bg-accent/10 transition-colors rounded-xl"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="h-4 w-4 text-primary" />
+          <span>Filters</span>
+          {hasActiveFilters && (
+            <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+              {appliedTags.length}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {hasActiveFilters && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); onClearAll(); }}
+              onKeyDown={(e) => e.key === 'Enter' && (e.stopPropagation(), onClearAll())}
+              className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <X className="h-3 w-3" /> Clear All Filters
+            </span>
+          )}
+          {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </div>
+      </button>
+
+      {/* Collapsible body */}
+      {open && (
+        <div className="px-5 pb-5 pt-1 border-t border-border/50">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3">
+            {/* Select Quotation Status */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Select Quotation Status
+              </label>
+              <select
+                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none transition-all"
+                value={statusFilter}
+                onChange={(e) => onStatusChange(e.target.value)}
+              >
+                <option value="all">Select</option>
+                <option value="draft">Draft</option>
+                <option value="sent">Sent</option>
+                <option value="accepted">Accepted</option>
+                <option value="declined">Declined</option>
+                <option value="expired">Expired</option>
+                <option value="converted">Converted</option>
+              </select>
+            </div>
+
+            {/* Search Client */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Search Client
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  placeholder="All Clients"
+                  className="w-full bg-accent/30 border border-border rounded-lg py-2 pl-9 pr-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none transition-all"
+                  value={clientSearch}
+                  onChange={(e) => onClientSearchChange(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Select Date Range */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Select Date Range
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <CalendarRange className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type="date"
+                    placeholder="Start Date"
+                    className="w-full bg-accent/30 border border-border rounded-lg py-2 pl-9 pr-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none transition-all"
+                    value={dateFrom}
+                    onChange={(e) => onDateFromChange(e.target.value)}
+                  />
+                </div>
+                <span className="text-muted-foreground text-xs">–</span>
+                <input
+                  type="date"
+                  placeholder="End Date"
+                  className="flex-1 bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none transition-all"
+                  value={dateTo}
+                  onChange={(e) => onDateToChange(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Applied Filters */}
+          {appliedTags.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs text-muted-foreground font-medium mb-2">Applied Filters</p>
+              <div className="flex flex-wrap gap-2">
+                {appliedTags.map((tag) => (
+                  <span
+                    key={tag.label}
+                    className="inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full px-3 py-1 text-xs font-medium"
+                  >
+                    {tag.label}
+                    <button
+                      onClick={tag.onRemove}
+                      className="hover:text-destructive transition-colors"
+                      aria-label={`Remove filter ${tag.label}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Collapsible Summary / Graph sections ──────────────────────────────────────
+function CollapsibleSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-border bg-card shadow-sm">
+      <button
+        className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-semibold text-foreground hover:bg-accent/10 transition-colors rounded-xl"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span>{title}</span>
+        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+      </button>
+      {open && (
+        <div className="px-5 pb-5 pt-1 border-t border-border/50">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Page ──────────────────────────────────────────────────────────────────────
 export default function QuotationsPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
+
+  // ---- NEW filter state ----
+  const [clientSearch, setClientSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const handleClearAllFilters = useCallback(() => {
+    setStatusFilter('all');
+    setClientSearch('');
+    setDateFrom('');
+    setDateTo('');
+    setSearchQuery('');
+    setPage(1);
+  }, []);
 
   const filters = useMemo(() => ({
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
@@ -63,17 +272,37 @@ export default function QuotationsPage() {
   const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
 
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return quotations;
-    const q = searchQuery.toLowerCase();
-    return quotations.filter(
-      (qt: Quotation) =>
-        qt.quote_number?.toLowerCase().includes(q) ||
-        qt.customer_name?.toLowerCase().includes(q) ||
-        qt.customer_email?.toLowerCase().includes(q)
-    );
-  }, [quotations, searchQuery]);
+    let result = quotations;
+    // existing search (quote number / customer)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (qt: Quotation) =>
+          qt.quote_number?.toLowerCase().includes(q) ||
+          qt.customer_name?.toLowerCase().includes(q) ||
+          qt.customer_email?.toLowerCase().includes(q)
+      );
+    }
+    // new client search filter
+    if (clientSearch.trim()) {
+      const c = clientSearch.toLowerCase();
+      result = result.filter(
+        (qt: Quotation) =>
+          qt.customer_name?.toLowerCase().includes(c) ||
+          qt.customer_email?.toLowerCase().includes(c)
+      );
+    }
+    // date range filter
+    if (dateFrom) {
+      result = result.filter((qt: Quotation) => qt.quote_date >= dateFrom);
+    }
+    if (dateTo) {
+      result = result.filter((qt: Quotation) => qt.quote_date <= dateTo);
+    }
+    return result;
+  }, [quotations, searchQuery, clientSearch, dateFrom, dateTo]);
 
-  useMemo(() => { setPage(1); }, [searchQuery, statusFilter]);
+  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, clientSearch, dateFrom, dateTo]);
 
   const statusOptions = ['all', 'draft', 'sent', 'accepted', 'declined', 'expired', 'converted'];
 
@@ -157,16 +386,22 @@ export default function QuotationsPage() {
   const formTotal = newQuote.lines.reduce((sum, l) => sum + lineTotal(l), 0);
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Quotations</h1>
           <p className="text-muted-foreground mt-1">Create and manage sales quotations and estimates.</p>
         </div>
-        <Button variant="primary" className="gap-2" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" /> Create Quotation
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Download As button */}
+          <Button variant="outline" className="gap-2 text-sm">
+            <Download className="h-4 w-4" /> Download As
+          </Button>
+          <Button variant="primary" className="gap-2" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" /> Create Quotation
+          </Button>
+        </div>
       </div>
 
       {isPlatformOwner && !tenantQueryParam && (
@@ -181,7 +416,42 @@ export default function QuotationsPage() {
         </div>
       )}
 
-      {/* Table Card */}
+      {/* ── NEW: Filters Panel ── */}
+      <FiltersPanel
+        statusFilter={statusFilter}
+        onStatusChange={(v) => { setStatusFilter(v); setPage(1); }}
+        clientSearch={clientSearch}
+        onClientSearchChange={(v) => { setClientSearch(v); setPage(1); }}
+        dateFrom={dateFrom}
+        onDateFromChange={(v) => { setDateFrom(v); setPage(1); }}
+        dateTo={dateTo}
+        onDateToChange={(v) => { setDateTo(v); setPage(1); }}
+        onClearAll={handleClearAllFilters}
+      />
+
+      {/* ── NEW: Quotation Summary (collapsible) ── */}
+      <CollapsibleSection title="Quotation Summary">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3">
+          {['Total Quotations', 'Total Amount', 'Accepted', 'Pending'].map((label) => (
+            <div key={label} className="rounded-lg bg-accent/20 p-4 text-center">
+              <p className="text-xs text-muted-foreground mb-1">{label}</p>
+              <p className="text-lg font-bold text-foreground">—</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground mt-3 text-center">
+          Summary data will populate once quotations are loaded for the selected tenant.
+        </p>
+      </CollapsibleSection>
+
+      {/* ── NEW: Quotation Graph (collapsible) ── */}
+      <CollapsibleSection title="Quotation Graph">
+        <div className="flex items-center justify-center h-32 text-muted-foreground text-sm mt-3">
+          Graph will appear here once data is available.
+        </div>
+      </CollapsibleSection>
+
+      {/* Table Card — unchanged */}
       <Card>
         <CardHeader className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between py-4">
           <div className="relative w-full max-w-sm group">
