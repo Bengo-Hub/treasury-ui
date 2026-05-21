@@ -35,6 +35,7 @@ const SERVICE_OPTIONS = [
   { value: 'erp', label: 'ERP / Accounting' },
   { value: 'truload', label: 'Axle Load' },
   { value: 'auth', label: 'Auth & Identity' },
+  { value: 'codevertex-website', label: 'Codevertex Website (Digitika)' },
 ];
 
 function defaultDateRange(): { from: string; to: string } {
