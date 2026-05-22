@@ -61,20 +61,32 @@ export const useAuthStore = create<AuthState>()(
       lastAuthenticatedAt: null,
 
       initialize: async () => {
-        const { session } = get();
+        const { session, user } = get();
         if (!session) {
           set({ status: 'idle' });
           return;
         }
 
         apiClient.setAccessToken(session.accessToken);
+
+        // Hydrate from storage if user profile exists and token hasn't expired.
+        if (user && session.expiresAt) {
+          const expiresAt = new Date(session.expiresAt).getTime();
+          if (Date.now() < expiresAt - 60_000) {
+            apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
+            apiClient.setPlatformOwner(user.isPlatformOwner || user.tenantSlug === 'codevertex');
+            set({ status: 'authenticated', lastAuthenticatedAt: Date.now() });
+            return;
+          }
+        }
+
         set({ status: 'loading' });
 
         try {
-          const user = await fetchProfile(session.accessToken);
-          apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
-          apiClient.setPlatformOwner(user.isPlatformOwner || user.tenantSlug === 'codevertex');
-          set({ user, status: 'authenticated', lastAuthenticatedAt: Date.now() });
+          const freshUser = await fetchProfile(session.accessToken);
+          apiClient.setTenantContext(freshUser.tenantId || null, freshUser.tenantSlug || null);
+          apiClient.setPlatformOwner(freshUser.isPlatformOwner || freshUser.tenantSlug === 'codevertex');
+          set({ user: freshUser, status: 'authenticated', lastAuthenticatedAt: Date.now() });
         } catch {
           set({ status: 'idle', session: null, user: null });
         }

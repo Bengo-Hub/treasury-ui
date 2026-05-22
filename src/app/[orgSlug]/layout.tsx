@@ -5,9 +5,11 @@ import { Sidebar } from '@/components/sidebar';
 import { AuthProvider } from '@/providers/auth-provider';
 import { BrandingProvider } from '@/providers/branding-provider';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
+import { useParams } from 'next/navigation';
 import { Footer } from '@/components/footer';
 import { SubscriptionBanner } from '@/components/subscription/subscription-banner';
+import { PWAUpdateBanner } from '@/components/pwa-update-banner';
 
 function makeQueryClient() {
   return new QueryClient({
@@ -22,6 +24,25 @@ function makeQueryClient() {
   });
 }
 
+function ManifestInjector() {
+  const params = useParams();
+  const orgSlug = params?.orgSlug as string | undefined;
+  useEffect(() => {
+    if (!orgSlug) return;
+    const href = `/${orgSlug}/manifest.webmanifest`;
+    let link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'manifest';
+      document.head.appendChild(link);
+    }
+    if (link.href !== new URL(href, window.location.href).href) {
+      link.href = href;
+    }
+  }, [orgSlug]);
+  return null;
+}
+
 export default function OrgLayout({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => makeQueryClient());
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -30,6 +51,8 @@ export default function OrgLayout({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrandingProvider>
+          <ManifestInjector />
+          <PWAUpdateBanner />
           <div className="flex h-screen overflow-hidden bg-background">
             <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
