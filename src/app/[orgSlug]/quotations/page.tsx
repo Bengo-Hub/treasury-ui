@@ -11,6 +11,7 @@ import { FiltersPanel } from './_components/FiltersPanel';
 import { QuotationList } from './_components/QuotationList';
 import { QuotationPreview } from './_components/QuotationPreview';
 import { QuotationStatsBlock } from './_components/QuotationStats';
+import { QuotationGraph } from './_components/QuotationGraph';
 import { TagReportTab } from './_components/TagReportTab';
 
 const ITEMS_PER_PAGE = 20;
@@ -157,6 +158,7 @@ export default function QuotationsPage() {
         {activeTab === 'overview' && (
           <div className="space-y-4">
             <QuotationStatsBlock tenant={effectiveTenant} />
+            <QuotationGraph tenant={effectiveTenant} />
             <FiltersPanel
               statusFilter={statusFilter}   onStatusChange={setStatusFilter}
               clientSearch={clientSearch}   onClientSearchChange={setClientSearch}

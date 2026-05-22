@@ -12,11 +12,13 @@ import {
 } from '@/hooks/use-invoices';
 import type { Quotation } from '@/lib/api/invoices';
 import { cn } from '@/lib/utils';
+import { ColumnManager, loadColumnPrefs, type ColumnPrefs } from './ColumnManager';
 import {
   Check, ChevronDown, ChevronRight, Columns,
   Copy, Eye, ExternalLink, Filter, Loader2,
   MoreHorizontal, Pencil, Plus, RefreshCw, Search, Trash2, X,
 } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
@@ -59,6 +61,10 @@ export function QuotationList({
   onPreview, onEdit,
   quotationType, setQuotationType,
 }: QuotationListProps) {
+  const router            = useRouter();
+  const params            = useParams<{ orgSlug: string }>();
+  const orgSlug           = params?.orgSlug ?? effectiveTenant;
+
   const sendMutation      = useSendQuotation(effectiveTenant);
   const acceptMutation    = useAcceptQuotation(effectiveTenant);
   const declineMutation   = useDeclineQuotation(effectiveTenant);
@@ -69,6 +75,8 @@ export function QuotationList({
   const [actionMenuId,      setActionMenuId]      = useState<string | null>(null);
   const [quotationTypeOpen, setQuotationTypeOpen] = useState(false);
   const [expandedRows,      setExpandedRows]      = useState<Set<string>>(new Set());
+  const [columnMgrOpen,     setColumnMgrOpen]     = useState(false);
+  const [colPrefs,          setColPrefs]          = useState<ColumnPrefs>(loadColumnPrefs);
 
   const toggleExpand = (id: string) =>
     setExpandedRows(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
@@ -101,9 +109,18 @@ export function QuotationList({
         </div>
       </div>
 
+      {/* Column Manager modal */}
+      {columnMgrOpen && (
+        <ColumnManager
+          onClose={() => setColumnMgrOpen(false)}
+          onApply={prefs => setColPrefs(prefs)}
+        />
+      )}
+
       {/* Show/Hide Columns button (top) */}
       <div className="flex justify-end">
-        <button className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold shadow-sm transition-all">
+        <button onClick={() => setColumnMgrOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold shadow-sm transition-all">
           <Columns className="h-3.5 w-3.5 text-slate-400" /> Show/Hide Columns
         </button>
       </div>
@@ -212,9 +229,24 @@ export function QuotationList({
                                     { label: 'Edit',                icon: <Pencil className="h-3.5 w-3.5" />,       onClick: () => onEdit(quote.id) },
                                     { label: 'Duplicate',           icon: <Copy className="h-3.5 w-3.5" />,         onClick: () => duplicateMutation.mutate(quote.id) },
                                     { label: 'Send for Approval',   icon: <Plus className="h-3.5 w-3.5" />,         onClick: () => {} },
-                                    { label: 'Copy Quotation link', icon: <ChevronRight className="h-3.5 w-3.5" />, onClick: () => navigator.clipboard.writeText(`${window.location.origin}/q/${quote.quote_number}`) },
+                                    { label: 'Copy Quotation link', icon: <ChevronRight className="h-3.5 w-3.5" />, onClick: () => {
+                                        const url = quote.public_token
+                                          ? `${window.location.origin}/q/${quote.public_token}`
+                                          : `${window.location.origin}/q/${quote.id}`;
+                                        navigator.clipboard.writeText(url);
+                                      }},
                                     { label: 'Send Email',          icon: <Check className="h-3.5 w-3.5" />,        onClick: () => sendMutation.mutate(quote.id) },
-                                    { label: 'Send WhatsApp',       icon: <RefreshCw className="h-3.5 w-3.5" />,    onClick: () => {} },
+                                    { label: 'Send WhatsApp', icon: <RefreshCw className="h-3.5 w-3.5" />, onClick: () => {
+                                        const phone = (quote as unknown as { customer_phone?: string }).customer_phone ?? '';
+                                        const publicUrl = quote.public_token
+                                          ? `${window.location.origin}/q/${quote.public_token}`
+                                          : '';
+                                        const msg = encodeURIComponent(
+                                          `Hi${quote.customer_name ? ` ${quote.customer_name}` : ''}, please find your quotation *${quote.quote_number}* here:\n${publicUrl}`
+                                        );
+                                        window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${msg}`, '_blank');
+                                      }},
+                                    ...(quote.converted_invoice_id ? [{ label: 'View Invoice', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: () => router.push(`/${orgSlug}/invoices?id=${quote.converted_invoice_id}`) }] : []),
                                     { label: 'Convert to Invoice',  icon: <RefreshCw className="h-3.5 w-3.5" />,    onClick: () => acceptMutation.mutate(quote.id) },
                                     { label: 'Decline',             icon: <X className="h-3.5 w-3.5" />,            onClick: () => declineMutation.mutate(quote.id) },
                                     { label: 'Cancel',              icon: <X className="h-3.5 w-3.5" />,            onClick: () => cancelMutation.mutate(quote.id) },
@@ -299,7 +331,8 @@ export function QuotationList({
               onPageChange={setPage}
             />
           )}
-          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold shadow-sm transition-all">
+          <button onClick={() => setColumnMgrOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold shadow-sm transition-all">
             <Columns className="h-3.5 w-3.5 text-slate-400" /> Show/Hide Columns
           </button>
         </div>

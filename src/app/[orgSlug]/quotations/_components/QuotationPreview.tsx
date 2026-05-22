@@ -4,7 +4,7 @@ import { useQuotation } from '@/hooks/use-invoices';
 import { Badge } from '@/components/ui/base';
 import { cn } from '@/lib/utils';
 import {
-  Copy, Download, ExternalLink, Mail, Pencil, X,
+  Copy, Download, ExternalLink, Link2, Mail, Pencil, X,
 } from 'lucide-react';
 
 function statusBadgeVariant(status: string): 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary' {
@@ -55,7 +55,12 @@ export function QuotationPreview({ quotationId, tenant, onClose, onEdit, onDupli
           </div>
           <div className="flex items-center gap-1">
             {[
-              { icon: <ExternalLink className="h-4 w-4" />, label: 'Open', onClick: () => {} },
+              { icon: <ExternalLink className="h-4 w-4" />, label: 'Open', onClick: () => {
+                if (q?.public_token) window.open(`/q/${q.public_token}`, '_blank');
+              }},
+              { icon: <Link2 className="h-4 w-4" />, label: 'Share Link', onClick: () => {
+                if (q?.public_token) navigator.clipboard.writeText(`${window.location.origin}/q/${q.public_token}`);
+              }},
               { icon: <Mail className="h-4 w-4" />, label: 'Email', onClick: () => {} },
               { icon: <Copy className="h-4 w-4" />, label: 'Duplicate', onClick: onDuplicate },
               { icon: <Download className="h-4 w-4" />, label: 'Download', onClick: () => {} },

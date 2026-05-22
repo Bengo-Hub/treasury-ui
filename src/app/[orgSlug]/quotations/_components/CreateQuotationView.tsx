@@ -1,13 +1,20 @@
 'use client';
 
 import { Card } from '@/components/ui/base';
-import { useCreateQuotation } from '@/hooks/use-invoices';
-import type { CreateQuotationRequest, LineRequest } from '@/lib/api/invoices';
+import { useOrgBranding } from '@/hooks/use-org-branding';
+import { useCRMContacts } from '@/hooks/use-crm-contacts';
+import {
+  useCreateQuotation,
+  useQuotation,
+  useUpdateQuotation,
+} from '@/hooks/use-invoices';
+import type { CreateQuotationRequest, UpdateQuotationRequest, LineRequest } from '@/lib/api/invoices';
+import { crmContactDisplayName, type CRMContact } from '@/lib/api/crm';
 import { cn } from '@/lib/utils';
 import {
-  ArrowLeft, Columns, Percent, Plus, Scale, UserPlus, X,
+  ArrowLeft, Columns, Loader2, Percent, Plus, Scale, Search, UserPlus, X,
 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface ExtendedLineRequest extends LineRequest {
   tax_rate: number;
@@ -22,15 +29,55 @@ interface CreateQuotationViewProps {
 }
 
 export function CreateQuotationView({ effectiveTenant, onClose, editId }: CreateQuotationViewProps) {
-  const createMutation = useCreateQuotation(effectiveTenant);
+  const isEdit = !!editId;
 
-  const [quoteNumber, setQuoteNumber] = useState('A00023');
+  const createMutation = useCreateQuotation(effectiveTenant);
+  const updateMutation = useUpdateQuotation(effectiveTenant);
+  const { data: brand, isLoading: brandLoading } = useOrgBranding(effectiveTenant);
+  const { data: existingQuote, isLoading: quoteLoading } = useQuotation(
+    effectiveTenant, editId ?? '', isEdit
+  );
+
+  const [quoteNumber, setQuoteNumber] = useState('');
+  const [initialized, setInitialized]  = useState(false);
+  const [customerId, setCustomerId]    = useState<string | null>(null);
+  const [clientSearch, setClientSearch] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const clientInputRef = useRef<HTMLInputElement>(null);
+  const { data: crmContacts = [] } = useCRMContacts(effectiveTenant, clientSearch);
+
   const [newQuote, setNewQuote] = useState({
     customer_name: '', customer_email: '',
-    quote_date:  new Date().toISOString().slice(0, 10),
-    valid_until: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
-    currency: 'KES', notes: '', terms: 'Thanks for doing business with us', lines: [emptyLine()],
+    quote_date:   new Date().toISOString().slice(0, 10),
+    valid_until:  new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
+    currency: 'KES', notes: '', terms: 'Thanks for doing business with us',
+    lines: [emptyLine()] as ExtendedLineRequest[],
   });
+
+  // Pre-populate form when editing an existing quotation
+  useEffect(() => {
+    if (isEdit && existingQuote && !initialized) {
+      setQuoteNumber(existingQuote.quote_number);
+      if (existingQuote.customer_id) setCustomerId(existingQuote.customer_id);
+      if (existingQuote.customer_name) setClientSearch(existingQuote.customer_name);
+      setNewQuote({
+        customer_name:  existingQuote.customer_name ?? '',
+        customer_email: existingQuote.customer_email ?? '',
+        quote_date:     existingQuote.quote_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+        valid_until:    existingQuote.valid_until?.slice(0, 10) ?? '',
+        currency:       existingQuote.currency ?? 'KES',
+        notes:          existingQuote.notes ?? '',
+        terms:          existingQuote.terms ?? '',
+        lines: existingQuote.lines?.map(l => ({
+          description:  l.description,
+          quantity:     Number(l.quantity),
+          unit_price:   Number(l.unit_price),
+          tax_rate:     Number(l.tax_rate),
+        })) ?? [emptyLine()],
+      });
+      setInitialized(true);
+    }
+  }, [isEdit, existingQuote, initialized]);
 
   const [displayUnitAs,       setDisplayUnitAs]       = useState('Merge with quantity');
   const [showTaxSummary,      setShowTaxSummary]      = useState('Do not show');
@@ -44,33 +91,62 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
   const [displayBatchDetails, setDisplayBatchDetails] = useState(false);
 
   const calculations = useMemo(() => {
-    let subtotal = 0;
-    let totalTax = 0;
+    let subtotal = 0, totalTax = 0;
     const computedLines = newQuote.lines.map(line => {
       const net = Number(line.quantity || 0) * Number(line.unit_price || 0);
       const taxComponent = net * (Number(line.tax_rate || 0) / 100);
-      subtotal += net;
-      totalTax += taxComponent;
+      subtotal += net; totalTax += taxComponent;
       return { ...line, amount: net, taxAmount: taxComponent, total: net + taxComponent };
     });
     return { lines: computedLines, subtotal, totalTax, grandTotal: subtotal + totalTax };
   }, [newQuote.lines]);
 
-  const handleCreate = useCallback(() => {
-    const body: CreateQuotationRequest = {
-      customer_name:  newQuote.customer_name,
-      customer_email: newQuote.customer_email,
-      quote_date:     newQuote.quote_date,
-      valid_until:    newQuote.valid_until,
-      currency:       newQuote.currency,
-      notes:          newQuote.notes,
-      terms:          newQuote.terms,
-      lines: newQuote.lines
-        .filter(l => l.description.trim())
-        .map(({ description, quantity, unit_price }) => ({ description, quantity, unit_price })),
-    };
-    createMutation.mutate(body, { onSuccess: onClose });
-  }, [newQuote, createMutation, onClose]);
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  const selectCRMContact = useCallback((contact: CRMContact) => {
+    setCustomerId(contact.id);
+    setNewQuote(p => ({
+      ...p,
+      customer_name:  crmContactDisplayName(contact),
+      customer_email: contact.email ?? '',
+    }));
+    setClientSearch(crmContactDisplayName(contact));
+    setShowSuggestions(false);
+  }, []);
+
+  const handleSave = useCallback(() => {
+    const filteredLines = newQuote.lines.filter(l => String(l.description).trim());
+
+    if (isEdit && editId) {
+      const body: UpdateQuotationRequest = {
+        customer_id:    customerId ?? undefined,
+        customer_name:  newQuote.customer_name,
+        customer_email: newQuote.customer_email,
+        quote_date:     newQuote.quote_date,
+        valid_until:    newQuote.valid_until,
+        currency:       newQuote.currency,
+        notes:          newQuote.notes,
+        terms:          newQuote.terms,
+        lines: filteredLines.map(({ description, quantity, unit_price, tax_rate }) =>
+          ({ description, quantity, unit_price, tax_rate })),
+      };
+      updateMutation.mutate({ quotationId: editId, body }, { onSuccess: onClose });
+    } else {
+      const body: CreateQuotationRequest = {
+        customer_id:    customerId ?? undefined,
+        customer_name:  newQuote.customer_name,
+        customer_email: newQuote.customer_email,
+        quote_date:     newQuote.quote_date,
+        valid_until:    newQuote.valid_until,
+        currency:       newQuote.currency,
+        notes:          newQuote.notes,
+        terms:          newQuote.terms,
+        lines: filteredLines.map(({ description, quantity, unit_price, tax_rate }) =>
+          ({ description, quantity, unit_price, tax_rate })),
+      };
+      createMutation.mutate(body, { onSuccess: onClose });
+    }
+  }, [newQuote, customerId, isEdit, editId, createMutation, updateMutation, onClose]);
 
   const addLine    = () => setNewQuote(p => ({ ...p, lines: [...p.lines, emptyLine()] }));
   const removeLine = (idx: number) => setNewQuote(p => ({
@@ -90,6 +166,17 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
     [displayBatchDetails, setDisplayBatchDetails, 'Display Batch Details in columns'],
   ];
 
+  if (isEdit && quoteLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  const orgName    = brand?.orgName ?? brand?.name ?? effectiveTenant;
+  const logoUrl    = brand?.logoUrl ?? null;
+
   return (
     <div className="min-h-screen bg-slate-50/60 pb-24 font-sans antialiased text-slate-800">
       {/* Sticky header */}
@@ -100,18 +187,20 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
           </button>
           <div className="h-6 w-px bg-slate-800" />
           <div>
-            <h1 className="text-base font-black text-white tracking-tight">Create New Quotation</h1>
+            <h1 className="text-base font-black text-white tracking-tight">
+              {isEdit ? 'Edit Quotation' : 'Create New Quotation'}
+            </h1>
             <p className="text-[11px] text-slate-400 font-medium">Step 1 of 2 — Quotation Details</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={handleCreate} disabled={createMutation.isPending}
+          <button onClick={handleSave} disabled={isPending}
             className="px-4 py-2 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 hover:text-white transition-all shadow-sm">
             Save As Draft
           </button>
-          <button onClick={handleCreate} disabled={createMutation.isPending || !newQuote.customer_name.trim()}
+          <button onClick={handleSave} disabled={isPending || !newQuote.customer_name.trim()}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-brand-emphasis hover:bg-brand-dark rounded-lg transition-all shadow-md disabled:opacity-50">
-            {createMutation.isPending ? 'Saving...' : 'Save & Continue'}
+            {isPending ? 'Saving...' : 'Save & Continue'}
           </button>
         </div>
       </div>
@@ -119,14 +208,17 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
       <div className="max-w-5xl mx-auto px-4 mt-8 space-y-6">
         <Card className="border border-slate-200/80 bg-white rounded-xl shadow-md p-6 space-y-8">
 
-          {/* Quotation header — number + dates + logo placeholder */}
+          {/* Quotation header — number + dates + logo */}
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 pb-6 border-b border-slate-100">
             <div className="space-y-4 w-full max-w-sm">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Quotation No<span className="text-red-500">*</span></label>
                 <input className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
-                  value={quoteNumber} onChange={e => setQuoteNumber(e.target.value)} />
-                <p className="text-[11px] text-slate-400 mt-1 font-medium">Last No: {quoteNumber}</p>
+                  value={quoteNumber} onChange={e => setQuoteNumber(e.target.value)}
+                  placeholder={isEdit ? existingQuote?.quote_number ?? '' : 'Auto-generated'} />
+                {!isEdit && (
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Will be auto-assigned on save</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -141,52 +233,115 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
                 </div>
               </div>
             </div>
-            <div className="border border-dashed border-slate-200 bg-slate-50/50 rounded-xl p-4 flex flex-col items-center justify-center text-center w-64 h-36 shrink-0 hover:bg-slate-50 shadow-sm cursor-pointer">
-              <div className="text-sm font-black text-slate-800 tracking-tight">Company Logo</div>
-              <div className="text-[10px] text-slate-400 mt-3 flex items-center gap-3 font-semibold">
-                <span className="text-slate-500 hover:text-slate-800 hover:underline">✕ Remove</span>
-                <span className="text-slate-300">|</span>
-                <span className="text-slate-600 hover:text-slate-900 hover:underline">✎ Change</span>
-              </div>
+
+            {/* Logo — show actual logo if available */}
+            <div className="border border-dashed border-slate-200 bg-slate-50/50 rounded-xl p-3 flex flex-col items-center justify-center text-center w-64 h-36 shrink-0 hover:bg-slate-50 shadow-sm cursor-pointer overflow-hidden">
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt={orgName} className="max-h-24 max-w-full object-contain" />
+              ) : brandLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin text-slate-300" />
+              ) : (
+                <>
+                  <div className="text-sm font-black text-slate-800 tracking-tight">{orgName || 'Company Logo'}</div>
+                  <div className="text-[10px] text-slate-400 mt-3 font-semibold">Click to upload logo</div>
+                </>
+              )}
+              {logoUrl && (
+                <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-3 font-semibold">
+                  <span className="text-slate-500 hover:text-slate-800 hover:underline">✕ Remove</span>
+                  <span className="text-slate-300">|</span>
+                  <span className="text-slate-600 hover:text-slate-900 hover:underline">✎ Change</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Quotation From / Quotation For */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* FROM — populated from tenant branding */}
             <div className="p-5 rounded-xl bg-slate-50/50 border border-slate-200/60 space-y-3">
               <span className="text-xs font-bold text-slate-900 border-b-2 border-slate-900 pb-0.5 block w-fit">Quotation From</span>
-              <select className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-xs font-semibold text-slate-800 focus:outline-none">
-                <option>Codevertex IT Solutions</option>
-              </select>
-              <div className="text-xs space-y-1 text-slate-600 pt-1 leading-relaxed">
-                <div className="flex justify-between font-medium">
-                  <span className="text-slate-400">Business Name</span>
-                  <span className="text-slate-900 font-bold">Codevertex IT Solutions</span>
+              {brandLoading ? (
+                <div className="flex items-center gap-2 text-xs text-slate-400 font-medium py-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading organisation details…
                 </div>
-                <div className="flex justify-between font-medium">
-                  <span className="text-slate-400">Address</span>
-                  <span className="text-slate-800 text-right">OGINGA STREET, PIONEER HSE, 2ND FLOOR, Kisumu, Kenya - 40100</span>
+              ) : (
+                <div className="text-xs space-y-1.5 text-slate-600 leading-relaxed">
+                  <div className="font-black text-slate-900 text-sm">{orgName}</div>
+                  {brand?.logoUrl && (
+                    <div className="flex justify-between font-medium">
+                      <span className="text-slate-400">Logo</span>
+                      <span className="text-violet-600 text-xs cursor-pointer hover:underline">View</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-medium pt-1 border-t border-slate-100">
+                    <span className="text-slate-400">Slug</span>
+                    <span className="text-slate-700 font-mono">{effectiveTenant}</span>
+                  </div>
+                  {brand?.primaryColor && (
+                    <div className="flex justify-between font-medium items-center">
+                      <span className="text-slate-400">Brand Colour</span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-full border border-slate-200" style={{ backgroundColor: brand.primaryColor }} />
+                        <span className="font-mono text-slate-700">{brand.primaryColor}</span>
+                      </span>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-400 pt-1 font-medium">
+                    Edit business details at <span className="font-bold text-slate-500">Settings → Branding</span>
+                  </p>
                 </div>
-                <div className="flex justify-between font-medium">
-                  <span className="text-slate-400">Email</span>
-                  <span className="text-slate-800 font-mono">codevertexitsolutions@gmail.com</span>
-                </div>
-                <div className="flex justify-between font-medium">
-                  <span className="text-slate-400">Phone</span>
-                  <span className="text-slate-800 font-mono">+254 743 793901</span>
-                </div>
-              </div>
+              )}
             </div>
 
+            {/* FOR — CRM contact combobox */}
             <div className="p-5 rounded-xl bg-slate-50/50 border border-slate-200/60 flex flex-col justify-between space-y-3">
               <span className="text-xs font-bold text-slate-900 border-b-2 border-slate-900 pb-0.5 block w-fit">Quotation For</span>
               <div className="space-y-3 my-auto py-2">
-                <div className="space-y-1">
+                {/* CRM search combobox */}
+                <div className="space-y-1 relative">
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Customer Name</label>
-                  <input placeholder="Select a Client" value={newQuote.customer_name}
-                    onChange={e => setNewQuote(p => ({ ...p, customer_name: e.target.value }))}
-                    className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-900 shadow-sm" />
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                    <input
+                      ref={clientInputRef}
+                      placeholder="Search CRM contacts…"
+                      value={clientSearch || newQuote.customer_name}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setClientSearch(v);
+                        setCustomerId(null);
+                        setNewQuote(p => ({ ...p, customer_name: v }));
+                        setShowSuggestions(v.length >= 2);
+                      }}
+                      onFocus={() => { if ((clientSearch || newQuote.customer_name).length >= 2) setShowSuggestions(true); }}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                      className="w-full bg-white border border-slate-200 rounded-lg py-2 pl-8 pr-3 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-900 shadow-sm"
+                    />
+                  </div>
+                  {showSuggestions && crmContacts.length > 0 && (
+                    <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                      {crmContacts.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onMouseDown={() => selectCRMContact(c)}
+                          className="w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors flex flex-col gap-0.5"
+                        >
+                          <span className="text-xs font-bold text-slate-900">{crmContactDisplayName(c)}</span>
+                          {c.email && <span className="text-[10px] text-slate-400 font-mono">{c.email}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {customerId && (
+                    <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                      <span>✓</span> Linked to CRM contact
+                    </p>
+                  )}
                 </div>
+
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Customer Email</label>
                   <input type="email" placeholder="customer@email.com" value={newQuote.customer_email}
@@ -294,16 +449,16 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
                 <div className="space-y-1.5 text-xs font-semibold text-slate-600 border-b border-slate-200/60 pb-3">
                   <div className="flex justify-between">
                     <span>Subtotal</span>
-                    <span className="font-mono font-bold text-slate-900">Ksh {calculations.subtotal.toFixed(2)}</span>
+                    <span className="font-mono font-bold text-slate-900">{newQuote.currency} {calculations.subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>TAX</span>
-                    <span className="font-mono font-bold text-slate-900">Ksh {calculations.totalTax.toFixed(2)}</span>
+                    <span className="font-mono font-bold text-slate-900">{newQuote.currency} {calculations.totalTax.toFixed(2)}</span>
                   </div>
                 </div>
                 <div className="flex justify-between items-center pt-1">
                   <span className="text-sm font-bold text-slate-900">Total ({newQuote.currency})</span>
-                  <span className="font-mono font-black text-lg text-slate-900">Ksh {calculations.grandTotal.toFixed(2)}</span>
+                  <span className="font-mono font-black text-lg text-slate-900">{newQuote.currency} {calculations.grandTotal.toFixed(2)}</span>
                 </div>
               </Card>
             </div>
@@ -343,15 +498,17 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
 
           {/* Action buttons */}
           <div className={cn('flex flex-wrap items-center justify-start gap-3 pt-4 border-t border-slate-100')}>
-            <button onClick={handleCreate} disabled={createMutation.isPending || !newQuote.customer_name.trim()}
+            <button onClick={handleSave} disabled={isPending || !newQuote.customer_name.trim()}
               className="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-all disabled:opacity-50">
               Save & Continue
             </button>
-            <button onClick={handleCreate} disabled={createMutation.isPending || !newQuote.customer_name.trim()}
-              className="px-5 py-2 text-xs font-bold text-slate-900 bg-white border border-slate-900 hover:bg-slate-50 rounded-lg transition-all disabled:opacity-50">
-              Save & Create New
-            </button>
-            <button onClick={handleCreate} disabled={createMutation.isPending}
+            {!isEdit && (
+              <button onClick={handleSave} disabled={isPending || !newQuote.customer_name.trim()}
+                className="px-5 py-2 text-xs font-bold text-slate-900 bg-white border border-slate-900 hover:bg-slate-50 rounded-lg transition-all disabled:opacity-50">
+                Save & Create New
+              </button>
+            )}
+            <button onClick={handleSave} disabled={isPending}
               className="px-5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-lg border border-slate-200 transition-all">
               Save As Draft
             </button>

@@ -103,6 +103,7 @@ export interface Quotation {
   id: string;
   tenant_id: string;
   quote_number: string;
+  public_token?: string;
   customer_id?: string;
   customer_name?: string;
   customer_email?: string;
@@ -185,6 +186,38 @@ export interface QuotationGraphPoint {
   month: string;
   count: number;
   total_amount: string;
+}
+
+// ---- Public Quotation Types ----
+
+export interface PublicQuotation {
+  quote_number: string;
+  public_token: string;
+  customer_name?: string;
+  quote_date: string;
+  valid_until: string;
+  subtotal: string;
+  tax_amount: string;
+  discount_amount: string;
+  total_amount: string;
+  currency: string;
+  status: string;
+  notes?: string;
+  terms?: string;
+  tenant_slug: string;
+  tenant_name: string;
+  lines?: QuotationLine[];
+}
+
+/** Fetch a public quotation by share token — no auth required. */
+export async function fetchPublicQuotation(token: string): Promise<PublicQuotation> {
+  const TREASURY_URL =
+    process.env.TREASURY_API_URL || 'https://treasuryapi.codevertexitsolutions.com';
+  const res = await fetch(`${TREASURY_URL}/api/v1/public/quotations/${token}`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`Failed to fetch quotation: ${res.status}`);
+  return res.json();
 }
 
 // ---- Invoice API Functions ----
