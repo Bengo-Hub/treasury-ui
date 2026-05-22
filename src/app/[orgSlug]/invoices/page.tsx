@@ -485,8 +485,8 @@ function CreateInvoiceView({
                   Invoice No<span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
-                  className="w-full rounded-lg py-2 px-3 text-xs font-mono font-bold focus:outline-none focus:ring-1"
-                  style={{ border: '1px solid #e2e8f0', color: '#0f172a', focusRingColor: '#0f172a' }}
+                  className="w-full rounded-lg py-2 px-3 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-[#0f172a]"
+                  style={{ border: '1px solid #e2e8f0', color: '#0f172a' }}
                   value={invoiceNumber}
                   onChange={e => setInvoiceNumber(e.target.value)}
                 />
