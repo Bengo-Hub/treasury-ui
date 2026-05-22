@@ -125,12 +125,12 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/75"
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
-      <div className="relative w-full max-w-2xl rounded-2xl border border-blue-700/35 bg-dark-panel shadow-[0_0_60px_rgba(10,40,120,0.4)]">
+      <div className="relative w-full max-w-2xl rounded-2xl border border-blue-700/35 bg-slate-950 shadow-[0_0_60px_rgba(10,40,120,0.4)]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-blue-700/25">
           <div>
             <h2 className="text-base font-bold text-white">Bulk Upload Invoices</h2>
-            <p className="text-xs mt-0.5 text-navy-muted">Import multiple invoices from a CSV file</p>
+            <p className="text-xs mt-0.5 text-slate-400">Import multiple invoices from a CSV file</p>
           </div>
           <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors">
             <X className="h-4 w-4 text-white/50" />
@@ -145,18 +145,18 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
                 <div
                   className={cn(
                     'flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-all border-2',
-                    step >= s.n ? 'bg-blue-700 text-white' : 'bg-white/[0.07] text-navy-subtle',
+                    step >= s.n ? 'bg-blue-700 text-white' : 'bg-white/[0.07] text-slate-500',
                     step === s.n ? 'border-blue-500' : 'border-transparent',
                   )}
                 >
                   {s.n}
                 </div>
-                <span className={cn('text-xs font-medium', step >= s.n ? 'text-white' : 'text-navy-subtle')}>
+                <span className={cn('text-xs font-medium', step >= s.n ? 'text-white' : 'text-slate-500')}>
                   {s.label}
                 </span>
               </div>
               {i < steps.length - 1 && (
-                <ChevronRight className="h-3.5 w-3.5 mx-3 text-navy-accent" />
+                <ChevronRight className="h-3.5 w-3.5 mx-3 text-slate-600" />
               )}
             </div>
           ))}
@@ -192,14 +192,14 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
                 ) : (
                   <>
                     <p className="text-sm font-bold text-white">Select a file from your device</p>
-                    <p className="text-xs mt-1 text-navy-muted">Supported File: CSV · or drag & drop here</p>
+                    <p className="text-xs mt-1 text-slate-400">Supported File: CSV · or drag & drop here</p>
                   </>
                 )}
               </div>
-              <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-medium border border-blue-700/35 text-navy-muted transition-colors hover:bg-white/5">
+              <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-medium border border-blue-700/35 text-slate-400 transition-colors hover:bg-white/5">
                 <Download className="h-3.5 w-3.5" /> Download Sample File Format
               </button>
-              <div className="text-xs text-center py-1 text-navy-subtle">
+              <div className="text-xs text-center py-1 text-slate-500">
                 Things to keep in mind while bulk uploading →
               </div>
             </div>
@@ -207,20 +207,20 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
 
           {step === 2 && (
             <div className="space-y-3">
-              <p className="text-xs mb-4 text-navy-muted">Map columns from your CSV file to the corresponding invoice fields.</p>
+              <p className="text-xs mb-4 text-slate-400">Map columns from your CSV file to the corresponding invoice fields.</p>
               {Object.entries(fieldMap).map(([field, col]) => (
                 <div key={field} className="flex items-center gap-3">
-                  <div className="flex-1 rounded-lg px-3 py-2 text-xs bg-white/[0.04] border border-blue-700/25 text-navy-muted">
+                  <div className="flex-1 rounded-lg px-3 py-2 text-xs bg-white/[0.04] border border-blue-700/25 text-slate-400">
                     {field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                   </div>
-                  <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-navy-accent" />
+                  <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-slate-600" />
                   <select
                     value={col}
                     onChange={(e) => setFieldMap((prev) => ({ ...prev, [field]: e.target.value }))}
                     className="flex-1 rounded-lg px-3 py-2 text-xs focus:outline-none bg-blue-600/10 border border-blue-500/30 text-white"
                   >
                     {['Invoice Number', 'Customer Name', 'Email', 'Amount', 'Due Date', 'Date', 'Notes', 'Currency'].map((o) => (
-                      <option key={o} value={o} className="bg-navy-950">{o}</option>
+                      <option key={o} value={o} className="bg-slate-950">{o}</option>
                     ))}
                   </select>
                 </div>
@@ -240,13 +240,13 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
                     ['Skipped Rows', '2 (missing required fields)'],
                   ].map(([k, v]) => (
                     <div key={k} className="flex justify-between text-xs">
-                      <span className="text-navy-muted">{k}</span>
+                      <span className="text-slate-400">{k}</span>
                       <span className="font-medium text-white">{v}</span>
                     </div>
                   ))}
                 </div>
               </div>
-              <p className="text-xs text-navy-muted">
+              <p className="text-xs text-slate-400">
                 Review the summary above. Click <strong className="text-white">Upload Now</strong> to import the valid rows.
               </p>
             </div>
@@ -255,7 +255,7 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-blue-700/20">
-          <button onClick={handleClose} className="px-4 py-2 rounded-lg text-xs font-medium text-navy-muted transition-colors hover:bg-white/5">
+          <button onClick={handleClose} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 transition-colors hover:bg-white/5">
             Cancel
           </button>
           <button
@@ -268,7 +268,7 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
             className={cn(
               'px-5 py-2 rounded-lg text-xs font-bold transition-all',
               step === 1 && !file
-                ? 'bg-blue-700/30 text-navy-subtle cursor-not-allowed'
+                ? 'bg-blue-700/30 text-slate-500 cursor-not-allowed'
                 : 'bg-blue-700 text-white cursor-pointer',
             )}
           >
@@ -286,16 +286,16 @@ function EmptyState({ onCreateClick, onUploadClick }: { onCreateClick: () => voi
 
   return (
     <div className="flex items-center justify-center py-16">
-      <div className="w-full max-w-md rounded-2xl border border-blue-700/30 bg-dark-panel text-center overflow-hidden shadow-[0_0_40px_rgba(10,40,120,0.25)]">
+      <div className="w-full max-w-md rounded-2xl border border-blue-700/30 bg-slate-950 text-center overflow-hidden shadow-[0_0_40px_rgba(10,40,120,0.25)]">
         <div className="px-8 pt-8 pb-6">
           <h2 className="text-lg font-bold text-white">Invoices</h2>
-          <p className="text-xs mt-1.5 mb-6 text-navy-muted leading-relaxed">
+          <p className="text-xs mt-1.5 mb-6 text-slate-400 leading-relaxed">
             Create Professional Invoices With Customisable Templates. 1-click Share as PDF, Print, or Link over WhatsApp or Email. Record & Track Payments. And more…
           </p>
 
           <div
             onClick={() => setVideoOpen(true)}
-            className="relative rounded-xl overflow-hidden cursor-pointer group mb-5 bg-dark-panel-video border border-blue-500/25"
+            className="relative rounded-xl overflow-hidden cursor-pointer group mb-5 bg-gradient-to-br from-slate-900 to-blue-950 border border-blue-500/25"
           >
             <div className="absolute top-2 left-2 z-10">
               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 text-black">
@@ -824,7 +824,7 @@ export default function InvoicesPage() {
 
       {/* Table */}
       {!hasNoInvoices && (
-        <Card className="bg-dark-panel border border-blue-700/25">
+        <Card className="bg-slate-950 border border-blue-700/25">
           <CardHeader className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between py-4">
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -846,7 +846,7 @@ export default function InvoicesPage() {
                   onClick={() => setStatusFilter(s)}
                   className={cn(
                     'px-3 py-1 rounded-full text-xs font-bold capitalize transition-all',
-                    statusFilter === s ? 'bg-blue-700 text-white' : 'bg-white/[0.06] text-navy-muted',
+                    statusFilter === s ? 'bg-blue-700 text-white' : 'bg-white/[0.06] text-slate-400',
                   )}
                 >
                   {s}
@@ -869,7 +869,7 @@ export default function InvoicesPage() {
                         <th
                           key={h}
                           className={cn(
-                            'px-6 py-3 font-bold text-xs uppercase tracking-wider text-navy-muted',
+                            'px-6 py-3 font-bold text-xs uppercase tracking-wider text-slate-400',
                             i === 2 || i === 5 || i === 6 ? 'text-right' : i >= 3 && i <= 4 ? 'text-center' : i === 7 ? 'text-center' : 'text-left',
                           )}
                         >
@@ -890,7 +890,7 @@ export default function InvoicesPage() {
                         <td className="px-6 py-4 text-xs">
                           <div className="text-white">{inv.metadata?.customer_name || '--'}</div>
                           {inv.metadata?.customer_email && (
-                            <div className="text-[11px] text-navy-muted">{inv.metadata.customer_email}</div>
+                            <div className="text-[11px] text-slate-400">{inv.metadata.customer_email}</div>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-xs text-white">
@@ -902,21 +902,21 @@ export default function InvoicesPage() {
                         <td className="px-6 py-4 text-center">
                           <Badge variant={paymentBadgeVariant(inv.payment_status)}>{inv.payment_status}</Badge>
                         </td>
-                        <td className="px-6 py-4 text-right text-xs text-navy-muted">
+                        <td className="px-6 py-4 text-right text-xs text-slate-400">
                           {new Date(inv.invoice_date).toLocaleDateString()}
                         </td>
-                        <td className="px-6 py-4 text-right text-xs text-navy-muted">
+                        <td className="px-6 py-4 text-right text-xs text-slate-400">
                           {new Date(inv.due_date).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 text-center relative">
                           <div className="flex items-center justify-center gap-2">
-                            <button title="View" className="text-navy-muted hover:text-white transition-colors">
+                            <button title="View" className="text-slate-400 hover:text-white transition-colors">
                               <Eye className="h-4 w-4" />
                             </button>
-                            <button title="Edit" className="text-navy-muted hover:text-white transition-colors">
+                            <button title="Edit" className="text-slate-400 hover:text-white transition-colors">
                               <Pencil className="h-4 w-4" />
                             </button>
-                            <button title="Copy" className="text-navy-muted hover:text-white transition-colors">
+                            <button title="Copy" className="text-slate-400 hover:text-white transition-colors">
                               <Copy className="h-4 w-4" />
                             </button>
                             <button
@@ -929,7 +929,7 @@ export default function InvoicesPage() {
                           {actionMenuId === inv.id && (
                             <>
                               <div className="fixed inset-0 z-10" onClick={() => setActionMenuId(null)} />
-                              <div className="absolute right-6 top-12 z-20 rounded-lg py-1 min-w-[160px] bg-navy-950 border border-blue-700/35 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+                              <div className="absolute right-6 top-12 z-20 rounded-lg py-1 min-w-[160px] bg-slate-950 border border-blue-700/35 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
                                 {inv.status === 'draft' && (
                                   <button
                                     className="w-full text-left px-4 py-2 text-xs hover:bg-white/5 flex items-center gap-2 text-white"
@@ -954,7 +954,7 @@ export default function InvoicesPage() {
                                     <Ban className="h-3.5 w-3.5" /> Void Invoice
                                   </button>
                                 )}
-                                <button className="w-full text-left px-4 py-2 text-xs hover:bg-white/5 flex items-center gap-2 text-navy-muted"
+                                <button className="w-full text-left px-4 py-2 text-xs hover:bg-white/5 flex items-center gap-2 text-slate-400"
                                   onClick={() => setActionMenuId(null)}>
                                   <RefreshCw className="h-3.5 w-3.5" /> Convert to Quotation
                                 </button>
@@ -968,7 +968,7 @@ export default function InvoicesPage() {
                 </table>
               )}
               {!isLoading && filtered.length === 0 && invoices.length > 0 && (
-                <div className="p-12 text-center text-navy-muted">No invoices match your filters.</div>
+                <div className="p-12 text-center text-slate-400">No invoices match your filters.</div>
               )}
             </div>
             {!isLoading && total > 0 && (
@@ -986,14 +986,14 @@ export default function InvoicesPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/75"
           onClick={e => { if (e.target === e.currentTarget) setPaymentDialog(null); }}
         >
-          <div className="relative w-full max-w-sm rounded-2xl border border-blue-700/35 p-6 space-y-4 bg-dark-panel">
+          <div className="relative w-full max-w-sm rounded-2xl border border-blue-700/35 p-6 space-y-4 bg-slate-950">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-white">Record Payment</h2>
               <button onClick={() => setPaymentDialog(null)}>
                 <X className="h-4 w-4 text-white/50" />
               </button>
             </div>
-            <p className="text-xs text-navy-muted">Invoice: {paymentDialog.invoiceNumber}</p>
+            <p className="text-xs text-slate-400">Invoice: {paymentDialog.invoiceNumber}</p>
             <div>
               <label className="text-xs font-bold block mb-1 text-white">Amount<span className="text-red-500">*</span></label>
               <input type="number" min={0} step="0.01"
@@ -1004,7 +1004,7 @@ export default function InvoicesPage() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setPaymentDialog(null)}
-                className="px-4 py-2 rounded-lg text-xs font-medium hover:bg-white/5 transition-colors text-navy-muted">Cancel</button>
+                className="px-4 py-2 rounded-lg text-xs font-medium hover:bg-white/5 transition-colors text-slate-400">Cancel</button>
               <button onClick={handleRecordPayment} disabled={paymentMutation.isPending || !paymentAmount}
                 className="px-5 py-2 rounded-lg text-xs font-bold text-white transition-all bg-blue-700">
                 {paymentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin inline mr-1" /> : null}

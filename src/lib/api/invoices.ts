@@ -157,6 +157,36 @@ export interface QuotationFilters {
   limit?: number;
 }
 
+export interface UpdateQuotationRequest {
+  customer_id?: string;
+  customer_name?: string;
+  customer_email?: string;
+  quote_date?: string;
+  valid_until?: string;
+  currency?: string;
+  notes?: string;
+  terms?: string;
+  lines?: LineRequest[];
+  metadata?: Record<string, any>;
+}
+
+export interface QuotationStats {
+  total_count: number;
+  total_amount: string;
+  currency: string;
+}
+
+export interface QuotationStatusCount {
+  status: string;
+  count: number;
+}
+
+export interface QuotationGraphPoint {
+  month: string;
+  count: number;
+  total_amount: string;
+}
+
 // ---- Invoice API Functions ----
 
 /** List invoices with optional filters. */
@@ -233,4 +263,39 @@ export function acceptQuotation(tenant: string, quotationId: string): Promise<{ 
 /** Decline a quotation. */
 export function declineQuotation(tenant: string, quotationId: string): Promise<{ status: string }> {
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/quotations/${quotationId}/decline`, {});
+}
+
+/** Update a draft quotation. */
+export function updateQuotation(tenant: string, quotationId: string, body: UpdateQuotationRequest): Promise<Quotation> {
+  return apiClient.put<Quotation>(`${BASE}/${tenant}/quotations/${quotationId}`, body);
+}
+
+/** Delete a draft or declined quotation. */
+export function deleteQuotation(tenant: string, quotationId: string): Promise<{ status: string }> {
+  return apiClient.delete<{ status: string }>(`${BASE}/${tenant}/quotations/${quotationId}`);
+}
+
+/** Duplicate a quotation. */
+export function duplicateQuotation(tenant: string, quotationId: string): Promise<Quotation> {
+  return apiClient.post<Quotation>(`${BASE}/${tenant}/quotations/${quotationId}/duplicate`, {});
+}
+
+/** Cancel a quotation. */
+export function cancelQuotation(tenant: string, quotationId: string): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/quotations/${quotationId}/cancel`, {});
+}
+
+/** Get lifetime stats for quotations. */
+export function getQuotationStats(tenant: string): Promise<QuotationStats> {
+  return apiClient.get<QuotationStats>(`${BASE}/${tenant}/quotations/stats`);
+}
+
+/** Get per-status counts for the summary section. */
+export function getQuotationSummary(tenant: string): Promise<{ summary: QuotationStatusCount[] }> {
+  return apiClient.get<{ summary: QuotationStatusCount[] }>(`${BASE}/${tenant}/quotations/summary`);
+}
+
+/** Get monthly trend data for the graph section. */
+export function getQuotationGraph(tenant: string): Promise<{ graph: QuotationGraphPoint[] }> {
+  return apiClient.get<{ graph: QuotationGraphPoint[] }>(`${BASE}/${tenant}/quotations/graph`);
 }
