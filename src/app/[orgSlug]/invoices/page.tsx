@@ -122,23 +122,15 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,8,0.72)' }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75"
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
-      <div
-        className="relative w-full max-w-2xl rounded-2xl border"
-        style={{
-          background: 'linear-gradient(145deg, #0d1117 0%, #0f1b2d 100%)',
-          borderColor: 'rgba(30,80,160,0.35)',
-          boxShadow: '0 0 60px rgba(10,40,120,0.4)',
-        }}
-      >
+      <div className="relative w-full max-w-2xl rounded-2xl border border-blue-700/35 bg-dark-panel shadow-[0_0_60px_rgba(10,40,120,0.4)]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'rgba(30,80,160,0.25)' }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-blue-700/25">
           <div>
             <h2 className="text-base font-bold text-white">Bulk Upload Invoices</h2>
-            <p className="text-xs mt-0.5" style={{ color: '#8ba4c8' }}>Import multiple invoices from a CSV file</p>
+            <p className="text-xs mt-0.5 text-navy-muted">Import multiple invoices from a CSV file</p>
           </div>
           <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors">
             <X className="h-4 w-4 text-white/50" />
@@ -146,26 +138,25 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
         </div>
 
         {/* Step indicator */}
-        <div className="flex items-center gap-0 px-6 py-4 border-b" style={{ borderColor: 'rgba(30,80,160,0.2)' }}>
+        <div className="flex items-center gap-0 px-6 py-4 border-b border-blue-700/20">
           {steps.map((s, i) => (
             <div key={s.n} className="flex items-center">
               <div className="flex items-center gap-2">
                 <div
-                  className="flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-all"
-                  style={{
-                    background: step >= s.n ? '#1a56db' : 'rgba(255,255,255,0.07)',
-                    color: step >= s.n ? '#fff' : '#4a6080',
-                    border: step === s.n ? '2px solid #3b82f6' : '2px solid transparent',
-                  }}
+                  className={cn(
+                    'flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-all border-2',
+                    step >= s.n ? 'bg-blue-700 text-white' : 'bg-white/[0.07] text-navy-subtle',
+                    step === s.n ? 'border-blue-500' : 'border-transparent',
+                  )}
                 >
                   {s.n}
                 </div>
-                <span className="text-xs font-medium" style={{ color: step >= s.n ? '#fff' : '#4a6080' }}>
+                <span className={cn('text-xs font-medium', step >= s.n ? 'text-white' : 'text-navy-subtle')}>
                   {s.label}
                 </span>
               </div>
               {i < steps.length - 1 && (
-                <ChevronRight className="h-3.5 w-3.5 mx-3" style={{ color: '#1e3a5f' }} />
+                <ChevronRight className="h-3.5 w-3.5 mx-3 text-navy-accent" />
               )}
             </div>
           ))}
@@ -180,36 +171,35 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
                 onDragLeave={() => setIsDragOver(false)}
                 onDrop={handleFileDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-12 cursor-pointer transition-all"
-                style={{
-                  borderColor: isDragOver ? '#3b82f6' : file ? '#1a56db' : 'rgba(30,80,160,0.35)',
-                  background: isDragOver ? 'rgba(26,86,219,0.08)' : file ? 'rgba(26,86,219,0.05)' : 'rgba(255,255,255,0.02)',
-                }}
+                className={cn(
+                  'flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-12 cursor-pointer transition-all',
+                  isDragOver
+                    ? 'border-blue-500 bg-blue-600/10'
+                    : file
+                    ? 'border-blue-700 bg-blue-600/5'
+                    : 'border-blue-700/35 bg-white/[0.02]',
+                )}
               >
                 <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileSelect} />
-                <div className="flex items-center justify-center w-14 h-14 rounded-xl mb-4"
-                  style={{ background: 'rgba(26,86,219,0.15)', border: '1px solid rgba(59,130,246,0.3)' }}>
-                  <UploadCloud className="h-6 w-6" style={{ color: '#3b82f6' }} />
+                <div className="flex items-center justify-center w-14 h-14 rounded-xl mb-4 bg-blue-600/15 border border-blue-500/30">
+                  <UploadCloud className="h-6 w-6 text-blue-500" />
                 </div>
                 {file ? (
                   <>
                     <p className="text-sm font-bold text-white">{file.name}</p>
-                    <p className="text-xs mt-1" style={{ color: '#5a8a6a' }}>✓ File selected — click Continue to proceed</p>
+                    <p className="text-xs mt-1 text-green-700">✓ File selected — click Continue to proceed</p>
                   </>
                 ) : (
                   <>
                     <p className="text-sm font-bold text-white">Select a file from your device</p>
-                    <p className="text-xs mt-1" style={{ color: '#8ba4c8' }}>Supported File: CSV · or drag & drop here</p>
+                    <p className="text-xs mt-1 text-navy-muted">Supported File: CSV · or drag & drop here</p>
                   </>
                 )}
               </div>
-              <button
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-medium border transition-colors hover:bg-white/5"
-                style={{ borderColor: 'rgba(30,80,160,0.35)', color: '#8ba4c8' }}
-              >
+              <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-medium border border-blue-700/35 text-navy-muted transition-colors hover:bg-white/5">
                 <Download className="h-3.5 w-3.5" /> Download Sample File Format
               </button>
-              <div className="text-xs text-center py-1" style={{ color: '#4a6080' }}>
+              <div className="text-xs text-center py-1 text-navy-subtle">
                 Things to keep in mind while bulk uploading →
               </div>
             </div>
@@ -217,22 +207,20 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
 
           {step === 2 && (
             <div className="space-y-3">
-              <p className="text-xs mb-4" style={{ color: '#8ba4c8' }}>Map columns from your CSV file to the corresponding invoice fields.</p>
+              <p className="text-xs mb-4 text-navy-muted">Map columns from your CSV file to the corresponding invoice fields.</p>
               {Object.entries(fieldMap).map(([field, col]) => (
                 <div key={field} className="flex items-center gap-3">
-                  <div className="flex-1 rounded-lg px-3 py-2 text-xs"
-                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(30,80,160,0.25)', color: '#8ba4c8' }}>
+                  <div className="flex-1 rounded-lg px-3 py-2 text-xs bg-white/[0.04] border border-blue-700/25 text-navy-muted">
                     {field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                   </div>
-                  <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#1e3a5f' }} />
+                  <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-navy-accent" />
                   <select
                     value={col}
                     onChange={(e) => setFieldMap((prev) => ({ ...prev, [field]: e.target.value }))}
-                    className="flex-1 rounded-lg px-3 py-2 text-xs focus:outline-none"
-                    style={{ background: 'rgba(26,86,219,0.08)', border: '1px solid rgba(59,130,246,0.3)', color: '#ffffff' }}
+                    className="flex-1 rounded-lg px-3 py-2 text-xs focus:outline-none bg-blue-600/10 border border-blue-500/30 text-white"
                   >
                     {['Invoice Number', 'Customer Name', 'Email', 'Amount', 'Due Date', 'Date', 'Notes', 'Currency'].map((o) => (
-                      <option key={o} value={o} style={{ background: '#0d1117' }}>{o}</option>
+                      <option key={o} value={o} className="bg-navy-950">{o}</option>
                     ))}
                   </select>
                 </div>
@@ -242,7 +230,7 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
 
           {step === 3 && (
             <div className="space-y-4">
-              <div className="rounded-xl p-4 border" style={{ background: 'rgba(26,86,219,0.06)', borderColor: 'rgba(59,130,246,0.2)' }}>
+              <div className="rounded-xl p-4 border bg-blue-600/[0.06] border-blue-500/20">
                 <p className="text-xs font-bold text-white mb-3">Upload Summary</p>
                 <div className="space-y-2">
                   {[
@@ -252,13 +240,13 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
                     ['Skipped Rows', '2 (missing required fields)'],
                   ].map(([k, v]) => (
                     <div key={k} className="flex justify-between text-xs">
-                      <span style={{ color: '#8ba4c8' }}>{k}</span>
+                      <span className="text-navy-muted">{k}</span>
                       <span className="font-medium text-white">{v}</span>
                     </div>
                   ))}
                 </div>
               </div>
-              <p className="text-xs" style={{ color: '#8ba4c8' }}>
+              <p className="text-xs text-navy-muted">
                 Review the summary above. Click <strong className="text-white">Upload Now</strong> to import the valid rows.
               </p>
             </div>
@@ -266,8 +254,8 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t" style={{ borderColor: 'rgba(30,80,160,0.2)' }}>
-          <button onClick={handleClose} className="px-4 py-2 rounded-lg text-xs font-medium transition-colors hover:bg-white/5" style={{ color: '#8ba4c8' }}>
+        <div className="flex items-center justify-between px-6 py-4 border-t border-blue-700/20">
+          <button onClick={handleClose} className="px-4 py-2 rounded-lg text-xs font-medium text-navy-muted transition-colors hover:bg-white/5">
             Cancel
           </button>
           <button
@@ -277,12 +265,12 @@ function BulkUploadModal({ open, onClose }: { open: boolean; onClose: () => void
               else if (step === 3) handleClose();
             }}
             disabled={step === 1 && !file}
-            className="px-5 py-2 rounded-lg text-xs font-bold transition-all"
-            style={{
-              background: step === 1 && !file ? 'rgba(26,86,219,0.3)' : '#1a56db',
-              color: step === 1 && !file ? '#4a6080' : '#fff',
-              cursor: step === 1 && !file ? 'not-allowed' : 'pointer',
-            }}
+            className={cn(
+              'px-5 py-2 rounded-lg text-xs font-bold transition-all',
+              step === 1 && !file
+                ? 'bg-blue-700/30 text-navy-subtle cursor-not-allowed'
+                : 'bg-blue-700 text-white cursor-pointer',
+            )}
           >
             {step === 3 ? 'Upload Now' : 'Continue →'}
           </button>
@@ -298,58 +286,45 @@ function EmptyState({ onCreateClick, onUploadClick }: { onCreateClick: () => voi
 
   return (
     <div className="flex items-center justify-center py-16">
-      <div
-        className="w-full max-w-md rounded-2xl border text-center overflow-hidden"
-        style={{
-          background: 'linear-gradient(145deg, #0d1117 0%, #0f1b2d 100%)',
-          borderColor: 'rgba(30,80,160,0.3)',
-          boxShadow: '0 0 40px rgba(10,40,120,0.25)',
-        }}
-      >
+      <div className="w-full max-w-md rounded-2xl border border-blue-700/30 bg-dark-panel text-center overflow-hidden shadow-[0_0_40px_rgba(10,40,120,0.25)]">
         <div className="px-8 pt-8 pb-6">
           <h2 className="text-lg font-bold text-white">Invoices</h2>
-          <p className="text-xs mt-1.5 mb-6" style={{ color: '#8ba4c8', lineHeight: 1.6 }}>
+          <p className="text-xs mt-1.5 mb-6 text-navy-muted leading-relaxed">
             Create Professional Invoices With Customisable Templates. 1-click Share as PDF, Print, or Link over WhatsApp or Email. Record & Track Payments. And more…
           </p>
 
           <div
             onClick={() => setVideoOpen(true)}
-            className="relative rounded-xl overflow-hidden cursor-pointer group mb-5"
-            style={{ background: 'linear-gradient(135deg, #0a1628 0%, #1a3a6e 100%)', border: '1px solid rgba(59,130,246,0.25)' }}
+            className="relative rounded-xl overflow-hidden cursor-pointer group mb-5 bg-dark-panel-video border border-blue-500/25"
           >
             <div className="absolute top-2 left-2 z-10">
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: '#f59e0b', color: '#000' }}>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 text-black">
                 Demo Video
               </span>
             </div>
             <div className="flex flex-col items-center justify-center py-8 px-6">
-              <div
-                className="flex items-center justify-center w-12 h-12 rounded-full mb-3 transition-transform group-hover:scale-110"
-                style={{ background: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.25)' }}
-              >
+              <div className="flex items-center justify-center w-12 h-12 rounded-full mb-3 transition-transform group-hover:scale-110 bg-white/[0.12] border-2 border-white/25">
                 <Play className="h-5 w-5 text-white ml-0.5" fill="white" />
               </div>
               <p className="text-sm font-bold text-white leading-tight">
                 How to create Invoices<br />on Refrens?
               </p>
             </div>
-            <div className="py-2.5 text-xs font-semibold text-white" style={{ background: 'rgba(0,0,0,0.4)' }}>
+            <div className="py-2.5 text-xs font-semibold text-white bg-black/40">
               Watch Demo Video
             </div>
           </div>
 
           <button
             onClick={onCreateClick}
-            className="w-full py-3 rounded-xl text-sm font-bold transition-all mb-3 hover:brightness-110"
-            style={{ background: '#1a56db', color: '#fff' }}
+            className="w-full py-3 rounded-xl text-sm font-bold transition-all mb-3 hover:brightness-110 bg-blue-700 text-white"
           >
             Create your first invoice
           </button>
 
           <button
             onClick={onUploadClick}
-            className="flex items-center justify-center gap-1.5 w-full text-xs font-medium"
-            style={{ color: '#3b82f6' }}
+            className="flex items-center justify-center gap-1.5 w-full text-xs font-medium text-blue-500"
           >
             <Upload className="h-3.5 w-3.5" /> Upload Invoices
           </button>
@@ -358,8 +333,7 @@ function EmptyState({ onCreateClick, onUploadClick }: { onCreateClick: () => voi
 
       {videoOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.85)' }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85"
           onClick={() => setVideoOpen(false)}
         >
           <div className="relative w-full max-w-3xl mx-4 aspect-video rounded-2xl overflow-hidden">
@@ -399,7 +373,6 @@ function CreateInvoiceView({
   const [notes, setNotes] = useState('');
   const [terms, setTerms] = useState('Thanks for doing business with us');
 
-  // Advanced options
   const [displayUnitAs, setDisplayUnitAs] = useState('Merge with quantity');
   const [showTaxSummary, setShowTaxSummary] = useState('Do not show');
   const [hideCountryOfSupply, setHideCountryOfSupply] = useState(false);
@@ -441,113 +414,98 @@ function CreateInvoiceView({
   };
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: '#f8fafc' }}>
+    <div className="min-h-screen pb-24 bg-slate-50">
       {/* Sticky dark navbar */}
-      <div className="sticky top-0 z-50 border-b px-6 py-4 flex items-center justify-between shadow-xl"
-        style={{ background: '#0f172a', borderColor: '#1e293b' }}>
+      <div className="sticky top-0 z-50 border-b border-slate-800 px-6 py-4 flex items-center justify-between shadow-xl bg-slate-900">
         <div className="flex items-center gap-4">
-          <button onClick={onBack}
-            className="p-2 rounded-xl transition-all"
-            style={{ color: '#94a3b8' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#1e293b'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#94a3b8'; }}
-          >
+          <button onClick={onBack} className="p-2 rounded-xl transition-all text-slate-400 hover:bg-slate-800 hover:text-white">
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <div className="h-6 w-px" style={{ background: '#1e293b' }} />
+          <div className="h-6 w-px bg-slate-800" />
           <div>
             <h1 className="text-base font-black text-white tracking-tight">Create New Invoice</h1>
-            <p className="text-[11px] font-medium" style={{ color: '#64748b' }}>Draft · Unsaved</p>
+            <p className="text-[11px] font-medium text-slate-500">Draft · Unsaved</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={handleSubmit} disabled={isPending}
-            className="px-4 py-2 text-xs font-bold rounded-lg transition-all"
-            style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8' }}>
+            className="px-4 py-2 text-xs font-bold rounded-lg transition-all bg-slate-800 border border-slate-700 text-slate-400">
             Save As Draft
           </button>
           <button onClick={handleSubmit} disabled={isPending}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-lg transition-all"
-            style={{ background: '#1a56db' }}>
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-lg transition-all bg-blue-700">
             {isPending ? 'Processing...' : 'Save & Continue'}
           </button>
         </div>
       </div>
 
       <div className="max-w-5xl mx-auto px-4 mt-8 space-y-6">
-        <div className="rounded-xl border bg-white shadow-md p-6 space-y-8" style={{ borderColor: '#e2e8f0' }}>
+        <div className="rounded-xl border border-slate-200 bg-white shadow-md p-6 space-y-8">
 
           {/* Invoice header — number, dates, logo */}
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 pb-6 border-b" style={{ borderColor: '#f1f5f9' }}>
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 pb-6 border-b border-slate-100">
             <div className="space-y-4 w-full max-w-sm">
               <div>
-                <label className="text-xs font-bold block mb-1" style={{ color: '#334155' }}>
-                  Invoice No<span style={{ color: '#ef4444' }}>*</span>
+                <label className="text-xs font-bold block mb-1 text-slate-700">
+                  Invoice No<span className="text-red-500">*</span>
                 </label>
                 <input
-                  className="w-full rounded-lg py-2 px-3 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-[#0f172a]"
-                  style={{ border: '1px solid #e2e8f0', color: '#0f172a' }}
+                  className="w-full rounded-lg py-2 px-3 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-slate-900 border border-slate-200 text-slate-900"
                   value={invoiceNumber}
                   onChange={e => setInvoiceNumber(e.target.value)}
                 />
-                <p className="text-[11px] mt-1 font-medium" style={{ color: '#94a3b8' }}>Last No: INV-0000 (—)</p>
+                <p className="text-[11px] mt-1 font-medium text-slate-400">Last No: INV-0000 (—)</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-bold block mb-1" style={{ color: '#334155' }}>Invoice Date<span style={{ color: '#ef4444' }}>*</span></label>
-                  <input type="date" className="w-full rounded-lg py-2 px-3 text-xs font-mono focus:outline-none"
-                    style={{ border: '1px solid #e2e8f0', color: '#0f172a' }}
+                  <label className="text-xs font-bold block mb-1 text-slate-700">Invoice Date<span className="text-red-500">*</span></label>
+                  <input type="date" className="w-full rounded-lg py-2 px-3 text-xs font-mono focus:outline-none border border-slate-200 text-slate-900"
                     value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} />
                 </div>
                 <div>
-                  <label className="text-xs font-bold block mb-1" style={{ color: '#334155' }}>Due Date<span style={{ color: '#ef4444' }}>*</span></label>
-                  <input type="date" className="w-full rounded-lg py-2 px-3 text-xs font-mono focus:outline-none"
-                    style={{ border: '1px solid #e2e8f0', color: '#0f172a' }}
+                  <label className="text-xs font-bold block mb-1 text-slate-700">Due Date<span className="text-red-500">*</span></label>
+                  <input type="date" className="w-full rounded-lg py-2 px-3 text-xs font-mono focus:outline-none border border-slate-200 text-slate-900"
                     value={dueDate} onChange={e => setDueDate(e.target.value)} />
                 </div>
               </div>
             </div>
-            <div className="border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center w-64 h-36 shrink-0"
-              style={{ borderColor: '#e2e8f0', background: '#f8fafc' }}>
-              <div className="text-sm font-black tracking-tight" style={{ color: '#0f172a' }}>Your Business Name</div>
-              <div className="text-[10px] mt-3 flex items-center gap-3 font-semibold" style={{ color: '#94a3b8' }}>
+            <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center w-64 h-36 shrink-0 bg-slate-50">
+              <div className="text-sm font-black tracking-tight text-slate-900">Your Business Name</div>
+              <div className="text-[10px] mt-3 flex items-center gap-3 font-semibold text-slate-400">
                 <span className="hover:underline cursor-pointer">✕ Remove</span>
-                <span style={{ color: '#e2e8f0' }}>|</span>
-                <span className="hover:underline cursor-pointer" style={{ color: '#64748b' }}>✎ Change Logo</span>
+                <span className="text-slate-200">|</span>
+                <span className="hover:underline cursor-pointer text-slate-500">✎ Change Logo</span>
               </div>
             </div>
           </div>
 
           {/* From / For */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-5 rounded-xl space-y-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <span className="text-xs font-bold border-b-2 pb-0.5 block w-fit" style={{ color: '#0f172a', borderColor: '#0f172a' }}>Invoice From</span>
-              <select className="w-full rounded-lg py-2 px-3 text-xs font-semibold focus:outline-none"
-                style={{ border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a' }}>
+            <div className="p-5 rounded-xl space-y-3 bg-slate-50 border border-slate-200">
+              <span className="text-xs font-bold border-b-2 border-slate-900 pb-0.5 block w-fit text-slate-900">Invoice From</span>
+              <select className="w-full rounded-lg py-2 px-3 text-xs font-semibold focus:outline-none border border-slate-200 bg-white text-slate-900">
                 <option>Your Business</option>
               </select>
-              <div className="text-xs space-y-1 pt-1 leading-relaxed" style={{ color: '#64748b' }}>
+              <div className="text-xs space-y-1 pt-1 leading-relaxed text-slate-500">
                 <div className="flex justify-between font-medium">
-                  <span style={{ color: '#94a3b8' }}>Business Name</span>
-                  <span className="font-bold" style={{ color: '#0f172a' }}>Your Business</span>
+                  <span className="text-slate-400">Business Name</span>
+                  <span className="font-bold text-slate-900">Your Business</span>
                 </div>
                 <div className="flex justify-between font-medium">
-                  <span style={{ color: '#94a3b8' }}>Address</span>
-                  <span style={{ color: '#334155', textAlign: 'right' }}>Your Address Here</span>
+                  <span className="text-slate-400">Address</span>
+                  <span className="text-slate-700 text-right">Your Address Here</span>
                 </div>
               </div>
             </div>
-            <div className="p-5 rounded-xl flex flex-col justify-between space-y-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <span className="text-xs font-bold border-b-2 pb-0.5 block w-fit" style={{ color: '#0f172a', borderColor: '#0f172a' }}>Invoice For</span>
+            <div className="p-5 rounded-xl flex flex-col justify-between space-y-3 bg-slate-50 border border-slate-200">
+              <span className="text-xs font-bold border-b-2 border-slate-900 pb-0.5 block w-fit text-slate-900">Invoice For</span>
               <div className="space-y-3 my-auto py-2">
-                <select className="w-full rounded-lg py-2 px-3 text-xs font-semibold focus:outline-none"
-                  style={{ border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a' }}>
+                <select className="w-full rounded-lg py-2 px-3 text-xs font-semibold focus:outline-none border border-slate-200 bg-white text-slate-900">
                   <option>Select a Client</option>
                 </select>
-                <div className="text-center p-4 border border-dashed rounded-lg" style={{ borderColor: '#e2e8f0', background: '#fff' }}>
-                  <p className="text-xs font-medium mb-2.5" style={{ color: '#94a3b8' }}>Select Client from the list OR</p>
-                  <button className="inline-flex items-center gap-1 px-4 py-2 text-white text-xs font-bold rounded-lg"
-                    style={{ background: '#0f172a' }}>
+                <div className="text-center p-4 border border-dashed border-slate-200 rounded-lg bg-white">
+                  <p className="text-xs font-medium mb-2.5 text-slate-400">Select Client from the list OR</p>
+                  <button className="inline-flex items-center gap-1 px-4 py-2 text-white text-xs font-bold rounded-lg bg-slate-900">
                     <UserPlus className="h-3.5 w-3.5" /> Add New Client
                   </button>
                 </div>
@@ -556,33 +514,28 @@ function CreateInvoiceView({
           </div>
 
           {/* Currency / config strip */}
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t" style={{ borderColor: '#f1f5f9' }}>
-            <button className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all hover:bg-slate-200/80"
-              style={{ background: '#f1f5f9', color: '#334155' }}>
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+            <button className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all hover:bg-slate-200/80 bg-slate-100 text-slate-700">
               <Percent className="h-3 w-3 text-slate-500" /> Configure TAX
             </button>
             <select value={currency} onChange={e => setCurrency(e.target.value)}
-              className="rounded-lg py-1.5 px-3 text-xs font-bold focus:outline-none transition-all"
-              style={{ background: '#f1f5f9', color: '#334155', border: 'none' }}>
+              className="rounded-lg py-1.5 px-3 text-xs font-bold focus:outline-none transition-all bg-slate-100 text-slate-700 border-0">
               <option value="KES">Kenyan Shilling (KES, Ksh)</option>
               <option value="USD">US Dollar (USD, $)</option>
               <option value="EUR">Euro (EUR, €)</option>
               <option value="GBP">British Pound (GBP, £)</option>
             </select>
-            <button className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all hover:bg-slate-200/80"
-              style={{ background: '#f1f5f9', color: '#334155' }}>
+            <button className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all hover:bg-slate-200/80 bg-slate-100 text-slate-700">
               <Scale className="h-3 w-3 text-slate-500" /> Number & Currency Format
             </button>
-            <button className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all hover:bg-slate-200/80"
-              style={{ background: '#f1f5f9', color: '#334155' }}>
+            <button className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all hover:bg-slate-200/80 bg-slate-100 text-slate-700">
               <Columns className="h-3 w-3 text-slate-500" /> Edit Columns/Formulas
             </button>
           </div>
 
           {/* Line items table */}
-          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #e2e8f0' }}>
-            <div className="px-4 py-2.5 grid grid-cols-12 gap-3 items-center text-xs font-bold text-white"
-              style={{ background: '#0f172a' }}>
+          <div className="rounded-xl overflow-hidden border border-slate-200">
+            <div className="px-4 py-2.5 grid grid-cols-12 gap-3 items-center text-xs font-bold text-white bg-slate-900">
               <div className="col-span-5">Item</div>
               <div className="col-span-2 text-center">TAX Rate</div>
               <div className="col-span-1 text-center">Qty</div>
@@ -591,50 +544,43 @@ function CreateInvoiceView({
               <div className="col-span-1 text-right">TAX</div>
               <div className="col-span-1 text-right">Total</div>
             </div>
-            <div className="p-4 space-y-4 divide-y bg-white" style={{ divideColor: '#f1f5f9' }}>
+            <div className="p-4 space-y-4 divide-y divide-slate-100 bg-white">
               {calculations.lines.map((line, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-3 items-start pt-3 first:pt-0">
                   <div className="col-span-5 space-y-2">
-                    <span className="text-xs font-black" style={{ color: '#0f172a' }}>{idx + 1}.</span>
+                    <span className="text-xs font-black text-slate-900">{idx + 1}.</span>
                     <input
                       placeholder="Item Name / Description"
                       value={line.description}
                       onChange={e => updateLine(idx, 'description', e.target.value)}
-                      className="w-full rounded-lg py-2 px-3 text-xs font-semibold focus:outline-none"
-                      style={{ border: '1px solid #e2e8f0', color: '#0f172a', background: '#fff' }}
+                      className="w-full rounded-lg py-2 px-3 text-xs font-semibold focus:outline-none border border-slate-200 text-slate-900 bg-white"
                     />
                   </div>
                   <div className="col-span-2 pt-6">
                     <div className="relative">
                       <input type="number" value={line.tax_rate || ''} onChange={e => updateLine(idx, 'tax_rate', parseFloat(e.target.value) || 0)}
-                        className="w-full rounded-lg py-2 pl-3 pr-6 text-xs text-center font-mono font-bold focus:outline-none"
-                        style={{ border: '1px solid #e2e8f0', color: '#0f172a' }} />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold" style={{ color: '#94a3b8' }}>%</span>
+                        className="w-full rounded-lg py-2 pl-3 pr-6 text-xs text-center font-mono font-bold focus:outline-none border border-slate-200 text-slate-900" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
                     </div>
                   </div>
                   <div className="col-span-1 pt-6">
                     <input type="number" min="1" value={line.quantity} onChange={e => updateLine(idx, 'quantity', parseInt(e.target.value) || 1)}
-                      className="w-full rounded-lg py-2 px-1 text-xs text-center font-mono font-bold focus:outline-none"
-                      style={{ border: '1px solid #e2e8f0', color: '#0f172a' }} />
+                      className="w-full rounded-lg py-2 px-1 text-xs text-center font-mono font-bold focus:outline-none border border-slate-200 text-slate-900" />
                   </div>
                   <div className="col-span-1 pt-6">
                     <input type="number" value={line.unit_price || ''} onChange={e => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                      className="w-full rounded-lg py-2 px-1 text-xs text-center font-mono font-bold focus:outline-none"
-                      style={{ border: '1px solid #e2e8f0', color: '#0f172a' }} />
+                      className="w-full rounded-lg py-2 px-1 text-xs text-center font-mono font-bold focus:outline-none border border-slate-200 text-slate-900" />
                   </div>
-                  <div className="col-span-1 pt-8 text-right font-mono font-semibold text-xs" style={{ color: '#64748b' }}>
+                  <div className="col-span-1 pt-8 text-right font-mono font-semibold text-xs text-slate-500">
                     {line.amount.toFixed(2)}
                   </div>
-                  <div className="col-span-1 pt-8 text-right font-mono font-semibold text-xs" style={{ color: '#94a3b8' }}>
+                  <div className="col-span-1 pt-8 text-right font-mono font-semibold text-xs text-slate-400">
                     {line.taxAmount.toFixed(2)}
                   </div>
-                  <div className="col-span-1 pt-8 text-right font-mono font-black text-xs flex items-center justify-end gap-1" style={{ color: '#0f172a' }}>
+                  <div className="col-span-1 pt-8 text-right font-mono font-black text-xs flex items-center justify-end gap-1 text-slate-900">
                     <span>{line.total.toFixed(2)}</span>
                     {calculations.lines.length > 1 && (
-                      <button onClick={() => removeLine(idx)} className="p-1 rounded-md transition-all ml-1"
-                        style={{ color: '#cbd5e1' }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#ef4444'}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#cbd5e1'}>
+                      <button onClick={() => removeLine(idx)} className="p-1 rounded-md transition-all ml-1 text-slate-300 hover:text-red-500">
                         <X className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -642,9 +588,8 @@ function CreateInvoiceView({
                 </div>
               ))}
             </div>
-            <div className="p-3 border-t flex items-center gap-2" style={{ background: '#f8fafc', borderColor: '#f1f5f9' }}>
-              <button onClick={addLine} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-all"
-                style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#0f172a' }}>
+            <div className="p-3 border-t border-slate-100 flex items-center gap-2 bg-slate-50">
+              <button onClick={addLine} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-all bg-white border border-slate-200 text-slate-900">
                 <Plus className="h-3.5 w-3.5" /> Add New Line
               </button>
             </div>
@@ -653,32 +598,32 @@ function CreateInvoiceView({
           {/* Terms + Totals */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
             <div className="md:col-span-6">
-              <div className="p-4 rounded-xl space-y-2" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <span className="text-xs font-bold underline block border-b pb-1.5" style={{ color: '#0f172a', borderColor: '#e2e8f0' }}>
+              <div className="p-4 rounded-xl space-y-2 bg-slate-50 border border-slate-200">
+                <span className="text-xs font-bold underline block border-b border-slate-200 pb-1.5 text-slate-900">
                   Terms and Conditions
                 </span>
-                <div className="text-xs font-semibold" style={{ color: '#334155' }}>
+                <div className="text-xs font-semibold text-slate-700">
                   <div className="flex items-center p-1 rounded">
-                    <span><span className="font-mono mr-1.5" style={{ color: '#94a3b8' }}>01</span>{terms}</span>
+                    <span><span className="font-mono mr-1.5 text-slate-400">01</span>{terms}</span>
                   </div>
                 </div>
               </div>
             </div>
             <div className="md:col-span-6">
-              <div className="rounded-xl p-4 space-y-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <div className="space-y-1.5 text-xs font-semibold border-b pb-3" style={{ color: '#64748b', borderColor: '#e2e8f0' }}>
+              <div className="rounded-xl p-4 space-y-3 bg-slate-50 border border-slate-200">
+                <div className="space-y-1.5 text-xs font-semibold border-b border-slate-200 pb-3 text-slate-500">
                   <div className="flex justify-between">
                     <span>Amount</span>
-                    <span className="font-mono font-bold" style={{ color: '#0f172a' }}>Ksh {calculations.subtotal.toFixed(2)}</span>
+                    <span className="font-mono font-bold text-slate-900">Ksh {calculations.subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>TAX</span>
-                    <span className="font-mono font-bold" style={{ color: '#0f172a' }}>Ksh {calculations.totalTax.toFixed(2)}</span>
+                    <span className="font-mono font-bold text-slate-900">Ksh {calculations.totalTax.toFixed(2)}</span>
                   </div>
                 </div>
                 <div className="flex justify-between items-center pt-1">
-                  <span className="text-sm font-bold" style={{ color: '#0f172a' }}>Total ({currency})</span>
-                  <span className="font-mono font-black text-lg" style={{ color: '#0f172a' }}>Ksh {calculations.grandTotal.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-slate-900">Total ({currency})</span>
+                  <span className="font-mono font-black text-lg text-slate-900">Ksh {calculations.grandTotal.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -686,10 +631,9 @@ function CreateInvoiceView({
 
           {/* Notes */}
           <div>
-            <label className="text-xs font-bold block mb-1" style={{ color: '#334155' }}>Notes</label>
+            <label className="text-xs font-bold block mb-1 text-slate-700">Notes</label>
             <textarea
-              className="w-full rounded-lg py-2 px-3 text-xs focus:outline-none min-h-[60px]"
-              style={{ border: '1px solid #e2e8f0', color: '#334155', background: '#fff' }}
+              className="w-full rounded-lg py-2 px-3 text-xs focus:outline-none min-h-[60px] border border-slate-200 text-slate-700 bg-white"
               value={notes}
               onChange={e => setNotes(e.target.value)}
               placeholder="Any additional notes for the customer..."
@@ -697,27 +641,25 @@ function CreateInvoiceView({
           </div>
 
           {/* Advanced options */}
-          <div className="rounded-xl p-5 space-y-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-            <h3 className="text-sm font-bold tracking-tight" style={{ color: '#0f172a' }}>Advanced Options</h3>
+          <div className="rounded-xl p-5 space-y-4 bg-slate-50 border border-slate-200">
+            <h3 className="text-sm font-bold tracking-tight text-slate-900">Advanced Options</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div className="space-y-1">
-                <label className="text-xs font-bold block" style={{ color: '#475569' }}>Display unit as</label>
+                <label className="text-xs font-bold block text-slate-600">Display unit as</label>
                 <select value={displayUnitAs} onChange={e => setDisplayUnitAs(e.target.value)}
-                  className="w-full rounded-lg py-1.5 px-3 focus:outline-none"
-                  style={{ border: '1px solid #e2e8f0', background: '#fff', color: '#334155' }}>
+                  className="w-full rounded-lg py-1.5 px-3 focus:outline-none border border-slate-200 bg-white text-slate-700">
                   <option>Merge with quantity</option>
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold block" style={{ color: '#475569' }}>Show tax summary in invoice</label>
+                <label className="text-xs font-bold block text-slate-600">Show tax summary in invoice</label>
                 <select value={showTaxSummary} onChange={e => setShowTaxSummary(e.target.value)}
-                  className="w-full rounded-lg py-1.5 px-3 focus:outline-none"
-                  style={{ border: '1px solid #e2e8f0', background: '#fff', color: '#334155' }}>
+                  className="w-full rounded-lg py-1.5 px-3 focus:outline-none border border-slate-200 bg-white text-slate-700">
                   <option>Do not show</option>
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs font-semibold" style={{ color: '#475569' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs font-semibold text-slate-600">
               {([
                 [hideCountryOfSupply, setHideCountryOfSupply, 'Hide place/country of supply'],
                 [addOriginalImages,   setAddOriginalImages,   'Add original images in line items'],
@@ -728,7 +670,7 @@ function CreateInvoiceView({
                 <label key={label} className="flex items-center gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={val as boolean}
                     onChange={e => (setter as React.Dispatch<React.SetStateAction<boolean>>)(e.target.checked)}
-                    className="rounded h-3.5 w-3.5" style={{ borderColor: '#cbd5e1' }} />
+                    className="rounded h-3.5 w-3.5 border-slate-300" />
                   <span>{label}</span>
                 </label>
               ))}
@@ -736,20 +678,14 @@ function CreateInvoiceView({
           </div>
 
           {/* Footer actions */}
-          <div className="flex flex-wrap items-center justify-start gap-3 pt-4 border-t" style={{ borderColor: '#f1f5f9' }}>
-            <button onClick={handleSubmit}
-              className="px-5 py-2 text-xs font-bold text-white rounded-lg transition-all"
-              style={{ background: '#0f172a' }}>
+          <div className="flex flex-wrap items-center justify-start gap-3 pt-4 border-t border-slate-100">
+            <button onClick={handleSubmit} className="px-5 py-2 text-xs font-bold text-white rounded-lg transition-all bg-slate-900">
               Save & Continue
             </button>
-            <button onClick={handleSubmit}
-              className="px-5 py-2 text-xs font-bold rounded-lg border transition-all"
-              style={{ color: '#0f172a', borderColor: '#0f172a', background: '#fff' }}>
+            <button onClick={handleSubmit} className="px-5 py-2 text-xs font-bold rounded-lg border border-slate-900 transition-all text-slate-900 bg-white">
               Save & Create New
             </button>
-            <button onClick={handleSubmit}
-              className="px-5 py-2 text-xs font-bold rounded-lg border transition-all"
-              style={{ color: '#475569', background: '#f1f5f9', borderColor: '#e2e8f0' }}>
+            <button onClick={handleSubmit} className="px-5 py-2 text-xs font-bold rounded-lg border border-slate-200 transition-all text-slate-600 bg-slate-100">
               Save As Draft
             </button>
           </div>
@@ -831,7 +767,6 @@ export default function InvoicesPage() {
 
   const hasNoInvoices = !isLoading && invoices.length === 0 && !error;
 
-  // Show full-page create view
   if (showCreateView) {
     return (
       <CreateInvoiceView
@@ -853,8 +788,7 @@ export default function InvoicesPage() {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            className="gap-2"
-            style={{ borderColor: 'rgba(30,80,160,0.4)', color: '#3b82f6' }}
+            className="gap-2 border-blue-700/40 text-blue-500"
             onClick={() => setBulkUploadOpen(true)}
           >
             <Upload className="h-4 w-4" /> Upload Invoices
@@ -862,7 +796,6 @@ export default function InvoicesPage() {
           <Button
             variant="primary"
             className="gap-2"
-            style={{ background: '#1a56db' }}
             onClick={() => setShowCreateView(true)}
           >
             <Plus className="h-4 w-4" /> Create Invoice
@@ -882,7 +815,6 @@ export default function InvoicesPage() {
         </div>
       )}
 
-      {/* Empty State */}
       {hasNoInvoices && (
         <EmptyState
           onCreateClick={() => setShowCreateView(true)}
@@ -892,14 +824,13 @@ export default function InvoicesPage() {
 
       {/* Table */}
       {!hasNoInvoices && (
-        <Card style={{ background: 'linear-gradient(145deg, #0d1117 0%, #0f1b2d 100%)', border: '1px solid rgba(30,80,160,0.25)' }}>
+        <Card className="bg-dark-panel border border-blue-700/25">
           <CardHeader className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between py-4">
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 placeholder="Search by invoice number or customer..."
-                className="w-full rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-blue-500 transition-all"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(30,80,160,0.3)', color: '#fff' }}
+                className="w-full rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-blue-500 transition-all bg-white/5 border border-blue-700/30 text-white"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -913,11 +844,10 @@ export default function InvoicesPage() {
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
-                  className="px-3 py-1 rounded-full text-xs font-bold capitalize transition-all"
-                  style={{
-                    background: statusFilter === s ? '#1a56db' : 'rgba(255,255,255,0.06)',
-                    color: statusFilter === s ? '#fff' : '#8ba4c8',
-                  }}
+                  className={cn(
+                    'px-3 py-1 rounded-full text-xs font-bold capitalize transition-all',
+                    statusFilter === s ? 'bg-blue-700 text-white' : 'bg-white/[0.06] text-navy-muted',
+                  )}
                 >
                   {s}
                 </button>
@@ -934,15 +864,14 @@ export default function InvoicesPage() {
               {!isLoading && (
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b" style={{ borderColor: 'rgba(30,80,160,0.2)', background: 'rgba(255,255,255,0.02)' }}>
+                    <tr className="border-b border-blue-700/20 bg-white/[0.02]">
                       {['Invoice #', 'Customer', 'Amount', 'Status', 'Payment', 'Date', 'Due', 'Actions'].map((h, i) => (
                         <th
                           key={h}
                           className={cn(
-                            'px-6 py-3 font-bold text-xs uppercase tracking-wider',
+                            'px-6 py-3 font-bold text-xs uppercase tracking-wider text-navy-muted',
                             i === 2 || i === 5 || i === 6 ? 'text-right' : i >= 3 && i <= 4 ? 'text-center' : i === 7 ? 'text-center' : 'text-left',
                           )}
-                          style={{ color: '#4a7eb5' }}
                         >
                           {h}
                         </th>
@@ -951,18 +880,17 @@ export default function InvoicesPage() {
                   </thead>
                   <tbody>
                     {filtered.map((inv: Invoice) => (
-                      <tr key={inv.id} className="border-b transition-colors hover:bg-white/[0.02]"
-                        style={{ borderColor: 'rgba(30,80,160,0.12)' }}>
+                      <tr key={inv.id} className="border-b border-blue-700/[0.12] transition-colors hover:bg-white/[0.02]">
                         <td className="px-6 py-4 font-mono text-xs font-bold">
                           <div className="flex items-center gap-2">
-                            <FileText className="h-3.5 w-3.5" style={{ color: '#3b82f6' }} />
+                            <FileText className="h-3.5 w-3.5 text-blue-500" />
                             <span className="text-white">{inv.invoice_number}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-xs">
                           <div className="text-white">{inv.metadata?.customer_name || '--'}</div>
                           {inv.metadata?.customer_email && (
-                            <div className="text-[11px]" style={{ color: '#4a7eb5' }}>{inv.metadata.customer_email}</div>
+                            <div className="text-[11px] text-navy-muted">{inv.metadata.customer_email}</div>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-xs text-white">
@@ -974,27 +902,21 @@ export default function InvoicesPage() {
                         <td className="px-6 py-4 text-center">
                           <Badge variant={paymentBadgeVariant(inv.payment_status)}>{inv.payment_status}</Badge>
                         </td>
-                        <td className="px-6 py-4 text-right text-xs" style={{ color: '#4a7eb5' }}>
+                        <td className="px-6 py-4 text-right text-xs text-navy-muted">
                           {new Date(inv.invoice_date).toLocaleDateString()}
                         </td>
-                        <td className="px-6 py-4 text-right text-xs" style={{ color: '#4a7eb5' }}>
+                        <td className="px-6 py-4 text-right text-xs text-navy-muted">
                           {new Date(inv.due_date).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 text-center relative">
                           <div className="flex items-center justify-center gap-2">
-                            <button title="View" className="transition-colors" style={{ color: '#4a7eb5' }}
-                              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#fff'}
-                              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#4a7eb5'}>
+                            <button title="View" className="text-navy-muted hover:text-white transition-colors">
                               <Eye className="h-4 w-4" />
                             </button>
-                            <button title="Edit" className="transition-colors" style={{ color: '#4a7eb5' }}
-                              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#fff'}
-                              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#4a7eb5'}>
+                            <button title="Edit" className="text-navy-muted hover:text-white transition-colors">
                               <Pencil className="h-4 w-4" />
                             </button>
-                            <button title="Copy" className="transition-colors" style={{ color: '#4a7eb5' }}
-                              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#fff'}
-                              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#4a7eb5'}>
+                            <button title="Copy" className="text-navy-muted hover:text-white transition-colors">
                               <Copy className="h-4 w-4" />
                             </button>
                             <button
@@ -1007,14 +929,13 @@ export default function InvoicesPage() {
                           {actionMenuId === inv.id && (
                             <>
                               <div className="fixed inset-0 z-10" onClick={() => setActionMenuId(null)} />
-                              <div className="absolute right-6 top-12 z-20 rounded-lg shadow-lg py-1 min-w-[160px]"
-                                style={{ background: '#0f1b2d', border: '1px solid rgba(30,80,160,0.35)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                              <div className="absolute right-6 top-12 z-20 rounded-lg py-1 min-w-[160px] bg-navy-950 border border-blue-700/35 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
                                 {inv.status === 'draft' && (
                                   <button
                                     className="w-full text-left px-4 py-2 text-xs hover:bg-white/5 flex items-center gap-2 text-white"
                                     onClick={() => { sendMutation.mutate(inv.id); setActionMenuId(null); }}
                                   >
-                                    <Send className="h-3.5 w-3.5" style={{ color: '#3b82f6' }} /> Send Invoice
+                                    <Send className="h-3.5 w-3.5 text-blue-500" /> Send Invoice
                                   </button>
                                 )}
                                 {(inv.payment_status === 'unpaid' || inv.payment_status === 'partial') && inv.status !== 'void' && (
@@ -1027,15 +948,13 @@ export default function InvoicesPage() {
                                 )}
                                 {inv.status !== 'void' && inv.status !== 'paid' && (
                                   <button
-                                    className="w-full text-left px-4 py-2 text-xs hover:bg-white/5 flex items-center gap-2"
-                                    style={{ color: '#f87171' }}
+                                    className="w-full text-left px-4 py-2 text-xs hover:bg-white/5 flex items-center gap-2 text-red-400"
                                     onClick={() => { voidMutation.mutate(inv.id); setActionMenuId(null); }}
                                   >
                                     <Ban className="h-3.5 w-3.5" /> Void Invoice
                                   </button>
                                 )}
-                                <button className="w-full text-left px-4 py-2 text-xs hover:bg-white/5 flex items-center gap-2"
-                                  style={{ color: '#4a7eb5' }}
+                                <button className="w-full text-left px-4 py-2 text-xs hover:bg-white/5 flex items-center gap-2 text-navy-muted"
                                   onClick={() => setActionMenuId(null)}>
                                   <RefreshCw className="h-3.5 w-3.5" /> Convert to Quotation
                                 </button>
@@ -1049,7 +968,7 @@ export default function InvoicesPage() {
                 </table>
               )}
               {!isLoading && filtered.length === 0 && invoices.length > 0 && (
-                <div className="p-12 text-center" style={{ color: '#4a7eb5' }}>No invoices match your filters.</div>
+                <div className="p-12 text-center text-navy-muted">No invoices match your filters.</div>
               )}
             </div>
             {!isLoading && total > 0 && (
@@ -1059,38 +978,35 @@ export default function InvoicesPage() {
         </Card>
       )}
 
-      {/* Bulk Upload Modal */}
       <BulkUploadModal open={bulkUploadOpen} onClose={() => setBulkUploadOpen(false)} />
 
       {/* Record Payment Dialog */}
       {paymentDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,8,0.72)' }}
-          onClick={e => { if (e.target === e.currentTarget) setPaymentDialog(null); }}>
-          <div className="relative w-full max-w-sm rounded-2xl border p-6 space-y-4"
-            style={{ background: 'linear-gradient(145deg, #0d1117 0%, #0f1b2d 100%)', borderColor: 'rgba(30,80,160,0.35)' }}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75"
+          onClick={e => { if (e.target === e.currentTarget) setPaymentDialog(null); }}
+        >
+          <div className="relative w-full max-w-sm rounded-2xl border border-blue-700/35 p-6 space-y-4 bg-dark-panel">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-white">Record Payment</h2>
               <button onClick={() => setPaymentDialog(null)}>
                 <X className="h-4 w-4 text-white/50" />
               </button>
             </div>
-            <p className="text-xs" style={{ color: '#8ba4c8' }}>Invoice: {paymentDialog.invoiceNumber}</p>
+            <p className="text-xs text-navy-muted">Invoice: {paymentDialog.invoiceNumber}</p>
             <div>
-              <label className="text-xs font-bold block mb-1 text-white">Amount<span style={{ color: '#ef4444' }}>*</span></label>
+              <label className="text-xs font-bold block mb-1 text-white">Amount<span className="text-red-500">*</span></label>
               <input type="number" min={0} step="0.01"
-                className="w-full rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-blue-500"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(30,80,160,0.3)', color: '#fff' }}
+                className="w-full rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-blue-500 bg-white/5 border border-blue-700/30 text-white"
                 value={paymentAmount}
                 onChange={e => setPaymentAmount(e.target.value)}
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setPaymentDialog(null)}
-                className="px-4 py-2 rounded-lg text-xs font-medium hover:bg-white/5 transition-colors"
-                style={{ color: '#8ba4c8' }}>Cancel</button>
+                className="px-4 py-2 rounded-lg text-xs font-medium hover:bg-white/5 transition-colors text-navy-muted">Cancel</button>
               <button onClick={handleRecordPayment} disabled={paymentMutation.isPending || !paymentAmount}
-                className="px-5 py-2 rounded-lg text-xs font-bold text-white transition-all"
-                style={{ background: '#1a56db' }}>
+                className="px-5 py-2 rounded-lg text-xs font-bold text-white transition-all bg-blue-700">
                 {paymentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin inline mr-1" /> : null}
                 Record Payment
               </button>

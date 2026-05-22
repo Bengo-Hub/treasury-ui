@@ -385,11 +385,11 @@ function ManageClients({ onAddClient, addClientDropOpen, setAddClientDropOpen, a
         </div>
         <div className="relative flex items-center shadow-md">
           <button onClick={onAddClient}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#e11d48] hover:bg-[#be123c] rounded-l-lg transition-all">
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-l-lg transition-all">
             <Plus className="h-3.5 w-3.5" /> Add Client
           </button>
           <button onClick={() => setAddClientDropOpen(!addClientDropOpen)}
-            className="flex items-center px-2 py-2 text-white bg-[#e11d48] border-l border-rose-500 rounded-r-lg hover:bg-[#be123c] transition-all">
+            className="flex items-center px-2 py-2 text-white bg-rose-600 border-l border-rose-500 rounded-r-lg hover:bg-rose-700 transition-all">
             <ChevronDown className="h-3.5 w-3.5 text-slate-200" />
           </button>
           {addClientDropOpen && <DropdownMenu items={addClientDropItems} onClose={() => setAddClientDropOpen(false)} />}
@@ -499,7 +499,7 @@ function ManageClients({ onAddClient, addClientDropOpen, setAddClientDropOpen, a
                   <tr key={client.id} className="hover:bg-slate-50/40 transition-colors group">
                     <td className="p-3 pl-4 text-slate-400 text-[11px] font-mono">{idx + 1}</td>
                     <td className="p-3 text-center">
-                      <div className="h-8 w-8 bg-[#1e293b] text-white font-black text-sm rounded-lg flex items-center justify-center shadow-sm mx-auto">
+                      <div className="h-8 w-8 bg-navy-800 text-white font-black text-sm rounded-lg flex items-center justify-center shadow-sm mx-auto">
                         {client.name.charAt(0)}
                       </div>
                     </td>
@@ -719,7 +719,7 @@ export default function QuotationsPage() {
   if (createOpen) {
     return (
       <div className="min-h-screen bg-slate-50/60 pb-24 font-sans antialiased text-slate-800">
-        <div className="sticky top-0 z-50 bg-[#0f172a] border-b border-slate-800 px-6 py-4 flex items-center justify-between shadow-xl">
+        <div className="sticky top-0 z-50 bg-navy-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between shadow-xl">
           <div className="flex items-center gap-4">
             <button onClick={() => setCreateOpen(false)} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all">
               <ArrowLeft className="h-4 w-4" />
@@ -736,7 +736,7 @@ export default function QuotationsPage() {
               Save As Draft
             </button>
             <button onClick={handleCreate} disabled={createMutation.isPending || !newQuote.customer_name.trim()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#0f172a] hover:bg-[#1e293b] rounded-lg transition-all shadow-md disabled:opacity-50">
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-navy-900 hover:bg-navy-800 rounded-lg transition-all shadow-md disabled:opacity-50">
               {createMutation.isPending ? 'Processing...' : 'Save & Continue'}
             </button>
           </div>
@@ -796,7 +796,7 @@ export default function QuotationsPage() {
                   </select>
                   <div className="text-center p-4 border border-dashed border-slate-200 rounded-lg bg-white shadow-inner">
                     <p className="text-xs text-slate-400 font-medium mb-2.5">Select Client/Business from the list<br/>OR</p>
-                    <button className="inline-flex items-center gap-1 px-4 py-2 bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+                    <button className="inline-flex items-center gap-1 px-4 py-2 bg-navy-900 hover:bg-navy-800 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
                       <UserPlus className="h-3.5 w-3.5" /> Add New Client
                     </button>
                   </div>
@@ -822,7 +822,7 @@ export default function QuotationsPage() {
             </div>
 
             <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-              <div className="bg-[#0f172a] px-4 py-2.5 text-xs font-bold text-white grid grid-cols-12 gap-3 items-center">
+              <div className="bg-navy-900 px-4 py-2.5 text-xs font-bold text-white grid grid-cols-12 gap-3 items-center">
                 <div className="col-span-5">Item</div>
                 <div className="col-span-2 text-center">TAX Rate</div>
                 <div className="col-span-1 text-center">Quantity</div>
@@ -868,7 +868,7 @@ export default function QuotationsPage() {
                 ))}
               </div>
               <div className="p-3 bg-slate-50/80 border-t border-slate-100 flex items-center gap-2">
-                <button onClick={addLine} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 hover:bg-slate-100 text-[#0f172a] rounded-lg shadow-sm transition-all">
+                <button onClick={addLine} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 hover:bg-slate-100 text-navy-900 rounded-lg shadow-sm transition-all">
                   <Plus className="h-3.5 w-3.5" /> Add New Line
                 </button>
               </div>
@@ -943,8 +943,8 @@ export default function QuotationsPage() {
             </Card>
 
             <div className="flex flex-wrap items-center justify-start gap-3 pt-4 border-t border-slate-100">
-              <button onClick={handleCreate} className="px-5 py-2 text-xs font-bold text-white bg-[#0f172a] hover:bg-[#1e293b] rounded-lg transition-all">Save & Continue</button>
-              <button onClick={handleCreate} className="px-5 py-2 text-xs font-bold text-[#0f172a] bg-white border border-[#0f172a] hover:bg-slate-50 rounded-lg transition-all">Save & Create New</button>
+              <button onClick={handleCreate} className="px-5 py-2 text-xs font-bold text-white bg-navy-900 hover:bg-navy-800 rounded-lg transition-all">Save & Continue</button>
+              <button onClick={handleCreate} className="px-5 py-2 text-xs font-bold text-navy-900 bg-white border border-navy-900 hover:bg-slate-50 rounded-lg transition-all">Save & Create New</button>
               <button onClick={handleCreate} className="px-5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-lg border border-slate-200 transition-all">Save As Draft</button>
             </div>
           </Card>
@@ -955,7 +955,7 @@ export default function QuotationsPage() {
 
   // ── Main Layout ─────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto font-sans antialiased text-slate-800 bg-[#fbf9f6]/40 min-h-screen">
+    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto font-sans antialiased text-slate-800 bg-background/40 min-h-screen">
 
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-wide">
@@ -987,11 +987,11 @@ export default function QuotationsPage() {
               </div>
               <div className="relative flex items-center shadow-md">
                 <button onClick={() => setCreateOpen(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#0f172a] hover:bg-[#1e293b] rounded-l-lg transition-all">
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-navy-900 hover:bg-navy-800 rounded-l-lg transition-all">
                   <Plus className="h-3.5 w-3.5" /> Create New Quotation
                 </button>
                 <button onClick={() => { setCreateDropOpen(o => !o); setDownloadDropOpen(false); }}
-                  className="flex items-center px-2 py-2 text-white bg-[#0f172a] border-l border-slate-800 rounded-r-lg hover:bg-[#1e293b] transition-all">
+                  className="flex items-center px-2 py-2 text-white bg-navy-900 border-l border-slate-800 rounded-r-lg hover:bg-navy-800 transition-all">
                   <ChevronDown className="h-3.5 w-3.5 text-slate-200" />
                 </button>
                 {createDropOpen && <DropdownMenu items={createDropItems} onClose={() => setCreateDropOpen(false)} />}
@@ -1145,7 +1145,7 @@ export default function QuotationsPage() {
                                     <button onClick={() => { setViewQuotation(quote); setActionMenuId(null); }} className="w-full text-left px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 text-slate-700 rounded-lg flex items-center gap-2">
                                       <Eye className="h-3.5 w-3.5 text-slate-400" /> Preview File Map
                                     </button>
-                                    <button onClick={() => setActionMenuId(null)} className="w-full text-left px-3 py-1.5 text-xs font-bold text-[#0f172a] hover:bg-slate-50 rounded-lg flex items-center gap-2">
+                                    <button onClick={() => setActionMenuId(null)} className="w-full text-left px-3 py-1.5 text-xs font-bold text-navy-900 hover:bg-slate-50 rounded-lg flex items-center gap-2">
                                       <RefreshCw className="h-3.5 w-3.5 text-slate-500" /> Convert to Invoice
                                     </button>
                                   </div>
