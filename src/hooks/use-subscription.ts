@@ -18,6 +18,8 @@ export function useSubscription() {
   const tenantId = (user as any)?.tenantId ?? (user as any)?.tenant_id ?? null;
   const tenantSlug = (user as any)?.tenantSlug ?? (user as any)?.tenant_slug ?? null;
   const isPlatformOwner = !!(user as any)?.isPlatformOwner || !!(user as any)?.is_platform_owner || tenantSlug === "codevertex";
+  const isServiceCharge = (user as any)?.billing_mode === "service_charge";
+  const isDemo = !!(user as any)?.is_demo || tenantSlug === "codevertex-demo";
 
   // Hydrate store from IDB on auth
   useEffect(() => {
@@ -91,12 +93,14 @@ export function useSubscription() {
     info,
     status: subStatus,
     plan: info?.planCode ?? null,
-    isActive: subStatus === "active" || subStatus === "trial",
+    isActive: subStatus === "active" || subStatus === "trial" || isServiceCharge || isDemo,
     isPastDue: subStatus === "past_due" || subStatus === "suspended",
     isExpired: subStatus === "expired" || subStatus === "cancelled",
-    needsSubscription: subStatus === "none",
+    needsSubscription: subStatus === "none" && !isServiceCharge && !isDemo,
     isLoading: subscriptionInfo === null || subscriptionInfo === undefined,
     isPlatformOwner,
+    isServiceCharge,
+    isDemo,
     hasFeature: (code: string) => info?.features?.includes(code) ?? false,
     getLimit: (key: string) => info?.limits?.[key] ?? Infinity,
     store: subStore,
