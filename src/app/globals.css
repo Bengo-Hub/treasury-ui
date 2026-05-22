@@ -30,14 +30,6 @@
   --color-brand-surface: rgb(var(--brand-surface));
   --color-brand-dark: rgb(var(--brand-dark));
 
-  /* Dark-panel palette (quotations / invoices navy UI) */
-  --color-navy-950: rgb(var(--navy-950));
-  --color-navy-900: rgb(var(--navy-900));
-  --color-navy-800: rgb(var(--navy-800));
-  --color-navy-accent: rgb(var(--navy-accent));
-  --color-navy-muted: rgb(var(--navy-muted));
-  --color-navy-subtle: rgb(var(--navy-subtle));
-
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
@@ -54,14 +46,6 @@
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
   }
-}
-
-@utility bg-dark-panel {
-  background: linear-gradient(145deg, #0d1117 0%, #0f1b2d 100%);
-}
-
-@utility bg-dark-panel-video {
-  background: linear-gradient(135deg, #0a1628 0%, #1a3a6e 100%);
 }
 
 @utility magical-card {
@@ -121,13 +105,6 @@
   --brand-muted: 249 237 229;
   --brand-surface: 244 230 220;
   --brand-dark: 67 23 13;
-  /* Dark-panel palette tokens */
-  --navy-950: 13 17 23;        /* #0d1117 */
-  --navy-900: 15 23 42;        /* #0f172a */
-  --navy-800: 30 41 59;        /* #1e293b */
-  --navy-accent: 30 58 95;     /* #1e3a5f */
-  --navy-muted: 139 164 200;   /* #8ba4c8 */
-  --navy-subtle: 74 96 128;    /* #4a6080 */
 }
 
 * {

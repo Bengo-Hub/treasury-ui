@@ -14,8 +14,16 @@ import {
   voidInvoice,
   acceptQuotation,
   declineQuotation,
+  updateQuotation,
+  deleteQuotation,
+  duplicateQuotation,
+  cancelQuotation,
+  getQuotationStats,
+  getQuotationSummary,
+  getQuotationGraph,
   type CreateInvoiceRequest,
   type CreateQuotationRequest,
+  type UpdateQuotationRequest,
   type InvoiceFilters,
   type QuotationFilters,
 } from '@/lib/api/invoices';
@@ -153,5 +161,74 @@ export function useDeclineQuotation(tenant: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
     },
+  });
+}
+
+export function useUpdateQuotation(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ quotationId, body }: { quotationId: string; body: UpdateQuotationRequest }) =>
+      updateQuotation(tenant, quotationId, body),
+    onSuccess: (_data, { quotationId }) => {
+      queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: quotationKeys.detail(tenant, quotationId) });
+    },
+  });
+}
+
+export function useDeleteQuotation(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (quotationId: string) => deleteQuotation(tenant, quotationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
+    },
+  });
+}
+
+export function useDuplicateQuotation(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (quotationId: string) => duplicateQuotation(tenant, quotationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
+    },
+  });
+}
+
+export function useCancelQuotation(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (quotationId: string) => cancelQuotation(tenant, quotationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
+    },
+  });
+}
+
+export function useQuotationStats(tenant: string, enabled = true) {
+  return useQuery({
+    queryKey: ['quotations', tenant, 'stats'],
+    queryFn: () => getQuotationStats(tenant),
+    enabled: !!tenant && enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useQuotationSummary(tenant: string, enabled = true) {
+  return useQuery({
+    queryKey: ['quotations', tenant, 'summary'],
+    queryFn: () => getQuotationSummary(tenant),
+    enabled: !!tenant && enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useQuotationGraph(tenant: string, enabled = true) {
+  return useQuery({
+    queryKey: ['quotations', tenant, 'graph'],
+    queryFn: () => getQuotationGraph(tenant),
+    enabled: !!tenant && enabled,
+    staleTime: 5 * 60 * 1000,
   });
 }
