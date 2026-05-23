@@ -6,6 +6,7 @@ import {
   useAcceptQuotation,
   useCancelQuotation,
   useConvertToProforma,
+  useConvertToSalesOrder,
   useDeclineQuotation,
   useDeleteQuotation,
   useDuplicateQuotation,
@@ -66,13 +67,14 @@ export function QuotationList({
   const params            = useParams<{ orgSlug: string }>();
   const orgSlug           = params?.orgSlug ?? effectiveTenant;
 
-  const sendMutation           = useSendQuotation(effectiveTenant);
-  const acceptMutation         = useAcceptQuotation(effectiveTenant);
-  const declineMutation        = useDeclineQuotation(effectiveTenant);
-  const deleteMutation         = useDeleteQuotation(effectiveTenant);
-  const duplicateMutation      = useDuplicateQuotation(effectiveTenant);
-  const cancelMutation         = useCancelQuotation(effectiveTenant);
-  const convertProformaMutation = useConvertToProforma(effectiveTenant);
+  const sendMutation             = useSendQuotation(effectiveTenant);
+  const acceptMutation           = useAcceptQuotation(effectiveTenant);
+  const declineMutation          = useDeclineQuotation(effectiveTenant);
+  const deleteMutation           = useDeleteQuotation(effectiveTenant);
+  const duplicateMutation        = useDuplicateQuotation(effectiveTenant);
+  const cancelMutation           = useCancelQuotation(effectiveTenant);
+  const convertProformaMutation  = useConvertToProforma(effectiveTenant);
+  const convertSalesOrderMutation = useConvertToSalesOrder(effectiveTenant);
 
   const [actionMenuId,      setActionMenuId]      = useState<string | null>(null);
   const [quotationTypeOpen, setQuotationTypeOpen] = useState(false);
@@ -270,9 +272,10 @@ export function QuotationList({
                                     ...(quote.converted_invoice_id
                                       ? [{ label: 'View Invoice', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: () => router.push(`/${orgSlug}/invoices?id=${quote.converted_invoice_id}`) }]
                                       : []),
-                                    { label: 'Convert to Invoice',  icon: <RefreshCw className="h-3.5 w-3.5" />,    onClick: () => acceptMutation.mutate(quote.id) },
-                                    { label: 'Convert to Proforma', icon: <RefreshCw className="h-3.5 w-3.5" />,    onClick: () => convertProformaMutation.mutate(quote.id) },
-                                    { label: 'Decline',             icon: <X className="h-3.5 w-3.5" />,            onClick: () => declineMutation.mutate(quote.id) },
+                                    { label: 'Convert to Invoice',     icon: <RefreshCw className="h-3.5 w-3.5" />, onClick: () => acceptMutation.mutate(quote.id) },
+                                    { label: 'Convert to Proforma',    icon: <RefreshCw className="h-3.5 w-3.5" />, onClick: () => convertProformaMutation.mutate(quote.id) },
+                                    { label: 'Convert to Sales Order', icon: <RefreshCw className="h-3.5 w-3.5" />, onClick: () => convertSalesOrderMutation.mutate(quote.id) },
+                                    { label: 'Decline',                icon: <X className="h-3.5 w-3.5" />,         onClick: () => declineMutation.mutate(quote.id) },
                                     { label: 'Cancel',              icon: <X className="h-3.5 w-3.5" />,            onClick: () => cancelMutation.mutate(quote.id) },
                                     { label: 'Delete',              icon: <Trash2 className="h-3.5 w-3.5" />,       onClick: () => deleteMutation.mutate(quote.id), className: 'text-destructive' },
                                   ].map((item) => (

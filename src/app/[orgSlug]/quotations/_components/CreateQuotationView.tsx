@@ -54,7 +54,6 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
     lines: [emptyLine()] as ExtendedLineRequest[],
   });
 
-  // Pre-populate form when editing an existing quotation
   useEffect(() => {
     if (isEdit && existingQuote && !initialized) {
       setQuoteNumber(existingQuote.quote_number);
@@ -168,90 +167,92 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
 
   if (isEdit && quoteLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  const orgName    = brand?.orgName ?? brand?.name ?? effectiveTenant;
-  const logoUrl    = brand?.logoUrl ?? null;
+  const orgName = brand?.orgName ?? brand?.name ?? effectiveTenant;
+  const logoUrl = brand?.logoUrl ?? null;
+  const inputCls = 'w-full bg-background border border-input rounded-lg py-2 px-3 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-ring';
 
   return (
-    <div className="min-h-screen bg-slate-50/60 pb-24 font-sans antialiased text-slate-800">
+    <div className="min-h-screen bg-background pb-24 font-sans antialiased">
       {/* Sticky header */}
-      <div className="sticky top-0 z-50 bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between shadow-xl">
+      <div className="sticky top-0 z-50 bg-card border-b border-border px-6 py-4 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-4">
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all">
+          <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl transition-all">
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <div className="h-6 w-px bg-slate-800" />
+          <div className="h-6 w-px bg-border" />
           <div>
-            <h1 className="text-base font-black text-white tracking-tight">
+            <h1 className="text-base font-black text-foreground tracking-tight">
               {isEdit ? 'Edit Quotation' : 'Create New Quotation'}
             </h1>
-            <p className="text-[11px] text-slate-400 font-medium">Step 1 of 2 — Quotation Details</p>
+            <p className="text-[11px] text-muted-foreground font-medium">Step 1 of 2 — Quotation Details</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={handleSave} disabled={isPending}
-            className="px-4 py-2 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 hover:text-white transition-all shadow-sm">
+            className="px-4 py-2 text-xs font-bold text-muted-foreground bg-muted border border-border rounded-lg hover:bg-accent hover:text-foreground transition-all shadow-sm">
             Save As Draft
           </button>
           <button onClick={handleSave} disabled={isPending || !newQuote.customer_name.trim()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-brand-emphasis hover:bg-brand-dark rounded-lg transition-all shadow-md disabled:opacity-50">
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg transition-all shadow-md disabled:opacity-50">
+            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
             {isPending ? 'Saving...' : 'Save & Continue'}
           </button>
         </div>
       </div>
 
       <div className="max-w-5xl mx-auto px-4 mt-8 space-y-6">
-        <Card className="border border-slate-200/80 bg-white rounded-xl shadow-md p-6 space-y-8">
+        <Card className="border border-border bg-card rounded-xl shadow-md p-6 space-y-8">
 
           {/* Quotation header — number + dates + logo */}
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 pb-6 border-b border-slate-100">
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 pb-6 border-b border-border">
             <div className="space-y-4 w-full max-w-sm">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Quotation No<span className="text-red-500">*</span></label>
-                <input className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                <label className="text-xs font-bold text-foreground block mb-1">Quotation No<span className="text-destructive">*</span></label>
+                <input className={inputCls}
                   value={quoteNumber} onChange={e => setQuoteNumber(e.target.value)}
                   placeholder={isEdit ? existingQuote?.quote_number ?? '' : 'Auto-generated'} />
                 {!isEdit && (
-                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Will be auto-assigned on save</p>
+                  <p className="text-[11px] text-muted-foreground mt-1 font-medium">Will be auto-assigned on save</p>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Quotation Date<span className="text-red-500">*</span></label>
-                  <input type="date" className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-slate-900"
+                  <label className="text-xs font-bold text-foreground block mb-1">Quotation Date<span className="text-destructive">*</span></label>
+                  <input type="date" className={inputCls}
                     value={newQuote.quote_date} onChange={e => setNewQuote(p => ({ ...p, quote_date: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Valid Till Date<span className="text-red-500">*</span></label>
-                  <input type="date" className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-slate-900"
+                  <label className="text-xs font-bold text-foreground block mb-1">Valid Till Date<span className="text-destructive">*</span></label>
+                  <input type="date" className={inputCls}
                     value={newQuote.valid_until} onChange={e => setNewQuote(p => ({ ...p, valid_until: e.target.value }))} />
                 </div>
               </div>
             </div>
 
-            {/* Logo — show actual logo if available */}
-            <div className="border border-dashed border-slate-200 bg-slate-50/50 rounded-xl p-3 flex flex-col items-center justify-center text-center w-64 h-36 shrink-0 hover:bg-slate-50 shadow-sm cursor-pointer overflow-hidden">
+            {/* Logo */}
+            <div className="border-2 border-dashed border-border bg-accent/20 rounded-xl p-3 flex flex-col items-center justify-center text-center w-64 h-36 shrink-0 hover:bg-accent/30 shadow-sm cursor-pointer overflow-hidden transition-all">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoUrl} alt={orgName} className="max-h-24 max-w-full object-contain" />
               ) : brandLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-slate-300" />
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               ) : (
                 <>
-                  <div className="text-sm font-black text-slate-800 tracking-tight">{orgName || 'Company Logo'}</div>
-                  <div className="text-[10px] text-slate-400 mt-3 font-semibold">Click to upload logo</div>
+                  <div className="text-sm font-black text-foreground tracking-tight">{orgName || 'Company Logo'}</div>
+                  <div className="text-[10px] text-muted-foreground mt-3 font-semibold">Click to upload logo</div>
                 </>
               )}
               {logoUrl && (
-                <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-3 font-semibold">
-                  <span className="text-slate-500 hover:text-slate-800 hover:underline">✕ Remove</span>
-                  <span className="text-slate-300">|</span>
-                  <span className="text-slate-600 hover:text-slate-900 hover:underline">✎ Change</span>
+                <div className="text-[10px] text-muted-foreground mt-2 flex items-center gap-3 font-semibold">
+                  <span className="hover:text-foreground hover:underline cursor-pointer">✕ Remove</span>
+                  <span className="opacity-40">|</span>
+                  <span className="hover:text-foreground hover:underline cursor-pointer">✎ Change</span>
                 </div>
               )}
             </div>
@@ -260,50 +261,50 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
           {/* Quotation From / Quotation For */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* FROM — populated from tenant branding */}
-            <div className="p-5 rounded-xl bg-slate-50/50 border border-slate-200/60 space-y-3">
-              <span className="text-xs font-bold text-slate-900 border-b-2 border-slate-900 pb-0.5 block w-fit">Quotation From</span>
+            <div className="p-5 rounded-xl bg-accent/20 border border-border space-y-3">
+              <span className="text-xs font-bold text-foreground border-b-2 border-foreground pb-0.5 block w-fit">Quotation From</span>
               {brandLoading ? (
-                <div className="flex items-center gap-2 text-xs text-slate-400 font-medium py-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium py-2">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading organisation details…
                 </div>
               ) : (
-                <div className="text-xs space-y-1.5 text-slate-600 leading-relaxed">
-                  <div className="font-black text-slate-900 text-sm">{orgName}</div>
+                <div className="text-xs space-y-1.5 text-muted-foreground leading-relaxed">
+                  <div className="font-black text-foreground text-sm">{orgName}</div>
                   {brand?.logoUrl && (
                     <div className="flex justify-between font-medium">
-                      <span className="text-slate-400">Logo</span>
-                      <span className="text-violet-600 text-xs cursor-pointer hover:underline">View</span>
+                      <span className="text-muted-foreground">Logo</span>
+                      <span className="text-primary text-xs cursor-pointer hover:underline">View</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-medium pt-1 border-t border-slate-100">
-                    <span className="text-slate-400">Slug</span>
-                    <span className="text-slate-700 font-mono">{effectiveTenant}</span>
+                  <div className="flex justify-between font-medium pt-1 border-t border-border">
+                    <span className="text-muted-foreground">Slug</span>
+                    <span className="text-foreground font-mono">{effectiveTenant}</span>
                   </div>
                   {brand?.primaryColor && (
                     <div className="flex justify-between font-medium items-center">
-                      <span className="text-slate-400">Brand Colour</span>
+                      <span className="text-muted-foreground">Brand Colour</span>
                       <span className="inline-flex items-center gap-1.5">
-                        <span className="w-3 h-3 rounded-full border border-slate-200" style={{ backgroundColor: brand.primaryColor }} />
-                        <span className="font-mono text-slate-700">{brand.primaryColor}</span>
+                        <span className="w-3 h-3 rounded-full border border-border" style={{ backgroundColor: brand.primaryColor }} />
+                        <span className="font-mono text-foreground">{brand.primaryColor}</span>
                       </span>
                     </div>
                   )}
-                  <p className="text-[10px] text-slate-400 pt-1 font-medium">
-                    Edit business details at <span className="font-bold text-slate-500">Settings → Branding</span>
+                  <p className="text-[10px] text-muted-foreground pt-1 font-medium">
+                    Edit business details at <span className="font-bold text-foreground">Settings → Branding</span>
                   </p>
                 </div>
               )}
             </div>
 
             {/* FOR — CRM contact combobox */}
-            <div className="p-5 rounded-xl bg-slate-50/50 border border-slate-200/60 flex flex-col justify-between space-y-3">
-              <span className="text-xs font-bold text-slate-900 border-b-2 border-slate-900 pb-0.5 block w-fit">Quotation For</span>
+            <div className="p-5 rounded-xl bg-accent/20 border border-border flex flex-col justify-between space-y-3">
+              <span className="text-xs font-bold text-foreground border-b-2 border-foreground pb-0.5 block w-fit">Quotation For</span>
               <div className="space-y-3 my-auto py-2">
                 {/* CRM search combobox */}
                 <div className="space-y-1 relative">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Customer Name</label>
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Customer Name</label>
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                     <input
                       ref={clientInputRef}
                       placeholder="Search CRM contacts…"
@@ -317,20 +318,20 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
                       }}
                       onFocus={() => { if ((clientSearch || newQuote.customer_name).length >= 2) setShowSuggestions(true); }}
                       onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                      className="w-full bg-white border border-slate-200 rounded-lg py-2 pl-8 pr-3 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-900 shadow-sm"
+                      className="w-full bg-background border border-input rounded-lg py-2 pl-8 pr-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring shadow-sm"
                     />
                   </div>
                   {showSuggestions && crmContacts.length > 0 && (
-                    <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                    <div className="absolute z-50 left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl max-h-48 overflow-y-auto">
                       {crmContacts.map(c => (
                         <button
                           key={c.id}
                           type="button"
                           onMouseDown={() => selectCRMContact(c)}
-                          className="w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors flex flex-col gap-0.5"
+                          className="w-full text-left px-3 py-2 hover:bg-accent transition-colors flex flex-col gap-0.5"
                         >
-                          <span className="text-xs font-bold text-slate-900">{crmContactDisplayName(c)}</span>
-                          {c.email && <span className="text-[10px] text-slate-400 font-mono">{c.email}</span>}
+                          <span className="text-xs font-bold text-foreground">{crmContactDisplayName(c)}</span>
+                          {c.email && <span className="text-[10px] text-muted-foreground font-mono">{c.email}</span>}
                         </button>
                       ))}
                     </div>
@@ -343,13 +344,13 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Customer Email</label>
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Customer Email</label>
                   <input type="email" placeholder="customer@email.com" value={newQuote.customer_email}
                     onChange={e => setNewQuote(p => ({ ...p, customer_email: e.target.value }))}
-                    className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-xs font-mono text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-900 shadow-sm" />
+                    className="w-full bg-background border border-input rounded-lg py-2 px-3 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-ring shadow-sm" />
                 </div>
                 <div className="text-center pt-1">
-                  <button className="inline-flex items-center gap-1 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-all shadow-sm">
+                  <button className="inline-flex items-center gap-1 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-lg transition-all shadow-sm">
                     <UserPlus className="h-3.5 w-3.5" /> Add New Client
                   </button>
                 </div>
@@ -358,27 +359,30 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
           </div>
 
           {/* Tax / Currency toolbar */}
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-            <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-xs font-bold text-slate-700 transition-all flex items-center gap-1">
-              <Percent className="h-3 w-3 text-slate-500" /> Configure TAX
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
+            <button className="px-3 py-1.5 bg-muted hover:bg-accent rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground transition-all flex items-center gap-1">
+              <Percent className="h-3 w-3" /> Configure TAX
             </button>
             <select value={newQuote.currency} onChange={e => setNewQuote(p => ({ ...p, currency: e.target.value }))}
-              className="bg-slate-100 hover:bg-slate-200/80 border border-transparent rounded-lg py-1.5 px-3 text-xs font-bold text-slate-700 focus:outline-none transition-all">
+              className="bg-muted hover:bg-accent border border-transparent rounded-lg py-1.5 px-3 text-xs font-bold text-foreground focus:outline-none transition-all">
               <option value="KES">Kenyan Shilling (KES, Ksh)</option>
               <option value="USD">US Dollar (USD, $)</option>
               <option value="EUR">Euro (EUR, €)</option>
+              <option value="GBP">British Pound (GBP, £)</option>
+              <option value="UGX">Ugandan Shilling (UGX)</option>
+              <option value="TZS">Tanzanian Shilling (TZS)</option>
             </select>
-            <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-xs font-bold text-slate-700 transition-all flex items-center gap-1">
-              <Scale className="h-3 w-3 text-slate-500" /> Number and Currency Format
+            <button className="px-3 py-1.5 bg-muted hover:bg-accent rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground transition-all flex items-center gap-1">
+              <Scale className="h-3 w-3" /> Number and Currency Format
             </button>
-            <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-xs font-bold text-slate-700 transition-all flex items-center gap-1">
-              <Columns className="h-3 w-3 text-slate-500" /> Edit Columns/Formulas
+            <button className="px-3 py-1.5 bg-muted hover:bg-accent rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground transition-all flex items-center gap-1">
+              <Columns className="h-3 w-3" /> Edit Columns/Formulas
             </button>
           </div>
 
           {/* Line items table */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="bg-slate-900 px-4 py-2.5 text-xs font-bold text-white grid grid-cols-12 gap-3 items-center">
+          <div className="border border-border rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground grid grid-cols-12 gap-3 items-center">
               <div className="col-span-5">Item</div>
               <div className="col-span-2 text-center">TAX Rate</div>
               <div className="col-span-1 text-center">Qty</div>
@@ -387,39 +391,39 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
               <div className="col-span-1 text-right">TAX</div>
               <div className="col-span-1 text-right">Total</div>
             </div>
-            <div className="p-4 space-y-4 divide-y divide-slate-100 bg-white">
+            <div className="p-4 space-y-4 divide-y divide-border bg-background">
               {calculations.lines.map((line, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-3 items-start pt-3 first:pt-0">
                   <div className="col-span-5 space-y-2">
-                    <span className="text-xs font-black text-slate-900 block">{idx + 1}.</span>
+                    <span className="text-xs font-black text-foreground block">{idx + 1}.</span>
                     <input placeholder="Item Name / SKU Id" value={line.description}
                       onChange={e => updateLine(idx, 'description', e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-xs text-slate-900 font-semibold focus:outline-none focus:border-slate-400 shadow-sm" />
+                      className="w-full bg-background border border-input rounded-lg py-2 px-3 text-xs text-foreground font-semibold focus:outline-none focus:border-ring shadow-sm" />
                   </div>
                   <div className="col-span-2 pt-6">
                     <div className="relative rounded-lg">
                       <input type="number" value={line.tax_rate || ''}
                         onChange={e => updateLine(idx, 'tax_rate', parseFloat(e.target.value) || 0)}
-                        className="w-full bg-white border border-slate-200 rounded-lg py-2 pl-3 pr-6 text-xs text-center font-mono font-bold text-slate-800 focus:outline-none" />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">%</span>
+                        className="w-full bg-background border border-input rounded-lg py-2 pl-3 pr-6 text-xs text-center font-mono font-bold text-foreground focus:outline-none" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">%</span>
                     </div>
                   </div>
                   <div className="col-span-1 pt-6">
                     <input type="number" min="1" value={line.quantity}
                       onChange={e => updateLine(idx, 'quantity', parseInt(e.target.value) || 1)}
-                      className="w-full bg-white border border-slate-200 rounded-lg py-2 px-1 text-xs text-center font-mono font-bold text-slate-900 focus:outline-none" />
+                      className="w-full bg-background border border-input rounded-lg py-2 px-1 text-xs text-center font-mono font-bold text-foreground focus:outline-none" />
                   </div>
                   <div className="col-span-1 pt-6">
                     <input type="number" value={line.unit_price || ''}
                       onChange={e => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-white border border-slate-200 rounded-lg py-2 px-1 text-xs text-center font-mono font-bold text-slate-900 focus:outline-none" />
+                      className="w-full bg-background border border-input rounded-lg py-2 px-1 text-xs text-center font-mono font-bold text-foreground focus:outline-none" />
                   </div>
-                  <div className="col-span-1 pt-8 text-right font-mono font-semibold text-xs text-slate-600">{line.amount.toFixed(2)}</div>
-                  <div className="col-span-1 pt-8 text-right font-mono font-semibold text-xs text-slate-500">{line.taxAmount.toFixed(2)}</div>
-                  <div className="col-span-1 pt-8 text-right font-mono font-black text-xs text-slate-900 flex items-center justify-end gap-1">
+                  <div className="col-span-1 pt-8 text-right font-mono font-semibold text-xs text-muted-foreground">{line.amount.toFixed(2)}</div>
+                  <div className="col-span-1 pt-8 text-right font-mono font-semibold text-xs text-muted-foreground">{line.taxAmount.toFixed(2)}</div>
+                  <div className="col-span-1 pt-8 text-right font-mono font-black text-xs text-foreground flex items-center justify-end gap-1">
                     <span>{line.total.toFixed(2)}</span>
                     {calculations.lines.length > 1 && (
-                      <button onClick={() => removeLine(idx)} className="p-1 text-slate-300 hover:text-red-600 rounded-md transition-all ml-1">
+                      <button onClick={() => removeLine(idx)} className="p-1 text-muted-foreground hover:text-destructive rounded-md transition-all ml-1">
                         <X className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -427,9 +431,9 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
                 </div>
               ))}
             </div>
-            <div className="p-3 bg-slate-50/80 border-t border-slate-100 flex items-center gap-2">
+            <div className="p-3 bg-muted/40 border-t border-border flex items-center gap-2">
               <button onClick={addLine}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 hover:bg-slate-100 text-slate-900 rounded-lg shadow-sm transition-all">
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-background border border-border hover:bg-accent text-foreground rounded-lg shadow-sm transition-all">
                 <Plus className="h-3.5 w-3.5" /> Add New Line
               </button>
             </div>
@@ -438,78 +442,84 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
           {/* Summary + Terms */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
             <div className="md:col-span-6 space-y-3">
-              <div className="p-4 bg-slate-50/50 border border-slate-200 rounded-xl space-y-2">
-                <span className="text-xs font-bold text-slate-900 underline block border-b border-slate-100 pb-1.5">Terms and Conditions</span>
+              <div className="p-4 bg-accent/20 border border-border rounded-xl space-y-2">
+                <span className="text-xs font-bold text-foreground underline block border-b border-border pb-1.5">Terms and Conditions</span>
                 <textarea rows={3} value={newQuote.terms} onChange={e => setNewQuote(p => ({ ...p, terms: e.target.value }))}
-                  className="w-full bg-transparent text-xs font-semibold text-slate-700 resize-none focus:outline-none" />
+                  className="w-full bg-transparent text-xs font-semibold text-foreground resize-none focus:outline-none" />
+              </div>
+              <div className="p-4 bg-accent/20 border border-border rounded-xl space-y-2">
+                <span className="text-xs font-bold text-foreground underline block border-b border-border pb-1.5">Notes</span>
+                <textarea rows={2} value={newQuote.notes} onChange={e => setNewQuote(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="Additional notes visible to the customer…"
+                  className="w-full bg-transparent text-xs font-semibold text-foreground resize-none focus:outline-none" />
               </div>
             </div>
             <div className="md:col-span-6 space-y-4">
-              <Card className="border border-slate-200 bg-slate-50/50 rounded-xl p-4 space-y-3 shadow-inner">
-                <div className="space-y-1.5 text-xs font-semibold text-slate-600 border-b border-slate-200/60 pb-3">
+              <Card className="border border-border bg-accent/20 rounded-xl p-4 space-y-3 shadow-inner">
+                <div className="space-y-1.5 text-xs font-semibold text-muted-foreground border-b border-border pb-3">
                   <div className="flex justify-between">
                     <span>Subtotal</span>
-                    <span className="font-mono font-bold text-slate-900">{newQuote.currency} {calculations.subtotal.toFixed(2)}</span>
+                    <span className="font-mono font-bold text-foreground">{newQuote.currency} {calculations.subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>TAX</span>
-                    <span className="font-mono font-bold text-slate-900">{newQuote.currency} {calculations.totalTax.toFixed(2)}</span>
+                    <span className="font-mono font-bold text-foreground">{newQuote.currency} {calculations.totalTax.toFixed(2)}</span>
                   </div>
                 </div>
                 <div className="flex justify-between items-center pt-1">
-                  <span className="text-sm font-bold text-slate-900">Total ({newQuote.currency})</span>
-                  <span className="font-mono font-black text-lg text-slate-900">{newQuote.currency} {calculations.grandTotal.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-foreground">Total ({newQuote.currency})</span>
+                  <span className="font-mono font-black text-lg text-foreground">{newQuote.currency} {calculations.grandTotal.toFixed(2)}</span>
                 </div>
               </Card>
             </div>
           </div>
 
           {/* Advanced options */}
-          <Card className="border border-slate-200 bg-slate-50/20 rounded-xl p-5 space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 tracking-tight">Advanced options</h3>
+          <Card className="border border-border bg-accent/10 rounded-xl p-5 space-y-4">
+            <h3 className="text-sm font-bold text-foreground tracking-tight">Advanced options</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600 block">Display unit as</label>
+                <label className="text-xs font-bold text-muted-foreground block">Display unit as</label>
                 <select value={displayUnitAs} onChange={e => setDisplayUnitAs(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg py-1.5 px-3 focus:outline-none transition-all">
+                  className="w-full bg-background border border-input rounded-lg py-1.5 px-3 text-xs text-foreground focus:outline-none transition-all">
                   <option>Merge with quantity</option>
                   <option>Show separately</option>
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600 block">Show tax summary in invoice</label>
+                <label className="text-xs font-bold text-muted-foreground block">Show tax summary in invoice</label>
                 <select value={showTaxSummary} onChange={e => setShowTaxSummary(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg py-1.5 px-3 focus:outline-none transition-all">
+                  className="w-full bg-background border border-input rounded-lg py-1.5 px-3 text-xs text-foreground focus:outline-none transition-all">
                   <option>Do not show</option>
                   <option>Show tax summary</option>
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs font-semibold text-slate-600">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs font-semibold text-muted-foreground">
               {advancedToggles.map(([val, setter, label]) => (
                 <label key={label} className="flex items-center gap-2.5 cursor-pointer group">
                   <input type="checkbox" checked={val} onChange={e => setter(e.target.checked)}
-                    className="rounded border-slate-300 text-blue-600 h-3.5 w-3.5 focus:ring-0" />
-                  <span className="group-hover:text-slate-900 transition-colors">{label}</span>
+                    className="rounded border-input text-primary h-3.5 w-3.5 focus:ring-0" />
+                  <span className="group-hover:text-foreground transition-colors">{label}</span>
                 </label>
               ))}
             </div>
           </Card>
 
           {/* Action buttons */}
-          <div className={cn('flex flex-wrap items-center justify-start gap-3 pt-4 border-t border-slate-100')}>
+          <div className={cn('flex flex-wrap items-center justify-start gap-3 pt-4 border-t border-border')}>
             <button onClick={handleSave} disabled={isPending || !newQuote.customer_name.trim()}
-              className="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-all disabled:opacity-50">
+              className="px-5 py-2 text-xs font-bold text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg transition-all disabled:opacity-50">
               Save & Continue
             </button>
             {!isEdit && (
               <button onClick={handleSave} disabled={isPending || !newQuote.customer_name.trim()}
-                className="px-5 py-2 text-xs font-bold text-slate-900 bg-white border border-slate-900 hover:bg-slate-50 rounded-lg transition-all disabled:opacity-50">
+                className="px-5 py-2 text-xs font-bold text-foreground bg-background border border-foreground hover:bg-accent rounded-lg transition-all disabled:opacity-50">
                 Save & Create New
               </button>
             )}
             <button onClick={handleSave} disabled={isPending}
-              className="px-5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-lg border border-slate-200 transition-all">
+              className="px-5 py-2 text-xs font-bold text-muted-foreground bg-muted hover:bg-accent rounded-lg border border-border transition-all">
               Save As Draft
             </button>
           </div>

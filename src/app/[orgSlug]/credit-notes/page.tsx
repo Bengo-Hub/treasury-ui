@@ -13,7 +13,8 @@ import {
   useVoidInvoice,
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { Ban, Copy, Send, Trash2 } from 'lucide-react';
+import { SharedInvoiceCreateView } from '@/components/documents/SharedInvoiceCreateView';
+import { Ban, Copy, Download, ExternalLink, Send, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
@@ -25,40 +26,49 @@ export default function CreditNotesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
+  const [showCreate, setShowCreate] = useState(false);
 
-  const filters = useMemo(
-    () => ({
-      type: 'credit_note',
-      ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-      page,
-      limit: ITEMS_PER_PAGE,
-    }),
-    [statusFilter, page],
-  );
+  const filters = useMemo(() => ({
+    type: 'credit_note',
+    ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+    page,
+    limit: ITEMS_PER_PAGE,
+  }), [statusFilter, page]);
 
   const { data, isLoading, error } = useInvoices(effectiveTenant, filters, !!effectiveTenant);
 
   const invoices = data?.invoices ?? [];
   const total = data?.total ?? 0;
 
-  const sendMutation = useSendInvoice(effectiveTenant);
-  const voidMutation = useVoidInvoice(effectiveTenant);
+  const sendMutation      = useSendInvoice(effectiveTenant);
+  const voidMutation      = useVoidInvoice(effectiveTenant);
   const duplicateMutation = useDuplicateInvoice(effectiveTenant);
-  const deleteMutation = useDeleteInvoice(effectiveTenant);
+  const deleteMutation    = useDeleteInvoice(effectiveTenant);
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return invoices;
     const q = searchQuery.toLowerCase();
-    return invoices.filter(
-      (inv) =>
-        inv.invoice_number?.toLowerCase().includes(q) ||
-        inv.customer_name?.toLowerCase().includes(q),
+    return invoices.filter(inv =>
+      inv.invoice_number?.toLowerCase().includes(q) ||
+      inv.customer_name?.toLowerCase().includes(q),
     );
   }, [invoices, searchQuery]);
 
   const rows = useMemo(() => filtered.map(invoiceToDocumentRow), [filtered]);
 
   const actions: DocAction[] = [
+    {
+      label: 'View Public Page',
+      icon: <ExternalLink className="h-3.5 w-3.5" />,
+      onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank'),
+      visible: (r) => !!r.public_token,
+    },
+    {
+      label: 'Download PDF',
+      icon: <Download className="h-3.5 w-3.5" />,
+      onClick: (r) => r.public_token && window.open(`/api/v1/public/invoices/${r.public_token}/pdf?download=true`, '_blank'),
+      visible: (r) => !!r.public_token,
+    },
     {
       label: 'Send',
       icon: <Send className="h-3.5 w-3.5" />,
@@ -85,12 +95,22 @@ export default function CreditNotesPage() {
     },
   ];
 
+  if (showCreate) {
+    return (
+      <SharedInvoiceCreateView
+        effectiveTenant={effectiveTenant}
+        docType="credit_note"
+        onClose={() => setShowCreate(false)}
+      />
+    );
+  }
+
   return (
     <DocumentListPage
       title="Credit Notes"
       subtitle="Issued to reduce a customer's outstanding balance."
       createLabel="Create Credit Note"
-      onCreateClick={() => {}}
+      onCreateClick={() => setShowCreate(true)}
       rows={rows}
       isLoading={isLoading}
       error={error}

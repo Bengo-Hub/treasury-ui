@@ -9,9 +9,10 @@ import {
   useDeleteInvoice,
   useDuplicateInvoice,
   useInvoices,
+  useSendInvoice,
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { Copy, Trash2 } from 'lucide-react';
+import { Copy, Download, ExternalLink, Send, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
@@ -24,37 +25,52 @@ export default function DeliveryChallansPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
 
-  const filters = useMemo(
-    () => ({
-      type: 'delivery_challan',
-      ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-      page,
-      limit: ITEMS_PER_PAGE,
-    }),
-    [statusFilter, page],
-  );
+  const filters = useMemo(() => ({
+    type: 'delivery_challan',
+    ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+    page,
+    limit: ITEMS_PER_PAGE,
+  }), [statusFilter, page]);
 
   const { data, isLoading, error } = useInvoices(effectiveTenant, filters, !!effectiveTenant);
 
   const invoices = data?.invoices ?? [];
   const total = data?.total ?? 0;
 
+  const sendMutation      = useSendInvoice(effectiveTenant);
   const duplicateMutation = useDuplicateInvoice(effectiveTenant);
-  const deleteMutation = useDeleteInvoice(effectiveTenant);
+  const deleteMutation    = useDeleteInvoice(effectiveTenant);
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return invoices;
     const q = searchQuery.toLowerCase();
-    return invoices.filter(
-      (inv) =>
-        inv.invoice_number?.toLowerCase().includes(q) ||
-        inv.customer_name?.toLowerCase().includes(q),
+    return invoices.filter(inv =>
+      inv.invoice_number?.toLowerCase().includes(q) ||
+      inv.customer_name?.toLowerCase().includes(q),
     );
   }, [invoices, searchQuery]);
 
   const rows = useMemo(() => filtered.map(invoiceToDocumentRow), [filtered]);
 
   const actions: DocAction[] = [
+    {
+      label: 'View Public Page',
+      icon: <ExternalLink className="h-3.5 w-3.5" />,
+      onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank'),
+      visible: (r) => !!r.public_token,
+    },
+    {
+      label: 'Download PDF',
+      icon: <Download className="h-3.5 w-3.5" />,
+      onClick: (r) => r.public_token && window.open(`/api/v1/public/invoices/${r.public_token}/pdf?download=true`, '_blank'),
+      visible: (r) => !!r.public_token,
+    },
+    {
+      label: 'Send',
+      icon: <Send className="h-3.5 w-3.5" />,
+      onClick: (r) => sendMutation.mutate(r.id),
+      visible: (r) => r.status === 'draft',
+    },
     {
       label: 'Duplicate',
       icon: <Copy className="h-3.5 w-3.5" />,
@@ -72,7 +88,7 @@ export default function DeliveryChallansPage() {
     <DocumentListPage
       title="Delivery Challans"
       subtitle="Track goods dispatched to customers."
-      createLabel="Create Delivery Challan"
+      createLabel="Generate Delivery Challan"
       onCreateClick={() => {}}
       rows={rows}
       isLoading={isLoading}
@@ -88,7 +104,7 @@ export default function DeliveryChallansPage() {
       onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
       actions={actions}
       showDueDate
-      emptyStateDescription="Create delivery challans to track goods dispatched to customers."
+      emptyStateDescription="Delivery challans are generated from quotations. Use Generate Delivery Challan from a quotation's action menu."
     />
   );
 }

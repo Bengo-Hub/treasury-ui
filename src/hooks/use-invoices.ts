@@ -24,6 +24,8 @@ import {
   createCreditNote,
   createDebitNote,
   convertQuotationToProforma,
+  convertQuotationToSalesOrder,
+  convertProformaToInvoice,
   sendInvoice,
   sendQuotation,
   updateInvoice,
@@ -351,6 +353,27 @@ export function useConvertToProforma(tenant: string) {
     mutationFn: (quotationId: string) => convertQuotationToProforma(tenant, quotationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+    },
+  });
+}
+
+export function useConvertToSalesOrder(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (quotationId: string) => convertQuotationToSalesOrder(tenant, quotationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+    },
+  });
+}
+
+export function useConvertProformaToInvoice(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: string) => convertProformaToInvoice(tenant, invoiceId),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
     },
   });
