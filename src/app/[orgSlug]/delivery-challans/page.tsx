@@ -1,10 +1,10 @@
 'use client';
 
 import {
-  DocumentListPage,
+  SharedDocumentList,
   invoiceToDocumentRow,
   type DocAction,
-} from '@/components/documents/DocumentListPage';
+} from '@/components/documents/SharedDocumentList';
 import {
   useDeleteInvoice,
   useDuplicateInvoice,
@@ -41,16 +41,16 @@ export default function DeliveryChallansPage() {
   const duplicateMutation = useDuplicateInvoice(effectiveTenant);
   const deleteMutation    = useDeleteInvoice(effectiveTenant);
 
-  const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return invoices;
-    const q = searchQuery.toLowerCase();
-    return invoices.filter(inv =>
-      inv.invoice_number?.toLowerCase().includes(q) ||
-      inv.customer_name?.toLowerCase().includes(q),
-    );
-  }, [invoices, searchQuery]);
+  const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);
 
-  const rows = useMemo(() => filtered.map(invoiceToDocumentRow), [filtered]);
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return rows;
+    const q = searchQuery.toLowerCase();
+    return rows.filter(r =>
+      r.doc_number?.toLowerCase().includes(q) ||
+      r.customer_name?.toLowerCase().includes(q),
+    );
+  }, [rows, searchQuery]);
 
   const actions: DocAction[] = [
     {
@@ -85,12 +85,10 @@ export default function DeliveryChallansPage() {
   ];
 
   return (
-    <DocumentListPage
+    <SharedDocumentList
       title="Delivery Challans"
       subtitle="Track goods dispatched to customers."
-      createLabel="Generate Delivery Challan"
-      onCreateClick={() => {}}
-      rows={rows}
+      rows={filtered}
       isLoading={isLoading}
       error={error}
       total={total}
@@ -104,6 +102,8 @@ export default function DeliveryChallansPage() {
       onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
       actions={actions}
       showDueDate
+      showExpandLineItems
+      storageKey="delivery-challan-col-prefs"
       emptyStateDescription="Delivery challans are generated from quotations. Use Generate Delivery Challan from a quotation's action menu."
     />
   );

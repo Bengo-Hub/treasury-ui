@@ -1,10 +1,10 @@
 'use client';
 
 import {
-  DocumentListPage,
+  SharedDocumentList,
   invoiceToDocumentRow,
   type DocAction,
-} from '@/components/documents/DocumentListPage';
+} from '@/components/documents/SharedDocumentList';
 import {
   useInvoices,
   useInvoiceStats,
@@ -17,24 +17,39 @@ import {
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
-import { Ban, CheckCircle, DollarSign, Download, ExternalLink, FileMinus, FilePlus, Loader2, Send, Upload, X } from 'lucide-react';
+import { Ban, CheckCircle, DollarSign, Download, ExternalLink, FileText, FileMinus, FilePlus, Loader2, Send, Upload, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { BulkUploadModal } from './_components/BulkUploadModal';
-import { CreateInvoiceView } from './_components/CreateInvoiceView';
+import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentCreateView';
+import { DocTabNav, type DocTab } from '@/components/documents/DocTabNav';
+import { SuggestedInvoice } from './_components/SuggestedInvoice';
+import { ManageClients } from './_components/ManageClients';
+import { ScannedDocuments } from './_components/ScannedDocuments';
+import { OnlinePayments } from './_components/OnlinePayments';
+import { ReportsAndMore } from './_components/ReportsAndMore';
 
 const ITEMS_PER_PAGE = 20;
 
-function defaultDateRange() {
-  const to = new Date();
-  const from = new Date(to);
-  from.setMonth(from.getMonth() - 3);
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
-}
+type InvoiceTab = 'overview' | 'suggested' | 'clients' | 'scanned' | 'payments' | 'reports';
+
+const INVOICE_TABS: DocTab<InvoiceTab>[] = [
+  { id: 'overview',  label: 'Overview' },
+  { id: 'suggested', label: 'Suggested Invoice' },
+  { id: 'clients',   label: 'Manage Clients' },
+  { id: 'scanned',   label: 'Scanned Documents' },
+  { id: 'payments',  label: 'Online Payments' },
+  { id: 'reports',   label: 'Reports & More' },
+];
 
 export default function InvoicesPage() {
+  const router = useRouter();
+  const params = useParams();
+  const orgSlug = params.orgSlug as string;
   const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
 
+  const [activeTab, setActiveTab] = useState<InvoiceTab>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
@@ -44,17 +59,13 @@ export default function InvoicesPage() {
   const [paymentDialog, setPaymentDialog] = useState<{ invoiceId: string; invoiceNumber: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
 
-  const dateRange = useMemo(() => defaultDateRange(), []);
-
   const filters = useMemo(
     () => ({
       ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-      from: dateRange.from,
-      to: dateRange.to,
       page,
       limit: ITEMS_PER_PAGE,
     }),
-    [statusFilter, dateRange, page],
+    [statusFilter, page],
   );
 
   const { data, isLoading, error } = useInvoices(effectiveTenant, filters, !!effectiveTenant);
@@ -63,25 +74,24 @@ export default function InvoicesPage() {
   const invoices = data?.invoices ?? [];
   const total = data?.total ?? 0;
 
-  const sendMutation = useSendInvoice(effectiveTenant);
-  const voidMutation = useVoidInvoice(effectiveTenant);
-  const paymentMutation = useRecordPayment(effectiveTenant);
-  const markPaidMutation = useMarkPaid(effectiveTenant);
+  const sendMutation       = useSendInvoice(effectiveTenant);
+  const voidMutation       = useVoidInvoice(effectiveTenant);
+  const paymentMutation    = useRecordPayment(effectiveTenant);
+  const markPaidMutation   = useMarkPaid(effectiveTenant);
   const creditNoteMutation = useCreateCreditNote(effectiveTenant);
-  const debitNoteMutation = useCreateDebitNote(effectiveTenant);
+  const debitNoteMutation  = useCreateDebitNote(effectiveTenant);
+
+  const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);
 
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return invoices;
+    if (!searchQuery.trim()) return rows;
     const q = searchQuery.toLowerCase();
-    return invoices.filter(
-      (inv) =>
-        inv.invoice_number?.toLowerCase().includes(q) ||
-        inv.customer_name?.toLowerCase().includes(q) ||
-        inv.customer_email?.toLowerCase().includes(q),
+    return rows.filter(r =>
+      r.doc_number?.toLowerCase().includes(q) ||
+      r.customer_name?.toLowerCase().includes(q) ||
+      r.customer_email?.toLowerCase().includes(q),
     );
-  }, [invoices, searchQuery]);
-
-  const rows = useMemo(() => filtered.map(invoiceToDocumentRow), [filtered]);
+  }, [rows, searchQuery]);
 
   const handleRecordPayment = useCallback(() => {
     if (!paymentDialog || !paymentAmount) return;
@@ -92,6 +102,11 @@ export default function InvoicesPage() {
   }, [paymentDialog, paymentAmount, paymentMutation]);
 
   const actions: DocAction[] = [
+    {
+      label: 'View Details',
+      icon: <FileText className="h-3.5 w-3.5" />,
+      onClick: (r) => router.push(`/${orgSlug}/invoices/${r.id}`),
+    },
     {
       label: 'View Public Page',
       icon: <ExternalLink className="h-3.5 w-3.5" />,
@@ -147,8 +162,9 @@ export default function InvoicesPage() {
 
   if (showCreateView) {
     return (
-      <CreateInvoiceView
+      <SharedDocumentCreateView
         effectiveTenant={effectiveTenant}
+        docType="invoice"
         onClose={() => { setShowCreateView(false); setEditId(undefined); }}
         editId={editId}
       />
@@ -174,38 +190,76 @@ export default function InvoicesPage() {
 
       {(!isPlatformOwner || !!tenantQueryParam) && (
         <>
-          <DocumentListPage
-            title="Invoices"
-            subtitle="Create, send and manage invoices."
-            createLabel="Create Invoice"
-            onCreateClick={() => setShowCreateView(true)}
-            rows={rows}
-            isLoading={isLoading}
-            error={error}
-            total={total}
-            page={page}
-            onPageChange={setPage}
-            itemsPerPage={ITEMS_PER_PAGE}
-            statusOptions={['all', 'draft', 'sent', 'paid', 'overdue', 'void']}
-            statusFilter={statusFilter}
-            onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
-            searchQuery={searchQuery}
-            onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
-            stats={stats}
-            actions={actions}
-            showPaymentStatus
-            showDueDate
-            emptyStateDescription="Send professional invoices and get paid faster."
-          />
-
-          <div className="px-8 pb-6 flex">
-            <button
-              onClick={() => setBulkUploadOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:bg-accent transition-colors"
-            >
-              <Upload className="h-3.5 w-3.5" /> Bulk Upload Invoices
-            </button>
+          {/* Page header */}
+          <div className="px-6 pt-6 pb-0">
+            <h1 className="text-lg font-black text-foreground">Invoice</h1>
           </div>
+
+          {/* Tab navigation */}
+          <DocTabNav tabs={INVOICE_TABS} active={activeTab} onChange={setActiveTab} />
+
+          {/* Tab content */}
+          {activeTab === 'overview' && (
+            <>
+              <SharedDocumentList
+                title="Invoices"
+                subtitle="Create, send and manage invoices."
+                createLabel="Create Invoice"
+                onCreateClick={() => setShowCreateView(true)}
+                rows={filtered}
+                isLoading={isLoading}
+                error={error}
+                total={total}
+                page={page}
+                onPageChange={setPage}
+                itemsPerPage={ITEMS_PER_PAGE}
+                statusOptions={['all', 'draft', 'sent', 'paid', 'overdue', 'void']}
+                statusFilter={statusFilter}
+                onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
+                searchQuery={searchQuery}
+                onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
+                stats={stats}
+                actions={actions}
+                showPaymentStatus
+                showDueDate
+                showExpandLineItems
+                storageKey="invoice-col-prefs"
+                emptyStateDescription="Send professional invoices and get paid faster."
+              />
+
+              <div className="px-8 pb-6 flex">
+                <button
+                  onClick={() => setBulkUploadOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:bg-accent transition-colors"
+                >
+                  <Upload className="h-3.5 w-3.5" /> Bulk Upload Invoices
+                </button>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'suggested' && (
+            <SuggestedInvoice
+              effectiveTenant={effectiveTenant}
+              onCreateFromSuggestion={() => setShowCreateView(true)}
+            />
+          )}
+
+          {activeTab === 'clients' && (
+            <ManageClients effectiveTenant={effectiveTenant} />
+          )}
+
+          {activeTab === 'scanned' && (
+            <ScannedDocuments effectiveTenant={effectiveTenant} />
+          )}
+
+          {activeTab === 'payments' && (
+            <OnlinePayments effectiveTenant={effectiveTenant} />
+          )}
+
+          {activeTab === 'reports' && (
+            <ReportsAndMore effectiveTenant={effectiveTenant} />
+          )}
         </>
       )}
 

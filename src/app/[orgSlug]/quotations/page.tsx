@@ -1,26 +1,36 @@
 'use client';
 
-import { useQuotations } from '@/hooks/use-invoices';
+import {
+  SharedDocumentList,
+  quotationToDocumentRow,
+  type DocAction,
+} from '@/components/documents/SharedDocumentList';
+import { DocPreview }     from '@/components/documents/DocPreview';
+import { DocStatsBlock }  from '@/components/documents/DocStatsBlock';
+import { DocGraph }       from '@/components/documents/DocGraph';
+import { DocTabNav, type DocTab } from '@/components/documents/DocTabNav';
+import {
+  useQuotations,
+  useSendQuotation,
+  useDeleteQuotation,
+  useDuplicateQuotation,
+  useCancelQuotation,
+  useConvertToProforma,
+  useConvertToSalesOrder,
+  useGenerateDeliveryChallan,
+} from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
-import { FileSpreadsheet, Tag, Users } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { ClientsTab } from './_components/ClientsTab';
-import { CreateQuotationView } from './_components/CreateQuotationView';
-import { FiltersPanel } from './_components/FiltersPanel';
-import { QuotationList } from './_components/QuotationList';
-import { QuotationPreview } from './_components/QuotationPreview';
-import { QuotationStatsBlock } from './_components/QuotationStats';
-import { QuotationGraph } from './_components/QuotationGraph';
-import { TagReportTab } from './_components/TagReportTab';
+import {
+  Ban, Copy, Download, ExternalLink, FileText, Send, Trash2, Truck,
+} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentCreateView';
+import { ClientsTab }          from './_components/ClientsTab';
+import { TagReportTab }        from './_components/TagReportTab';
+import { FiltersPanel }        from './_components/FiltersPanel';
 
 const ITEMS_PER_PAGE = 20;
-
-const TABS = [
-  { id: 'overview',        label: 'Overview',        icon: FileSpreadsheet },
-  { id: 'manage-clients',  label: 'Manage Clients',  icon: Users },
-  { id: 'tag-wise-report', label: 'Tag-wise Report', icon: Tag },
-];
 
 interface DropdownItem { label: string; icon?: React.ReactNode; onClick: () => void; className?: string; }
 
@@ -32,14 +42,11 @@ function DropdownMenu({ items, onClose }: { items: DropdownItem[]; onClose: () =
     return () => document.removeEventListener('mousedown', fn);
   }, [onClose]);
   return (
-    <div ref={ref} className="absolute right-0 top-full mt-1.5 z-50 min-w-[240px] rounded-xl border border-border bg-popover shadow-xl py-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+    <div ref={ref} className="absolute right-0 top-full mt-1.5 z-50 min-w-55 rounded-xl border border-border bg-popover shadow-xl py-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
       {items.map((item, idx) => (
         <button key={idx} onClick={() => { item.onClick(); onClose(); }}
-          className={cn(
-            'w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-foreground hover:bg-accent transition-colors text-left',
-            item.className
-          )}>
-          {item.icon && <span className="text-slate-400">{item.icon}</span>}
+          className={cn('w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-foreground hover:bg-accent transition-colors text-left', item.className)}>
+          {item.icon && <span className="text-muted-foreground">{item.icon}</span>}
           <span>{item.label}</span>
         </button>
       ))}
@@ -47,53 +54,139 @@ function DropdownMenu({ items, onClose }: { items: DropdownItem[]; onClose: () =
   );
 }
 
-export default function QuotationsPage() {
-  const [activeTab, setActiveTab]           = useState<'overview' | 'manage-clients' | 'tag-wise-report'>('overview');
-  const [createOpen, setCreateOpen]         = useState(false);
-  const [editId, setEditId]                 = useState<string | null>(null);
-  const [previewId, setPreviewId]           = useState<string | null>(null);
-  const [page, setPage]                     = useState(1);
-  const [statusFilter, setStatusFilter]     = useState('all');
-  const [searchQuery, setSearchQuery]       = useState('');
-  const [clientSearch, setClientSearch]     = useState('');
-  const [dateFrom, setDateFrom]             = useState('');
-  const [dateTo, setDateTo]                 = useState('');
-  const [quotationType, setQuotationType]   = useState<'active' | 'deleted'>('active');
-  const [dropOpen, setDropOpen]             = useState(false);
+type QuotationTab = 'overview' | 'manage-clients' | 'tag-wise-report';
+
+const QUOTATION_TABS: DocTab<QuotationTab>[] = [
+  { id: 'overview',        label: 'Overview'        },
+  { id: 'manage-clients',  label: 'Manage Clients'  },
+  { id: 'tag-wise-report', label: 'Tag-wise Report' },
+];
+
+function ClientsTabWrapper() {
   const [addClientDropOpen, setAddClientDropOpen] = useState(false);
-
-  const { tenantPathId: effectiveTenant } = useResolvedTenant();
-  const { data, isLoading } = useQuotations(effectiveTenant, {
-    page,
-    limit: ITEMS_PER_PAGE,
-    status: statusFilter !== 'all' ? statusFilter : undefined,
-  });
-
-  const quotations = data?.quotations ?? [];
-  const total      = data?.total ?? 0;
-
-  const clearAllFilters = () => {
-    setStatusFilter('all');
-    setClientSearch('');
-    setDateFrom('');
-    setDateTo('');
-  };
-
-  const createDropItems: DropdownItem[] = [
-    { label: 'Create New Proforma Invoice', onClick: () => {} },
-    { label: 'Create New Invoice',          onClick: () => {} },
-    { label: 'Bulk Upload Quotations',      onClick: () => {} },
-  ];
-
   const addClientDropItems: DropdownItem[] = [
     { label: 'Import Clients (CSV)',   onClick: () => {} },
     { label: 'Add From CRM Contacts', onClick: () => {} },
   ];
+  return (
+    <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <ClientsTab
+        onAddClient={() => setAddClientDropOpen(o => !o)}
+        addClientDropOpen={addClientDropOpen}
+        setAddClientDropOpen={setAddClientDropOpen}
+        addClientDropItems={addClientDropItems}
+        DropdownMenu={DropdownMenu}
+      />
+    </div>
+  );
+}
+
+export default function QuotationsPage() {
+  const { tenantPathId: effectiveTenant } = useResolvedTenant();
+
+  const [activeTab, setActiveTab]   = useState<QuotationTab>('overview');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editId, setEditId]         = useState<string | null>(null);
+  const [previewId, setPreviewId]   = useState<string | null>(null);
+  const [page, setPage]             = useState(1);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery]   = useState('');
+  const [clientSearch, setClientSearch] = useState('');
+  const [dateFrom, setDateFrom]         = useState('');
+  const [dateTo, setDateTo]             = useState('');
+
+  const filters = useMemo(() => ({
+    page,
+    limit: ITEMS_PER_PAGE,
+    status: statusFilter !== 'all' ? statusFilter : undefined,
+  }), [page, statusFilter]);
+
+  const { data, isLoading, error } = useQuotations(effectiveTenant, filters);
+
+  const quotations = data?.quotations ?? [];
+  const total      = data?.total ?? 0;
+
+  const sendMutation     = useSendQuotation(effectiveTenant);
+  const deleteMutation   = useDeleteQuotation(effectiveTenant);
+  const dupMutation      = useDuplicateQuotation(effectiveTenant);
+  const cancelMutation   = useCancelQuotation(effectiveTenant);
+  const proformaMutation = useConvertToProforma(effectiveTenant);
+  const salesOrderMut    = useConvertToSalesOrder(effectiveTenant);
+  const challanMutation  = useGenerateDeliveryChallan(effectiveTenant);
+
+  const rows = useMemo(() => quotations.map(quotationToDocumentRow), [quotations]);
+
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return rows;
+    const q = searchQuery.toLowerCase();
+    return rows.filter(r =>
+      r.doc_number?.toLowerCase().includes(q) ||
+      r.customer_name?.toLowerCase().includes(q),
+    );
+  }, [rows, searchQuery]);
+
+  const actions: DocAction[] = [
+    {
+      label: 'View Public Page',
+      icon: <ExternalLink className="h-3.5 w-3.5" />,
+      onClick: (r) => r.public_token && window.open(`/q/${r.public_token}`, '_blank'),
+      visible: (r) => !!r.public_token,
+    },
+    {
+      label: 'Download PDF',
+      icon: <Download className="h-3.5 w-3.5" />,
+      onClick: (r) => r.public_token && window.open(`/api/v1/public/quotations/${r.public_token}/pdf?download=true`, '_blank'),
+      visible: (r) => !!r.public_token,
+    },
+    {
+      label: 'Send',
+      icon: <Send className="h-3.5 w-3.5" />,
+      onClick: (r) => sendMutation.mutate(r.id),
+      visible: (r) => r.status === 'draft',
+    },
+    {
+      label: 'Convert to Proforma',
+      icon: <FileText className="h-3.5 w-3.5" />,
+      onClick: (r) => proformaMutation.mutate(r.id),
+      visible: (r) => r.status !== 'cancelled' && r.status !== 'expired',
+    },
+    {
+      label: 'Convert to Sales Order',
+      icon: <FileText className="h-3.5 w-3.5" />,
+      onClick: (r) => salesOrderMut.mutate(r.id),
+      visible: (r) => r.status !== 'cancelled' && r.status !== 'expired',
+    },
+    {
+      label: 'Generate Delivery Challan',
+      icon: <Truck className="h-3.5 w-3.5" />,
+      onClick: (r) => challanMutation.mutate(r.id),
+      visible: (r) => r.status === 'accepted' || r.status === 'converted',
+    },
+    {
+      label: 'Duplicate',
+      icon: <Copy className="h-3.5 w-3.5" />,
+      onClick: (r) => dupMutation.mutate(r.id),
+    },
+    {
+      label: 'Cancel',
+      icon: <Ban className="h-3.5 w-3.5" />,
+      onClick: (r) => cancelMutation.mutate(r.id),
+      visible: (r) => r.status !== 'cancelled' && r.status !== 'converted',
+      destructive: true,
+    },
+    {
+      label: 'Delete',
+      icon: <Trash2 className="h-3.5 w-3.5" />,
+      onClick: (r) => deleteMutation.mutate(r.id),
+      destructive: true,
+    },
+  ];
 
   if (createOpen || editId) {
     return (
-      <CreateQuotationView
+      <SharedDocumentCreateView
         effectiveTenant={effectiveTenant}
+        docType="quotation"
         editId={editId ?? undefined}
         onClose={() => { setCreateOpen(false); setEditId(null); }}
       />
@@ -102,102 +195,74 @@ export default function QuotationsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Quick Preview panel — rendered over the page */}
       {previewId && (
-        <QuotationPreview
-          quotationId={previewId}
+        <DocPreview
+          docId={previewId}
+          docType="quotation"
           tenant={effectiveTenant}
           onClose={() => setPreviewId(null)}
           onEdit={() => { setPreviewId(null); setEditId(previewId); }}
-          onDuplicate={() => setPreviewId(null)}
+          onDuplicate={() => { dupMutation.mutate(previewId); setPreviewId(null); }}
         />
       )}
 
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
-
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-          <span className="hover:text-foreground cursor-pointer transition-colors capitalize">{effectiveTenant}</span>
-          <span>/</span>
-          <span className="text-foreground font-semibold">Quotations</span>
-        </nav>
-
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <h1 className="text-xl md:text-2xl font-black text-foreground tracking-tight">Quotations</h1>
-          <div className="relative flex items-center shadow-md">
-            <button onClick={() => setCreateOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-primary-foreground bg-primary hover:bg-primary/90 rounded-l-lg transition-all">
-              + Create New Quotation
-            </button>
-            <button onClick={() => setDropOpen(o => !o)}
-              className="flex items-center px-2 py-2 text-primary-foreground bg-primary border-l border-primary-foreground/20 rounded-r-lg hover:bg-primary/90 transition-all">
-              ▾
-            </button>
-            {dropOpen && <DropdownMenu items={createDropItems} onClose={() => setDropOpen(false)} />}
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex items-center gap-0 border-b border-border">
-          {TABS.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={cn(
-                'flex items-center gap-2 px-5 py-3 text-xs font-semibold border-b-2 -mb-px transition-colors',
-                activeTab === tab.id
-                  ? 'border-primary text-primary font-bold'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}>
-              <tab.icon className="h-3.5 w-3.5" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab Content */}
-        {activeTab === 'overview' && (
-          <div className="space-y-4">
-            <QuotationStatsBlock tenant={effectiveTenant} />
-            <QuotationGraph tenant={effectiveTenant} />
-            <FiltersPanel
-              statusFilter={statusFilter}   onStatusChange={setStatusFilter}
-              clientSearch={clientSearch}   onClientSearchChange={setClientSearch}
-              dateFrom={dateFrom}           onDateFromChange={setDateFrom}
-              dateTo={dateTo}               onDateToChange={setDateTo}
-              onClearAll={clearAllFilters}
-            />
-            <QuotationList
-              quotations={quotations}
-              isLoading={isLoading}
-              total={total}
-              page={page}
-              setPage={setPage}
-              statusFilter={statusFilter}
-              setStatusFilter={setStatusFilter}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              effectiveTenant={effectiveTenant}
-              onCreateClick={() => setCreateOpen(true)}
-              onPreview={setPreviewId}
-              onEdit={setEditId}
-              quotationType={quotationType}
-              setQuotationType={setQuotationType}
-            />
-          </div>
-        )}
-
-        {activeTab === 'manage-clients' && (
-          <ClientsTab
-            onAddClient={() => {}}
-            addClientDropOpen={addClientDropOpen}
-            setAddClientDropOpen={setAddClientDropOpen}
-            addClientDropItems={addClientDropItems}
-            DropdownMenu={DropdownMenu}
-          />
-        )}
-
-        {activeTab === 'tag-wise-report' && <TagReportTab />}
+      {/* Page header */}
+      <div className="px-6 pt-6 pb-0">
+        <h1 className="text-lg font-black text-foreground">Quotations & Estimates</h1>
       </div>
+
+      {/* Tab navigation */}
+      <DocTabNav tabs={QUOTATION_TABS} active={activeTab} onChange={setActiveTab} />
+
+      {/* Overview tab */}
+      {activeTab === 'overview' && (
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+          <DocStatsBlock tenant={effectiveTenant} docType="quotation" />
+          <DocGraph tenant={effectiveTenant} docType="quotation" />
+          <FiltersPanel
+            statusFilter={statusFilter}   onStatusChange={setStatusFilter}
+            clientSearch={clientSearch}   onClientSearchChange={setClientSearch}
+            dateFrom={dateFrom}           onDateFromChange={setDateFrom}
+            dateTo={dateTo}               onDateToChange={setDateTo}
+            onClearAll={() => { setStatusFilter('all'); setClientSearch(''); setDateFrom(''); setDateTo(''); }}
+          />
+          <SharedDocumentList
+            title="Quotations"
+            subtitle="Create and manage quotations for your customers."
+            createLabel="Create New Quotation"
+            onCreateClick={() => setCreateOpen(true)}
+            rows={filtered}
+            isLoading={isLoading}
+            error={error}
+            total={total}
+            page={page}
+            onPageChange={setPage}
+            itemsPerPage={ITEMS_PER_PAGE}
+            statusOptions={['all', 'draft', 'sent', 'accepted', 'declined', 'expired', 'converted', 'cancelled']}
+            statusFilter={statusFilter}
+            onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
+            searchQuery={searchQuery}
+            onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
+            actions={actions}
+            showDueDate
+            showExpandLineItems
+            storageKey="quotation-col-prefs"
+            secondaryDateLabel="Valid Until"
+            emptyStateDescription="Create quotations and send them to customers for approval."
+            onRowPreview={setPreviewId}
+          />
+        </div>
+      )}
+
+      {activeTab === 'manage-clients' && (
+        <ClientsTabWrapper />
+      )}
+
+      {activeTab === 'tag-wise-report' && (
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <TagReportTab />
+        </div>
+      )}
     </div>
   );
 }
