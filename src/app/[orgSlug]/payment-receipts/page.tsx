@@ -14,6 +14,7 @@ import {
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { SharedInvoiceCreateView } from '@/components/documents/SharedInvoiceCreateView';
+import { RecordPaymentModal } from '@/components/documents/RecordPaymentModal';
 import { Ban, Copy, Download, ExternalLink, Send, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -27,6 +28,7 @@ export default function PaymentReceiptsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [showRecordPayment, setShowRecordPayment] = useState(false);
 
   const filters = useMemo(() => ({
     type: 'payment_receipt',
@@ -106,6 +108,13 @@ export default function PaymentReceiptsPage() {
   }
 
   return (
+    <>
+    {showRecordPayment && (
+      <RecordPaymentModal
+        tenant={effectiveTenant}
+        onClose={() => setShowRecordPayment(false)}
+      />
+    )}
     <DocumentListPage
       title="Payment Receipts"
       subtitle="Receipts issued to customers for payments received."
@@ -126,5 +135,6 @@ export default function PaymentReceiptsPage() {
       actions={actions}
       emptyStateDescription="Issue receipts to customers once you receive their payments."
     />
+    </>
   );
 }
