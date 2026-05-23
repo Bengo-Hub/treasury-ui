@@ -726,8 +726,8 @@ export default function InvoicesPage() {
     return invoices.filter(
       (inv: Invoice) =>
         inv.invoice_number?.toLowerCase().includes(q) ||
-        inv.metadata?.customer_name?.toLowerCase().includes(q) ||
-        inv.metadata?.customer_email?.toLowerCase().includes(q),
+        inv.customer_name?.toLowerCase().includes(q) ||
+        inv.customer_email?.toLowerCase().includes(q)
     );
   }, [invoices, searchQuery]);
 
@@ -752,7 +752,7 @@ export default function InvoicesPage() {
       due_date: formData.due_date,
       currency: formData.currency,
       lines: formData.lines,
-      metadata: { notes: formData.notes },
+      notes: formData.notes,
     };
     createMutation.mutate(body, { onSuccess: () => setShowCreateView(false) });
   }, [createMutation]);
@@ -888,9 +888,9 @@ export default function InvoicesPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-xs">
-                          <div className="text-white">{inv.metadata?.customer_name || '--'}</div>
-                          {inv.metadata?.customer_email && (
-                            <div className="text-[11px] text-slate-400">{inv.metadata.customer_email}</div>
+                          <div className="text-white">{inv.customer_name || '--'}</div>
+                          {inv.customer_email && (
+                            <div className="text-[11px] text-slate-400">{inv.customer_email}</div>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-xs text-white">
