@@ -32,11 +32,11 @@ function DropdownMenu({ items, onClose }: { items: DropdownItem[]; onClose: () =
     return () => document.removeEventListener('mousedown', fn);
   }, [onClose]);
   return (
-    <div ref={ref} className="absolute right-0 top-full mt-1.5 z-50 min-w-[240px] rounded-xl border border-slate-200/80 bg-white shadow-xl py-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+    <div ref={ref} className="absolute right-0 top-full mt-1.5 z-50 min-w-[240px] rounded-xl border border-border bg-popover shadow-xl py-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
       {items.map((item, idx) => (
         <button key={idx} onClick={() => { item.onClick(); onClose(); }}
           className={cn(
-            'w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors text-left',
+            'w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-foreground hover:bg-accent transition-colors text-left',
             item.className
           )}>
           {item.icon && <span className="text-slate-400">{item.icon}</span>}
@@ -101,7 +101,7 @@ export default function QuotationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       {/* Quick Preview panel — rendered over the page */}
       {previewId && (
         <QuotationPreview
@@ -116,22 +116,22 @@ export default function QuotationsPage() {
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
 
         {/* Breadcrumb */}
-        <nav className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-          <span className="hover:text-slate-600 cursor-pointer transition-colors capitalize">{effectiveTenant}</span>
+        <nav className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+          <span className="hover:text-foreground cursor-pointer transition-colors capitalize">{effectiveTenant}</span>
           <span>/</span>
-          <span className="text-slate-700 font-semibold">Quotations</span>
+          <span className="text-foreground font-semibold">Quotations</span>
         </nav>
 
         {/* Header */}
         <div className="flex items-start justify-between">
-          <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">Quotations</h1>
+          <h1 className="text-xl md:text-2xl font-black text-foreground tracking-tight">Quotations</h1>
           <div className="relative flex items-center shadow-md">
             <button onClick={() => setCreateOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-brand-emphasis hover:bg-brand-dark rounded-l-lg transition-all">
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-primary-foreground bg-primary hover:bg-primary/90 rounded-l-lg transition-all">
               + Create New Quotation
             </button>
             <button onClick={() => setDropOpen(o => !o)}
-              className="flex items-center px-2 py-2 text-white bg-brand-emphasis border-l border-brand-dark/40 rounded-r-lg hover:bg-brand-dark transition-all">
+              className="flex items-center px-2 py-2 text-primary-foreground bg-primary border-l border-primary-foreground/20 rounded-r-lg hover:bg-primary/90 transition-all">
               ▾
             </button>
             {dropOpen && <DropdownMenu items={createDropItems} onClose={() => setDropOpen(false)} />}
@@ -139,14 +139,14 @@ export default function QuotationsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-0 border-b border-slate-200">
+        <div className="flex items-center gap-0 border-b border-border">
           {TABS.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={cn(
                 'flex items-center gap-2 px-5 py-3 text-xs font-semibold border-b-2 -mb-px transition-colors',
                 activeTab === tab.id
-                  ? 'border-violet-600 text-violet-700 font-bold'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                  ? 'border-primary text-primary font-bold'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
               )}>
               <tab.icon className="h-3.5 w-3.5" />
               {tab.label}

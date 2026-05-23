@@ -11,6 +11,9 @@ import {
   ChevronDown,
   ClipboardCheck,
   CreditCard,
+  FileCheck,
+  FileMinus,
+  FilePlus,
   FileText,
   Gift,
   Landmark,
@@ -20,7 +23,9 @@ import {
   Receipt,
   Settings,
   Shield,
+  ShoppingCart,
   TrendingUp,
+  Truck,
   User,
   Users,
   Wallet,
@@ -119,6 +124,42 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: ClipboardCheck,
           href: `/${orgSlug}/quotations`,
           active: pathname.startsWith(`/${orgSlug}/quotations`),
+        },
+        {
+          label: 'Proforma Invoices',
+          icon: FileCheck,
+          href: `/${orgSlug}/proforma-invoices`,
+          active: pathname.startsWith(`/${orgSlug}/proforma-invoices`),
+        },
+        {
+          label: 'Credit Notes',
+          icon: FileMinus,
+          href: `/${orgSlug}/credit-notes`,
+          active: pathname.startsWith(`/${orgSlug}/credit-notes`),
+        },
+        {
+          label: 'Debit Notes',
+          icon: FilePlus,
+          href: `/${orgSlug}/debit-notes`,
+          active: pathname.startsWith(`/${orgSlug}/debit-notes`),
+        },
+        {
+          label: 'Sales Orders',
+          icon: ShoppingCart,
+          href: `/${orgSlug}/sales-orders`,
+          active: pathname.startsWith(`/${orgSlug}/sales-orders`),
+        },
+        {
+          label: 'Payment Receipts',
+          icon: Banknote,
+          href: `/${orgSlug}/payment-receipts`,
+          active: pathname.startsWith(`/${orgSlug}/payment-receipts`),
+        },
+        {
+          label: 'Delivery Challans',
+          icon: Truck,
+          href: `/${orgSlug}/delivery-challans`,
+          active: pathname.startsWith(`/${orgSlug}/delivery-challans`),
         },
         {
           label: 'Customers',
@@ -453,7 +494,7 @@ function NavGroupItem({
       <ul
         className={cn(
           'overflow-hidden transition-all duration-200',
-          expanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+          expanded ? 'max-h-160 opacity-100' : 'max-h-0 opacity-0'
         )}
       >
         {group.children.map((child) => {
