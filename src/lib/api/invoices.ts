@@ -378,6 +378,10 @@ export function createDebitNote(tenant: string, invoiceId: string): Promise<Invo
   return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/create-debit-note`, {});
 }
 
+export function convertProformaToInvoice(tenant: string, invoiceId: string): Promise<{ status: string; invoice: Invoice }> {
+  return apiClient.post<{ status: string; invoice: Invoice }>(`${BASE}/${tenant}/invoices/${invoiceId}/convert-to-invoice`, {});
+}
+
 export function getInvoiceStats(tenant: string): Promise<InvoiceStats> {
   return apiClient.get<InvoiceStats>(`${BASE}/${tenant}/invoices/stats`);
 }
@@ -448,6 +452,10 @@ export function cancelQuotation(tenant: string, quotationId: string): Promise<{ 
 
 export function convertQuotationToProforma(tenant: string, quotationId: string): Promise<{ status: string; proforma_invoice: Invoice }> {
   return apiClient.post<{ status: string; proforma_invoice: Invoice }>(`${BASE}/${tenant}/quotations/${quotationId}/convert-to-proforma`, {});
+}
+
+export function convertQuotationToSalesOrder(tenant: string, quotationId: string): Promise<{ status: string; sales_order: Invoice }> {
+  return apiClient.post<{ status: string; sales_order: Invoice }>(`${BASE}/${tenant}/quotations/${quotationId}/convert-to-sales-order`, {});
 }
 
 export function getQuotationStats(tenant: string): Promise<QuotationStats> {

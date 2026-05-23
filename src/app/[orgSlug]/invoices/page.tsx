@@ -6,7 +6,6 @@ import {
   type DocAction,
 } from '@/components/documents/DocumentListPage';
 import {
-  useCreateInvoice,
   useInvoices,
   useInvoiceStats,
   useMarkPaid,
@@ -17,7 +16,6 @@ import {
   useCreateDebitNote,
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import type { CreateInvoiceRequest } from '@/lib/api/invoices';
 import { cn } from '@/lib/utils';
 import { Ban, CheckCircle, DollarSign, Download, ExternalLink, FileMinus, FilePlus, Loader2, Send, Upload, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -41,11 +39,9 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [showCreateView, setShowCreateView] = useState(false);
+  const [editId, setEditId] = useState<string | undefined>(undefined);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
-  const [paymentDialog, setPaymentDialog] = useState<{
-    invoiceId: string;
-    invoiceNumber: string;
-  } | null>(null);
+  const [paymentDialog, setPaymentDialog] = useState<{ invoiceId: string; invoiceNumber: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
 
   const dateRange = useMemo(() => defaultDateRange(), []);
@@ -67,7 +63,6 @@ export default function InvoicesPage() {
   const invoices = data?.invoices ?? [];
   const total = data?.total ?? 0;
 
-  const createMutation = useCreateInvoice(effectiveTenant);
   const sendMutation = useSendInvoice(effectiveTenant);
   const voidMutation = useVoidInvoice(effectiveTenant);
   const paymentMutation = useRecordPayment(effectiveTenant);
@@ -75,7 +70,6 @@ export default function InvoicesPage() {
   const creditNoteMutation = useCreateCreditNote(effectiveTenant);
   const debitNoteMutation = useCreateDebitNote(effectiveTenant);
 
-  // Client-side search filtering
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return invoices;
     const q = searchQuery.toLowerCase();
@@ -89,30 +83,11 @@ export default function InvoicesPage() {
 
   const rows = useMemo(() => filtered.map(invoiceToDocumentRow), [filtered]);
 
-  const handleSaveInvoice = useCallback(
-    (formData: Partial<CreateInvoiceRequest>) => {
-      const body: CreateInvoiceRequest = {
-        invoice_date: formData.invoice_date ?? new Date().toISOString().slice(0, 10),
-        due_date: formData.due_date ?? new Date().toISOString().slice(0, 10),
-        currency: formData.currency,
-        lines: formData.lines ?? [],
-        notes: formData.notes,
-      };
-      createMutation.mutate(body, { onSuccess: () => setShowCreateView(false) });
-    },
-    [createMutation],
-  );
-
   const handleRecordPayment = useCallback(() => {
     if (!paymentDialog || !paymentAmount) return;
     paymentMutation.mutate(
       { invoiceId: paymentDialog.invoiceId, amount: paymentAmount },
-      {
-        onSuccess: () => {
-          setPaymentDialog(null);
-          setPaymentAmount('');
-        },
-      },
+      { onSuccess: () => { setPaymentDialog(null); setPaymentAmount(''); } },
     );
   }, [paymentDialog, paymentAmount, paymentMutation]);
 
@@ -126,12 +101,7 @@ export default function InvoicesPage() {
     {
       label: 'Download PDF',
       icon: <Download className="h-3.5 w-3.5" />,
-      onClick: (r) =>
-        r.public_token &&
-        window.open(
-          `/api/v1/public/invoices/${r.public_token}/pdf?download=true`,
-          '_blank',
-        ),
+      onClick: (r) => r.public_token && window.open(`/api/v1/public/invoices/${r.public_token}/pdf?download=true`, '_blank'),
       visible: (r) => !!r.public_token,
     },
     {
@@ -143,8 +113,7 @@ export default function InvoicesPage() {
     {
       label: 'Record Payment',
       icon: <DollarSign className="h-3.5 w-3.5" />,
-      onClick: (r) =>
-        setPaymentDialog({ invoiceId: r.id, invoiceNumber: r.doc_number }),
+      onClick: (r) => setPaymentDialog({ invoiceId: r.id, invoiceNumber: r.doc_number }),
       visible: (r) =>
         (r.payment_status === 'unpaid' || r.payment_status === 'partial') &&
         r.status !== 'void' && r.status !== 'cancelled',
@@ -153,8 +122,7 @@ export default function InvoicesPage() {
       label: 'Mark as Paid',
       icon: <CheckCircle className="h-3.5 w-3.5" />,
       onClick: (r) => markPaidMutation.mutate(r.id),
-      visible: (r) =>
-        r.payment_status !== 'paid' && r.status !== 'void' && r.status !== 'cancelled',
+      visible: (r) => r.payment_status !== 'paid' && r.status !== 'void' && r.status !== 'cancelled',
     },
     {
       label: 'Create Credit Note',
@@ -180,9 +148,9 @@ export default function InvoicesPage() {
   if (showCreateView) {
     return (
       <CreateInvoiceView
-        onBack={() => setShowCreateView(false)}
-        onSave={handleSaveInvoice}
-        isPending={createMutation.isPending}
+        effectiveTenant={effectiveTenant}
+        onClose={() => { setShowCreateView(false); setEditId(undefined); }}
+        editId={editId}
       />
     );
   }
@@ -230,7 +198,6 @@ export default function InvoicesPage() {
             emptyStateDescription="Send professional invoices and get paid faster."
           />
 
-          {/* Bulk upload button */}
           <div className="px-8 pb-6 flex">
             <button
               onClick={() => setBulkUploadOpen(true)}
@@ -244,7 +211,6 @@ export default function InvoicesPage() {
 
       <BulkUploadModal open={bulkUploadOpen} onClose={() => setBulkUploadOpen(false)} />
 
-      {/* Record Payment Dialog */}
       {paymentDialog && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/75"
