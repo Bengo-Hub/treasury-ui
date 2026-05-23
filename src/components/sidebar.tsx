@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { useBranding } from '@/providers/branding-provider';
 import { useAuthStore } from '@/store/auth';
 import {
   BadgeDollarSign,
@@ -26,15 +27,13 @@ import {
   ShoppingCart,
   TrendingUp,
   Truck,
-  User,
   Users,
   Wallet,
-  X,
+  X
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
-import { useState, useCallback, useEffect } from 'react';
-import { useBranding } from '@/providers/branding-provider';
+import { useCallback, useEffect, useState } from 'react';
 
 interface NavItem {
   label: string;
@@ -110,7 +109,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       ],
     },
     {
-      label: 'Sales',
+      label: 'Sales & Invoicing',
       icon: FileText,
       children: [
         {
@@ -120,7 +119,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           active: pathname.startsWith(`/${orgSlug}/invoices`),
         },
         {
-          label: 'Quotations',
+          label: 'Quotations & Estimates',
           icon: ClipboardCheck,
           href: `/${orgSlug}/quotations`,
           active: pathname.startsWith(`/${orgSlug}/quotations`),
@@ -170,7 +169,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       ],
     },
     {
-      label: 'Purchases',
+      label: 'Purchases & Payables',
       icon: Briefcase,
       children: [
         {
@@ -188,7 +187,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       ],
     },
     {
-      label: 'Accounting',
+      label: 'Accounting & Reconciliation',
       icon: BookOpen,
       children: [
         {
@@ -212,7 +211,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       ],
     },
     {
-      label: 'Reports',
+      label: 'Reports & Compliance',
       icon: PieChart,
       children: [
         {
@@ -242,7 +241,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       active: pathname.startsWith(`/${orgSlug}/gateways`),
     },
     {
-      label: 'Accounts',
+      label: 'Accounts & Ledgers',
       icon: Landmark,
       href: `/${orgSlug}/accounts`,
       active: pathname.startsWith(`/${orgSlug}/accounts`),

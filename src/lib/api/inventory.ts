@@ -27,6 +27,18 @@ export interface Carrier {
   is_active?: boolean;
 }
 
+export interface InventoryUnit {
+  id: string;
+  name: string;
+  abbreviation?: string;
+}
+
+export interface InventoryItemType {
+  id: string;
+  name: string;
+  label?: string;
+}
+
 export interface SearchItemsParams {
   q?: string;
   limit?: number;
@@ -43,4 +55,12 @@ export function getInventoryItem(tenant: string, itemId: string): Promise<Invent
 
 export function listCarriers(tenant: string): Promise<{ carriers: Carrier[] }> {
   return apiClient.get<{ carriers: Carrier[] }>(`${BASE}/${tenant}/logistics/carriers`);
+}
+
+export function listInventoryUnits(tenant: string): Promise<{ units: InventoryUnit[] }> {
+  return apiClient.get<{ units: InventoryUnit[] }>(`${BASE}/${tenant}/inventory/units`);
+}
+
+export function listInventoryItemTypes(tenant: string): Promise<{ item_types: InventoryItemType[] }> {
+  return apiClient.get<{ item_types: InventoryItemType[] }>(`${BASE}/${tenant}/inventory/item-types`);
 }

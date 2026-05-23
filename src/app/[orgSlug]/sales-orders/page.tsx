@@ -1,10 +1,10 @@
 'use client';
 
 import {
-  DocumentListPage,
+  SharedDocumentList,
   invoiceToDocumentRow,
   type DocAction,
-} from '@/components/documents/DocumentListPage';
+} from '@/components/documents/SharedDocumentList';
 import {
   useDeleteInvoice,
   useDuplicateInvoice,
@@ -46,16 +46,16 @@ export default function SalesOrdersPage() {
   const duplicateMutation = useDuplicateInvoice(effectiveTenant);
   const deleteMutation    = useDeleteInvoice(effectiveTenant);
 
-  const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return invoices;
-    const q = searchQuery.toLowerCase();
-    return invoices.filter(inv =>
-      inv.invoice_number?.toLowerCase().includes(q) ||
-      inv.customer_name?.toLowerCase().includes(q),
-    );
-  }, [invoices, searchQuery]);
+  const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);
 
-  const rows = useMemo(() => filtered.map(invoiceToDocumentRow), [filtered]);
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return rows;
+    const q = searchQuery.toLowerCase();
+    return rows.filter(r =>
+      r.doc_number?.toLowerCase().includes(q) ||
+      r.customer_name?.toLowerCase().includes(q),
+    );
+  }, [rows, searchQuery]);
 
   const actions: DocAction[] = [
     {
@@ -108,12 +108,12 @@ export default function SalesOrdersPage() {
   }
 
   return (
-    <DocumentListPage
+    <SharedDocumentList
       title="Sales Orders"
       subtitle="Manage customer purchase orders before invoicing."
       createLabel="Create Sales Order"
       onCreateClick={() => setShowCreate(true)}
-      rows={rows}
+      rows={filtered}
       isLoading={isLoading}
       error={error}
       total={total}
@@ -127,6 +127,8 @@ export default function SalesOrdersPage() {
       onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
       actions={actions}
       showDueDate
+      showExpandLineItems
+      storageKey="sales-order-col-prefs"
       emptyStateDescription="Track customer purchase orders before converting them to invoices."
     />
   );

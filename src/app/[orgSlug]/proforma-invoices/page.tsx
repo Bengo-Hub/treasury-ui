@@ -1,10 +1,10 @@
 'use client';
 
 import {
-  DocumentListPage,
+  SharedDocumentList,
   invoiceToDocumentRow,
   type DocAction,
-} from '@/components/documents/DocumentListPage';
+} from '@/components/documents/SharedDocumentList';
 import {
   useInvoices,
   useInvoiceStats,
@@ -57,16 +57,16 @@ export default function ProformaInvoicesPage() {
   const convertMutation    = useConvertProformaToInvoice(effectiveTenant);
   const creditNoteMutation = useCreateCreditNote(effectiveTenant);
 
-  const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return invoices;
-    const q = searchQuery.toLowerCase();
-    return invoices.filter(inv =>
-      inv.invoice_number?.toLowerCase().includes(q) ||
-      inv.customer_name?.toLowerCase().includes(q),
-    );
-  }, [invoices, searchQuery]);
+  const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);
 
-  const rows = useMemo(() => filtered.map(invoiceToDocumentRow), [filtered]);
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return rows;
+    const q = searchQuery.toLowerCase();
+    return rows.filter(r =>
+      r.doc_number?.toLowerCase().includes(q) ||
+      r.customer_name?.toLowerCase().includes(q),
+    );
+  }, [rows, searchQuery]);
 
   const handleRecordPayment = useCallback(() => {
     if (!paymentDialog || !paymentAmount) return;
@@ -152,12 +152,12 @@ export default function ProformaInvoicesPage() {
 
   return (
     <>
-      <DocumentListPage
+      <SharedDocumentList
         title="Proforma Invoices"
         subtitle="Pre-invoices sent before the final invoice."
         createLabel="Create Proforma Invoice"
         onCreateClick={() => setShowCreate(true)}
-        rows={rows}
+        rows={filtered}
         isLoading={isLoading}
         error={error}
         total={total}
@@ -173,6 +173,8 @@ export default function ProformaInvoicesPage() {
         actions={actions}
         showPaymentStatus
         showDueDate
+        showExpandLineItems
+        storageKey="proforma-invoice-col-prefs"
         emptyStateDescription="Create proforma invoices to send to customers before issuing the final invoice."
       />
 

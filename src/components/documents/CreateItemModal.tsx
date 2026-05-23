@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
+import { useInventoryUnits, useInventoryItemTypes } from '@/hooks/use-inventory';
 import type { LineRow } from './sections/LineItemsSection';
 
 interface CreateItemRequest {
@@ -28,8 +29,8 @@ interface CreatedItem {
   tax_rate?: string;
 }
 
-const ITEM_TYPES = ['product', 'service', 'digital', 'subscription', 'bundle'];
-const UNITS = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'hr', 'day', 'month'];
+const FALLBACK_ITEM_TYPES = ['GOODS', 'SERVICE', 'DIGITAL', 'SUBSCRIPTION', 'BUNDLE'];
+const FALLBACK_UNITS = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'hr', 'day', 'month'];
 
 interface Props {
   tenant: string;
@@ -39,16 +40,31 @@ interface Props {
 }
 
 export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }: Props) {
+  const { data: unitsData, isLoading: unitsLoading } = useInventoryUnits(tenant);
+  const { data: typesData, isLoading: typesLoading } = useInventoryItemTypes(tenant);
+
+  const units = unitsData?.units?.length
+    ? unitsData.units.map(u => u.abbreviation ?? u.name)
+    : FALLBACK_UNITS;
+
+  const itemTypes = typesData?.item_types?.length
+    ? typesData.item_types.map(t => t.name)
+    : FALLBACK_ITEM_TYPES;
+
   const [form, setForm] = useState({
     name: initialName,
     sku: '',
-    item_type: 'product',
-    unit: 'pcs',
+    item_type: '',
+    unit: '',
     unit_price: '',
     tax_code: '',
     tax_rate: '0',
     description: '',
   });
+
+  // Set defaults once data loads
+  const defaultType = form.item_type || itemTypes[0] || '';
+  const defaultUnit = form.unit || units[0] || '';
 
   const mutation = useMutation({
     mutationFn: (body: CreateItemRequest) =>
@@ -72,6 +88,8 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
 
   const inputCls = 'w-full rounded-lg py-2 px-3 text-xs border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring';
   const labelCls = 'text-[11px] font-bold text-muted-foreground uppercase tracking-wider block mb-1';
+
+  const isLoading = unitsLoading || typesLoading;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -100,9 +118,17 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
             </div>
             <div>
               <label className={labelCls}>Item Type</label>
-              <select className={inputCls} value={form.item_type} onChange={e => field('item_type', e.target.value)}>
-                {ITEM_TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-              </select>
+              {isLoading ? (
+                <div className={inputCls + ' flex items-center gap-2 text-muted-foreground'}>
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+                </div>
+              ) : (
+                <select className={inputCls} value={form.item_type || defaultType} onChange={e => field('item_type', e.target.value)}>
+                  {itemTypes.map(t => (
+                    <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -110,9 +136,15 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Unit</label>
-              <select className={inputCls} value={form.unit} onChange={e => field('unit', e.target.value)}>
-                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-              </select>
+              {isLoading ? (
+                <div className={inputCls + ' flex items-center gap-2 text-muted-foreground'}>
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+                </div>
+              ) : (
+                <select className={inputCls} value={form.unit || defaultUnit} onChange={e => field('unit', e.target.value)}>
+                  {units.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+              )}
             </div>
             <div>
               <label className={labelCls}>Base Price</label>
@@ -155,8 +187,8 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
             onClick={() => mutation.mutate({
               name: form.name.trim(),
               sku: form.sku || undefined,
-              item_type: form.item_type,
-              unit: form.unit,
+              item_type: form.item_type || defaultType || undefined,
+              unit: form.unit || defaultUnit || undefined,
               unit_price: form.unit_price || undefined,
               tax_code: form.tax_code || undefined,
               tax_rate: form.tax_rate || undefined,

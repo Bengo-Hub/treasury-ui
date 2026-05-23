@@ -1,10 +1,10 @@
 'use client';
 
 import {
-  DocumentListPage,
+  SharedDocumentList,
   invoiceToDocumentRow,
   type DocAction,
-} from '@/components/documents/DocumentListPage';
+} from '@/components/documents/SharedDocumentList';
 import {
   useDeleteInvoice,
   useDuplicateInvoice,
@@ -40,23 +40,23 @@ export default function PaymentReceiptsPage() {
   const { data, isLoading, error } = useInvoices(effectiveTenant, filters, !!effectiveTenant);
 
   const invoices = data?.invoices ?? [];
-  const total = data?.total ?? 0;
+  const total    = data?.total ?? 0;
 
   const sendMutation      = useSendInvoice(effectiveTenant);
   const voidMutation      = useVoidInvoice(effectiveTenant);
   const duplicateMutation = useDuplicateInvoice(effectiveTenant);
   const deleteMutation    = useDeleteInvoice(effectiveTenant);
 
-  const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return invoices;
-    const q = searchQuery.toLowerCase();
-    return invoices.filter(inv =>
-      inv.invoice_number?.toLowerCase().includes(q) ||
-      inv.customer_name?.toLowerCase().includes(q),
-    );
-  }, [invoices, searchQuery]);
+  const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);
 
-  const rows = useMemo(() => filtered.map(invoiceToDocumentRow), [filtered]);
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return rows;
+    const q = searchQuery.toLowerCase();
+    return rows.filter(r =>
+      r.doc_number?.toLowerCase().includes(q) ||
+      r.customer_name?.toLowerCase().includes(q),
+    );
+  }, [rows, searchQuery]);
 
   const actions: DocAction[] = [
     {
@@ -108,33 +108,41 @@ export default function PaymentReceiptsPage() {
   }
 
   return (
-    <>
-    {showRecordPayment && (
-      <RecordPaymentModal
-        tenant={effectiveTenant}
-        onClose={() => setShowRecordPayment(false)}
-      />
-    )}
-    <DocumentListPage
-      title="Payment Receipts"
-      subtitle="Receipts issued to customers for payments received."
-      createLabel="Create Payment Receipt"
-      onCreateClick={() => setShowCreate(true)}
-      rows={rows}
-      isLoading={isLoading}
-      error={error}
-      total={total}
-      page={page}
-      onPageChange={setPage}
-      itemsPerPage={ITEMS_PER_PAGE}
-      statusOptions={['all', 'draft', 'issued', 'void']}
-      statusFilter={statusFilter}
-      onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
-      searchQuery={searchQuery}
-      onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
-      actions={actions}
-      emptyStateDescription="Issue receipts to customers once you receive their payments."
-    />
-    </>
+    <div className="min-h-screen bg-background">
+      {showRecordPayment && (
+        <RecordPaymentModal
+          tenant={effectiveTenant}
+          onClose={() => setShowRecordPayment(false)}
+        />
+      )}
+
+      <div className="px-6 pt-6 pb-0">
+        <h1 className="text-lg font-black text-foreground">Payment Receipts</h1>
+      </div>
+
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <SharedDocumentList
+          title="Payment Receipts"
+          subtitle="Receipts issued to customers for payments received."
+          createLabel="Create Payment Receipt"
+          onCreateClick={() => setShowCreate(true)}
+          rows={filtered}
+          isLoading={isLoading}
+          error={error}
+          total={total}
+          page={page}
+          onPageChange={setPage}
+          itemsPerPage={ITEMS_PER_PAGE}
+          statusOptions={['all', 'draft', 'issued', 'void']}
+          statusFilter={statusFilter}
+          onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
+          searchQuery={searchQuery}
+          onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
+          actions={actions}
+          storageKey="payment-receipt-col-prefs"
+          emptyStateDescription="Issue receipts to customers once you receive their payments."
+        />
+      </div>
+    </div>
   );
 }
