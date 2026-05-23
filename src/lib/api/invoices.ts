@@ -276,6 +276,39 @@ export interface PublicQuotation {
   lines?: QuotationLine[];
 }
 
+// ---- Public Invoice Types ----
+
+export interface PublicInvoice {
+  invoice_number: string;
+  public_token: string;
+  customer_name?: string;
+  invoice_date: string;
+  due_date: string;
+  subtotal: string;
+  tax_amount: string;
+  discount_amount?: string;
+  total_amount: string;
+  currency: string;
+  status: string;
+  payment_status: string;
+  notes?: string;
+  terms?: string;
+  tenant_slug: string;
+  tenant_name: string;
+  lines?: InvoiceLine[];
+}
+
+/** Fetch a public invoice by share token — no auth required. */
+export async function fetchPublicInvoice(token: string): Promise<PublicInvoice> {
+  const TREASURY_URL =
+    process.env.TREASURY_API_URL || 'https://treasuryapi.codevertexitsolutions.com';
+  const res = await fetch(`${TREASURY_URL}/api/v1/public/invoices/${token}`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`Failed to fetch invoice: ${res.status}`);
+  return res.json();
+}
+
 /** Fetch a public quotation by share token — no auth required. */
 export async function fetchPublicQuotation(token: string): Promise<PublicQuotation> {
   const TREASURY_URL =
@@ -331,6 +364,18 @@ export function voidInvoice(tenant: string, invoiceId: string): Promise<{ status
 
 export function recordPayment(tenant: string, invoiceId: string, amount: number | string): Promise<{ status: string }> {
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/record-payment`, { amount: String(amount) });
+}
+
+export function markPaid(tenant: string, invoiceId: string): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/mark-paid`, {});
+}
+
+export function createCreditNote(tenant: string, invoiceId: string): Promise<Invoice> {
+  return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/create-credit-note`, {});
+}
+
+export function createDebitNote(tenant: string, invoiceId: string): Promise<Invoice> {
+  return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/create-debit-note`, {});
 }
 
 export function getInvoiceStats(tenant: string): Promise<InvoiceStats> {
@@ -399,6 +444,10 @@ export function declineQuotation(tenant: string, quotationId: string): Promise<{
 
 export function cancelQuotation(tenant: string, quotationId: string): Promise<{ status: string }> {
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/quotations/${quotationId}/cancel`, {});
+}
+
+export function convertQuotationToProforma(tenant: string, quotationId: string): Promise<{ status: string; proforma_invoice: Invoice }> {
+  return apiClient.post<{ status: string; proforma_invoice: Invoice }>(`${BASE}/${tenant}/quotations/${quotationId}/convert-to-proforma`, {});
 }
 
 export function getQuotationStats(tenant: string): Promise<QuotationStats> {

@@ -5,15 +5,17 @@ import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 
-const STATUS_COLORS: Record<string, string> = {
-  draft:     'bg-slate-100 text-slate-700',
-  sent:      'bg-blue-50 text-blue-700',
-  accepted:  'bg-emerald-50 text-emerald-700',
-  declined:  'bg-red-50 text-red-700',
-  expired:   'bg-amber-50 text-amber-700',
-  converted: 'bg-violet-50 text-violet-700',
-  cancelled: 'bg-rose-50 text-rose-700',
+const STATUS_PILL: Record<string, string> = {
+  draft:     'bg-muted text-muted-foreground',
+  sent:      'bg-primary/10 text-primary',
+  viewed:    'bg-primary/10 text-primary',
+  accepted:  'bg-green-500/10 text-green-500',
+  declined:  'bg-destructive/10 text-destructive',
+  expired:   'bg-yellow-500/10 text-yellow-600',
+  converted: 'bg-primary/10 text-primary',
+  cancelled: 'bg-destructive/10 text-destructive',
 };
+const statusPillClass = (s: string) => STATUS_PILL[s] ?? 'bg-muted text-muted-foreground';
 
 interface Props { tenant: string }
 
@@ -32,22 +34,22 @@ export function QuotationStatsBlock({ tenant }: Props) {
     <div className="space-y-3">
       {/* Lifetime stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center gap-4">
-          <div className="h-10 w-10 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
-            <TrendingUp className="h-5 w-5 text-violet-600" />
+        <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-4">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <TrendingUp className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Quotations</p>
-            <p className="text-2xl font-black text-slate-900 tabular-nums">{stats?.total_count ?? 0}</p>
+            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Total Quotations</p>
+            <p className="text-2xl font-black text-foreground tabular-nums">{stats?.total_count ?? 0}</p>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center gap-4">
-          <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-            <span className="text-emerald-600 font-black text-sm">{currency}</span>
+        <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-4">
+          <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
+            <span className="text-green-500 font-black text-sm">{currency}</span>
           </div>
           <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Quoted Amount</p>
-            <p className="text-2xl font-black text-slate-900 tabular-nums">
+            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Total Quoted Amount</p>
+            <p className="text-2xl font-black text-foreground tabular-nums">
               {fmt(stats?.total_amount ?? 0)}
             </p>
           </div>
@@ -56,23 +58,26 @@ export function QuotationStatsBlock({ tenant }: Props) {
 
       {/* Quotation Summary collapsible */}
       {summary.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
           <button
             onClick={() => setSummaryOpen(o => !o)}
-            className="w-full flex items-center justify-between px-5 py-3 text-sm font-bold text-slate-900 hover:bg-slate-50/60 transition-colors">
+            className="w-full flex items-center justify-between px-5 py-3 text-sm font-bold text-foreground hover:bg-accent transition-colors"
+          >
             <span>Quotation Summary</span>
             {summaryOpen
-              ? <ChevronUp className="h-4 w-4 text-slate-400" />
-              : <ChevronDown className="h-4 w-4 text-slate-400" />}
+              ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </button>
           {summaryOpen && (
-            <div className="px-5 pb-4 pt-1 border-t border-slate-100 flex flex-wrap gap-2">
+            <div className="px-5 pb-4 pt-1 border-t border-border flex flex-wrap gap-2">
               {summary.map(item => (
-                <span key={item.status}
+                <span
+                  key={item.status}
                   className={cn(
                     'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold capitalize',
-                    STATUS_COLORS[item.status] ?? 'bg-slate-100 text-slate-700'
-                  )}>
+                    statusPillClass(item.status)
+                  )}
+                >
                   {item.status}
                   <span className="font-black">{item.count}</span>
                 </span>

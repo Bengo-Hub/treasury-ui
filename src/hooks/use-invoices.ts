@@ -20,6 +20,10 @@ import {
   listInvoices,
   listQuotations,
   recordPayment,
+  markPaid,
+  createCreditNote,
+  createDebitNote,
+  convertQuotationToProforma,
   sendInvoice,
   sendQuotation,
   updateInvoice,
@@ -306,6 +310,48 @@ export function useCancelQuotation(tenant: string) {
     onSuccess: (_data, quotationId) => {
       queryClient.invalidateQueries({ queryKey: quotationKeys.detail(tenant, quotationId) });
       queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
+    },
+  });
+}
+
+export function useMarkPaid(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: string) => markPaid(tenant, invoiceId),
+    onSuccess: (_data, invoiceId) => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+    },
+  });
+}
+
+export function useCreateCreditNote(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: string) => createCreditNote(tenant, invoiceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+    },
+  });
+}
+
+export function useCreateDebitNote(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: string) => createDebitNote(tenant, invoiceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+    },
+  });
+}
+
+export function useConvertToProforma(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (quotationId: string) => convertQuotationToProforma(tenant, quotationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
     },
   });
 }
