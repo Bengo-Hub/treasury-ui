@@ -32,7 +32,7 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
   const isEdit = !!editId;
 
   const createMutation = useCreateQuotation(effectiveTenant);
-  const updateMutation = useUpdateQuotation(effectiveTenant);
+  const updateMutation = useUpdateQuotation(effectiveTenant, editId ?? '');
   const { data: brand, isLoading: brandLoading } = useOrgBranding(effectiveTenant);
   const { data: existingQuote, isLoading: quoteLoading } = useQuotation(
     effectiveTenant, editId ?? '', isEdit
@@ -130,7 +130,7 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
         lines: filteredLines.map(({ description, quantity, unit_price, tax_rate }) =>
           ({ description, quantity, unit_price, tax_rate })),
       };
-      updateMutation.mutate({ quotationId: editId, body }, { onSuccess: onClose });
+      updateMutation.mutate(body, { onSuccess: onClose });
     } else {
       const body: CreateQuotationRequest = {
         customer_id:    customerId ?? undefined,

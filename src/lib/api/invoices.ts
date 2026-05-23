@@ -7,11 +7,32 @@ import { apiClient } from './client';
 
 const BASE = '/api/v1';
 
+// ---- Shared Line Types ----
+
+export interface LineRequest {
+  description: string;
+  item_id?: string;
+  item_sku?: string;
+  item_type?: string;
+  image_url?: string;
+  unit?: string;
+  quantity: number | string;
+  unit_price: number | string;
+  tax_code?: string;
+  tax_rate?: number | string;
+  discount_amount?: number | string;
+}
+
 // ---- Invoice Types ----
 
 export interface InvoiceLine {
   id: string;
   description: string;
+  item_id?: string;
+  item_sku?: string;
+  item_type?: string;
+  image_url?: string;
+  unit?: string;
   quantity: string;
   unit_price: string;
   tax_code?: string;
@@ -26,45 +47,67 @@ export interface Invoice {
   id: string;
   tenant_id: string;
   invoice_number: string;
+  public_token: string;
   customer_id?: string;
   customer_name?: string;
   customer_email?: string;
+  customer_phone?: string;
+  crm_customer_id?: string;
   invoice_type: string;
   invoice_date: string;
   due_date: string;
   subtotal: string;
   tax_amount: string;
+  discount_amount?: string;
+  discount_mode?: string;
   total_amount: string;
   currency: string;
+  transaction_currency?: string;
+  notes?: string;
+  terms?: string;
   status: string;
   payment_status: string;
   reference_id?: string;
   reference_type?: string;
   lines?: InvoiceLine[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
 
-export interface LineRequest {
-  description: string;
-  quantity: number | string;
-  unit_price: number | string;
-  tax_code?: string;
-  tax_rate?: number | string;
-  discount_amount?: number | string;
-}
-
 export interface CreateInvoiceRequest {
   customer_id?: string;
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  crm_customer_id?: string;
   invoice_type?: string;
   invoice_date: string;
   due_date: string;
   currency?: string;
+  transaction_currency?: string;
+  notes?: string;
+  terms?: string;
+  discount_mode?: string;
   reference_id?: string;
   reference_type?: string;
   lines: LineRequest[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateInvoiceRequest {
+  customer_id?: string;
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  invoice_type?: string;
+  invoice_date?: string;
+  due_date?: string;
+  currency?: string;
+  notes?: string;
+  terms?: string;
+  lines?: LineRequest[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface ListInvoicesResponse {
@@ -84,11 +127,35 @@ export interface InvoiceFilters {
   limit?: number;
 }
 
+export interface InvoiceStats {
+  total_count: number;
+  total_amount: string;
+  amount_due: string;
+  amount_paid: string;
+  currency: string;
+}
+
+export interface InvoiceStatusCount {
+  status: string;
+  count: number;
+}
+
+export interface InvoiceGraphPoint {
+  month: string;
+  count: number;
+  total_amount: string;
+}
+
 // ---- Quotation Types ----
 
 export interface QuotationLine {
   id: string;
   description: string;
+  item_id?: string;
+  item_sku?: string;
+  item_type?: string;
+  image_url?: string;
+  unit?: string;
   quantity: string;
   unit_price: string;
   tax_code?: string;
@@ -103,7 +170,7 @@ export interface Quotation {
   id: string;
   tenant_id: string;
   quote_number: string;
-  public_token?: string;
+  public_token: string;
   customer_id?: string;
   customer_name?: string;
   customer_email?: string;
@@ -123,7 +190,7 @@ export interface Quotation {
   reference_type?: string;
   reference_id?: string;
   lines?: QuotationLine[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -140,7 +207,20 @@ export interface CreateQuotationRequest {
   reference_type?: string;
   reference_id?: string;
   lines: LineRequest[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateQuotationRequest {
+  customer_id?: string;
+  customer_name?: string;
+  customer_email?: string;
+  quote_date?: string;
+  valid_until?: string;
+  currency?: string;
+  notes?: string;
+  terms?: string;
+  lines?: LineRequest[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface ListQuotationsResponse {
@@ -156,19 +236,6 @@ export interface QuotationFilters {
   to?: string;
   page?: number;
   limit?: number;
-}
-
-export interface UpdateQuotationRequest {
-  customer_id?: string;
-  customer_name?: string;
-  customer_email?: string;
-  quote_date?: string;
-  valid_until?: string;
-  currency?: string;
-  notes?: string;
-  terms?: string;
-  lines?: LineRequest[];
-  metadata?: Record<string, any>;
 }
 
 export interface QuotationStats {
@@ -222,113 +289,134 @@ export async function fetchPublicQuotation(token: string): Promise<PublicQuotati
 
 // ---- Invoice API Functions ----
 
-/** List invoices with optional filters. */
 export function listInvoices(tenant: string, filters?: InvoiceFilters): Promise<ListInvoicesResponse> {
-  const params: Record<string, any> = {};
+  const params: Record<string, unknown> = {};
   if (filters?.status) params.status = filters.status;
   if (filters?.payment_status) params.payment_status = filters.payment_status;
   if (filters?.type) params.type = filters.type;
   if (filters?.from) params.from = filters.from;
   if (filters?.to) params.to = filters.to;
   if (filters?.limit) params.limit = filters.limit;
-  if (filters?.page) params.offset = ((filters.page - 1) * (filters.limit || 50));
+  if (filters?.page) params.offset = (filters.page - 1) * (filters.limit || 50);
   return apiClient.get<ListInvoicesResponse>(`${BASE}/${tenant}/invoices`, params);
 }
 
-/** Create a new invoice. */
 export function createInvoice(tenant: string, body: CreateInvoiceRequest): Promise<Invoice> {
   return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices`, body);
 }
 
-/** Get a single invoice. */
 export function getInvoice(tenant: string, invoiceId: string): Promise<Invoice> {
   return apiClient.get<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}`);
 }
 
-/** Send an invoice to the customer. */
+export function updateInvoice(tenant: string, invoiceId: string, body: UpdateInvoiceRequest): Promise<Invoice> {
+  return apiClient.put<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}`, body);
+}
+
+export function deleteInvoice(tenant: string, invoiceId: string): Promise<{ status: string }> {
+  return apiClient.delete<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}`);
+}
+
+export function duplicateInvoice(tenant: string, invoiceId: string): Promise<Invoice> {
+  return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/duplicate`, {});
+}
+
 export function sendInvoice(tenant: string, invoiceId: string): Promise<{ status: string }> {
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/send`, {});
 }
 
-/** Void an invoice. */
 export function voidInvoice(tenant: string, invoiceId: string): Promise<{ status: string }> {
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/void`, {});
 }
 
-/** Record a payment against an invoice. */
 export function recordPayment(tenant: string, invoiceId: string, amount: number | string): Promise<{ status: string }> {
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/record-payment`, { amount: String(amount) });
 }
 
+export function getInvoiceStats(tenant: string): Promise<InvoiceStats> {
+  return apiClient.get<InvoiceStats>(`${BASE}/${tenant}/invoices/stats`);
+}
+
+export function getInvoiceSummary(tenant: string): Promise<{ summary: InvoiceStatusCount[] }> {
+  return apiClient.get<{ summary: InvoiceStatusCount[] }>(`${BASE}/${tenant}/invoices/summary`);
+}
+
+export function getInvoiceGraph(tenant: string): Promise<{ graph: InvoiceGraphPoint[] }> {
+  return apiClient.get<{ graph: InvoiceGraphPoint[] }>(`${BASE}/${tenant}/invoices/graph`);
+}
+
+export function downloadInvoicePDF(tenant: string, publicToken: string, download = false): string {
+  return `/api/v1/public/invoices/${publicToken}/pdf${download ? '?download=true' : ''}`;
+}
+
+export function exportInvoice(tenant: string, publicToken: string, format: 'csv' | 'xlsx'): string {
+  return `/api/v1/public/invoices/${publicToken}/export?format=${format}`;
+}
+
 // ---- Quotation API Functions ----
 
-/** List quotations with optional filters. */
 export function listQuotations(tenant: string, filters?: QuotationFilters): Promise<ListQuotationsResponse> {
-  const params: Record<string, any> = {};
+  const params: Record<string, unknown> = {};
   if (filters?.status) params.status = filters.status;
   if (filters?.from) params.from = filters.from;
   if (filters?.to) params.to = filters.to;
   if (filters?.limit) params.limit = filters.limit;
-  if (filters?.page) params.offset = ((filters.page - 1) * (filters.limit || 50));
+  if (filters?.page) params.offset = (filters.page - 1) * (filters.limit || 50);
   return apiClient.get<ListQuotationsResponse>(`${BASE}/${tenant}/quotations`, params);
 }
 
-/** Create a new quotation. */
 export function createQuotation(tenant: string, body: CreateQuotationRequest): Promise<Quotation> {
   return apiClient.post<Quotation>(`${BASE}/${tenant}/quotations`, body);
 }
 
-/** Get a single quotation. */
 export function getQuotation(tenant: string, quotationId: string): Promise<Quotation> {
   return apiClient.get<Quotation>(`${BASE}/${tenant}/quotations/${quotationId}`);
 }
 
-/** Send a quotation to the customer. */
-export function sendQuotation(tenant: string, quotationId: string): Promise<{ status: string }> {
-  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/quotations/${quotationId}/send`, {});
-}
-
-/** Accept a quotation (converts to invoice). */
-export function acceptQuotation(tenant: string, quotationId: string): Promise<{ status: string; invoice: Invoice }> {
-  return apiClient.post<{ status: string; invoice: Invoice }>(`${BASE}/${tenant}/quotations/${quotationId}/accept`, {});
-}
-
-/** Decline a quotation. */
-export function declineQuotation(tenant: string, quotationId: string): Promise<{ status: string }> {
-  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/quotations/${quotationId}/decline`, {});
-}
-
-/** Update a draft quotation. */
 export function updateQuotation(tenant: string, quotationId: string, body: UpdateQuotationRequest): Promise<Quotation> {
   return apiClient.put<Quotation>(`${BASE}/${tenant}/quotations/${quotationId}`, body);
 }
 
-/** Delete a draft or declined quotation. */
 export function deleteQuotation(tenant: string, quotationId: string): Promise<{ status: string }> {
   return apiClient.delete<{ status: string }>(`${BASE}/${tenant}/quotations/${quotationId}`);
 }
 
-/** Duplicate a quotation. */
 export function duplicateQuotation(tenant: string, quotationId: string): Promise<Quotation> {
   return apiClient.post<Quotation>(`${BASE}/${tenant}/quotations/${quotationId}/duplicate`, {});
 }
 
-/** Cancel a quotation. */
+export function sendQuotation(tenant: string, quotationId: string): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/quotations/${quotationId}/send`, {});
+}
+
+export function acceptQuotation(tenant: string, quotationId: string): Promise<{ status: string; invoice: Invoice }> {
+  return apiClient.post<{ status: string; invoice: Invoice }>(`${BASE}/${tenant}/quotations/${quotationId}/accept`, {});
+}
+
+export function declineQuotation(tenant: string, quotationId: string): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/quotations/${quotationId}/decline`, {});
+}
+
 export function cancelQuotation(tenant: string, quotationId: string): Promise<{ status: string }> {
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/quotations/${quotationId}/cancel`, {});
 }
 
-/** Get lifetime stats for quotations. */
 export function getQuotationStats(tenant: string): Promise<QuotationStats> {
   return apiClient.get<QuotationStats>(`${BASE}/${tenant}/quotations/stats`);
 }
 
-/** Get per-status counts for the summary section. */
 export function getQuotationSummary(tenant: string): Promise<{ summary: QuotationStatusCount[] }> {
   return apiClient.get<{ summary: QuotationStatusCount[] }>(`${BASE}/${tenant}/quotations/summary`);
 }
 
-/** Get monthly trend data for the graph section. */
 export function getQuotationGraph(tenant: string): Promise<{ graph: QuotationGraphPoint[] }> {
   return apiClient.get<{ graph: QuotationGraphPoint[] }>(`${BASE}/${tenant}/quotations/graph`);
+}
+
+export function downloadQuotationPDF(publicToken: string, download = false): string {
+  return `/api/v1/public/quotations/${publicToken}/pdf${download ? '?download=true' : ''}`;
+}
+
+export function exportQuotation(publicToken: string, format: 'csv' | 'xlsx'): string {
+  return `/api/v1/public/quotations/${publicToken}/export?format=${format}`;
 }
