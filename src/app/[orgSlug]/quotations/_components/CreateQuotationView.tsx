@@ -3,182 +3,150 @@
 import { Card } from '@/components/ui/base';
 import { useOrgBranding } from '@/hooks/use-org-branding';
 import { useCRMContacts } from '@/hooks/use-crm-contacts';
-import {
-  useCreateQuotation,
-  useQuotation,
-  useUpdateQuotation,
-} from '@/hooks/use-invoices';
-import type { CreateQuotationRequest, UpdateQuotationRequest, LineRequest } from '@/lib/api/invoices';
+import { useCreateQuotation, useQuotation, useUpdateQuotation } from '@/hooks/use-invoices';
+import type { CreateQuotationRequest, UpdateQuotationRequest } from '@/lib/api/invoices';
 import { crmContactDisplayName, type CRMContact } from '@/lib/api/crm';
 import { cn } from '@/lib/utils';
-import {
-  ArrowLeft, Columns, Loader2, Percent, Plus, Scale, Search, UserPlus, X,
-} from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Loader2, Search, UserPlus } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { LineItemsSection, newLineRow, type LineRow } from '@/components/documents/sections/LineItemsSection';
+import { TotalsSection, type AdditionalCharge } from '@/components/documents/sections/TotalsSection';
+import { CurrencySection } from '@/components/documents/sections/CurrencySection';
+import { TermsNotesSection } from '@/components/documents/sections/TermsNotesSection';
+import { CreateItemModal } from '@/components/documents/CreateItemModal';
 
-interface ExtendedLineRequest extends LineRequest {
-  tax_rate: number;
-}
-
-const emptyLine = (): ExtendedLineRequest => ({ description: '', quantity: 1, unit_price: 1, tax_rate: 0 });
-
-interface CreateQuotationViewProps {
+interface Props {
   effectiveTenant: string;
   onClose: () => void;
   editId?: string;
 }
 
-export function CreateQuotationView({ effectiveTenant, onClose, editId }: CreateQuotationViewProps) {
+export function CreateQuotationView({ effectiveTenant, onClose, editId }: Props) {
   const isEdit = !!editId;
 
   const createMutation = useCreateQuotation(effectiveTenant);
   const updateMutation = useUpdateQuotation(effectiveTenant, editId ?? '');
   const { data: brand, isLoading: brandLoading } = useOrgBranding(effectiveTenant);
-  const { data: existingQuote, isLoading: quoteLoading } = useQuotation(
-    effectiveTenant, editId ?? '', isEdit
-  );
+  const { data: existingQuote, isLoading: quoteLoading } = useQuotation(effectiveTenant, editId ?? '', isEdit);
 
-  const [quoteNumber, setQuoteNumber] = useState('');
-  const [initialized, setInitialized]  = useState(false);
-  const [customerId, setCustomerId]    = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [clientSearch, setClientSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const clientInputRef = useRef<HTMLInputElement>(null);
+  const clientRef = useRef<HTMLInputElement>(null);
   const { data: crmContacts = [] } = useCRMContacts(effectiveTenant, clientSearch);
 
-  const [newQuote, setNewQuote] = useState({
-    customer_name: '', customer_email: '',
-    quote_date:   new Date().toISOString().slice(0, 10),
-    valid_until:  new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
-    currency: 'KES', notes: '', terms: 'Thanks for doing business with us',
-    lines: [emptyLine()] as ExtendedLineRequest[],
+  const [form, setForm] = useState({
+    customer_name: '',
+    customer_email: '',
+    quote_date: new Date().toISOString().slice(0, 10),
+    valid_until: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
+    currency: 'KES',
+    terms: 'Thanks for doing business with us.',
+    notes: '',
   });
+  const [lines, setLines] = useState<LineRow[]>([newLineRow()]);
+  const [globalDiscount, setGlobalDiscount] = useState(0);
+  const [globalDiscountMode, setGlobalDiscountMode] = useState<'flat' | 'percent'>('flat');
+  const [additionalCharges, setAdditionalCharges] = useState<AdditionalCharge[]>([]);
+  const [createItemTarget, setCreateItemTarget] = useState<number | null>(null);
 
   useEffect(() => {
     if (isEdit && existingQuote && !initialized) {
-      setQuoteNumber(existingQuote.quote_number);
       if (existingQuote.customer_id) setCustomerId(existingQuote.customer_id);
       if (existingQuote.customer_name) setClientSearch(existingQuote.customer_name);
-      setNewQuote({
-        customer_name:  existingQuote.customer_name ?? '',
+      setForm({
+        customer_name: existingQuote.customer_name ?? '',
         customer_email: existingQuote.customer_email ?? '',
-        quote_date:     existingQuote.quote_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
-        valid_until:    existingQuote.valid_until?.slice(0, 10) ?? '',
-        currency:       existingQuote.currency ?? 'KES',
-        notes:          existingQuote.notes ?? '',
-        terms:          existingQuote.terms ?? '',
-        lines: existingQuote.lines?.map(l => ({
-          description:  l.description,
-          quantity:     Number(l.quantity),
-          unit_price:   Number(l.unit_price),
-          tax_rate:     Number(l.tax_rate),
-        })) ?? [emptyLine()],
+        quote_date: existingQuote.quote_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+        valid_until: existingQuote.valid_until?.slice(0, 10) ?? '',
+        currency: existingQuote.currency ?? 'KES',
+        terms: existingQuote.terms ?? '',
+        notes: existingQuote.notes ?? '',
       });
+      setLines(existingQuote.lines?.map(l => ({
+        _key: Math.random().toString(36).slice(2),
+        description: l.description,
+        item_id: l.item_id,
+        item_sku: l.item_sku,
+        item_type: l.item_type,
+        image_url: l.image_url,
+        unit: l.unit,
+        quantity: Number(l.quantity),
+        unit_price: Number(l.unit_price),
+        tax_code: l.tax_code,
+        tax_rate: Number(l.tax_rate),
+        discount_amount: Number(l.discount_amount) || 0,
+      })) ?? [newLineRow()]);
       setInitialized(true);
     }
   }, [isEdit, existingQuote, initialized]);
 
-  const [displayUnitAs,       setDisplayUnitAs]       = useState('Merge with quantity');
-  const [showTaxSummary,      setShowTaxSummary]      = useState('Do not show');
-  const [hideCountryOfSupply, setHideCountryOfSupply] = useState(false);
-  const [addOriginalImages,   setAddOriginalImages]   = useState(false);
-  const [showThumbnailsSep,   setShowThumbnailsSep]   = useState(false);
-  const [showDescFullWidth,   setShowDescFullWidth]   = useState(false);
-  const [hideSubtotalGroup,   setHideSubtotalGroup]   = useState(false);
-  const [showSkuInQuote,      setShowSkuInQuote]      = useState(false);
-  const [showSerialNumbers,   setShowSerialNumbers]   = useState(false);
-  const [displayBatchDetails, setDisplayBatchDetails] = useState(false);
-
-  const calculations = useMemo(() => {
-    let subtotal = 0, totalTax = 0;
-    const computedLines = newQuote.lines.map(line => {
-      const net = Number(line.quantity || 0) * Number(line.unit_price || 0);
-      const taxComponent = net * (Number(line.tax_rate || 0) / 100);
-      subtotal += net; totalTax += taxComponent;
-      return { ...line, amount: net, taxAmount: taxComponent, total: net + taxComponent };
-    });
-    return { lines: computedLines, subtotal, totalTax, grandTotal: subtotal + totalTax };
-  }, [newQuote.lines]);
+  const computedLines = lines.map(l => {
+    const net = l.quantity * l.unit_price;
+    const disc = l.discount_amount || 0;
+    const taxable = net - disc;
+    return { net, tax: taxable * (l.tax_rate / 100), disc };
+  });
+  const subtotal = computedLines.reduce((s, c) => s + c.net, 0);
+  const totalDiscount = computedLines.reduce((s, c) => s + c.disc, 0);
+  const totalTax = computedLines.reduce((s, c) => s + c.tax, 0);
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
-  const selectCRMContact = useCallback((contact: CRMContact) => {
-    setCustomerId(contact.id);
-    setNewQuote(p => ({
-      ...p,
-      customer_name:  crmContactDisplayName(contact),
-      customer_email: contact.email ?? '',
-    }));
-    setClientSearch(crmContactDisplayName(contact));
+  const selectContact = useCallback((c: CRMContact) => {
+    setCustomerId(c.id);
+    const name = crmContactDisplayName(c);
+    setClientSearch(name);
+    setForm(p => ({ ...p, customer_name: name, customer_email: c.email ?? '' }));
     setShowSuggestions(false);
   }, []);
 
   const handleSave = useCallback(() => {
-    const filteredLines = newQuote.lines.filter(l => String(l.description).trim());
+    const filtered = lines.filter(l => l.description.trim());
+    const linePayload = filtered.map(l => ({
+      description: l.description,
+      item_id: l.item_id,
+      item_sku: l.item_sku,
+      item_type: l.item_type,
+      image_url: l.image_url,
+      unit: l.unit,
+      quantity: l.quantity,
+      unit_price: l.unit_price,
+      tax_code: l.tax_code,
+      tax_rate: l.tax_rate,
+      discount_amount: l.discount_amount || undefined,
+    }));
+
+    const base = {
+      customer_id: customerId ?? undefined,
+      customer_name: form.customer_name,
+      customer_email: form.customer_email,
+      quote_date: form.quote_date,
+      valid_until: form.valid_until,
+      currency: form.currency,
+      terms: form.terms,
+      notes: form.notes,
+      lines: linePayload,
+    };
 
     if (isEdit && editId) {
-      const body: UpdateQuotationRequest = {
-        customer_id:    customerId ?? undefined,
-        customer_name:  newQuote.customer_name,
-        customer_email: newQuote.customer_email,
-        quote_date:     newQuote.quote_date,
-        valid_until:    newQuote.valid_until,
-        currency:       newQuote.currency,
-        notes:          newQuote.notes,
-        terms:          newQuote.terms,
-        lines: filteredLines.map(({ description, quantity, unit_price, tax_rate }) =>
-          ({ description, quantity, unit_price, tax_rate })),
-      };
-      updateMutation.mutate(body, { onSuccess: onClose });
+      updateMutation.mutate(base as UpdateQuotationRequest, { onSuccess: onClose });
     } else {
-      const body: CreateQuotationRequest = {
-        customer_id:    customerId ?? undefined,
-        customer_name:  newQuote.customer_name,
-        customer_email: newQuote.customer_email,
-        quote_date:     newQuote.quote_date,
-        valid_until:    newQuote.valid_until,
-        currency:       newQuote.currency,
-        notes:          newQuote.notes,
-        terms:          newQuote.terms,
-        lines: filteredLines.map(({ description, quantity, unit_price, tax_rate }) =>
-          ({ description, quantity, unit_price, tax_rate })),
-      };
-      createMutation.mutate(body, { onSuccess: onClose });
+      createMutation.mutate(base as CreateQuotationRequest, { onSuccess: onClose });
     }
-  }, [newQuote, customerId, isEdit, editId, createMutation, updateMutation, onClose]);
-
-  const addLine    = () => setNewQuote(p => ({ ...p, lines: [...p.lines, emptyLine()] }));
-  const removeLine = (idx: number) => setNewQuote(p => ({
-    ...p, lines: p.lines.length > 1 ? p.lines.filter((_, i) => i !== idx) : p.lines,
-  }));
-  const updateLine = (idx: number, field: keyof ExtendedLineRequest, value: unknown) =>
-    setNewQuote(p => ({ ...p, lines: p.lines.map((l, i) => i === idx ? { ...l, [field]: value } : l) }));
-
-  const advancedToggles: [boolean, (v: boolean) => void, string][] = [
-    [hideCountryOfSupply, setHideCountryOfSupply, 'Hide place/country of supply'],
-    [addOriginalImages,   setAddOriginalImages,   'Add original images in line items'],
-    [showThumbnailsSep,   setShowThumbnailsSep,   'Show thumbnails in separate column'],
-    [showDescFullWidth,   setShowDescFullWidth,   'Show description in full width'],
-    [hideSubtotalGroup,   setHideSubtotalGroup,   'Hide subtotal for group items'],
-    [showSkuInQuote,      setShowSkuInQuote,      'Show SKU in Quotation'],
-    [showSerialNumbers,   setShowSerialNumbers,   'Show Serial Numbers in Quotation'],
-    [displayBatchDetails, setDisplayBatchDetails, 'Display Batch Details in columns'],
-  ];
+  }, [form, lines, customerId, isEdit, editId, createMutation, updateMutation, onClose]);
 
   if (isEdit && quoteLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
 
   const orgName = brand?.orgName ?? brand?.name ?? effectiveTenant;
   const logoUrl = brand?.logoUrl ?? null;
-  const inputCls = 'w-full bg-background border border-input rounded-lg py-2 px-3 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-ring';
+  const inputCls = 'w-full rounded-lg py-2 px-3 text-xs font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring';
 
   return (
-    <div className="min-h-screen bg-background pb-24 font-sans antialiased">
+    <div className="min-h-screen bg-background pb-24">
       {/* Sticky header */}
       <div className="sticky top-0 z-50 bg-card border-b border-border px-6 py-4 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-4">
@@ -187,21 +155,19 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
           </button>
           <div className="h-6 w-px bg-border" />
           <div>
-            <h1 className="text-base font-black text-foreground tracking-tight">
-              {isEdit ? 'Edit Quotation' : 'Create New Quotation'}
-            </h1>
+            <h1 className="text-base font-black text-foreground tracking-tight">{isEdit ? 'Edit Quotation' : 'Create New Quotation'}</h1>
             <p className="text-[11px] text-muted-foreground font-medium">Step 1 of 2 — Quotation Details</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={handleSave} disabled={isPending}
-            className="px-4 py-2 text-xs font-bold text-muted-foreground bg-muted border border-border rounded-lg hover:bg-accent hover:text-foreground transition-all shadow-sm">
+            className="px-4 py-2 text-xs font-bold bg-muted text-muted-foreground border border-border rounded-lg hover:bg-accent transition-all">
             Save As Draft
           </button>
-          <button onClick={handleSave} disabled={isPending || !newQuote.customer_name.trim()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg transition-all shadow-md disabled:opacity-50">
+          <button onClick={handleSave} disabled={isPending}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50">
             {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {isPending ? 'Saving...' : 'Save & Continue'}
+            {isPending ? 'Saving…' : 'Save & Continue'}
           </button>
         </div>
       </div>
@@ -209,311 +175,137 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
       <div className="max-w-5xl mx-auto px-4 mt-8 space-y-6">
         <Card className="border border-border bg-card rounded-xl shadow-md p-6 space-y-8">
 
-          {/* Quotation header — number + dates + logo */}
+          {/* Header — dates + logo */}
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 pb-6 border-b border-border">
             <div className="space-y-4 w-full max-w-sm">
-              <div>
-                <label className="text-xs font-bold text-foreground block mb-1">Quotation No<span className="text-destructive">*</span></label>
-                <input className={inputCls}
-                  value={quoteNumber} onChange={e => setQuoteNumber(e.target.value)}
-                  placeholder={isEdit ? existingQuote?.quote_number ?? '' : 'Auto-generated'} />
-                {!isEdit && (
-                  <p className="text-[11px] text-muted-foreground mt-1 font-medium">Will be auto-assigned on save</p>
-                )}
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-bold text-foreground block mb-1">Quotation Date<span className="text-destructive">*</span></label>
-                  <input type="date" className={inputCls}
-                    value={newQuote.quote_date} onChange={e => setNewQuote(p => ({ ...p, quote_date: e.target.value }))} />
+                  <label className="text-xs font-bold text-foreground block mb-1">Quote Date<span className="text-destructive">*</span></label>
+                  <input type="date" className={inputCls} value={form.quote_date}
+                    onChange={e => setForm(p => ({ ...p, quote_date: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-foreground block mb-1">Valid Till Date<span className="text-destructive">*</span></label>
-                  <input type="date" className={inputCls}
-                    value={newQuote.valid_until} onChange={e => setNewQuote(p => ({ ...p, valid_until: e.target.value }))} />
+                  <label className="text-xs font-bold text-foreground block mb-1">Valid Until<span className="text-destructive">*</span></label>
+                  <input type="date" className={inputCls} value={form.valid_until}
+                    onChange={e => setForm(p => ({ ...p, valid_until: e.target.value }))} />
                 </div>
               </div>
             </div>
-
-            {/* Logo */}
-            <div className="border-2 border-dashed border-border bg-accent/20 rounded-xl p-3 flex flex-col items-center justify-center text-center w-64 h-36 shrink-0 hover:bg-accent/30 shadow-sm cursor-pointer overflow-hidden transition-all">
+            <div className="border-2 border-dashed border-border bg-accent/20 rounded-xl p-3 flex flex-col items-center justify-center w-64 h-36 shrink-0 overflow-hidden">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoUrl} alt={orgName} className="max-h-24 max-w-full object-contain" />
               ) : brandLoading ? (
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               ) : (
-                <>
-                  <div className="text-sm font-black text-foreground tracking-tight">{orgName || 'Company Logo'}</div>
-                  <div className="text-[10px] text-muted-foreground mt-3 font-semibold">Click to upload logo</div>
-                </>
-              )}
-              {logoUrl && (
-                <div className="text-[10px] text-muted-foreground mt-2 flex items-center gap-3 font-semibold">
-                  <span className="hover:text-foreground hover:underline cursor-pointer">✕ Remove</span>
-                  <span className="opacity-40">|</span>
-                  <span className="hover:text-foreground hover:underline cursor-pointer">✎ Change</span>
-                </div>
+                <div className="text-sm font-black text-foreground tracking-tight">{orgName || 'Company Logo'}</div>
               )}
             </div>
           </div>
 
-          {/* Quotation From / Quotation For */}
+          {/* From / For */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* FROM — populated from tenant branding */}
             <div className="p-5 rounded-xl bg-accent/20 border border-border space-y-3">
               <span className="text-xs font-bold text-foreground border-b-2 border-foreground pb-0.5 block w-fit">Quotation From</span>
               {brandLoading ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium py-2">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading organisation details…
-                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…</div>
               ) : (
-                <div className="text-xs space-y-1.5 text-muted-foreground leading-relaxed">
+                <div className="text-xs space-y-1.5 text-muted-foreground">
                   <div className="font-black text-foreground text-sm">{orgName}</div>
-                  {brand?.logoUrl && (
-                    <div className="flex justify-between font-medium">
-                      <span className="text-muted-foreground">Logo</span>
-                      <span className="text-primary text-xs cursor-pointer hover:underline">View</span>
-                    </div>
-                  )}
                   <div className="flex justify-between font-medium pt-1 border-t border-border">
-                    <span className="text-muted-foreground">Slug</span>
+                    <span>Slug</span>
                     <span className="text-foreground font-mono">{effectiveTenant}</span>
                   </div>
-                  {brand?.primaryColor && (
-                    <div className="flex justify-between font-medium items-center">
-                      <span className="text-muted-foreground">Brand Colour</span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="w-3 h-3 rounded-full border border-border" style={{ backgroundColor: brand.primaryColor }} />
-                        <span className="font-mono text-foreground">{brand.primaryColor}</span>
-                      </span>
-                    </div>
-                  )}
-                  <p className="text-[10px] text-muted-foreground pt-1 font-medium">
-                    Edit business details at <span className="font-bold text-foreground">Settings → Branding</span>
-                  </p>
+                  <p className="text-[10px] text-muted-foreground">Edit at <span className="font-bold">Settings → Branding</span></p>
                 </div>
               )}
             </div>
-
-            {/* FOR — CRM contact combobox */}
-            <div className="p-5 rounded-xl bg-accent/20 border border-border flex flex-col justify-between space-y-3">
+            <div className="p-5 rounded-xl bg-accent/20 border border-border space-y-3">
               <span className="text-xs font-bold text-foreground border-b-2 border-foreground pb-0.5 block w-fit">Quotation For</span>
-              <div className="space-y-3 my-auto py-2">
-                {/* CRM search combobox */}
-                <div className="space-y-1 relative">
+              <div className="space-y-3">
+                <div className="relative">
                   <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Customer Name</label>
-                  <div className="relative">
+                  <div className="relative mt-1">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-                    <input
-                      ref={clientInputRef}
-                      placeholder="Search CRM contacts…"
-                      value={clientSearch || newQuote.customer_name}
-                      onChange={e => {
-                        const v = e.target.value;
-                        setClientSearch(v);
-                        setCustomerId(null);
-                        setNewQuote(p => ({ ...p, customer_name: v }));
-                        setShowSuggestions(v.length >= 2);
-                      }}
-                      onFocus={() => { if ((clientSearch || newQuote.customer_name).length >= 2) setShowSuggestions(true); }}
+                    <input ref={clientRef} placeholder="Search CRM contacts…"
+                      value={clientSearch || form.customer_name}
+                      onChange={e => { const v = e.target.value; setClientSearch(v); setCustomerId(null); setForm(p => ({ ...p, customer_name: v })); setShowSuggestions(v.length >= 2); }}
+                      onFocus={() => { if ((clientSearch || form.customer_name).length >= 2) setShowSuggestions(true); }}
                       onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                      className="w-full bg-background border border-input rounded-lg py-2 pl-8 pr-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring shadow-sm"
-                    />
+                      className="w-full rounded-lg py-2 pl-8 pr-3 text-xs border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
                   </div>
                   {showSuggestions && crmContacts.length > 0 && (
                     <div className="absolute z-50 left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl max-h-48 overflow-y-auto">
                       {crmContacts.map(c => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onMouseDown={() => selectCRMContact(c)}
-                          className="w-full text-left px-3 py-2 hover:bg-accent transition-colors flex flex-col gap-0.5"
-                        >
+                        <button key={c.id} type="button" onMouseDown={() => selectContact(c)}
+                          className="w-full text-left px-3 py-2 hover:bg-accent transition-colors flex flex-col gap-0.5">
                           <span className="text-xs font-bold text-foreground">{crmContactDisplayName(c)}</span>
                           {c.email && <span className="text-[10px] text-muted-foreground font-mono">{c.email}</span>}
                         </button>
                       ))}
                     </div>
                   )}
-                  {customerId && (
-                    <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                      <span>✓</span> Linked to CRM contact
-                    </p>
-                  )}
+                  {customerId && <p className="text-[10px] text-emerald-600 font-semibold mt-1">✓ Linked to CRM contact</p>}
                 </div>
-
-                <div className="space-y-1">
+                <div>
                   <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Customer Email</label>
-                  <input type="email" placeholder="customer@email.com" value={newQuote.customer_email}
-                    onChange={e => setNewQuote(p => ({ ...p, customer_email: e.target.value }))}
-                    className="w-full bg-background border border-input rounded-lg py-2 px-3 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-ring shadow-sm" />
+                  <input type="email" placeholder="customer@email.com" value={form.customer_email}
+                    onChange={e => setForm(p => ({ ...p, customer_email: e.target.value }))}
+                    className="mt-1 w-full rounded-lg py-2 px-3 text-xs border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
                 </div>
-                <div className="text-center pt-1">
-                  <button className="inline-flex items-center gap-1 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-lg transition-all shadow-sm">
-                    <UserPlus className="h-3.5 w-3.5" /> Add New Client
-                  </button>
-                </div>
+                <button className="inline-flex items-center gap-1 px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-all">
+                  <UserPlus className="h-3.5 w-3.5" /> Add New Client
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Tax / Currency toolbar */}
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
-            <button className="px-3 py-1.5 bg-muted hover:bg-accent rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground transition-all flex items-center gap-1">
-              <Percent className="h-3 w-3" /> Configure TAX
-            </button>
-            <select value={newQuote.currency} onChange={e => setNewQuote(p => ({ ...p, currency: e.target.value }))}
-              className="bg-muted hover:bg-accent border border-transparent rounded-lg py-1.5 px-3 text-xs font-bold text-foreground focus:outline-none transition-all">
-              <option value="KES">Kenyan Shilling (KES, Ksh)</option>
-              <option value="USD">US Dollar (USD, $)</option>
-              <option value="EUR">Euro (EUR, €)</option>
-              <option value="GBP">British Pound (GBP, £)</option>
-              <option value="UGX">Ugandan Shilling (UGX)</option>
-              <option value="TZS">Tanzanian Shilling (TZS)</option>
-            </select>
-            <button className="px-3 py-1.5 bg-muted hover:bg-accent rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground transition-all flex items-center gap-1">
-              <Scale className="h-3 w-3" /> Number and Currency Format
-            </button>
-            <button className="px-3 py-1.5 bg-muted hover:bg-accent rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground transition-all flex items-center gap-1">
-              <Columns className="h-3 w-3" /> Edit Columns/Formulas
-            </button>
+          {/* Currency */}
+          <CurrencySection
+            tenant={effectiveTenant}
+            currency={form.currency}
+            onCurrencyChange={v => setForm(p => ({ ...p, currency: v }))}
+          />
+
+          {/* Line items */}
+          <LineItemsSection
+            tenant={effectiveTenant}
+            lines={lines}
+            onChange={setLines}
+            currency={form.currency}
+            onRequestCreateItem={(q, idx) => setCreateItemTarget(idx)}
+          />
+
+          {/* Totals + Terms */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            <TermsNotesSection
+              terms={form.terms}
+              onTermsChange={v => setForm(p => ({ ...p, terms: v }))}
+              notes={form.notes}
+              onNotesChange={v => setForm(p => ({ ...p, notes: v }))}
+            />
+            <TotalsSection
+              subtotal={subtotal}
+              totalTax={totalTax}
+              totalDiscount={totalDiscount}
+              currency={form.currency}
+              globalDiscount={globalDiscount}
+              onGlobalDiscountChange={setGlobalDiscount}
+              globalDiscountMode={globalDiscountMode}
+              onGlobalDiscountModeChange={setGlobalDiscountMode}
+              additionalCharges={additionalCharges}
+              onAdditionalChargesChange={setAdditionalCharges}
+            />
           </div>
 
-          {/* Line items table */}
-          <div className="border border-border rounded-xl overflow-hidden shadow-sm">
-            <div className="bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground grid grid-cols-12 gap-3 items-center">
-              <div className="col-span-5">Item</div>
-              <div className="col-span-2 text-center">TAX Rate</div>
-              <div className="col-span-1 text-center">Qty</div>
-              <div className="col-span-1 text-center">Rate</div>
-              <div className="col-span-1 text-right">Amount</div>
-              <div className="col-span-1 text-right">TAX</div>
-              <div className="col-span-1 text-right">Total</div>
-            </div>
-            <div className="p-4 space-y-4 divide-y divide-border bg-background">
-              {calculations.lines.map((line, idx) => (
-                <div key={idx} className="grid grid-cols-12 gap-3 items-start pt-3 first:pt-0">
-                  <div className="col-span-5 space-y-2">
-                    <span className="text-xs font-black text-foreground block">{idx + 1}.</span>
-                    <input placeholder="Item Name / SKU Id" value={line.description}
-                      onChange={e => updateLine(idx, 'description', e.target.value)}
-                      className="w-full bg-background border border-input rounded-lg py-2 px-3 text-xs text-foreground font-semibold focus:outline-none focus:border-ring shadow-sm" />
-                  </div>
-                  <div className="col-span-2 pt-6">
-                    <div className="relative rounded-lg">
-                      <input type="number" value={line.tax_rate || ''}
-                        onChange={e => updateLine(idx, 'tax_rate', parseFloat(e.target.value) || 0)}
-                        className="w-full bg-background border border-input rounded-lg py-2 pl-3 pr-6 text-xs text-center font-mono font-bold text-foreground focus:outline-none" />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">%</span>
-                    </div>
-                  </div>
-                  <div className="col-span-1 pt-6">
-                    <input type="number" min="1" value={line.quantity}
-                      onChange={e => updateLine(idx, 'quantity', parseInt(e.target.value) || 1)}
-                      className="w-full bg-background border border-input rounded-lg py-2 px-1 text-xs text-center font-mono font-bold text-foreground focus:outline-none" />
-                  </div>
-                  <div className="col-span-1 pt-6">
-                    <input type="number" value={line.unit_price || ''}
-                      onChange={e => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-background border border-input rounded-lg py-2 px-1 text-xs text-center font-mono font-bold text-foreground focus:outline-none" />
-                  </div>
-                  <div className="col-span-1 pt-8 text-right font-mono font-semibold text-xs text-muted-foreground">{line.amount.toFixed(2)}</div>
-                  <div className="col-span-1 pt-8 text-right font-mono font-semibold text-xs text-muted-foreground">{line.taxAmount.toFixed(2)}</div>
-                  <div className="col-span-1 pt-8 text-right font-mono font-black text-xs text-foreground flex items-center justify-end gap-1">
-                    <span>{line.total.toFixed(2)}</span>
-                    {calculations.lines.length > 1 && (
-                      <button onClick={() => removeLine(idx)} className="p-1 text-muted-foreground hover:text-destructive rounded-md transition-all ml-1">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="p-3 bg-muted/40 border-t border-border flex items-center gap-2">
-              <button onClick={addLine}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-background border border-border hover:bg-accent text-foreground rounded-lg shadow-sm transition-all">
-                <Plus className="h-3.5 w-3.5" /> Add New Line
-              </button>
-            </div>
-          </div>
-
-          {/* Summary + Terms */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-            <div className="md:col-span-6 space-y-3">
-              <div className="p-4 bg-accent/20 border border-border rounded-xl space-y-2">
-                <span className="text-xs font-bold text-foreground underline block border-b border-border pb-1.5">Terms and Conditions</span>
-                <textarea rows={3} value={newQuote.terms} onChange={e => setNewQuote(p => ({ ...p, terms: e.target.value }))}
-                  className="w-full bg-transparent text-xs font-semibold text-foreground resize-none focus:outline-none" />
-              </div>
-              <div className="p-4 bg-accent/20 border border-border rounded-xl space-y-2">
-                <span className="text-xs font-bold text-foreground underline block border-b border-border pb-1.5">Notes</span>
-                <textarea rows={2} value={newQuote.notes} onChange={e => setNewQuote(p => ({ ...p, notes: e.target.value }))}
-                  placeholder="Additional notes visible to the customer…"
-                  className="w-full bg-transparent text-xs font-semibold text-foreground resize-none focus:outline-none" />
-              </div>
-            </div>
-            <div className="md:col-span-6 space-y-4">
-              <Card className="border border-border bg-accent/20 rounded-xl p-4 space-y-3 shadow-inner">
-                <div className="space-y-1.5 text-xs font-semibold text-muted-foreground border-b border-border pb-3">
-                  <div className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span className="font-mono font-bold text-foreground">{newQuote.currency} {calculations.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>TAX</span>
-                    <span className="font-mono font-bold text-foreground">{newQuote.currency} {calculations.totalTax.toFixed(2)}</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center pt-1">
-                  <span className="text-sm font-bold text-foreground">Total ({newQuote.currency})</span>
-                  <span className="font-mono font-black text-lg text-foreground">{newQuote.currency} {calculations.grandTotal.toFixed(2)}</span>
-                </div>
-              </Card>
-            </div>
-          </div>
-
-          {/* Advanced options */}
-          <Card className="border border-border bg-accent/10 rounded-xl p-5 space-y-4">
-            <h3 className="text-sm font-bold text-foreground tracking-tight">Advanced options</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-muted-foreground block">Display unit as</label>
-                <select value={displayUnitAs} onChange={e => setDisplayUnitAs(e.target.value)}
-                  className="w-full bg-background border border-input rounded-lg py-1.5 px-3 text-xs text-foreground focus:outline-none transition-all">
-                  <option>Merge with quantity</option>
-                  <option>Show separately</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-muted-foreground block">Show tax summary in invoice</label>
-                <select value={showTaxSummary} onChange={e => setShowTaxSummary(e.target.value)}
-                  className="w-full bg-background border border-input rounded-lg py-1.5 px-3 text-xs text-foreground focus:outline-none transition-all">
-                  <option>Do not show</option>
-                  <option>Show tax summary</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs font-semibold text-muted-foreground">
-              {advancedToggles.map(([val, setter, label]) => (
-                <label key={label} className="flex items-center gap-2.5 cursor-pointer group">
-                  <input type="checkbox" checked={val} onChange={e => setter(e.target.checked)}
-                    className="rounded border-input text-primary h-3.5 w-3.5 focus:ring-0" />
-                  <span className="group-hover:text-foreground transition-colors">{label}</span>
-                </label>
-              ))}
-            </div>
-          </Card>
-
-          {/* Action buttons */}
+          {/* Footer actions */}
           <div className={cn('flex flex-wrap items-center justify-start gap-3 pt-4 border-t border-border')}>
-            <button onClick={handleSave} disabled={isPending || !newQuote.customer_name.trim()}
+            <button onClick={handleSave} disabled={isPending}
               className="px-5 py-2 text-xs font-bold text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg transition-all disabled:opacity-50">
               Save & Continue
             </button>
             {!isEdit && (
-              <button onClick={handleSave} disabled={isPending || !newQuote.customer_name.trim()}
+              <button onClick={handleSave} disabled={isPending}
                 className="px-5 py-2 text-xs font-bold text-foreground bg-background border border-foreground hover:bg-accent rounded-lg transition-all disabled:opacity-50">
                 Save & Create New
               </button>
@@ -525,6 +317,19 @@ export function CreateQuotationView({ effectiveTenant, onClose, editId }: Create
           </div>
         </Card>
       </div>
+
+      {/* Create item modal */}
+      {createItemTarget !== null && (
+        <CreateItemModal
+          tenant={effectiveTenant}
+          initialName={lines[createItemTarget]?.description ?? ''}
+          onCreated={patch => {
+            setLines(prev => prev.map((l, i) => i === createItemTarget ? { ...l, ...patch } : l));
+            setCreateItemTarget(null);
+          }}
+          onClose={() => setCreateItemTarget(null)}
+        />
+      )}
     </div>
   );
 }

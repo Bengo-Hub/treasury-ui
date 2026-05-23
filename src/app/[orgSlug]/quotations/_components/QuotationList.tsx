@@ -10,9 +10,11 @@ import {
   useDeclineQuotation,
   useDeleteQuotation,
   useDuplicateQuotation,
+  useGenerateDeliveryChallan,
   useSendQuotation,
 } from '@/hooks/use-invoices';
 import type { Quotation } from '@/lib/api/invoices';
+import { exportQuotation, downloadQuotationPDF } from '@/lib/api/invoices';
 import { cn } from '@/lib/utils';
 import { ColumnManager, loadColumnPrefs, type ColumnPrefs } from './ColumnManager';
 import {
@@ -75,6 +77,7 @@ export function QuotationList({
   const cancelMutation           = useCancelQuotation(effectiveTenant);
   const convertProformaMutation  = useConvertToProforma(effectiveTenant);
   const convertSalesOrderMutation = useConvertToSalesOrder(effectiveTenant);
+  const deliveryChallanMutation   = useGenerateDeliveryChallan(effectiveTenant);
 
   const [actionMenuId,      setActionMenuId]      = useState<string | null>(null);
   const [quotationTypeOpen, setQuotationTypeOpen] = useState(false);
@@ -274,7 +277,13 @@ export function QuotationList({
                                       : []),
                                     { label: 'Convert to Invoice',     icon: <RefreshCw className="h-3.5 w-3.5" />, onClick: () => acceptMutation.mutate(quote.id) },
                                     { label: 'Convert to Proforma',    icon: <RefreshCw className="h-3.5 w-3.5" />, onClick: () => convertProformaMutation.mutate(quote.id) },
-                                    { label: 'Convert to Sales Order', icon: <RefreshCw className="h-3.5 w-3.5" />, onClick: () => convertSalesOrderMutation.mutate(quote.id) },
+                                    { label: 'Convert to Sales Order',  icon: <RefreshCw className="h-3.5 w-3.5" />, onClick: () => convertSalesOrderMutation.mutate(quote.id) },
+                                    { label: 'Generate Delivery Challan', icon: <RefreshCw className="h-3.5 w-3.5" />, onClick: () => deliveryChallanMutation.mutate(quote.id) },
+                                    ...(quote.public_token ? [
+                                      { label: 'Download PDF',   icon: <Check className="h-3.5 w-3.5" />, onClick: () => window.open(downloadQuotationPDF(quote.public_token, true), '_blank') },
+                                      { label: 'Export as CSV',  icon: <Check className="h-3.5 w-3.5" />, onClick: () => window.open(exportQuotation(quote.public_token, 'csv'), '_blank') },
+                                      { label: 'Export as XLSX', icon: <Check className="h-3.5 w-3.5" />, onClick: () => window.open(exportQuotation(quote.public_token, 'xlsx'), '_blank') },
+                                    ] : []),
                                     { label: 'Decline',                icon: <X className="h-3.5 w-3.5" />,         onClick: () => declineMutation.mutate(quote.id) },
                                     { label: 'Cancel',              icon: <X className="h-3.5 w-3.5" />,            onClick: () => cancelMutation.mutate(quote.id) },
                                     { label: 'Delete',              icon: <Trash2 className="h-3.5 w-3.5" />,       onClick: () => deleteMutation.mutate(quote.id), className: 'text-destructive' },

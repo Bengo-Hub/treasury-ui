@@ -26,6 +26,7 @@ import {
   convertQuotationToProforma,
   convertQuotationToSalesOrder,
   convertProformaToInvoice,
+  generateDeliveryChallan,
   sendInvoice,
   sendQuotation,
   updateInvoice,
@@ -365,6 +366,16 @@ export function useConvertToSalesOrder(tenant: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+    },
+  });
+}
+
+export function useGenerateDeliveryChallan(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (quotationId: string) => generateDeliveryChallan(tenant, quotationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
     },
   });
 }

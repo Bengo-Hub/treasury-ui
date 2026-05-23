@@ -458,6 +458,10 @@ export function convertQuotationToSalesOrder(tenant: string, quotationId: string
   return apiClient.post<{ status: string; sales_order: Invoice }>(`${BASE}/${tenant}/quotations/${quotationId}/convert-to-sales-order`, {});
 }
 
+export function generateDeliveryChallan(tenant: string, quotationId: string): Promise<{ task_id: string; tracking_code: string }> {
+  return apiClient.post<{ task_id: string; tracking_code: string }>(`${BASE}/${tenant}/quotations/${quotationId}/delivery-challan`, {});
+}
+
 export function getQuotationStats(tenant: string): Promise<QuotationStats> {
   return apiClient.get<QuotationStats>(`${BASE}/${tenant}/quotations/stats`);
 }
