@@ -301,7 +301,7 @@ export interface PublicInvoice {
 /** Fetch a public invoice by share token — no auth required. */
 export async function fetchPublicInvoice(token: string): Promise<PublicInvoice> {
   const TREASURY_URL =
-    process.env.TREASURY_API_URL || 'https://treasuryapi.codevertexitsolutions.com';
+    process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexitsolutions.com';
   const res = await fetch(`${TREASURY_URL}/api/v1/public/invoices/${token}`, {
     cache: 'no-store',
   });
@@ -312,7 +312,7 @@ export async function fetchPublicInvoice(token: string): Promise<PublicInvoice> 
 /** Fetch a public quotation by share token — no auth required. */
 export async function fetchPublicQuotation(token: string): Promise<PublicQuotation> {
   const TREASURY_URL =
-    process.env.TREASURY_API_URL || 'https://treasuryapi.codevertexitsolutions.com';
+    process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexitsolutions.com';
   const res = await fetch(`${TREASURY_URL}/api/v1/public/quotations/${token}`, {
     cache: 'no-store',
   });
