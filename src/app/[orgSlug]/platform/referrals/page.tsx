@@ -31,13 +31,12 @@ import {
   Loader2,
   MoreVertical,
   Plus,
-  Shield,
   Users,
   Award,
   X,
 } from 'lucide-react';
-import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { useState } from 'react';
 
 const REWARD_TYPES = [
   { value: 'revenue_share', label: 'Revenue Share' },
@@ -68,7 +67,6 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'outline'
 
 export default function ReferralsPage() {
   const { data: user } = useMe();
-  const router = useRouter();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
 
@@ -94,23 +92,6 @@ export default function ReferralsPage() {
   const programs = programsData?.programs ?? [];
   const referrals = referralsData?.referrals ?? [];
 
-  useEffect(() => {
-    if (user && !isPlatformOwner) {
-      router.replace(`/${orgSlug}`);
-    }
-  }, [user, isPlatformOwner, orgSlug, router]);
-
-  if (!isPlatformOwner) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <Shield className="h-12 w-12 text-muted-foreground mx-auto opacity-30" />
-          <h2 className="text-xl font-bold">Access Restricted</h2>
-          <p className="text-sm text-muted-foreground">This section requires Platform Owner privileges.</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">

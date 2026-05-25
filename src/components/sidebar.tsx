@@ -187,7 +187,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       ],
     },
     {
-      label: 'Accounting & Reconciliation',
+      label: 'Accounting',
       icon: BookOpen,
       children: [
         {
