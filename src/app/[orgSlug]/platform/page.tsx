@@ -38,7 +38,7 @@ import {
   X,
   XCircle
 } from 'lucide-react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -198,7 +198,6 @@ interface TestResult {
 
 export default function PlatformPage() {
   const { data: user } = useMe();
-  const router = useRouter();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
   const [activeTab, setActiveTab] = useState<'gateways' | 'fees'>('gateways');
@@ -225,23 +224,6 @@ export default function PlatformPage() {
   const createFeeRule = useCreatePlatformFeeRule();
   const updateFeeRule = useUpdatePlatformFeeRule();
 
-  useEffect(() => {
-    if (user && !isPlatformOwner) {
-      router.replace(`/${orgSlug}`);
-    }
-  }, [user, isPlatformOwner, orgSlug, router]);
-
-  if (!isPlatformOwner) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <Shield className="h-12 w-12 text-muted-foreground mx-auto opacity-30" />
-          <h2 className="text-xl font-bold">Access Restricted</h2>
-          <p className="text-sm text-muted-foreground">This section requires Platform Owner privileges.</p>
-        </div>
-      </div>
-    );
-  }
 
   const handleTestGateway = async (gw: GatewayConfig) => {
     setTestingId(gw.id);
