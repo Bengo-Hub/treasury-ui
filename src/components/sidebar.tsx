@@ -109,10 +109,34 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       icon: FileText,
       children: [
         {
+          label: 'Proforma Invoices',
+          icon: FileText,
+          href: `/${orgSlug}/sales/proforma-invoices`,
+          active: pathname.startsWith(`/${orgSlug}/sales/proforma-invoices`),
+        },
+        {
           label: 'Invoices',
           icon: FileText,
           href: `/${orgSlug}/invoices`,
           active: pathname.startsWith(`/${orgSlug}/invoices`),
+        },
+        {
+          label: 'Payment Receipts',
+          icon: Receipt,
+          href: `/${orgSlug}/sales/payment-receipts`,
+          active: pathname.startsWith(`/${orgSlug}/sales/payment-receipts`),
+        },
+        {
+          label: 'Sales Orders',
+          icon: ClipboardCheck,
+          href: `/${orgSlug}/sales/sales-orders`,
+          active: pathname.startsWith(`/${orgSlug}/sales/sales-orders`),
+        },
+        {
+          label: 'Credit Notes',
+          icon: BadgeDollarSign,
+          href: `/${orgSlug}/sales/credit-notes`,
+          active: pathname.startsWith(`/${orgSlug}/sales/credit-notes`),
         },
         {
           label: 'Quotations',
