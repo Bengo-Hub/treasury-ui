@@ -5,6 +5,7 @@ import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useSettings, useUpdateSetting, getSettingValue } from '@/hooks/use-settings';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
+import { PaymentsTab } from './_components/payments-tab';
 import {
   Bell,
   CreditCard,
@@ -43,9 +44,6 @@ export default function SettingsPage() {
   const [minPayoutBalance, setMinPayoutBalance] = useState(0);
 
   // ---- Payments ----
-  const [enableCod, setEnableCod] = useState(false);
-  const [enableMpesa, setEnableMpesa] = useState(false);
-  const [enablePaystack, setEnablePaystack] = useState(false);
   const [maxPaymentAmount, setMaxPaymentAmount] = useState(0);
 
   // ---- Notifications ----
@@ -66,9 +64,6 @@ export default function SettingsPage() {
     setSettlementSchedule(getSettingValue(settings, 'settlement_schedule', 'daily'));
     setSettlementDay(getSettingValue(settings, 'settlement_day', 1));
     setMinPayoutBalance(getSettingValue(settings, 'min_payout_balance', 0));
-    setEnableCod(getSettingValue(settings, 'enable_cod', false));
-    setEnableMpesa(getSettingValue(settings, 'enable_mpesa', false));
-    setEnablePaystack(getSettingValue(settings, 'enable_paystack', false));
     setMaxPaymentAmount(getSettingValue(settings, 'max_payment_amount', 0));
     setFailedAlerts(getSettingValue(settings, 'failed_transaction_alerts', true));
     setSettlementConfirmation(getSettingValue(settings, 'settlement_confirmation', true));
@@ -263,65 +258,14 @@ export default function SettingsPage() {
 
         {/* Payments */}
         <TabsContent value="payments">
-          <Card>
-            <CardHeader className="border-b border-border/50 py-4">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-primary" />
-                <h3 className="font-bold text-sm uppercase tracking-tight">Payment Methods</h3>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <ToggleRow
-                label="Enable COD (Cash on Delivery)"
-                description="Allow customers to pay on delivery."
-                checked={enableCod}
-                onChange={(v) => {
-                  setEnableCod(v);
-                  saveSetting('enable_cod', v, 'boolean');
-                }}
-              />
-              <ToggleRow
-                label="Enable M-Pesa"
-                description="Accept payments via Safaricom M-Pesa STK push."
-                checked={enableMpesa}
-                onChange={(v) => {
-                  setEnableMpesa(v);
-                  saveSetting('enable_mpesa', v, 'boolean');
-                }}
-              />
-              <ToggleRow
-                label="Enable Paystack"
-                description="Accept card and bank payments via Paystack."
-                checked={enablePaystack}
-                onChange={(v) => {
-                  setEnablePaystack(v);
-                  saveSetting('enable_paystack', v, 'boolean');
-                }}
-              />
-              <FormField label="Max Payment Amount" description="Maximum single payment amount allowed (0 = no limit).">
-                <input
-                  type="number"
-                  min={0}
-                  value={maxPaymentAmount || ''}
-                  onChange={(e) => setMaxPaymentAmount(parseFloat(e.target.value) || 0)}
-                  className={`${inputClass} w-48 font-mono`}
-                />
-              </FormField>
-              <div className="flex justify-end pt-2">
-                <Button
-                  size="sm"
-                  className="gap-2"
-                  disabled={updateSetting.isPending}
-                  onClick={() => {
-                    saveSetting('max_payment_amount', maxPaymentAmount, 'number');
-                  }}
-                >
-                  {updateSetting.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                  Save Payments
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <PaymentsTab
+            orgSlug={orgSlug}
+            tenantSlug={tenantSlug}
+            maxPaymentAmount={maxPaymentAmount}
+            onMaxAmountChange={setMaxPaymentAmount}
+            onSaveMaxAmount={() => saveSetting('max_payment_amount', maxPaymentAmount, 'number')}
+            isSavingSettings={updateSetting.isPending}
+          />
         </TabsContent>
 
         {/* Notifications */}

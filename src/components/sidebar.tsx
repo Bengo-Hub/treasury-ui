@@ -10,7 +10,6 @@ import {
   Calculator,
   ChevronDown,
   ClipboardCheck,
-  CreditCard,
   FileCheck,
   FileMinus,
   FilePlus,
@@ -234,12 +233,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       ],
     },
     {
-      label: 'Gateways',
-      icon: CreditCard,
-      href: `/${orgSlug}/gateways`,
-      active: pathname.startsWith(`/${orgSlug}/gateways`),
-    },
-    {
       label: 'Accounts & Ledgers',
       icon: Landmark,
       href: `/${orgSlug}/accounts`,
@@ -299,11 +292,13 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       {/* Logo / tenant — 72px header band, mirrors pos-ui/inventory-ui pattern */}
       <div className="border-b border-sidebar-border shrink-0 overflow-hidden" style={{ height: '72px' }}>
         {menuLogo ? (
-          <img
-            src={menuLogo}
-            alt={tenant?.name ?? orgSlug}
-            className="w-full h-full object-cover"
-          />
+          <div className="flex items-center justify-start h-full px-4">
+            <img
+              src={menuLogo}
+              alt={tenant?.name ?? orgSlug}
+              className="max-h-10 max-w-40 w-auto object-contain"
+            />
+          </div>
         ) : (
           <div className="flex items-center gap-3 h-full px-4">
             <div className="size-10 shrink-0 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
