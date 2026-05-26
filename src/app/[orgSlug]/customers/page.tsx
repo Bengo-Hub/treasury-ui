@@ -96,7 +96,7 @@ export default function CustomersPage() {
       (c) => (c.email || c.name) === selectedCustomer,
     );
     return (
-      <div className="p-8 space-y-8 max-w-7xl mx-auto">
+      <div className="p-6 space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setSelectedCustomer(null)}>
             <ArrowLeft className="h-5 w-5" />
@@ -167,7 +167,7 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
