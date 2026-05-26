@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils';
 import { useBranding } from '@/providers/branding-provider';
 import { useAuthStore } from '@/store/auth';
 import {
-  BadgeDollarSign,
   Banknote,
   BookOpen,
   Briefcase,
@@ -296,27 +295,34 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const menuLogo = tenant?.logoUrl;
 
   const content = (
-    <div className="flex flex-col h-full bg-background border-r border-border">
-      {/* Close Button & Logo */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <Link href={`/${orgSlug}`} onClick={onClose} className="flex items-center gap-2">
-          {menuLogo ? (
-            <div className="size-10 overflow-hidden rounded-lg">
-              <img src={menuLogo} alt={tenant?.name} className="size-full object-cover" />
+    <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border">
+      {/* Logo / tenant — 72px header band, mirrors pos-ui/inventory-ui pattern */}
+      <div className="border-b border-sidebar-border shrink-0 overflow-hidden" style={{ height: '72px' }}>
+        {menuLogo ? (
+          <img
+            src={menuLogo}
+            alt={tenant?.name ?? orgSlug}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="flex items-center gap-3 h-full px-4">
+            <div className="size-10 shrink-0 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
+              <span className="text-sm font-bold text-primary-foreground">
+                {(tenant?.name ?? getServiceTitle('Treasury')).slice(0, 2).toUpperCase()}
+              </span>
             </div>
-          ) : (
-            <div className="size-10 rounded-lg bg-primary flex items-center justify-center shadow-lg">
-              <BadgeDollarSign className="text-primary-foreground h-5 w-5" />
-            </div>
-          )}
-          <span className="text-sm font-bold text-foreground">
-            {getServiceTitle('Treasury')}
-          </span>
-        </Link>
+            <span className="text-sm font-bold text-sidebar-foreground truncate">
+              {tenant?.name ?? getServiceTitle('Treasury')}
+            </span>
+          </div>
+        )}
+      </div>
+      {/* Close Button (mobile) */}
+      <div className="flex justify-end px-3 pt-2 md:hidden">
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex items-center justify-center rounded-full p-2 hover:bg-muted md:hidden"
+          className="inline-flex items-center justify-center rounded-full p-2 hover:bg-muted"
           aria-label="Close menu"
         >
           <X className="h-5 w-5" />
@@ -324,38 +330,39 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 pt-2">
-        <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Treasury
-        </p>
-        <NavList items={tenantNav} onItemClick={onClose} pathname={pathname} />
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-hide">
+        <div>
+          <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-sidebar-foreground/25">
+            Treasury
+          </p>
+          <NavList items={tenantNav} onItemClick={onClose} pathname={pathname} />
+        </div>
 
         {isPlatformOwner && (
-          <>
-            <div className="my-4 h-px bg-border mx-3" />
-            <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <div>
+            <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-sidebar-foreground/25">
               Platform
             </p>
             <NavList items={platformNav} onItemClick={onClose} pathname={pathname} />
-          </>
+          </div>
         )}
       </nav>
 
       {/* Footer: Org Info + Sign Out */}
-      <div className="border-t border-border px-5 py-4 mt-auto">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="size-9 rounded-lg bg-muted flex items-center justify-center text-xs font-bold text-foreground uppercase">
-              {tenant?.name?.[0] || orgSlug?.[0]}
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-foreground truncate">{tenant?.name || orgSlug}</p>
-              <p className="text-[10px] text-muted-foreground font-medium">Finance Node</p>
-            </div>
+      <div className="px-3 py-4 border-t border-sidebar-border">
+        <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-sidebar-foreground/5">
+          <div className="size-8 rounded-lg bg-primary/25 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-primary uppercase">
+              {(tenant?.name || orgSlug)?.[0] ?? 'T'}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-sidebar-foreground truncate">{userName}</p>
+            <p className="text-[10px] text-sidebar-foreground/40 mt-0.5">{userRole}</p>
           </div>
           <button
             onClick={() => logout()}
-            className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+            className="h-7 w-7 rounded-lg flex items-center justify-center text-sidebar-foreground/35 hover:text-rose-400 hover:bg-sidebar-foreground/8 transition-colors"
             title="Sign out"
           >
             <LogOut className="h-4 w-4" />
@@ -420,21 +427,21 @@ function NavLinkItem({ item, onItemClick }: { item: NavItem; onItemClick?: () =>
         href={item.href}
         onClick={onItemClick}
         className={cn(
-          'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors',
+          'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm',
           item.active
             ? 'bg-primary/10 text-primary font-semibold'
-            : 'text-foreground hover:bg-muted/50'
+            : 'text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-foreground/8 font-medium'
         )}
       >
         <div
           className={cn(
             'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors',
-            item.active ? 'bg-primary/10 text-primary' : 'bg-transparent text-muted-foreground'
+            item.active ? 'bg-primary/10 text-primary' : 'bg-transparent text-sidebar-foreground/40'
           )}
         >
           <Icon className="size-4.5" />
         </div>
-        <span className="text-sm font-medium">{item.label}</span>
+        <span className="truncate">{item.label}</span>
       </Link>
     </li>
   );
@@ -467,24 +474,24 @@ function NavGroupItem({
         type="button"
         onClick={toggle}
         className={cn(
-          'flex w-full items-center gap-3 px-3 py-2.5 rounded-xl transition-colors',
+          'flex w-full items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm',
           hasActiveChild
             ? 'text-primary font-semibold'
-            : 'text-foreground hover:bg-muted/50'
+            : 'text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-foreground/8 font-medium'
         )}
       >
         <div
           className={cn(
             'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors',
-            hasActiveChild ? 'bg-primary/10 text-primary' : 'bg-transparent text-muted-foreground'
+            hasActiveChild ? 'bg-primary/10 text-primary' : 'bg-transparent text-sidebar-foreground/40'
           )}
         >
           <Icon className="size-4.5" />
         </div>
-        <span className="flex-1 text-left text-sm font-medium">{group.label}</span>
+        <span className="flex-1 text-left truncate">{group.label}</span>
         <ChevronDown
           className={cn(
-            'size-4 text-muted-foreground transition-transform duration-200',
+            'size-4 text-sidebar-foreground/25 transition-transform duration-200',
             expanded && 'rotate-180'
           )}
         />
@@ -504,10 +511,10 @@ function NavGroupItem({
                 href={child.href}
                 onClick={onItemClick}
                 className={cn(
-                  'flex items-center gap-3 pl-10 pr-3 py-2 rounded-xl transition-colors',
+                  'flex items-center gap-3 pl-10 pr-3 py-2 rounded-xl transition-all duration-200 text-sm',
                   child.active
                     ? 'bg-primary/10 text-primary font-semibold'
-                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                    : 'text-sidebar-foreground/45 hover:text-sidebar-foreground hover:bg-sidebar-foreground/8'
                 )}
               >
                 <ChildIcon className="size-4 shrink-0" />
