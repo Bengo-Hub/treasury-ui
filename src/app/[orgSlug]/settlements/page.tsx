@@ -66,7 +66,7 @@ export default function SettlementsPage() {
   const statusOptions = ['all', 'completed', 'settled', 'pending', 'processing', 'failed'];
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Settlements</h1>

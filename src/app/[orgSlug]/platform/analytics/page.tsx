@@ -17,7 +17,7 @@ export default function PlatformAnalyticsPage() {
   const { data: byService, isLoading: loadingServices } = usePlatformByService(from || undefined, to || undefined, tenantIds || undefined);
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Ecosystem Analytics</h1>

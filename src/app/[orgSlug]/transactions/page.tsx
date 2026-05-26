@@ -102,7 +102,7 @@ export default function TransactionsPage() {
   const methodOptions = ['all', 'mpesa', 'card', 'cash', 'bank_transfer', 'cod'];
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>

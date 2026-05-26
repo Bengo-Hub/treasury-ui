@@ -94,7 +94,7 @@ export default function ReferralsPage() {
 
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6">
       <div>
         <div className="flex items-center gap-2 mb-1">
           <Badge variant="warning">Platform Admin</Badge>

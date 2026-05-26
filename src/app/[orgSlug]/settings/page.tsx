@@ -94,7 +94,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 space-y-8 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-8 space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Treasury Settings</h1>
         <p className="text-muted-foreground mt-1">Configure settlement rules, payment methods, notifications, and security policies.</p>

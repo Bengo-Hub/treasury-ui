@@ -46,7 +46,7 @@ export default function TaxPage() {
   const [tab, setTab] = useState('codes');
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Tax & Compliance</h1>
         <p className="text-muted-foreground mt-1">Manage tax codes, filing periods, and eTIMS devices.</p>
