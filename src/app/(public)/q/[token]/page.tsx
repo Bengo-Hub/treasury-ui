@@ -217,7 +217,7 @@ export default async function PublicQuotationPage({ params }: Props) {
             ))}
           </div>
           <p className="text-center text-xs text-slate-300 mt-3">
-            &copy; {new Date().getFullYear()} Codevertex IT Solutions &nbsp;·&nbsp; OAuth 2.0 &nbsp;·&nbsp; AES-256 &nbsp;·&nbsp; Multi-tenant SSO
+            &copy; {new Date().getFullYear()} Codevertex Africa Limited &nbsp;·&nbsp; OAuth 2.0 &nbsp;·&nbsp; AES-256 &nbsp;·&nbsp; Multi-tenant SSO
           </p>
         </div>
       </div>
