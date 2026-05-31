@@ -18,6 +18,7 @@ import { useMe } from '@/hooks/useMe';
 import type { GatewayConfig } from '@/lib/api/gateways';
 import type { FeeRule, CreateFeeRuleRequest } from '@/lib/api/fee-rules';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api/client';
 import {
   Banknote,
   Check,
@@ -32,6 +33,7 @@ import {
   MoreVertical,
   Pencil,
   Plus,
+  Receipt,
   Shield,
   Smartphone,
   Wrench,
@@ -200,7 +202,7 @@ export default function PlatformPage() {
   const { data: user } = useMe();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
-  const [activeTab, setActiveTab] = useState<'gateways' | 'fees'>('gateways');
+  const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims'>('gateways');
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [showAddGateway, setShowAddGateway] = useState(false);
@@ -273,6 +275,13 @@ export default function PlatformPage() {
         >
           <Wrench className="h-4 w-4 inline mr-2" />
           Fee Configuration
+        </button>
+        <button
+          onClick={() => setActiveTab('etims')}
+          className={cn("px-6 py-2 rounded-md text-sm font-medium transition-all", activeTab === 'etims' ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+        >
+          <Receipt className="h-4 w-4 inline mr-2" />
+          eTIMS / KRA
         </button>
       </div>
 
@@ -614,6 +623,164 @@ export default function PlatformPage() {
           </Dialog>
         </div>
       )}
+
+      {activeTab === 'etims' && (
+        <EtimsConfigSection orgSlug={orgSlug} />
+      )}
+    </div>
+  );
+}
+
+// ── eTIMS / KRA Platform Configuration ─────────────────────────────────────────
+// Platform admin sets the shared KRA eTIMS API credentials (base URL + API key).
+// Device serial numbers and TINs are tenant-specific — tenants register their own
+// KRA devices via the Tax & Compliance page (branch-scoped via EtimsDevice entity).
+
+interface EtimsConfig {
+  base_url: string;
+  api_key: string;   // stored masked in API responses (is_secret=true)
+}
+
+function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
+  const [config, setConfig] = useState<EtimsConfig>({ base_url: '', api_key: '' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await apiClient.get<{ settings: Array<{ config_key: string; config_value: string }> }>(
+          `/api/v1/${orgSlug}/platform/settings`
+        );
+        const settings = data.settings ?? [];
+        const byKey: Record<string, string> = {};
+        settings.forEach((s) => { byKey[s.config_key] = s.config_value; });
+        setConfig({
+          base_url: byKey['etims.base_url'] ?? '',
+          api_key: byKey['etims.api_key'] ?? '',
+        });
+      } catch {
+        // ignore — likely no settings yet
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [orgSlug]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updates: Array<{ key: string; value: string; is_secret: boolean }> = [
+        { key: 'etims.base_url', value: config.base_url, is_secret: false },
+        { key: 'etims.api_key', value: config.api_key, is_secret: true },
+      ];
+      for (const u of updates) {
+        if (u.value && u.value !== '***') {
+          await apiClient.put(`/api/v1/${orgSlug}/platform/settings/${u.key}`, {
+            config_value: u.value,
+            config_type: 'string',
+            description: u.key === 'etims.base_url'
+              ? 'KRA eTIMS API base URL (e.g. https://etims-api.kra.go.ke/etims-api)'
+              : 'KRA eTIMS API key / CMC key (sensitive)',
+            is_secret: u.is_secret,
+          });
+        }
+      }
+      toast.success('eTIMS configuration saved — takes effect on next treasury-api startup');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Failed to save eTIMS config');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 py-4">
+          <Receipt className="h-4 w-4 text-primary" />
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-tight">KRA eTIMS — Platform Credentials</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Shared API credentials used by treasury-api to reach KRA's eTIMS gateway on behalf of all tenants.
+              Changes take effect on the next treasury-api pod restart.
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4 pb-6">
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading configuration…
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">eTIMS API Base URL</label>
+                  <input
+                    type="url"
+                    value={config.base_url}
+                    onChange={(e) => setConfig((p) => ({ ...p, base_url: e.target.value }))}
+                    placeholder="https://etims-api.kra.go.ke/etims-api"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Sandbox: https://etims-api-sbx.kra.go.ke/etims-api
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Shield className="h-3 w-3" /> KRA API Key / CMC Key
+                    <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">Secret</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={config.api_key}
+                      onChange={(e) => setConfig((p) => ({ ...p, api_key: e.target.value }))}
+                      placeholder="Enter KRA API key…"
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 pr-10 text-sm font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Masked after save. Leave blank to keep existing value.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-700 dark:text-amber-400 space-y-1">
+                    <p className="font-semibold">Tenant device registration is separate</p>
+                    <p>
+                      Each tenant registers their own KRA OSCU device serial number and TIN from their
+                      <strong> Tax &amp; Compliance</strong> page (eTIMS Devices tab). Device serials are
+                      business-specific and branch-scoped — they are NOT configured here.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={handleSave} disabled={saving} className="gap-2">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  Save eTIMS Configuration
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
