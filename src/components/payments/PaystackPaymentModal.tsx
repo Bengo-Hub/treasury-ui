@@ -8,6 +8,10 @@ import { PaymentModal } from './PaymentModal';
 import { PaymentQRCode } from './PaymentQRCode';
 import type { PaymentDetails } from './types';
 
+const TREASURY_UI_URL =
+  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_UI_URL) ||
+  'https://books.codevertexitsolutions.com';
+
 // Paystack Kenya fee: 1.5% of transaction amount, capped at KES 2,000.
 // International cards carry an additional KES 100 flat fee (not applied here — local only).
 function calcPaystackFee(amount: number): number {
@@ -15,12 +19,27 @@ function calcPaystackFee(amount: number): number {
   return Math.ceil(Math.min(fee, 2000));
 }
 
+// In embed mode the iframe must redirect through the treasury-ui success page so it can
+// fire treasury:payment_confirmed via postMessage to the outer TreasuryPaymentModal.
+// Without embed=true in the return_url, the success page sends no postMessage and the
+// onPaymentConfirmed callback never fires.
+function buildEmbedReturnUrl(intentId: string, amount: number): string {
+  return `${TREASURY_UI_URL}/pay/success?embed=true&intent_id=${encodeURIComponent(intentId)}&amount=${amount}&channel=paystack`;
+}
+
 function buildInitiatePayload(
   details: PaymentDetails,
   paymentMethod: string,
   transactionFee: number,
+  embed: boolean,
   extra: { customer_email?: string; phone_number?: string } = {}
 ): Record<string, unknown> {
+  // embed mode: override return_url to the treasury-ui success page with embed=true
+  // so the success page can send treasury:payment_confirmed postMessage to the parent modal.
+  const returnUrl = embed && details.intent_id
+    ? buildEmbedReturnUrl(details.intent_id, details.amount)
+    : details.redirect_url;
+
   const body: Record<string, unknown> = {
     payment_method: paymentMethod,
     amount: details.amount,
@@ -28,7 +47,7 @@ function buildInitiatePayload(
     reference_id: details.reference_id,
     reference_type: details.reference_type,
     source_service: details.source_service,
-    return_url: details.redirect_url,
+    return_url: returnUrl,
     button_text: details.button_text,
     ...extra,
   };
@@ -81,7 +100,7 @@ export function PaystackPaymentModal({
       const res = await fetch(details.initiate_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildInitiatePayload(details, 'paystack', transactionFee, { customer_email: email || undefined })),
+        body: JSON.stringify(buildInitiatePayload(details, 'paystack', transactionFee, embed, { customer_email: email || undefined })),
       });
       const data = await res.json().catch(() => ({}));
       if (data.authorization_url) {
@@ -108,7 +127,7 @@ export function PaystackPaymentModal({
       const res = await fetch(details.initiate_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildInitiatePayload(details, 'manual', 0)),
+        body: JSON.stringify(buildInitiatePayload(details, 'manual', 0, false)),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success !== false)) {
