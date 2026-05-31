@@ -552,8 +552,24 @@ export function PaymentsTab({
                               )}
 
                               <div>
-                                <label className="block text-xs font-medium text-muted-foreground mb-1">Min. payout threshold</label>
-                                <input type="number" min={0} step={0.01} value={payoutForm.min_payout_amount || ''} onChange={(e) => setPayoutForm((f) => ({ ...f, min_payout_amount: parseFloat(e.target.value) || 0 }))} placeholder="0" className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" />
+                                <label className="block text-xs font-medium text-muted-foreground mb-1">
+                                  Min. payout threshold
+                                  <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                                    Gateway min: KES 10
+                                  </span>
+                                </label>
+                                <input
+                                  type="number"
+                                  min={10}
+                                  step={1}
+                                  value={payoutForm.min_payout_amount || ''}
+                                  onChange={(e) => setPayoutForm((f) => ({ ...f, min_payout_amount: parseFloat(e.target.value) || 0 }))}
+                                  placeholder="e.g. 500"
+                                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                                />
+                                <p className="mt-1 text-[11px] text-muted-foreground">
+                                  Paystack enforces a minimum of KES 10 per transfer. Set a higher threshold to batch small amounts before paying out.
+                                </p>
                               </div>
                             </div>
 

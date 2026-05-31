@@ -27,6 +27,8 @@ import {
   convertQuotationToSalesOrder,
   convertProformaToInvoice,
   generateDeliveryChallan,
+  generateReceiptFromInvoice,
+  generateReceiptFromIntent,
   sendInvoice,
   sendQuotation,
   updateInvoice,
@@ -384,6 +386,29 @@ export function useConvertProformaToInvoice(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (invoiceId: string) => convertProformaToInvoice(tenant, invoiceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+    },
+  });
+}
+
+// Generate a payment receipt (RCP-YYMMDD-NNNNNN) from a paid invoice.
+// Invalidates payment-receipts list so the new record appears immediately.
+export function useGenerateReceiptFromInvoice(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: string) => generateReceiptFromInvoice(tenant, invoiceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+    },
+  });
+}
+
+// Generate a payment receipt from a succeeded payment intent.
+export function useGenerateReceiptFromIntent(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (intentId: string) => generateReceiptFromIntent(tenant, intentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
     },

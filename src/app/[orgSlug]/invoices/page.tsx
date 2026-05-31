@@ -14,11 +14,13 @@ import {
   useVoidInvoice,
   useCreateCreditNote,
   useCreateDebitNote,
+  useGenerateReceiptFromInvoice,
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
-import { Ban, CheckCircle, DollarSign, Download, ExternalLink, FileText, FileMinus, FilePlus, Loader2, Send, Upload, X } from 'lucide-react';
+import { Ban, CheckCircle, DollarSign, Download, ExternalLink, FileText, FileMinus, FilePlus, Loader2, Receipt, Send, Upload, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { useRouter, useParams } from 'next/navigation';
 import { BulkUploadModal } from './_components/BulkUploadModal';
 import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentCreateView';
@@ -78,8 +80,9 @@ export default function InvoicesPage() {
   const voidMutation       = useVoidInvoice(effectiveTenant);
   const paymentMutation    = useRecordPayment(effectiveTenant);
   const markPaidMutation   = useMarkPaid(effectiveTenant);
-  const creditNoteMutation = useCreateCreditNote(effectiveTenant);
-  const debitNoteMutation  = useCreateDebitNote(effectiveTenant);
+  const creditNoteMutation  = useCreateCreditNote(effectiveTenant);
+  const debitNoteMutation   = useCreateDebitNote(effectiveTenant);
+  const generateReceiptMutation = useGenerateReceiptFromInvoice(effectiveTenant);
 
   const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);
 
@@ -150,6 +153,15 @@ export default function InvoicesPage() {
       icon: <FilePlus className="h-3.5 w-3.5" />,
       onClick: (r) => debitNoteMutation.mutate(r.id),
       visible: (r) => r.status === 'sent' || r.status === 'paid' || r.status === 'overdue',
+    },
+    {
+      label: 'Generate Receipt',
+      icon: <Receipt className="h-3.5 w-3.5" />,
+      onClick: (r) => generateReceiptMutation.mutate(r.id, {
+        onSuccess: (receipt: any) => toast.success(`Receipt ${receipt.invoice_number} generated`),
+        onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to generate receipt'),
+      }),
+      visible: (r) => r.payment_status === 'paid' || r.status === 'paid',
     },
     {
       label: 'Void Invoice',

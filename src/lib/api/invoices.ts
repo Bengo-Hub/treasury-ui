@@ -402,6 +402,16 @@ export function exportInvoice(tenant: string, publicToken: string, format: 'csv'
   return `/api/v1/public/invoices/${publicToken}/export?format=${format}`;
 }
 
+// Generate a payment receipt (RCP-YYMMDD-NNNNNN) from a paid invoice.
+export function generateReceiptFromInvoice(tenant: string, invoiceId: string): Promise<Invoice> {
+  return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/generate-receipt`, {});
+}
+
+// Generate a payment receipt from a succeeded payment intent.
+export function generateReceiptFromIntent(tenant: string, intentId: string): Promise<Invoice> {
+  return apiClient.post<Invoice>(`${BASE}/${tenant}/payments/intents/${intentId}/generate-receipt`, {});
+}
+
 // ---- Quotation API Functions ----
 
 export function listQuotations(tenant: string, filters?: QuotationFilters): Promise<ListQuotationsResponse> {
