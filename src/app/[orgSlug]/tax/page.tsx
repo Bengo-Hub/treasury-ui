@@ -13,6 +13,7 @@ import {
   useRegisterEtimsDevice,
 } from '@/hooks/use-tax';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
+import { useSubscription } from '@/hooks/use-subscription';
 import type { TaxCode, TaxPeriod, EtimsDevice } from '@/lib/api/tax';
 import { cn } from '@/lib/utils';
 import {
@@ -20,11 +21,16 @@ import {
   Cpu,
   FileText,
   Loader2,
+  Lock,
   Plus,
   Receipt,
   Shield,
+  Zap,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
+
+const SUBSCRIBE_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexitsolutions.com';
 
 const periodStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'secondary'> = {
   open: 'warning',
@@ -40,16 +46,44 @@ const deviceStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'e
   error: 'error',
 };
 
+function EtimsUpgradePrompt() {
+  return (
+    <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center">
+      <div className="flex size-14 items-center justify-center rounded-full bg-primary/10">
+        <Lock className="size-6 text-primary" />
+      </div>
+      <div className="space-y-1.5 max-w-sm">
+        <p className="font-semibold text-foreground">KRA eTIMS Integration requires a Growth plan or above</p>
+        <p className="text-sm text-muted-foreground">
+          Automatically transmit POS sales and invoices to the Kenya Revenue Authority via eTIMS. Manage your OSCU
+          devices and view real-time transmission status.
+        </p>
+      </div>
+      <Link
+        href={`${SUBSCRIBE_URL}/plans?service=complete`}
+        className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+      >
+        <Zap className="size-4" />
+        Upgrade to Growth
+      </Link>
+    </div>
+  );
+}
+
 export default function TaxPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [tab, setTab] = useState('codes');
+  const { hasFeature, isLoading: subLoading } = useSubscription();
+
+  // Platform owners can always see eTIMS for any tenant; tenants need the feature
+  const canUseEtims = isPlatformOwner || (!subLoading && hasFeature('etims_integration'));
 
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Tax & Compliance</h1>
-        <p className="text-muted-foreground mt-1">Manage tax codes, filing periods, and eTIMS devices.</p>
+        <p className="text-muted-foreground mt-1">Manage tax codes, filing periods, and KRA eTIMS devices.</p>
       </div>
 
       {isPlatformOwner && !tenantQueryParam ? (
@@ -61,7 +95,12 @@ export default function TaxPage() {
           <TabsList>
             <TabsTrigger value="codes">Tax Codes</TabsTrigger>
             <TabsTrigger value="periods">Tax Periods</TabsTrigger>
-            <TabsTrigger value="etims">eTIMS Devices</TabsTrigger>
+            <TabsTrigger value="etims" className="flex items-center gap-1.5">
+              eTIMS Devices
+              {!subLoading && !canUseEtims && (
+                <Lock className="size-3 text-muted-foreground" />
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="codes" className="mt-6">
@@ -71,7 +110,11 @@ export default function TaxPage() {
             <TaxPeriodsTab tenantSlug={effectiveTenant} />
           </TabsContent>
           <TabsContent value="etims" className="mt-6">
-            <EtimsTab tenantSlug={effectiveTenant} />
+            {canUseEtims ? (
+              <EtimsTab tenantSlug={effectiveTenant} />
+            ) : (
+              <EtimsUpgradePrompt />
+            )}
           </TabsContent>
         </Tabs>
       )}
