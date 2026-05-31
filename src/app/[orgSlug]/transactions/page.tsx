@@ -11,6 +11,7 @@ import {
     ArrowUpRight,
     Calendar,
     Download,
+    Eye,
     FileText,
     Filter,
     Loader2,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useGenerateReceiptFromIntent } from '@/hooks/use-invoices';
+import { DocPreview } from '@/components/documents/DocPreview';
 import { toast } from 'sonner';
 
 const ITEMS_PER_PAGE = 20;
@@ -53,6 +55,7 @@ export default function TransactionsPage() {
   // Receipt generation uses the resolved tenant: platform admins need a tenant selected.
   const receiptTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const generateReceiptMutation = useGenerateReceiptFromIntent(receiptTenant);
+  const [previewReceiptId, setPreviewReceiptId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -219,7 +222,7 @@ export default function TransactionsPage() {
                     <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Fee</th>
                     <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
                     <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Date</th>
-                    <th className="text-center px-3 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Receipt</th>
+                    <th className="text-center px-3 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -244,26 +247,28 @@ export default function TransactionsPage() {
                       <td className="px-6 py-4 text-right text-xs text-muted-foreground">{new Date(txn.created_at).toLocaleString()}</td>
                       <td className="px-3 py-4 text-center">
                         {txn.status === 'succeeded' && txn.reference_type !== 'card_setup' && receiptTenant ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-xs gap-1"
-                            title="Generate payment receipt"
-                            disabled={generateReceiptMutation.isPending}
-                            onClick={(e: React.MouseEvent) => {
-                              e.stopPropagation();
-                              generateReceiptMutation.mutate(txn.id, {
-                                onSuccess: (receipt) => toast.success(`Receipt ${receipt.invoice_number} generated`),
-                                onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to generate receipt'),
-                              });
-                            }}
-                          >
-                            {generateReceiptMutation.isPending ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <FileText className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              title="View receipt"
+                              disabled={generateReceiptMutation.isPending}
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                generateReceiptMutation.mutate(txn.id, {
+                                  onSuccess: (receipt) => setPreviewReceiptId(receipt.id),
+                                  onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to generate receipt'),
+                                });
+                              }}
+                            >
+                              {generateReceiptMutation.isPending ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Eye className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          </div>
                         ) : (
                           <span className="text-muted-foreground/30">—</span>
                         )}
@@ -282,6 +287,15 @@ export default function TransactionsPage() {
           )}
         </CardContent>
       </Card>
+
+      {previewReceiptId && receiptTenant && (
+        <DocPreview
+          docId={previewReceiptId}
+          docType="invoice"
+          tenant={receiptTenant}
+          onClose={() => setPreviewReceiptId(null)}
+        />
+      )}
     </div>
   );
 }
