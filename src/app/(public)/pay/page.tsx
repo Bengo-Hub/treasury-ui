@@ -188,7 +188,12 @@ function PayPageContent() {
         const r = await fetch(gwUrl);
         if (!r.ok) throw new Error(`gateways ${r.status}`);
         const data = await r.json();
-        const list = parseGateways((data.gateways as string[])?.join(',') ?? '');
+        let list = parseGateways((data.gateways as string[])?.join(',') ?? '');
+        // COD is not applicable for subscription or card-setup contexts — filter it out.
+        const refType = d.reference_type ?? '';
+        if (refType === 'subscription' || refType === 'card_setup' || refType === 'renewal' || refType === 'addon_purchase') {
+          list = list.filter((g) => g !== 'cod');
+        }
         if (!cancelled) {
           setGateways(list);
           setGatewayError(list.length === 0);

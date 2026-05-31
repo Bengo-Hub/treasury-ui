@@ -2,7 +2,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/auth';
-import type { UsageAlert } from '@bengo-hub/shared-ui-lib/subscription';
+
+export interface UsageAlert {
+  metric: string;
+  current: number;
+  limit: number;
+  pct: number;
+}
 
 const SUBSCRIPTIONS_API_URL =
   process.env.NEXT_PUBLIC_SUBSCRIPTIONS_API_URL ||
