@@ -15,8 +15,11 @@ import {
     FileText,
     Filter,
     Loader2,
-    Search
+    Search,
+    UserRound,
 } from 'lucide-react';
+
+const MARKETFLOW_UI_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexitsolutions.com';
 import { useMemo, useState } from 'react';
 import { useGenerateReceiptFromIntent } from '@/hooks/use-invoices';
 import { DocPreview } from '@/components/documents/DocPreview';
@@ -51,7 +54,7 @@ function defaultDateRange(): { from: string; to: string } {
 }
 
 export default function TransactionsPage() {
-  const { tenantPathId, tenantIdsParam, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
+  const { tenantPathId, tenantIdsParam, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
   // Receipt generation uses the resolved tenant: platform admins need a tenant selected.
   const receiptTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const generateReceiptMutation = useGenerateReceiptFromIntent(receiptTenant);
@@ -246,8 +249,8 @@ export default function TransactionsPage() {
                       </td>
                       <td className="px-6 py-4 text-right text-xs text-muted-foreground">{new Date(txn.created_at).toLocaleString()}</td>
                       <td className="px-3 py-4 text-center">
-                        {txn.status === 'succeeded' && txn.reference_type !== 'card_setup' && receiptTenant ? (
-                          <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-center gap-1">
+                          {txn.status === 'succeeded' && txn.reference_type !== 'card_setup' && receiptTenant && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -268,10 +271,23 @@ export default function TransactionsPage() {
                                 <Eye className="h-3.5 w-3.5" />
                               )}
                             </Button>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground/30">—</span>
-                        )}
+                          )}
+                          {txn.crm_contact_id && (
+                            <a
+                              href={`${MARKETFLOW_UI_URL}/${orgSlug}/contacts/${txn.crm_contact_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="View CRM contact"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
+                            >
+                              <UserRound className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                          {!txn.crm_contact_id && !(txn.status === 'succeeded' && txn.reference_type !== 'card_setup' && receiptTenant) && (
+                            <span className="text-muted-foreground/30">—</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -28,6 +28,7 @@ export interface TransactionItem {
   currency: string;
   status: string;
   transaction_cost?: string;
+  crm_contact_id?: string;
   created_at: string;
 }
 
