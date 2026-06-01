@@ -63,6 +63,22 @@ export interface RegisterDeviceRequest {
   environment?: string;
 }
 
+export interface EtimsTransmissionRecord {
+  id: string;
+  tenant_id: string;
+  source: 'invoice' | 'pos_sale' | 'ordering_sale' | 'vendor_bill';
+  invoice_id?: string;
+  source_id?: string;
+  transmission_status: 'pending' | 'transmitted' | 'failed' | 'retrying';
+  etims_cu_number?: string;
+  etims_receipt_number?: string;
+  rcpt_sign?: string;
+  error_message?: string;
+  retry_count: number;
+  transmitted_at?: string;
+  created_at: string;
+}
+
 // ---- GavaConnect Types ----
 
 export interface PINData {
@@ -192,6 +208,30 @@ export function registerEtimsDevice(
 
 export function initEtimsDevice(tenantSlug: string, deviceId: string): Promise<EtimsDevice> {
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/init`);
+}
+
+export function listEtimsTransmissions(
+  tenantSlug: string,
+  params?: { status?: string; limit?: number; offset?: number },
+): Promise<{ transmissions: EtimsTransmissionRecord[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  const query = qs.toString() ? `?${qs}` : '';
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/transmissions${query}`);
+}
+
+export function retryTransmission(tenantSlug: string, recordId: string): Promise<{ status: string }> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/retry/${recordId}`);
+}
+
+export function refreshCodeLists(tenantSlug: string): Promise<{ status: string }> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/code-lists/refresh`);
+}
+
+export function transmitVendorBill(tenantSlug: string, billId: string): Promise<{ status: string }> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/transmit/bill/${billId}`);
 }
 
 // ---- GavaConnect: PIN & Compliance ----

@@ -12,10 +12,12 @@ import {
   useEtimsDevices,
   useRegisterEtimsDevice,
   useInitEtimsDevice,
+  useRefreshCodeLists,
 } from '@/hooks/use-tax';
 import { KRAComplianceTab } from './kra-compliance-tab';
 import { WHTPaymentRefTab } from './wht-prn-tab';
 import { TaxReturnsTab } from './tax-returns-tab';
+import { TransmissionHistoryTab } from './transmission-history-tab';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSubscription } from '@/hooks/use-subscription';
 import type { TaxCode, TaxPeriod, EtimsDevice } from '@/lib/api/tax';
@@ -106,6 +108,7 @@ export default function TaxPage() {
             <TabsTrigger value="kra-compliance">KRA Compliance</TabsTrigger>
             <TabsTrigger value="wht-prn">WHT PRN</TabsTrigger>
             <TabsTrigger value="tax-returns">Tax Returns</TabsTrigger>
+            <TabsTrigger value="transmissions">Transmissions</TabsTrigger>
           </TabsList>
 
           <TabsContent value="codes" className="mt-6">
@@ -125,6 +128,9 @@ export default function TaxPage() {
           </TabsContent>
           <TabsContent value="tax-returns" className="mt-6">
             <TaxReturnsTab tenantSlug={effectiveTenant} />
+          </TabsContent>
+          <TabsContent value="transmissions" className="mt-6">
+            <TransmissionHistoryTab tenantSlug={effectiveTenant} />
           </TabsContent>
         </Tabs>
       )}
@@ -385,6 +391,7 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
   const devices = data?.devices ?? [];
   const [registerOpen, setRegisterOpen] = useState(false);
   const initDevice = useInitEtimsDevice();
+  const refreshCodes = useRefreshCodeLists();
 
   return (
     <>
@@ -394,9 +401,21 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
             <Cpu className="h-4 w-4 text-primary" />
             <h3 className="font-bold text-sm uppercase tracking-tight">eTIMS Devices</h3>
           </div>
-          <Button size="sm" onClick={() => setRegisterOpen(true)} className="gap-1">
-            <Plus className="h-3.5 w-3.5" /> Register Device
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={refreshCodes.isPending}
+              onClick={() => refreshCodes.mutate({ tenantSlug })}
+              title="Sync KRA code lists (item classes, payment types, tax types)"
+            >
+              {refreshCodes.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />}
+              <span className="ml-1">Refresh Code Lists</span>
+            </Button>
+            <Button size="sm" onClick={() => setRegisterOpen(true)} className="gap-1">
+              <Plus className="h-3.5 w-3.5" /> Register Device
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading && (

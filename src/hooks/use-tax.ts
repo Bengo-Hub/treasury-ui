@@ -65,6 +65,52 @@ export function useRegisterEtimsDevice() {
   });
 }
 
+// ---- eTIMS Transmission History + Actions ----
+
+export function useEtimsTransmissions(tenantSlug: string, status?: string, limit = 50, offset = 0) {
+  return useQuery({
+    queryKey: ['etims-transmissions', tenantSlug, status, limit, offset],
+    queryFn: () => taxApi.listEtimsTransmissions(tenantSlug, { status, limit, offset }),
+    enabled: !!tenantSlug,
+    staleTime: 30_000,
+  });
+}
+
+export function useRetryTransmission() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, recordId }: { tenantSlug: string; recordId: string }) =>
+      taxApi.retryTransmission(tenantSlug, recordId),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['etims-transmissions', vars.tenantSlug] });
+      toast.success('Transmission queued for retry');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Retry failed'),
+  });
+}
+
+export function useRefreshCodeLists() {
+  return useMutation({
+    mutationFn: ({ tenantSlug }: { tenantSlug: string }) =>
+      taxApi.refreshCodeLists(tenantSlug),
+    onSuccess: () => toast.success('KRA code lists refreshed successfully'),
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Code list refresh failed'),
+  });
+}
+
+export function useTransmitVendorBill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, billId }: { tenantSlug: string; billId: string }) =>
+      taxApi.transmitVendorBill(tenantSlug, billId),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['etims-transmissions', vars.tenantSlug] });
+      toast.success('Vendor bill transmitted to KRA');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Vendor bill transmission failed'),
+  });
+}
+
 export function useInitEtimsDevice() {
   const qc = useQueryClient();
   return useMutation({
