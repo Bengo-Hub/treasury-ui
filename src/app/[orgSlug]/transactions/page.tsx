@@ -4,6 +4,7 @@ import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/ba
 import { useTransactions } from '@/hooks/use-analytics';
 import { usePlatformTransactions, getTransactionsExportURL } from '@/hooks/use-platform-analytics';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
+import { useAuthStore } from '@/store/auth';
 import { exportTransactionsCSV, type TransactionItem } from '@/lib/api/analytics';
 import { Pagination } from '@/components/ui/pagination';
 import { cn } from '@/lib/utils';
@@ -54,10 +55,17 @@ function defaultDateRange(): { from: string; to: string } {
 }
 
 export default function TransactionsPage() {
+  const user = useAuthStore((s) => s.user);
   const { tenantPathId, tenantIdsParam, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
   // Receipt generation uses the resolved tenant: platform admins need a tenant selected.
   const receiptTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
-  const generateReceiptMutation = useGenerateReceiptFromIntent(receiptTenant);
+  // Tenant UUID for the ?tenantId= query param on generate-receipt.
+  // Platform owners pass the selected tenant UUID so the backend resolves cross-tenant correctly.
+  // Regular tenants pass their own UUID (from JWT) to bypass slug→UUID lookup.
+  const receiptTenantId: string | undefined = isPlatformOwner
+    ? (tenantQueryParam ?? undefined)
+    : ((user as any)?.tenantId ?? (user as any)?.tenant_id ?? undefined);
+  const generateReceiptMutation = useGenerateReceiptFromIntent(receiptTenant, receiptTenantId);
   const [previewReceiptId, setPreviewReceiptId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');

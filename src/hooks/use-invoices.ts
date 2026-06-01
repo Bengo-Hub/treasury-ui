@@ -404,11 +404,13 @@ export function useGenerateReceiptFromInvoice(tenant: string) {
   });
 }
 
-// Generate a payment receipt from a succeeded payment intent.
-export function useGenerateReceiptFromIntent(tenant: string) {
+// Generate a payment receipt from a payment intent.
+// tenantId (UUID) is forwarded as ?tenantId= query param so the backend correctly
+// resolves the tenant when a platform admin is calling on behalf of another tenant.
+export function useGenerateReceiptFromIntent(tenant: string, tenantId?: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (intentId: string) => generateReceiptFromIntent(tenant, intentId),
+    mutationFn: (intentId: string) => generateReceiptFromIntent(tenant, intentId, tenantId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
     },
