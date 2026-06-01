@@ -11,7 +11,11 @@ import {
   useCalculateTaxLiability,
   useEtimsDevices,
   useRegisterEtimsDevice,
+  useInitEtimsDevice,
 } from '@/hooks/use-tax';
+import { KRAComplianceTab } from './kra-compliance-tab';
+import { WHTPaymentRefTab } from './wht-prn-tab';
+import { TaxReturnsTab } from './tax-returns-tab';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSubscription } from '@/hooks/use-subscription';
 import type { TaxCode, TaxPeriod, EtimsDevice } from '@/lib/api/tax';
@@ -97,10 +101,11 @@ export default function TaxPage() {
             <TabsTrigger value="periods">Tax Periods</TabsTrigger>
             <TabsTrigger value="etims" className="flex items-center gap-1.5">
               eTIMS Devices
-              {!subLoading && !canUseEtims && (
-                <Lock className="size-3 text-muted-foreground" />
-              )}
+              {!subLoading && !canUseEtims && <Lock className="size-3 text-muted-foreground" />}
             </TabsTrigger>
+            <TabsTrigger value="kra-compliance">KRA Compliance</TabsTrigger>
+            <TabsTrigger value="wht-prn">WHT PRN</TabsTrigger>
+            <TabsTrigger value="tax-returns">Tax Returns</TabsTrigger>
           </TabsList>
 
           <TabsContent value="codes" className="mt-6">
@@ -110,11 +115,16 @@ export default function TaxPage() {
             <TaxPeriodsTab tenantSlug={effectiveTenant} />
           </TabsContent>
           <TabsContent value="etims" className="mt-6">
-            {canUseEtims ? (
-              <EtimsTab tenantSlug={effectiveTenant} />
-            ) : (
-              <EtimsUpgradePrompt />
-            )}
+            {canUseEtims ? <EtimsTab tenantSlug={effectiveTenant} /> : <EtimsUpgradePrompt />}
+          </TabsContent>
+          <TabsContent value="kra-compliance" className="mt-6">
+            <KRAComplianceTab tenantSlug={effectiveTenant} />
+          </TabsContent>
+          <TabsContent value="wht-prn" className="mt-6">
+            <WHTPaymentRefTab tenantSlug={effectiveTenant} />
+          </TabsContent>
+          <TabsContent value="tax-returns" className="mt-6">
+            <TaxReturnsTab tenantSlug={effectiveTenant} />
           </TabsContent>
         </Tabs>
       )}
@@ -374,6 +384,7 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
   const { data, isLoading } = useEtimsDevices(tenantSlug);
   const devices = data?.devices ?? [];
   const [registerOpen, setRegisterOpen] = useState(false);
+  const initDevice = useInitEtimsDevice();
 
   return (
     <>
@@ -399,23 +410,37 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
                 <thead>
                   <tr className="border-b border-border bg-accent/5">
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Serial</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Branch ID</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">CMC Key</th>
+                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">TIN (KRA PIN)</th>
+                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Branch</th>
+                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Env</th>
+                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Invoice #</th>
                     <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Last Heartbeat</th>
+                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {devices.map((device) => (
                     <tr key={device.id} className="hover:bg-accent/5 transition-colors">
                       <td className="px-6 py-4 font-mono text-xs font-bold">{device.device_serial}</td>
-                      <td className="px-6 py-4 text-xs">{device.branch_id || '---'}</td>
-                      <td className="px-6 py-4 text-xs font-mono text-muted-foreground">{device.cmc_key || '---'}</td>
+                      <td className="px-6 py-4 text-xs font-mono">{device.tin || '—'}</td>
+                      <td className="px-6 py-4 text-xs">{device.branch_id || '00'}</td>
+                      <td className="px-6 py-4 text-xs">
+                        <Badge variant={device.environment === 'production' ? 'success' : 'secondary'}>{device.environment}</Badge>
+                      </td>
+                      <td className="px-6 py-4 text-right text-xs font-mono">{device.last_invoice_no ?? 0}</td>
                       <td className="px-6 py-4 text-center">
                         <Badge variant={deviceStatusVariant[device.status] ?? 'outline'}>{device.status}</Badge>
                       </td>
-                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">
-                        {device.last_heartbeat ? new Date(device.last_heartbeat).toLocaleString() : '---'}
+                      <td className="px-6 py-4 text-right">
+                        {device.status === 'pending' && (
+                          <Button
+                            size="sm" variant="outline"
+                            disabled={initDevice.isPending}
+                            onClick={() => initDevice.mutate({ tenantSlug, deviceId: device.id })}
+                          >
+                            {initDevice.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Init'}
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -445,16 +470,17 @@ function RegisterDeviceDialog({
 }) {
   const registerMutation = useRegisterEtimsDevice();
   const [serial, setSerial] = useState('');
-  const [branchId, setBranchId] = useState('');
+  const [branchId, setBranchId] = useState('00');
+  const [tin, setTin] = useState('');
+  const [environment, setEnvironment] = useState('sandbox');
 
   function handleSubmit() {
     registerMutation.mutate(
-      { tenantSlug, data: { device_serial: serial, branch_id: branchId || undefined } },
+      { tenantSlug, data: { device_serial: serial, branch_id: branchId || '00', tin, environment } },
       {
         onSuccess: () => {
           onOpenChange(false);
-          setSerial('');
-          setBranchId('');
+          setSerial(''); setBranchId('00'); setTin(''); setEnvironment('sandbox');
         },
       },
     );
@@ -473,14 +499,33 @@ function RegisterDeviceDialog({
               className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
             />
           </FormField>
+          <FormField label="KRA PIN (TIN)" required>
+            <input
+              type="text"
+              value={tin}
+              onChange={(e) => setTin(e.target.value)}
+              placeholder="e.g. P000111222A"
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
+            />
+          </FormField>
           <FormField label="Branch ID">
             <input
               type="text"
               value={branchId}
               onChange={(e) => setBranchId(e.target.value)}
-              placeholder="e.g. BR001 (optional)"
+              placeholder="00 (main branch)"
               className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
             />
+          </FormField>
+          <FormField label="Environment">
+            <select
+              value={environment}
+              onChange={(e) => setEnvironment(e.target.value)}
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="sandbox">Sandbox (testing)</option>
+              <option value="production">Production</option>
+            </select>
           </FormField>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

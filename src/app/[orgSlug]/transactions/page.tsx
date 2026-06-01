@@ -250,7 +250,7 @@ export default function TransactionsPage() {
                       <td className="px-6 py-4 text-right text-xs text-muted-foreground">{new Date(txn.created_at).toLocaleString()}</td>
                       <td className="px-3 py-4 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          {txn.status === 'succeeded' && txn.reference_type !== 'card_setup' && receiptTenant && (
+                          {(txn.status === 'succeeded' || txn.status === 'refunded') && receiptTenant && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -284,7 +284,7 @@ export default function TransactionsPage() {
                               <UserRound className="h-3.5 w-3.5" />
                             </a>
                           )}
-                          {!txn.crm_contact_id && !(txn.status === 'succeeded' && txn.reference_type !== 'card_setup' && receiptTenant) && (
+                          {!txn.crm_contact_id && txn.status !== 'succeeded' && txn.status !== 'refunded' && (
                             <span className="text-muted-foreground/30">—</span>
                           )}
                         </div>
