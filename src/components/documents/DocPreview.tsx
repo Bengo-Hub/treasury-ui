@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/base';
 import { cn } from '@/lib/utils';
 import { Copy, Download, ExternalLink, Link2, Mail, Pencil, X } from 'lucide-react';
 
-type DocType = 'invoice' | 'quotation' | 'proforma_invoice' | 'credit_note' | 'debit_note' | 'sales_order';
+type DocType = 'invoice' | 'quotation' | 'proforma_invoice' | 'credit_note' | 'debit_note' | 'sales_order' | 'payment_receipt';
 
 function statusVariant(status: string): 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary' {
   switch (status?.toLowerCase()) {
@@ -24,6 +24,11 @@ const fmt = (v: string | number | undefined) =>
 const fmtDate = (d: string | undefined) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
+const TREASURY_API_URL =
+  typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL
+    ? process.env.NEXT_PUBLIC_API_URL
+    : 'https://booksapi.codevertexitsolutions.com';
+
 function docLabel(docType: DocType): string {
   const labels: Record<DocType, string> = {
     invoice: 'INVOICE',
@@ -32,6 +37,7 @@ function docLabel(docType: DocType): string {
     credit_note: 'CREDIT NOTE',
     debit_note: 'DEBIT NOTE',
     sales_order: 'SALES ORDER',
+    payment_receipt: 'PAYMENT RECEIPT',
   };
   return labels[docType] ?? docType.toUpperCase().replace('_', ' ');
 }
@@ -73,6 +79,7 @@ function usePreviewDoc(
   docType: DocType,
 ): { data: PreviewDoc | undefined; isLoading: boolean } {
   const isQuotation = docType === 'quotation';
+  // payment_receipt fetches like an invoice (same endpoint, different invoice_type in DB)
   const { data: inv, isLoading: invLoading } = useInvoice(tenant, docId, !isQuotation);
   const { data: qt, isLoading: qtLoading } = useQuotation(tenant, docId, isQuotation);
 
@@ -117,6 +124,7 @@ function usePreviewDoc(
     debit_note: { primary: 'Date' },
     sales_order: { primary: 'Order Date' },
     quotation: { primary: 'Quotation Date', secondary: 'Valid Until' },
+    payment_receipt: { primary: 'Payment Date' },
   };
   const lbl = labels[docType] ?? { primary: 'Date' };
 
@@ -169,7 +177,7 @@ export function DocPreview({ docId, docType, tenant, onClose, onEdit, onDuplicat
     {
       icon: <ExternalLink className="h-4 w-4" />,
       label: 'Open',
-      onClick: () => doc?.public_token && window.open(`${doc.publicPath}${doc.public_token}`, '_blank'),
+      onClick: () => doc?.public_token && window.open(`${window.location.origin}${doc.publicPath}${doc.public_token}`, '_blank'),
       show: !!doc?.public_token,
     },
     {
@@ -193,7 +201,7 @@ export function DocPreview({ docId, docType, tenant, onClose, onEdit, onDuplicat
     {
       icon: <Download className="h-4 w-4" />,
       label: 'Download',
-      onClick: () => doc?.public_token && window.open(`/api/v1/public/invoices/${doc.public_token}/pdf?download=true`, '_blank'),
+      onClick: () => doc?.public_token && window.open(`${TREASURY_API_URL}/api/v1/public/invoices/${doc.public_token}/pdf?download=true`, '_blank'),
       show: !!doc?.public_token,
     },
     {
