@@ -9,6 +9,7 @@ import { PaymentsTab } from './_components/payments-tab';
 import {
   Bell,
   CreditCard,
+  FileDigit,
   Globe,
   Link2,
   Loader2,
@@ -16,6 +17,7 @@ import {
   Settings2,
   Shield,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -34,7 +36,6 @@ export default function SettingsPage() {
 
   // ---- General ----
   const [defaultCurrency, setDefaultCurrency] = useState('KES');
-  const [receiptPrefix, setReceiptPrefix] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');
 
   // ---- Settlements ----
@@ -58,7 +59,6 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!settings) return;
     setDefaultCurrency(getSettingValue(settings, 'default_currency', 'KES'));
-    setReceiptPrefix(getSettingValue(settings, 'receipt_prefix', ''));
     setWebhookUrl(getSettingValue(settings, 'webhook_url', ''));
     setAutoSettlement(getSettingValue(settings, 'auto_settlement', true));
     setSettlementSchedule(getSettingValue(settings, 'settlement_schedule', 'daily'));
@@ -124,63 +124,74 @@ export default function SettingsPage() {
 
         {/* General */}
         <TabsContent value="general">
-          <Card>
-            <CardHeader className="border-b border-border/50 py-4">
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-primary" />
-                <h3 className="font-bold text-sm uppercase tracking-tight">General</h3>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField label="Default Currency">
-                  <select
-                    value={defaultCurrency}
-                    onChange={(e) => setDefaultCurrency(e.target.value)}
-                    className={selectClass}
-                  >
-                    <option value="KES">KES - Kenyan Shilling</option>
-                    <option value="USD">USD - US Dollar</option>
-                    <option value="EUR">EUR - Euro</option>
-                    <option value="GBP">GBP - British Pound</option>
-                    <option value="NGN">NGN - Nigerian Naira</option>
-                    <option value="GHS">GHS - Ghanaian Cedi</option>
-                    <option value="ZAR">ZAR - South African Rand</option>
-                  </select>
-                </FormField>
-                <FormField label="Receipt Prefix" description="Prefix for generated receipt numbers">
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="border-b border-border/50 py-4">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-primary" />
+                  <h3 className="font-bold text-sm uppercase tracking-tight">General</h3>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField label="Default Currency">
+                    <select
+                      value={defaultCurrency}
+                      onChange={(e) => setDefaultCurrency(e.target.value)}
+                      className={selectClass}
+                    >
+                      <option value="KES">KES - Kenyan Shilling</option>
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="EUR">EUR - Euro</option>
+                      <option value="GBP">GBP - British Pound</option>
+                      <option value="NGN">NGN - Nigerian Naira</option>
+                      <option value="GHS">GHS - Ghanaian Cedi</option>
+                      <option value="ZAR">ZAR - South African Rand</option>
+                    </select>
+                  </FormField>
+                </div>
+                <FormField label="Webhook URL" description="Read-only webhook endpoint configured for this tenant">
                   <input
-                    value={receiptPrefix}
-                    onChange={(e) => setReceiptPrefix(e.target.value)}
-                    placeholder="e.g. INV-"
-                    className={inputClass}
+                    value={webhookUrl}
+                    readOnly
+                    className={`${inputClass} bg-accent/20 cursor-not-allowed`}
+                    placeholder="Not configured"
                   />
                 </FormField>
-              </div>
-              <FormField label="Webhook URL" description="Read-only webhook endpoint configured for this tenant">
-                <input
-                  value={webhookUrl}
-                  readOnly
-                  className={`${inputClass} bg-accent/20 cursor-not-allowed`}
-                  placeholder="Not configured"
-                />
-              </FormField>
-              <div className="flex justify-end pt-2">
-                <Button
-                  size="sm"
-                  className="gap-2"
-                  disabled={updateSetting.isPending}
-                  onClick={() => {
-                    saveSetting('default_currency', defaultCurrency);
-                    saveSetting('receipt_prefix', receiptPrefix);
-                  }}
-                >
-                  {updateSetting.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                  Save General
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                <div className="flex justify-end pt-2">
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    disabled={updateSetting.isPending}
+                    onClick={() => saveSetting('default_currency', defaultCurrency)}
+                  >
+                    {updateSetting.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    Save General
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Document Numbering shortcut */}
+            <Link href={`/${orgSlug}/settings/document-numbering`}>
+              <Card className="cursor-pointer hover:border-primary/50 transition-colors">
+                <CardContent className="p-5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <FileDigit className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">Document Numbering</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Configure prefixes, separators, date formats and reset rules for invoices, receipts, quotations and all other document types.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0 ml-4">Configure →</span>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
         </TabsContent>
 
         {/* Settlements */}
