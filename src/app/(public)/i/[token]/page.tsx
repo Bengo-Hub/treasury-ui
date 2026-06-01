@@ -48,7 +48,8 @@ export default async function PublicInvoicePage({ params }: Props) {
     Number(v).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const badge = statusBadge(invoice.status, invoice.payment_status);
-  const pdfUrl = `/api/v1/public/invoices/${token}/pdf`;
+  const TREASURY_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexitsolutions.com';
+  const pdfUrl = `${TREASURY_API_URL}/api/v1/public/invoices/${token}/pdf`;
 
   return (
     <div className="min-h-screen bg-slate-50">

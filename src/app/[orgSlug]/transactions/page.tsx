@@ -16,15 +16,17 @@ import {
     FileText,
     Filter,
     Loader2,
+    Receipt,
     Search,
     UserRound,
+    X,
 } from 'lucide-react';
-
-const MARKETFLOW_UI_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexitsolutions.com';
 import { useMemo, useState } from 'react';
 import { useGenerateReceiptFromIntent } from '@/hooks/use-invoices';
 import { DocPreview } from '@/components/documents/DocPreview';
 import { toast } from 'sonner';
+
+const MARKETFLOW_UI_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexitsolutions.com';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -67,6 +69,7 @@ export default function TransactionsPage() {
     : ((user as any)?.tenantId ?? (user as any)?.tenant_id ?? undefined);
   const generateReceiptMutation = useGenerateReceiptFromIntent(receiptTenant, receiptTenantId);
   const [previewReceiptId, setPreviewReceiptId] = useState<string | null>(null);
+  const [detailTxn, setDetailTxn] = useState<TransactionItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -258,28 +261,17 @@ export default function TransactionsPage() {
                       <td className="px-6 py-4 text-right text-xs text-muted-foreground">{new Date(txn.created_at).toLocaleString()}</td>
                       <td className="px-3 py-4 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          {(txn.status === 'succeeded' || txn.status === 'refunded') && receiptTenant && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0"
-                              title="View receipt"
-                              disabled={generateReceiptMutation.isPending}
-                              onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation();
-                                generateReceiptMutation.mutate(txn.id, {
-                                  onSuccess: (receipt) => setPreviewReceiptId(receipt.id),
-                                  onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to generate receipt'),
-                                });
-                              }}
-                            >
-                              {generateReceiptMutation.isPending ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Eye className="h-3.5 w-3.5" />
-                              )}
-                            </Button>
-                          )}
+                          {/* View details — all transactions */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            title="View transaction details"
+                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); setDetailTxn(txn); }}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          {/* CRM contact link */}
                           {txn.crm_contact_id && (
                             <a
                               href={`${MARKETFLOW_UI_URL}/${orgSlug}/contacts/${txn.crm_contact_id}`}
@@ -291,9 +283,6 @@ export default function TransactionsPage() {
                             >
                               <UserRound className="h-3.5 w-3.5" />
                             </a>
-                          )}
-                          {!txn.crm_contact_id && txn.status !== 'succeeded' && txn.status !== 'refunded' && (
-                            <span className="text-muted-foreground/30">—</span>
                           )}
                         </div>
                       </td>
@@ -312,13 +301,113 @@ export default function TransactionsPage() {
         </CardContent>
       </Card>
 
+      {/* Receipt DocPreview */}
       {previewReceiptId && receiptTenant && (
         <DocPreview
           docId={previewReceiptId}
-          docType="invoice"
+          docType="payment_receipt"
           tenant={receiptTenant}
           onClose={() => setPreviewReceiptId(null)}
         />
+      )}
+
+      {/* Transaction detail drawer */}
+      {detailTxn && (
+        <div className="fixed inset-y-0 right-0 z-50 w-[380px] bg-card shadow-2xl border-l border-border flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Transaction</p>
+              <p className="text-sm font-mono font-bold truncate max-w-[280px]">{detailTxn.reference_id}</p>
+            </div>
+            <button
+              onClick={() => setDetailTxn(null)}
+              className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Details */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Status</p>
+                <Badge variant={detailTxn.status === 'succeeded' ? 'success' : detailTxn.status === 'pending' || detailTxn.status === 'processing' ? 'warning' : 'error'}>
+                  {detailTxn.status}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Type</p>
+                <p className="text-sm font-medium capitalize">{detailTxn.reference_type || 'payment'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Amount</p>
+                <p className="text-sm font-bold">{detailTxn.currency} {detailTxn.amount}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Fee</p>
+                <p className="text-sm text-muted-foreground">
+                  {detailTxn.transaction_cost && parseFloat(detailTxn.transaction_cost) > 0
+                    ? `${detailTxn.currency} ${detailTxn.transaction_cost}`
+                    : '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Method</p>
+                <p className="text-sm capitalize">{detailTxn.payment_method}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Source</p>
+                <p className="text-sm text-muted-foreground">{detailTxn.source_service || '—'}</p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Date</p>
+              <p className="text-sm">{new Date(detailTxn.created_at).toLocaleString()}</p>
+            </div>
+
+            {detailTxn.crm_contact_id && (
+              <div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">CRM Contact</p>
+                <a
+                  href={`${MARKETFLOW_UI_URL}/${orgSlug}/contacts/${detailTxn.crm_contact_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline underline-offset-2"
+                >
+                  <UserRound className="h-3.5 w-3.5" />
+                  View CRM Contact
+                </a>
+              </div>
+            )}
+          </div>
+
+          {/* Generate Receipt — only for succeeded or refunded */}
+          {(detailTxn.status === 'succeeded' || detailTxn.status === 'refunded') && receiptTenant && (
+            <div className="border-t border-border p-4">
+              <Button
+                className="w-full gap-2"
+                disabled={generateReceiptMutation.isPending}
+                onClick={() => {
+                  generateReceiptMutation.mutate(detailTxn.id, {
+                    onSuccess: (receipt) => {
+                      setDetailTxn(null);
+                      setPreviewReceiptId(receipt.id);
+                    },
+                    onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to generate receipt'),
+                  });
+                }}
+              >
+                {generateReceiptMutation.isPending
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Receipt className="h-4 w-4" />}
+                {generateReceiptMutation.isPending ? 'Generating…' : 'Generate & View Receipt'}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
