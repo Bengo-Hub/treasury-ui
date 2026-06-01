@@ -29,7 +29,7 @@
                          "tailwind-merge":  "^3.5.0",
                          "workbox-window":  "^7.4.0",
                          "zod":  "^3.25.76",
-                         "@bengo-hub/shared-ui-lib":  "github:Bengo-Hub/shared-ui-lib#v0.1.13",
+                         "@bengo-hub/shared-ui-lib":  "github:Bengo-Hub/shared-ui-lib#v0.1.15",
                          "zustand":  "^5.0.12"
                      },
     "devDependencies":  {
