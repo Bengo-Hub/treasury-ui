@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { fetchPublicInvoice, type PublicInvoice, type InvoiceLine } from '@/lib/api/invoices';
 import { numberToWords } from '@/lib/utils/number-to-words';
+import { InvoiceActions } from './InvoiceActions';
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -53,24 +54,7 @@ export default async function PublicInvoicePage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Action bar */}
-      <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between print:hidden">
-        <span className="text-sm font-semibold text-slate-700">{invoice.invoice_number}</span>
-        <div className="flex items-center gap-2">
-          <a
-            href={`${pdfUrl}?download=true`}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            Download PDF
-          </a>
-          <button
-            onClick={() => typeof window !== 'undefined' && window.print()}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-white hover:bg-slate-700 transition-colors"
-          >
-            Print
-          </button>
-        </div>
-      </div>
+      <InvoiceActions pdfUrl={pdfUrl} invoiceNumber={invoice.invoice_number} />
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="bg-white shadow-sm rounded-xl p-8 print:shadow-none print:rounded-none">
