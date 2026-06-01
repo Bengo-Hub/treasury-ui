@@ -407,9 +407,13 @@ export function generateReceiptFromInvoice(tenant: string, invoiceId: string): P
   return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/generate-receipt`, {});
 }
 
-// Generate a payment receipt from a succeeded payment intent.
-export function generateReceiptFromIntent(tenant: string, intentId: string): Promise<Invoice> {
-  return apiClient.post<Invoice>(`${BASE}/${tenant}/payments/intents/${intentId}/generate-receipt`, {});
+// Generate a payment receipt from a payment intent.
+// tenantId (UUID) is appended as ?tenantId= so ResolveTenantForRequest on the backend
+// uses it directly — critical for platform-admin cross-tenant calls where the JWT tenant
+// is the platform owner, not the selected tenant.
+export function generateReceiptFromIntent(tenant: string, intentId: string, tenantId?: string): Promise<Invoice> {
+  const qs = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : '';
+  return apiClient.post<Invoice>(`${BASE}/${tenant}/payments/intents/${intentId}/generate-receipt${qs}`, {});
 }
 
 // ---- Quotation API Functions ----
