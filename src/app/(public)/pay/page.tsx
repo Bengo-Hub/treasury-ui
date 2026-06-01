@@ -57,6 +57,12 @@ function PayPageContent() {
 
   const embed = searchParams.get('embed') === 'true';
 
+  // Parse the optional gateways allowlist from URL param (set by TreasuryPaymentModal via allowedMethods prop).
+  // Kept in a ref so the load effect can access it without having it as a dependency.
+  const allowedGatewaysParam = useMemo(() => parseGateways(searchParams.get('gateways')), [searchParams]);
+  const allowedGatewaysRef = useRef(allowedGatewaysParam);
+  allowedGatewaysRef.current = allowedGatewaysParam;
+
   const details: PaymentDetails = useMemo(() => {
     const amount = Number(searchParams.get('amount')) || 0;
     const tenant = searchParams.get('tenant') || '';
@@ -193,6 +199,12 @@ function PayPageContent() {
         const refType = d.reference_type ?? '';
         if (refType === 'subscription' || refType === 'card_setup' || refType === 'renewal' || refType === 'addon_purchase') {
           list = list.filter((g) => g !== 'cod');
+        }
+        // Apply explicit allowlist from URL param (allowedMethods prop on TreasuryPaymentModal).
+        // This is the authoritative filter — if the caller says "paystack,mpesa", show only those.
+        const allowed = allowedGatewaysRef.current;
+        if (allowed.length > 0) {
+          list = list.filter((g) => allowed.includes(g));
         }
         if (!cancelled) {
           setGateways(list);
