@@ -416,6 +416,33 @@ export function generateReceiptFromIntent(tenant: string, intentId: string, tena
   return apiClient.post<Invoice>(`${BASE}/${tenant}/payments/intents/${intentId}/generate-receipt${qs}`, {});
 }
 
+// ---- Bulk Upload ----
+
+export interface BulkUploadRowError {
+  row: number;
+  message: string;
+}
+
+export interface BulkUploadResult {
+  created: number;
+  failed: number;
+  errors?: BulkUploadRowError[];
+}
+
+/**
+ * Upload a CSV/XLSX file of documents to be created in bulk for the given
+ * invoice `type` (e.g. 'credit_note', 'sales_order'). Sent as multipart/form-data;
+ * axios sets the boundary automatically for the FormData body.
+ */
+export function bulkUploadInvoices(tenant: string, type: string, file: File): Promise<BulkUploadResult> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('type', type);
+  return apiClient.post<BulkUploadResult>(`${BASE}/${tenant}/invoices/bulk`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+}
+
 // ---- Quotation API Functions ----
 
 export function listQuotations(tenant: string, filters?: QuotationFilters): Promise<ListQuotationsResponse> {

@@ -74,6 +74,8 @@ export interface SharedDocumentListProps {
   subtitle?: string;
   createLabel?: string;
   onCreateClick?: () => void;
+  /** Extra controls rendered in the header, left of the primary Create button. */
+  headerActions?: React.ReactNode;
   rows: DocumentRow[];
   isLoading: boolean;
   error?: unknown;
@@ -300,6 +302,7 @@ export function SharedDocumentList({
   subtitle,
   createLabel,
   onCreateClick,
+  headerActions,
   rows,
   isLoading,
   error,
@@ -379,6 +382,7 @@ export function SharedDocumentList({
               {isArchived ? `Active ${docTypeLabel ?? title}` : archiveLabel}
             </button>
           )}
+          {headerActions}
           {onCreateClick && createLabel && (
             <Button variant="primary" className="gap-2" onClick={onCreateClick}>
               <Plus className="h-4 w-4" /> {createLabel}

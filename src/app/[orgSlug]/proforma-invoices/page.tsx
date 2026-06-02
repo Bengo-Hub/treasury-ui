@@ -18,7 +18,8 @@ import {
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { SharedInvoiceCreateView } from '@/components/documents/SharedInvoiceCreateView';
-import { Ban, CheckCircle, Copy, DollarSign, Download, ExternalLink, FileText, FileMinus, Loader2, Send, X } from 'lucide-react';
+import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
+import { Ban, CheckCircle, Copy, DollarSign, Download, ExternalLink, FileText, FileMinus, Loader2, Send, Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -32,6 +33,7 @@ export default function ProformaInvoicesPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [editId, setEditId] = useState<string | undefined>(undefined);
   const [paymentDialog, setPaymentDialog] = useState<{ invoiceId: string; invoiceNumber: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -152,11 +154,27 @@ export default function ProformaInvoicesPage() {
 
   return (
     <>
+      {showBulkUpload && (
+        <BulkUploadStepper
+          tenant={effectiveTenant}
+          docType="proforma_invoice"
+          onClose={() => setShowBulkUpload(false)}
+        />
+      )}
       <SharedDocumentList
         title="Proforma Invoices"
         subtitle="Pre-invoices sent before the final invoice."
         createLabel="Create Proforma Invoice"
         onCreateClick={() => setShowCreate(true)}
+        headerActions={
+          <button
+            type="button"
+            onClick={() => setShowBulkUpload(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg border border-border bg-background text-foreground hover:bg-accent transition-all"
+          >
+            <Upload className="h-4 w-4" /> Bulk Upload
+          </button>
+        }
         rows={filtered}
         isLoading={isLoading}
         error={error}

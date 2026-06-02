@@ -14,7 +14,8 @@ import {
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { SharedInvoiceCreateView } from '@/components/documents/SharedInvoiceCreateView';
-import { Ban, Copy, Download, ExternalLink, Send, Trash2 } from 'lucide-react';
+import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
+import { Ban, Copy, Download, ExternalLink, Send, Trash2, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
@@ -27,6 +28,7 @@ export default function CreditNotesPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   const filters = useMemo(() => ({
     type: 'credit_note',
@@ -106,27 +108,45 @@ export default function CreditNotesPage() {
   }
 
   return (
-    <SharedDocumentList
-      title="Credit Notes"
-      subtitle="Issued to reduce a customer's outstanding balance."
-      createLabel="Create Credit Note"
-      onCreateClick={() => setShowCreate(true)}
-      rows={filtered}
-      isLoading={isLoading}
-      error={error}
-      total={total}
-      page={page}
-      onPageChange={setPage}
-      itemsPerPage={ITEMS_PER_PAGE}
-      statusOptions={['all', 'draft', 'sent', 'void']}
-      statusFilter={statusFilter}
-      onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
-      searchQuery={searchQuery}
-      onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
-      actions={actions}
-      showExpandLineItems
-      storageKey="credit-note-col-prefs"
-      emptyStateDescription="Issue credit notes to reduce a customer's outstanding balance."
-    />
+    <>
+      {showBulkUpload && (
+        <BulkUploadStepper
+          tenant={effectiveTenant}
+          docType="credit_note"
+          onClose={() => setShowBulkUpload(false)}
+        />
+      )}
+      <SharedDocumentList
+        title="Credit Notes"
+        subtitle="Issued to reduce a customer's outstanding balance."
+        createLabel="Create Credit Note"
+        onCreateClick={() => setShowCreate(true)}
+        headerActions={
+          <button
+            type="button"
+            onClick={() => setShowBulkUpload(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg border border-border bg-background text-foreground hover:bg-accent transition-all"
+          >
+            <Upload className="h-4 w-4" /> Bulk Upload
+          </button>
+        }
+        rows={filtered}
+        isLoading={isLoading}
+        error={error}
+        total={total}
+        page={page}
+        onPageChange={setPage}
+        itemsPerPage={ITEMS_PER_PAGE}
+        statusOptions={['all', 'draft', 'sent', 'void']}
+        statusFilter={statusFilter}
+        onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
+        searchQuery={searchQuery}
+        onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
+        actions={actions}
+        showExpandLineItems
+        storageKey="credit-note-col-prefs"
+        emptyStateDescription="Issue credit notes to reduce a customer's outstanding balance."
+      />
+    </>
   );
 }

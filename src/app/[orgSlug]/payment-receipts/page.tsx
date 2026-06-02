@@ -15,7 +15,8 @@ import {
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { SharedInvoiceCreateView } from '@/components/documents/SharedInvoiceCreateView';
 import { RecordPaymentModal } from '@/components/documents/RecordPaymentModal';
-import { Ban, Copy, Download, ExternalLink, Send, Trash2 } from 'lucide-react';
+import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
+import { Ban, Copy, Download, ExternalLink, Send, Trash2, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
@@ -29,6 +30,7 @@ export default function PaymentReceiptsPage() {
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [showRecordPayment, setShowRecordPayment] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   const filters = useMemo(() => ({
     type: 'payment_receipt',
@@ -116,6 +118,14 @@ export default function PaymentReceiptsPage() {
         />
       )}
 
+      {showBulkUpload && (
+        <BulkUploadStepper
+          tenant={effectiveTenant}
+          docType="payment_receipt"
+          onClose={() => setShowBulkUpload(false)}
+        />
+      )}
+
       <div className="px-6 pt-6 pb-0">
         <h1 className="text-lg font-black text-foreground">Payment Receipts</h1>
       </div>
@@ -126,6 +136,15 @@ export default function PaymentReceiptsPage() {
           subtitle="Receipts issued to customers for payments received."
           createLabel="Create Payment Receipt"
           onCreateClick={() => setShowCreate(true)}
+          headerActions={
+            <button
+              type="button"
+              onClick={() => setShowBulkUpload(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg border border-border bg-background text-foreground hover:bg-accent transition-all"
+            >
+              <Upload className="h-4 w-4" /> Bulk Upload
+            </button>
+          }
           rows={filtered}
           isLoading={isLoading}
           error={error}
