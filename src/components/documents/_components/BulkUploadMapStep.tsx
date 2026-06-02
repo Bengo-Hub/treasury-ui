@@ -12,7 +12,7 @@ export function BulkUploadMapStep({ docLabel, fileName }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Columns3 className="h-4 w-4 shrink-0 text-primary" />
+        <Columns3 className="h-4 w-4 shrink-0 text-emerald-600" />
         <span>
           Columns in{" "}
           <span className="font-bold text-foreground">{fileName}</span> map to

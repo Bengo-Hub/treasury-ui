@@ -6,8 +6,8 @@ export interface BulkUploadContent {
   title: string;
   /** Descriptive instructions — verbatim from the original EmptyState. */
   description: string;
-  /** YouTube demo/tutorial URL. */
-  videoUrl: string;
+  /** YouTube demo/tutorial URL. Omitted when no original demo exists (e.g. invoices). */
+  videoUrl?: string;
   /** Optional large label rendered inside the video thumbnail. */
   generatorLabel?: string;
   /** Whether to show the amber "Demo Video" badge on the thumbnail. */
@@ -15,6 +15,13 @@ export interface BulkUploadContent {
 }
 
 export const BULK_UPLOAD_CONTENT: Record<string, BulkUploadContent> = {
+  invoice: {
+    title: "Invoices",
+    description:
+      "Create, Share, and Track Invoices. Get Paid Faster With Online Payments and Automated Reminders.",
+    // No demo video existed for invoices in the original sales module.
+    showDemoBadge: false,
+  },
   credit_note: {
     title: "Credit Notes",
     description:

@@ -15,6 +15,7 @@ import { DOC_CONFIGS } from "@/components/documents/SharedDocumentCreateView";
 import { BulkUploadSelectStep } from "./_components/BulkUploadSelectStep";
 import { BulkUploadMapStep } from "./_components/BulkUploadMapStep";
 import { BulkUploadConfirmStep } from "./_components/BulkUploadConfirmStep";
+import { BRAND_SOLID_BTN } from "./_components/bulk-upload-shared";
 
 const STEPS = [
   { n: 1, label: "Select File" },
@@ -26,9 +27,16 @@ interface Props {
   tenant: string;
   /** Invoice doc type key, e.g. 'credit_note', 'sales_order' — keys of DOC_CONFIGS. */
   docType: keyof typeof DOC_CONFIGS;
+  /** Closes the modal. */
   onClose: () => void;
 }
 
+/**
+ * Bulk Upload stepper rendered inside a modal/dialog overlay. The dark
+ * blue/black brand palette is encapsulated in the BRAND_* tokens (see
+ * bulk-upload-shared) so it doesn't leak into the rest of the app; surfaces
+ * use semantic tokens (bg-card, text-foreground, border-border) for dark mode.
+ */
 export function BulkUploadStepper({ tenant, docType, onClose }: Props) {
   const config = DOC_CONFIGS[docType];
   const docLabel = config?.title ?? "Document";
@@ -52,13 +60,13 @@ export function BulkUploadStepper({ tenant, docType, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
-        {/* Header — tenant breadcrumb */}
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        {/* Header — breadcrumb + close */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
             {tenantName && (
               <>
-                <span className="truncate font-semibold text-foreground">
+                <span className="truncate font-medium text-foreground">
                   {tenantName}
                 </span>
                 <ChevronRight className="h-4 w-4 shrink-0" />
@@ -72,6 +80,7 @@ export function BulkUploadStepper({ tenant, docType, onClose }: Props) {
             type="button"
             onClick={onClose}
             className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent"
+            aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
@@ -83,16 +92,16 @@ export function BulkUploadStepper({ tenant, docType, onClose }: Props) {
             {STEPS.map((s, i) => {
               const reached = step >= s.n;
               return (
-                <li key={s.n} className="flex items-center gap-3">
+                <li key={s.n} className="flex items-center gap-2">
                   <div
                     className={cn(
                       "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-colors",
                       reached
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-[#0f172a] text-white"
                         : "bg-muted text-muted-foreground",
                     )}
                   >
-                    {done && s.n === 3 ? (
+                    {done && s.n === STEPS.length ? (
                       <CheckCircle className="h-4 w-4" />
                     ) : (
                       s.n
@@ -115,8 +124,8 @@ export function BulkUploadStepper({ tenant, docType, onClose }: Props) {
           </ol>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-6">
+        {/* Step body (scrolls if tall) */}
+        <div className="flex-1 overflow-y-auto px-6 py-6">
           {step === 1 && (
             <BulkUploadSelectStep
               file={file}
@@ -139,14 +148,10 @@ export function BulkUploadStepper({ tenant, docType, onClose }: Props) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-border bg-accent/10 px-6 py-4">
+        {/* Footer nav */}
+        <div className="flex items-center justify-end gap-3 border-t border-border bg-accent/10 px-6 py-4">
           {done ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="ml-auto rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-            >
+            <button type="button" onClick={onClose} className={BRAND_SOLID_BTN}>
               Done
             </button>
           ) : (
@@ -156,7 +161,7 @@ export function BulkUploadStepper({ tenant, docType, onClose }: Props) {
                 onClick={() =>
                   step > 1 ? setStep((s) => (s - 1) as 1 | 2 | 3) : onClose()
                 }
-                className="rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+                className="rounded-lg border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
               >
                 {step === 1 ? "Cancel" : "Back"}
               </button>
@@ -165,7 +170,7 @@ export function BulkUploadStepper({ tenant, docType, onClose }: Props) {
                   type="button"
                   disabled={!canContinue}
                   onClick={() => setStep((s) => (s + 1) as 1 | 2 | 3)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  className={BRAND_SOLID_BTN}
                 >
                   Continue <ChevronRight className="h-4 w-4" />
                 </button>
@@ -174,7 +179,7 @@ export function BulkUploadStepper({ tenant, docType, onClose }: Props) {
                   type="button"
                   disabled={upload.isPending}
                   onClick={handleUpload}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  className={BRAND_SOLID_BTN}
                 >
                   {upload.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

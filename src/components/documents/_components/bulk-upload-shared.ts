@@ -1,5 +1,26 @@
 // Shared constants/helpers for the Bulk Upload stepper sub-views.
 
+/**
+ * Fixed brand palette — the original feat-financial-docs dark blue/black look.
+ * Deliberately NOT the tenant `primary` theme (which can render pink); these are
+ * hardcoded hex literals (slate-900 #0f172a / slate-800 #1e293b) so the brand
+ * identity is stable across tenants. Dark fills always pair with white text, so
+ * they stay legible in both light and dark mode. Literal strings (not
+ * interpolated) so Tailwind's JIT can detect the arbitrary-value classes.
+ */
+export const BRAND_SOLID_BTN =
+  "inline-flex items-center justify-center gap-2 rounded-lg bg-[#0f172a] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1e293b] disabled:opacity-50";
+
+/** Outline/secondary button — theme-aware surface with a subtle border. */
+export const BRAND_OUTLINE_BTN =
+  "inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent";
+
+/** Dark gradient used behind the demo-video thumbnail. */
+export const BRAND_GRADIENT = "bg-gradient-to-br from-[#1e293b] to-[#0f172a]";
+
+/** Active step-indicator chip background. */
+export const BRAND_STEP_ACTIVE = "bg-[#0f172a] text-white";
+
 /** Canonical CSV columns a bulk-upload file is expected to provide. */
 export const TEMPLATE_COLUMNS = [
   "customer_name",
