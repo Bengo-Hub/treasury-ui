@@ -1,6 +1,6 @@
 'use client';
 
-const TREASURY_API = process.env.NEXT_PUBLIC_TREASURY_API_URL ?? 'https://treasuryapi.codevertexitsolutions.com';
+const TREASURY_API = process.env.NEXT_PUBLIC_TREASURY_API_URL ?? 'https://booksapi.codevertexitsolutions.com';
 
 interface Props {
   token: string;

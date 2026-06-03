@@ -205,7 +205,7 @@ export default async function PublicQuotationPage({ params }: Props) {
               { label: 'POS', href: 'https://pos.codevertexitsolutions.com' },
               { label: 'ERP', href: 'https://erp.codevertexitsolutions.com' },
               { label: 'TruLoad', href: 'https://truload.codevertexitsolutions.com' },
-              { label: 'ISP Billing', href: 'https://isp.codevertexitsolutions.com' },
+              { label: 'ISP Billing', href: 'https://ispbilling.codevertexitsolutions.com' },
               { label: 'AI & Automation', href: 'https://marketflow.codevertexitsolutions.com' },
             ].map((p, i, arr) => (
               <span key={p.href} className="flex items-center gap-4">
