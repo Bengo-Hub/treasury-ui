@@ -28,6 +28,7 @@ import {
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
+import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
 
 const DEMO_VIDEO_URL = 'https://youtu.be/R7Z8w1eXXXs?si=dL4yAC7MOtQji163';
 
@@ -37,6 +38,7 @@ export default function SalesOrdersPage() {
   const params = useParams<{ orgSlug: string }>();
   const orgSlug = params?.orgSlug ?? '';
   const [view, setView] = useState<View>('empty');
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   if (view === 'form') {
     return (
@@ -48,7 +50,18 @@ export default function SalesOrdersPage() {
     return <BulkUploadView orgSlug={orgSlug} onBack={() => setView('empty')} />;
   }
 
-  return <EmptyState orgSlug={orgSlug} onCreate={() => setView('form')} onBulkUpload={() => setView('bulk')} />;
+  return (
+    <>
+      <EmptyState orgSlug={orgSlug} onCreate={() => setView('form')} onBulkUpload={() => setBulkOpen(true)} />
+      {bulkOpen && (
+        <BulkUploadStepper
+          tenant={orgSlug}
+          docType="sales_order"
+          onClose={() => setBulkOpen(false)}
+        />
+      )}
+    </>
+  );
 }
 
 function EmptyState({

@@ -28,6 +28,7 @@ import {
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
+import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
 
 const DEMO_VIDEO_URL = 'https://youtu.be/4P6FsYHdN8M?si=KE0PRlIBPbEXtVIz';
 
@@ -37,6 +38,7 @@ export default function CreditNotesPage() {
   const params = useParams<{ orgSlug: string }>();
   const orgSlug = params?.orgSlug ?? '';
   const [view, setView] = useState<View>('empty');
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   if (view === 'form') {
     return <CreateCreditNoteForm orgSlug={orgSlug} onBack={() => setView('empty')} />;
@@ -47,11 +49,20 @@ export default function CreditNotesPage() {
   }
 
   return (
-    <EmptyState
-      orgSlug={orgSlug}
-      onCreate={() => setView('form')}
-      onBulkUpload={() => setView('bulk')}
-    />
+    <>
+      <EmptyState
+        orgSlug={orgSlug}
+        onCreate={() => setView('form')}
+        onBulkUpload={() => setBulkOpen(true)}
+      />
+      {bulkOpen && (
+        <BulkUploadStepper
+          tenant={orgSlug}
+          docType="credit_note"
+          onClose={() => setBulkOpen(false)}
+        />
+      )}
+    </>
   );
 }
 

@@ -29,6 +29,7 @@ import {
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
+import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
 
 const DEMO_VIDEO_URL = 'https://youtu.be/6TS_cmxB_Tc?si=62o6R7aIDoDbPWas';
 
@@ -38,6 +39,7 @@ export default function ProformaInvoicesPage() {
   const params = useParams<{ orgSlug: string }>();
   const orgSlug = params?.orgSlug ?? '';
   const [view, setView] = useState<View>('empty');
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   if (view === 'form') {
     return <CreateProformaInvoiceForm orgSlug={orgSlug} onBack={() => setView('empty')} />;
@@ -48,11 +50,20 @@ export default function ProformaInvoicesPage() {
   }
 
   return (
-    <EmptyState
-      orgSlug={orgSlug}
-      onCreate={() => setView('form')}
-      onBulkUpload={() => setView('bulk')}
-    />
+    <>
+      <EmptyState
+        orgSlug={orgSlug}
+        onCreate={() => setView('form')}
+        onBulkUpload={() => setBulkOpen(true)}
+      />
+      {bulkOpen && (
+        <BulkUploadStepper
+          tenant={orgSlug}
+          docType="proforma_invoice"
+          onClose={() => setBulkOpen(false)}
+        />
+      )}
+    </>
   );
 }
 

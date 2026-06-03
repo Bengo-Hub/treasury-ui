@@ -14,11 +14,13 @@ import {
   Play,
   Plus,
   Receipt,
+  UploadCloud,
   User,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
 
 const DEMO_VIDEO_URL = 'https://youtu.be/R7Z8w1eXXXs?si=dL4yAC7MOtQji163';
 
@@ -31,6 +33,7 @@ export default function PaymentReceiptsPage() {
   const orgSlug = params?.orgSlug ?? '';
 
   const [view, setView] = useState<View>('empty');
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [typeModalOpen, setTypeModalOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<PaymentType>('receipt');
   const [openSections, setOpenSections] = useState<Record<Section, boolean>>({
@@ -113,6 +116,15 @@ export default function PaymentReceiptsPage() {
             >
               Create First Payment Receipt
             </button>
+
+            <button
+              type="button"
+              onClick={() => setBulkOpen(true)}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100"
+            >
+              <UploadCloud className="h-4 w-4" />
+              Bulk Upload Payment Receipts
+            </button>
           </div>
         </div>
       </div>
@@ -123,6 +135,14 @@ export default function PaymentReceiptsPage() {
           onSelect={setSelectedType}
           onClose={() => setTypeModalOpen(false)}
           onSubmit={handleSubmitType}
+        />
+      )}
+
+      {bulkOpen && (
+        <BulkUploadStepper
+          tenant={orgSlug}
+          docType="payment_receipt"
+          onClose={() => setBulkOpen(false)}
         />
       )}
     </div>
