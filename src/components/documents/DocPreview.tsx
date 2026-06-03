@@ -3,7 +3,10 @@
 import { useInvoice, useQuotation } from '@/hooks/use-invoices';
 import { Badge } from '@/components/ui/base';
 import { cn } from '@/lib/utils';
-import { Copy, Download, ExternalLink, Link2, Mail, Pencil, X } from 'lucide-react';
+import { Copy, ExternalLink, FileText, Link2, Mail, Pencil, X } from 'lucide-react';
+import { toast } from 'sonner';
+import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
+import { downloadInvoicePdf, downloadQuotationPdf } from '@/lib/api/documents';
 
 type DocType = 'invoice' | 'quotation' | 'proforma_invoice' | 'credit_note' | 'debit_note' | 'sales_order' | 'payment_receipt';
 
@@ -23,11 +26,6 @@ const fmt = (v: string | number | undefined) =>
 
 const fmtDate = (d: string | undefined) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-
-const TREASURY_API_URL =
-  typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL
-    ? process.env.NEXT_PUBLIC_API_URL
-    : 'https://booksapi.codevertexitsolutions.com';
 
 function docLabel(docType: DocType): string {
   const labels: Record<DocType, string> = {
@@ -172,6 +170,19 @@ interface DocPreviewProps {
 
 export function DocPreview({ docId, docType, tenant, onClose, onEdit, onDuplicate }: DocPreviewProps) {
   const { data: doc, isLoading } = usePreviewDoc(tenant, docId, docType);
+  const { openPreview, previewProps } = useDocumentPreview({ onError: (m) => toast.error(m) });
+
+  // Fetch the rendered PDF as a blob from the authenticated endpoint (quotations
+  // use their own endpoint; everything else streams from the invoice endpoint).
+  const openPdf = () => {
+    if (!doc) return;
+    const fetchFn = () =>
+      (docType === 'quotation'
+        ? downloadQuotationPdf(tenant, doc.id, doc.docNumber)
+        : downloadInvoicePdf(tenant, doc.id, doc.docNumber)
+      ).then((r) => r.blob);
+    openPreview(fetchFn, { fileName: `${doc.docNumber}.pdf`, title: `${docLabel(docType)} ${doc.docNumber}` });
+  };
 
   const actions = [
     {
@@ -199,10 +210,10 @@ export function DocPreview({ docId, docType, tenant, onClose, onEdit, onDuplicat
       show: !!onDuplicate,
     },
     {
-      icon: <Download className="h-4 w-4" />,
-      label: 'Download',
-      onClick: () => doc?.public_token && window.open(`${TREASURY_API_URL}/api/v1/public/invoices/${doc.public_token}/pdf?download=true`, '_blank'),
-      show: !!doc?.public_token,
+      icon: <FileText className="h-4 w-4" />,
+      label: 'PDF',
+      onClick: openPdf,
+      show: !!doc,
     },
     {
       icon: <Pencil className="h-4 w-4" />,
@@ -213,6 +224,7 @@ export function DocPreview({ docId, docType, tenant, onClose, onEdit, onDuplicat
   ].filter(a => a.show);
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/20" onClick={onClose} />
       <div className="w-full max-w-2xl bg-card shadow-2xl flex flex-col h-full animate-in slide-in-from-right duration-200 border-l border-border">
@@ -361,5 +373,7 @@ export function DocPreview({ docId, docType, tenant, onClose, onEdit, onDuplicat
         </div>
       </div>
     </div>
+    <PdfPreview {...previewProps} />
+    </>
   );
 }
