@@ -4,6 +4,13 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevert
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Extracts the filename from a Content-Disposition header value, if present. */
+function parseContentDispositionFilename(header?: string): string {
+  if (!header) return '';
+  const match = header.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
+  return match?.[1] ? decodeURIComponent(match[1].trim()) : '';
+}
+
 class ApiClient {
   private instance: AxiosInstance;
   private accessToken: string | null = null;
@@ -107,6 +114,24 @@ class ApiClient {
 
   public get<T>(url: string, params?: any): Promise<T> {
     return this.instance.get<T>(url, { params }).then((res: AxiosResponse<T>) => res.data);
+  }
+
+  /**
+   * getBlob fetches a binary response (e.g. a generated PDF) through the shared
+   * client so auth + tenant headers and 401-refresh still apply. Returns the
+   * blob plus a file name derived from the Content-Disposition header (falling
+   * back to `fallbackFileName`).
+   */
+  public async getBlob(
+    url: string,
+    fallbackFileName: string,
+    params?: any
+  ): Promise<{ blob: Blob; fileName: string }> {
+    const res = await this.instance.get<Blob>(url, { params, responseType: 'blob' });
+    return {
+      blob: res.data,
+      fileName: parseContentDispositionFilename(res.headers?.['content-disposition']) || fallbackFileName,
+    };
   }
 
   public post<T>(url: string, data?: any): Promise<T> {
