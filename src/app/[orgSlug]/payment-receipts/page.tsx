@@ -15,8 +15,12 @@ import {
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { SharedInvoiceCreateView } from '@/components/documents/SharedInvoiceCreateView';
 import { RecordPaymentModal } from '@/components/documents/RecordPaymentModal';
-import { Ban, Copy, Download, ExternalLink, Send, Trash2 } from 'lucide-react';
+import { Ban, Copy, Download, ExternalLink, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/base';
+import { reconcilePendingPayments, type ReconcileSummary } from '@/lib/api/payments';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -46,6 +50,19 @@ export default function PaymentReceiptsPage() {
   const voidMutation      = useVoidInvoice(effectiveTenant);
   const duplicateMutation = useDuplicateInvoice(effectiveTenant);
   const deleteMutation    = useDeleteInvoice(effectiveTenant);
+
+  // Manually reconcile pending payment intents against their gateway (treasury also runs this on a
+  // 5-minute cron). Settles any payment that went through but whose webhook/redirect was missed.
+  const reconcileMutation = useMutation({
+    mutationFn: () => reconcilePendingPayments(effectiveTenant),
+    onSuccess: (s: ReconcileSummary) => {
+      toast.success(
+        `Reconciliation complete — ${s.settled} settled, ${s.failed} failed, ${s.checked} checked` +
+          (s.errors ? `, ${s.errors} error(s)` : ''),
+      );
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Reconciliation failed'),
+  });
 
   const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);
 
@@ -116,8 +133,18 @@ export default function PaymentReceiptsPage() {
         />
       )}
 
-      <div className="px-6 pt-6 pb-0">
+      <div className="px-6 pt-6 pb-0 flex items-center justify-between gap-3">
         <h1 className="text-lg font-black text-foreground">Payment Receipts</h1>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => reconcileMutation.mutate()}
+          disabled={reconcileMutation.isPending || !effectiveTenant}
+          title="Re-verify pending payments against the gateway and settle any that completed"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 mr-2 ${reconcileMutation.isPending ? 'animate-spin' : ''}`} />
+          {reconcileMutation.isPending ? 'Reconciling…' : 'Reconcile Payments'}
+        </Button>
       </div>
 
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
