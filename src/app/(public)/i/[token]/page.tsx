@@ -52,9 +52,26 @@ export default async function PublicInvoicePage({ params }: Props) {
   const TREASURY_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexitsolutions.com';
   const pdfUrl = `${TREASURY_API_URL}/api/v1/public/invoices/${token}/pdf`;
 
+  // Pay link: reuse the existing public /pay page, which mints a fresh Paystack session
+  // per visit (never stale). Shown only when the invoice is not already paid.
+  const isPaid = invoice.payment_status === 'paid' || invoice.status === 'cancelled' || invoice.status === 'void';
+  let payUrl: string | undefined;
+  if (!isPaid && totalAmount > 0) {
+    const q = new URLSearchParams({
+      tenant: invoice.tenant_slug,
+      amount: String(totalAmount),
+      currency: invoice.currency || 'KES',
+      reference_id: token,
+      reference_type: 'invoice',
+      invoice_number: invoice.invoice_number,
+      description: `Invoice ${invoice.invoice_number}`,
+    });
+    payUrl = `/pay?${q.toString()}`;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
-      <InvoiceActions pdfUrl={pdfUrl} invoiceNumber={invoice.invoice_number} />
+      <InvoiceActions pdfUrl={pdfUrl} invoiceNumber={invoice.invoice_number} payUrl={payUrl} />
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="bg-white shadow-sm rounded-xl p-8 print:shadow-none print:rounded-none">
