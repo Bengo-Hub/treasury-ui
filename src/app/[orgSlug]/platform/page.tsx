@@ -41,7 +41,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { type ChangeEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 const GATEWAY_TYPES = [
@@ -202,7 +202,7 @@ export default function PlatformPage() {
   const { data: user } = useMe();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
-  const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims'>('gateways');
+  const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims' | 'payments'>('gateways');
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [showAddGateway, setShowAddGateway] = useState(false);
@@ -282,6 +282,13 @@ export default function PlatformPage() {
         >
           <Receipt className="h-4 w-4 inline mr-2" />
           eTIMS / KRA
+        </button>
+        <button
+          onClick={() => setActiveTab('payments')}
+          className={cn("px-6 py-2 rounded-md text-sm font-medium transition-all", activeTab === 'payments' ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+        >
+          <Banknote className="h-4 w-4 inline mr-2" />
+          Payments
         </button>
       </div>
 
@@ -627,6 +634,151 @@ export default function PlatformPage() {
       {activeTab === 'etims' && (
         <EtimsConfigSection orgSlug={orgSlug} />
       )}
+
+      {activeTab === 'payments' && (
+        <PlatformPaymentsSection orgSlug={orgSlug} />
+      )}
+    </div>
+  );
+}
+
+// ── Platform Payments — invoice business identity + payment account ─────────────
+// Stored as a single JSON platform setting (platform_payment_account). Used on
+// platform→tenant subscription invoices for the issuer block + "How to pay" section.
+
+interface PlatformPayAccount {
+  business_name: string;
+  address: string;
+  tax_pin: string;
+  bank_name: string;
+  account_name: string;
+  account_number: string;
+  branch_code: string;
+  mpesa_paybill: string;
+  mpesa_till: string;
+  instructions: string;
+}
+
+const EMPTY_PAY_ACCOUNT: PlatformPayAccount = {
+  business_name: '', address: '', tax_pin: '', bank_name: '', account_name: '',
+  account_number: '', branch_code: '', mpesa_paybill: '', mpesa_till: '', instructions: '',
+};
+
+function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
+  const [acct, setAcct] = useState<PlatformPayAccount>(EMPTY_PAY_ACCOUNT);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await apiClient.get<{ settings: Array<{ config_key: string; config_value: string }> }>(
+          `/api/v1/${orgSlug}/platform/settings`
+        );
+        const row = (data.settings ?? []).find((s) => s.config_key === 'platform_payment_account');
+        if (row?.config_value) {
+          try { setAcct({ ...EMPTY_PAY_ACCOUNT, ...JSON.parse(row.config_value) }); } catch { /* ignore */ }
+        }
+      } catch { /* none yet */ } finally { setLoading(false); }
+    }
+    load();
+  }, [orgSlug]);
+
+  const set = (k: keyof PlatformPayAccount) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setAcct((p) => ({ ...p, [k]: e.target.value }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await apiClient.put(`/api/v1/${orgSlug}/platform/settings/platform_payment_account`, {
+        config_value: JSON.stringify(acct),
+        config_type: 'json',
+        description: 'Platform business identity + payment account shown on subscription invoices',
+        is_secret: false,
+      });
+      toast.success('Platform payment details saved — applied to new subscription invoices');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Failed to save payment details');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = (label: string, k: keyof PlatformPayAccount, placeholder = '') => (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <input
+        value={acct[k]}
+        onChange={set(k)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+      />
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 py-4">
+          <Banknote className="h-4 w-4 text-primary" />
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-tight">Platform Payment Details</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Business identity + payment account shown on platform subscription invoices (issuer block + &quot;How to pay&quot;).
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6 pb-6">
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : (
+            <>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Business Identity</p>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {field('Business / Legal Name', 'business_name', 'Codevertex Africa Limited')}
+                  {field('Tax PIN', 'tax_pin', 'P051XXXXXXX')}
+                  {field('Address', 'address', 'P.O. Box 1234-00100, Nairobi')}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Bank Account</p>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {field('Bank Name', 'bank_name', 'Equity Bank')}
+                  {field('Branch / IBAN / Swift', 'branch_code')}
+                  {field('Account Name', 'account_name')}
+                  {field('Account Number', 'account_number')}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Mobile Money</p>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {field('M-Pesa Paybill', 'mpesa_paybill')}
+                  {field('M-Pesa Till', 'mpesa_till')}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Payment Instructions (optional)</label>
+                <textarea
+                  value={acct.instructions}
+                  onChange={set('instructions')}
+                  rows={2}
+                  placeholder="e.g. Use your invoice number as the payment reference."
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSave} disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Save Payment Details
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
