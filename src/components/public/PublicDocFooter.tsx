@@ -10,18 +10,19 @@
  * Hosts are the authoritative production ingress hostnames — do not guess.
  */
 
+// Mirrors the canonical Codevertex Power Suite product line + URLs from
+// codevertex-website/src/config/services.ts (POWER_SUITE) and auth-ui
+// PRODUCTION_DOMAINS. Keep in sync with those sources; do not invent hosts.
 const PRODUCTS: { label: string; href: string }[] = [
-  { label: 'Books', href: 'https://books.codevertexitsolutions.com' },
-  { label: 'Ordering', href: 'https://ordersapp.codevertexitsolutions.com' },
-  { label: 'POS', href: 'https://pos.codevertexitsolutions.com' },
-  { label: 'Inventory', href: 'https://inventory.codevertexitsolutions.com' },
-  { label: 'Logistics', href: 'https://logistics.codevertexitsolutions.com' },
-  { label: 'ERP', href: 'https://erp.codevertexitsolutions.com' },
-  { label: 'Projects', href: 'https://projects.codevertexitsolutions.com' },
-  { label: 'TruLoad', href: 'https://truload.codevertexitsolutions.com' },
-  { label: 'ISP Billing', href: 'https://ispbilling.codevertexitsolutions.com' },
-  { label: 'Plans', href: 'https://pricing.codevertexitsolutions.com' },
-  { label: 'AI & Automation', href: 'https://marketflow.codevertexitsolutions.com' },
+  { label: 'Accounting & Books', href: 'https://books.codevertexitsolutions.com' },
+  { label: 'Ordering Platform', href: 'https://ordersapp.codevertexitsolutions.com' },
+  { label: 'POS System', href: 'https://pos.codevertexitsolutions.com' },
+  { label: 'ERP Suite', href: 'https://erp.codevertexitsolutions.com' },
+  { label: 'CRM, Helpdesk & AI Marketing Platforms', href: 'https://marketflow.codevertexitsolutions.com' },
+  { label: 'Weighing & Logistics Systems', href: 'https://truload.codevertexitsolutions.com' },
+  { label: 'Hotspot Billing Systems', href: 'https://ispbilling.codevertexitsolutions.com' },
+  { label: 'Shipping & Delivery Logistics Systems', href: 'https://logistics.codevertexitsolutions.com' },
+  { label: 'AI & Automation', href: 'https://codevertexitsolutions.com/contact' },
 ];
 
 const VERA_WIDGET_SRC = 'https://marketflow.codevertexitsolutions.com/widget/chat.js';
