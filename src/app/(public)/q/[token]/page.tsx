@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { fetchPublicQuotation, type PublicQuotation, type QuotationLine } from '@/lib/api/invoices';
 import { numberToWords } from '@/lib/utils/number-to-words';
 import { QuotationActionBar, AcceptDeclineButtons } from './_components/QuotationActions';
+import { PublicDocFooter } from '@/components/public/PublicDocFooter';
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -177,64 +178,13 @@ export default async function PublicQuotationPage({ params }: Props) {
           {canAccept && <AcceptDeclineButtons />}
         </div>
 
-        {/* Vera AI assistant callout */}
-        {quote.tenant_slug && (
-          <div className="mt-6 bg-white shadow-sm rounded-xl p-6 print:hidden">
-            <p className="text-sm font-medium text-slate-700 mb-1">
-              Questions about this quotation?
-            </p>
-            <p className="text-sm text-slate-500">
-              Chat with {quote.tenant_name}&apos;s AI assistant — available 24/7 to answer queries
-              about products, pricing, and delivery.
-            </p>
-          </div>
-        )}
-
-        {/* Platform footer */}
-        <div className="mt-8 border-t border-slate-200 pt-8 pb-12 print:hidden">
-          <div className="text-center mb-4">
-            <p className="text-xs text-slate-400 uppercase tracking-widest font-medium mb-1">Powered by</p>
-            <p className="text-sm font-semibold text-slate-700">Codevertex Power Suite</p>
-            <p className="text-xs text-slate-400 mt-1">
-              Six integrated products. One SSO identity. Zero friction between your tools.
-            </p>
-          </div>
-          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400">
-            {[
-              { label: 'Books', href: 'https://books.codevertexitsolutions.com' },
-              { label: 'POS', href: 'https://pos.codevertexitsolutions.com' },
-              { label: 'ERP', href: 'https://erp.codevertexitsolutions.com' },
-              { label: 'TruLoad', href: 'https://truload.codevertexitsolutions.com' },
-              { label: 'ISP Billing', href: 'https://ispbilling.codevertexitsolutions.com' },
-              { label: 'AI & Automation', href: 'https://marketflow.codevertexitsolutions.com' },
-            ].map((p, i, arr) => (
-              <span key={p.href} className="flex items-center gap-4">
-                <a href={p.href} target="_blank" rel="noopener noreferrer" className="hover:text-brand-emphasis transition-colors">
-                  {p.label}
-                </a>
-                {i < arr.length - 1 && <span>·</span>}
-              </span>
-            ))}
-          </div>
-          <p className="text-center text-xs text-slate-300 mt-3">
-            &copy; {new Date().getFullYear()} Codevertex Africa Limited &nbsp;·&nbsp; OAuth 2.0 &nbsp;·&nbsp; AES-256 &nbsp;·&nbsp; Multi-tenant SSO
-          </p>
-        </div>
-      </div>
-
-      {/* Vera AI chatbot widget */}
-      {quote.tenant_slug && (
-        // eslint-disable-next-line @next/next/no-sync-scripts
-        <script
-          src="https://marketflow.codevertexitsolutions.com/widget/chat.js"
-          data-tenant={quote.tenant_slug}
-          data-mode="tenant"
-          data-api-url="https://marketflowapi.codevertexitsolutions.com"
-          data-widget-title={`${quote.tenant_name} Assistant`}
-          data-primary-color="#6D28D9"
-          async
+        {/* Vera AI support + all Codevertex services */}
+        <PublicDocFooter
+          tenantSlug={quote.tenant_slug}
+          tenantName={quote.tenant_name}
+          docNoun="quotation"
         />
-      )}
+      </div>
     </div>
   );
 }
