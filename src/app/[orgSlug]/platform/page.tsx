@@ -673,7 +673,7 @@ function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
     async function load() {
       try {
         const data = await apiClient.get<{ settings: Array<{ config_key: string; config_value: string }> }>(
-          `/api/v1/${orgSlug}/platform/settings`
+          `/api/v1/platform/settings`
         );
         const row = (data.settings ?? []).find((s) => s.config_key === 'platform_payment_account');
         if (row?.config_value) {
@@ -690,7 +690,7 @@ function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await apiClient.put(`/api/v1/${orgSlug}/platform/settings/platform_payment_account`, {
+      await apiClient.put(`/api/v1/platform/settings/platform_payment_account`, {
         config_value: JSON.stringify(acct),
         config_type: 'json',
         description: 'Platform business identity + payment account shown on subscription invoices',
@@ -803,7 +803,7 @@ function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
     async function load() {
       try {
         const data = await apiClient.get<{ settings: Array<{ config_key: string; config_value: string }> }>(
-          `/api/v1/${orgSlug}/platform/settings`
+          `/api/v1/platform/settings`
         );
         const settings = data.settings ?? [];
         const byKey: Record<string, string> = {};
@@ -830,7 +830,7 @@ function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
       ];
       for (const u of updates) {
         if (u.value && u.value !== '***') {
-          await apiClient.put(`/api/v1/${orgSlug}/platform/settings/${u.key}`, {
+          await apiClient.put(`/api/v1/platform/settings/${u.key}`, {
             config_value: u.value,
             config_type: 'string',
             description: u.key === 'etims.base_url'
