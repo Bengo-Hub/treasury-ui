@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { fetchPublicInvoice, type PublicInvoice } from '@/lib/api/invoices';
 import { InvoiceActions } from './InvoiceActions';
+import { PublicDocFooter } from '@/components/public/PublicDocFooter';
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -125,14 +126,13 @@ export default async function PublicInvoicePage({ params }: Props) {
           </object>
         </div>
 
-        {/* Platform footer */}
-        <div className="mt-8 border-t border-slate-200 pt-6 pb-10 text-center print:hidden">
-          <p className="text-xs text-slate-400 uppercase tracking-widest font-medium mb-1">Powered by</p>
-          <p className="text-sm font-semibold text-slate-700">Codevertex Power Suite</p>
-          <p className="text-xs text-slate-300 mt-2">
-            &copy; {new Date().getFullYear()} Codevertex IT Solutions
-          </p>
-        </div>
+        {/* Vera AI support + all Codevertex services */}
+        <PublicDocFooter
+          tenantSlug={invoice.tenant_slug}
+          tenantName={invoice.tenant_name}
+          docNoun="invoice"
+          brand={brand}
+        />
       </div>
     </div>
   );
