@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  bulkUploadInvoices,
   createInvoice,
   createQuotation,
   deleteInvoice,
@@ -115,6 +116,16 @@ export function useCreateInvoice(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateInvoiceRequest) => createInvoice(tenant, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+    },
+  });
+}
+
+export function useBulkUploadInvoices(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ type, file }: { type: string; file: File }) => bulkUploadInvoices(tenant, type, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
     },
