@@ -22,7 +22,7 @@ import { Ban, CheckCircle, DollarSign, ExternalLink, FileText, FileMinus, FilePl
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useRouter, useParams } from 'next/navigation';
-import { BulkUploadModal } from './_components/BulkUploadModal';
+import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
 import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentCreateView';
 import { DocTabNav, type DocTab } from '@/components/documents/DocTabNav';
 import { SuggestedInvoice } from './_components/SuggestedInvoice';
@@ -270,7 +270,13 @@ export default function InvoicesPage() {
         </>
       )}
 
-      <BulkUploadModal open={bulkUploadOpen} onClose={() => setBulkUploadOpen(false)} />
+      {bulkUploadOpen && (
+        <BulkUploadStepper
+          tenant={effectiveTenant}
+          docType="invoice"
+          onClose={() => setBulkUploadOpen(false)}
+        />
+      )}
 
       {paymentDialog && (
         <div

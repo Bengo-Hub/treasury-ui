@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexitsolutions.com';
 
@@ -134,8 +134,8 @@ class ApiClient {
     };
   }
 
-  public post<T>(url: string, data?: any): Promise<T> {
-    return this.instance.post<T>(url, data).then((res: AxiosResponse<T>) => res.data);
+  public post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    return this.instance.post<T>(url, data, config).then((res: AxiosResponse<T>) => res.data);
   }
 
   public put<T>(url: string, data?: any): Promise<T> {

@@ -338,6 +338,31 @@ export function createInvoice(tenant: string, body: CreateInvoiceRequest): Promi
   return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices`, body);
 }
 
+export interface BulkUploadRowError {
+  row: number;
+  message: string;
+}
+
+export interface BulkUploadResult {
+  created: number;
+  failed: number;
+  errors?: BulkUploadRowError[];
+}
+
+/**
+ * Upload a CSV file of documents to be created in bulk for the given invoice
+ * `type` (e.g. 'credit_note', 'sales_order'). Sent as multipart/form-data; axios
+ * sets the boundary automatically for the FormData body.
+ */
+export function bulkUploadInvoices(tenant: string, type: string, file: File): Promise<BulkUploadResult> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('type', type);
+  return apiClient.post<BulkUploadResult>(`${BASE}/${tenant}/invoices/bulk`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+}
+
 export function getInvoice(tenant: string, invoiceId: string): Promise<Invoice> {
   return apiClient.get<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}`);
 }
