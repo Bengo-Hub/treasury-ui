@@ -18,7 +18,7 @@ import {
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
-import { Ban, CheckCircle, DollarSign, Download, ExternalLink, FileText, FileMinus, FilePlus, Loader2, Receipt, Send, Upload, X } from 'lucide-react';
+import { Ban, CheckCircle, DollarSign, ExternalLink, FileText, FileMinus, FilePlus, Loader2, Receipt, Send, Upload, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useRouter, useParams } from 'next/navigation';
@@ -114,12 +114,6 @@ export default function InvoicesPage() {
       label: 'View Public Page',
       icon: <ExternalLink className="h-3.5 w-3.5" />,
       onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank'),
-      visible: (r) => !!r.public_token,
-    },
-    {
-      label: 'Download PDF',
-      icon: <Download className="h-3.5 w-3.5" />,
-      onClick: (r) => r.public_token && window.open(`/api/v1/public/invoices/${r.public_token}/pdf?download=true`, '_blank'),
       visible: (r) => !!r.public_token,
     },
     {
@@ -232,6 +226,7 @@ export default function InvoicesPage() {
                 onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
                 stats={stats}
                 actions={actions}
+                pdfKind="invoice"
                 showPaymentStatus
                 showDueDate
                 showExpandLineItems

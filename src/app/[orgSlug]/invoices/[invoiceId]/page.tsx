@@ -17,6 +17,9 @@ import {
   ExternalLink, FileMinus, FilePlus, Loader2, Send, X,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { toast } from 'sonner';
+import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
+import { downloadPublicInvoicePdf } from '@/lib/api/documents';
 
 function StatusBadge({ status }: { status: string }) {
   const variants: Record<string, string> = {
@@ -84,6 +87,19 @@ export default function InvoiceDetailPage() {
     );
   }, [invoiceId, paymentAmount, recordPayMut]);
 
+  // Preview-first PDF: open the shared modal (Download / Print / Open-in-tab)
+  // instead of force-downloading the file.
+  const { openPreview, previewProps } = useDocumentPreview({ onError: (m) => toast.error(m) });
+  const previewPdf = useCallback(() => {
+    const token = invoice?.public_token;
+    if (!token) return;
+    const name = invoice?.invoice_number || 'invoice';
+    openPreview(
+      () => downloadPublicInvoicePdf(token, name).then((r) => r.blob),
+      { fileName: `${name}.pdf`, title: name }
+    );
+  }, [invoice, openPreview]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -144,7 +160,7 @@ export default function InvoiceDetailPage() {
                 <ExternalLink className="h-3.5 w-3.5" /> View
               </button>
               <button
-                onClick={() => window.open(`/api/v1/public/invoices/${invoice.public_token}/pdf?download=true`, '_blank')}
+                onClick={previewPdf}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors"
               >
                 <Download className="h-3.5 w-3.5" /> PDF
@@ -381,6 +397,8 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
       )}
+
+      <PdfPreview {...previewProps} />
     </div>
   );
 }
