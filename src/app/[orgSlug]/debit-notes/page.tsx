@@ -14,7 +14,7 @@ import {
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { SharedInvoiceCreateView } from '@/components/documents/SharedInvoiceCreateView';
-import { Ban, Copy, Download, ExternalLink, Send, Trash2 } from 'lucide-react';
+import { Ban, Copy, ExternalLink, Send, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
@@ -61,12 +61,6 @@ export default function DebitNotesPage() {
       label: 'View Public Page',
       icon: <ExternalLink className="h-3.5 w-3.5" />,
       onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank'),
-      visible: (r) => !!r.public_token,
-    },
-    {
-      label: 'Download PDF',
-      icon: <Download className="h-3.5 w-3.5" />,
-      onClick: (r) => r.public_token && window.open(`/api/v1/public/invoices/${r.public_token}/pdf?download=true`, '_blank'),
       visible: (r) => !!r.public_token,
     },
     {
@@ -124,6 +118,7 @@ export default function DebitNotesPage() {
       searchQuery={searchQuery}
       onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
       actions={actions}
+      pdfKind="invoice"
       showExpandLineItems
       storageKey="debit-note-col-prefs"
       emptyStateDescription="Issue debit notes to charge customers for additional amounts."

@@ -12,7 +12,7 @@ import {
   useSendInvoice,
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { Copy, Download, ExternalLink, Send, Trash2 } from 'lucide-react';
+import { Copy, ExternalLink, Send, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
@@ -60,12 +60,6 @@ export default function DeliveryChallansPage() {
       visible: (r) => !!r.public_token,
     },
     {
-      label: 'Download PDF',
-      icon: <Download className="h-3.5 w-3.5" />,
-      onClick: (r) => r.public_token && window.open(`/api/v1/public/invoices/${r.public_token}/pdf?download=true`, '_blank'),
-      visible: (r) => !!r.public_token,
-    },
-    {
       label: 'Send',
       icon: <Send className="h-3.5 w-3.5" />,
       onClick: (r) => sendMutation.mutate(r.id),
@@ -101,6 +95,7 @@ export default function DeliveryChallansPage() {
       searchQuery={searchQuery}
       onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
       actions={actions}
+      pdfKind="invoice"
       showDueDate
       showExpandLineItems
       storageKey="delivery-challan-col-prefs"

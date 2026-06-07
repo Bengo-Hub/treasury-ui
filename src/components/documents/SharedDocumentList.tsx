@@ -5,9 +5,12 @@ import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/ba
 import { Pagination } from '@/components/ui/pagination';
 import { cn } from '@/lib/utils';
 import {
-  AlertCircle, Columns, FileText, Filter,
+  AlertCircle, Columns, Download, FileText, Filter,
   Loader2, MoreHorizontal, Plus, Search,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
+import { downloadPublicInvoicePdf, downloadPublicQuotationPdf } from '@/lib/api/documents';
 import {
   SimpleColumnManager as ColumnManager,
   loadColumnPrefs,
@@ -88,6 +91,13 @@ export interface SharedDocumentListProps {
   onSearchChange: (q: string) => void;
   stats?: DocStats;
   actions?: DocAction[];
+  /**
+   * When set, the list injects a "View / Download PDF" action that opens the
+   * shared PdfPreview modal (Download / Print / Open-in-tab) for any row with a
+   * public_token, instead of force-downloading. Invoice-family docs use
+   * `'invoice'`; quotations use `'quotation'`.
+   */
+  pdfKind?: 'invoice' | 'quotation';
   showPaymentStatus?: boolean;
   showDueDate?: boolean;
   showExpandLineItems?: boolean;
@@ -314,6 +324,7 @@ export function SharedDocumentList({
   onSearchChange,
   stats,
   actions = [],
+  pdfKind,
   showPaymentStatus = false,
   showDueDate = false,
   showExpandLineItems = false,
@@ -331,6 +342,33 @@ export function SharedDocumentList({
     loadColumnPrefs(storageKey, SHARED_DOC_COLUMNS)
   );
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  // Preview-first PDF flow shared by every document list: opens the shared modal
+  // (Download / Print / Open-in-tab) rather than navigating to the file.
+  const { openPreview, previewProps } = useDocumentPreview({ onError: (m) => toast.error(m) });
+
+  const allActions: DocAction[] = useMemo(() => {
+    if (!pdfKind) return actions;
+    const pdfAction: DocAction = {
+      label: 'View / Download PDF',
+      icon: <Download className="h-3.5 w-3.5" />,
+      onClick: (row) => {
+        if (!row.public_token) return;
+        const token = row.public_token;
+        const name = row.doc_number || 'document';
+        openPreview(
+          () =>
+            (pdfKind === 'quotation'
+              ? downloadPublicQuotationPdf(token, name)
+              : downloadPublicInvoicePdf(token, name)
+            ).then((res) => res.blob),
+          { fileName: `${name}.pdf`, title: name }
+        );
+      },
+      visible: (row) => !!row.public_token,
+    };
+    return [pdfAction, ...actions];
+  }, [pdfKind, actions, openPreview]);
 
   const toggleExpand = (id: string) =>
     setExpandedRows(prev => {
@@ -470,7 +508,7 @@ export function SharedDocumentList({
                     {visibleCols.payment_status && <th className={`${thCls} text-center`}>Payment</th>}
                     {visibleCols.due_date && <th className={`${thCls} text-right`}>Due Date</th>}
                     {visibleCols.secondary_date && <th className={`${thCls} text-center`}>{secondaryDateLabel}</th>}
-                    {(actions.length > 0 || onRowPreview) && (
+                    {(allActions.length > 0 || onRowPreview) && (
                       <th className={`${thCls} text-center sticky right-0 bg-muted/30 border-l border-border z-10`}>
                         Actions
                       </th>
@@ -555,7 +593,7 @@ export function SharedDocumentList({
                               {row.secondary_date ? new Date(row.secondary_date).toLocaleDateString() : '—'}
                             </td>
                           )}
-                          {(actions.length > 0 || onRowPreview) && (
+                          {(allActions.length > 0 || onRowPreview) && (
                             <td className="px-4 py-3 text-center sticky right-0 bg-card border-l border-border z-10">
                               <div className="flex items-center justify-center gap-1">
                                 {onRowPreview && (
@@ -570,7 +608,7 @@ export function SharedDocumentList({
                                     </svg>
                                   </button>
                                 )}
-                                {actions.length > 0 && <ActionMenu row={row} actions={actions} />}
+                                {allActions.length > 0 && <ActionMenu row={row} actions={allActions} />}
                               </div>
                             </td>
                           )}
@@ -596,6 +634,8 @@ export function SharedDocumentList({
           )}
         </CardContent>
       </Card>
+
+      {pdfKind && <PdfPreview {...previewProps} />}
     </div>
   );
 }

@@ -18,7 +18,7 @@ import {
 } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { SharedInvoiceCreateView } from '@/components/documents/SharedInvoiceCreateView';
-import { Ban, CheckCircle, Copy, DollarSign, Download, ExternalLink, FileText, FileMinus, Loader2, Send, X } from 'lucide-react';
+import { Ban, CheckCircle, Copy, DollarSign, ExternalLink, FileText, FileMinus, Loader2, Send, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -81,12 +81,6 @@ export default function ProformaInvoicesPage() {
       label: 'View Public Page',
       icon: <ExternalLink className="h-3.5 w-3.5" />,
       onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank'),
-      visible: (r) => !!r.public_token,
-    },
-    {
-      label: 'Download PDF',
-      icon: <Download className="h-3.5 w-3.5" />,
-      onClick: (r) => r.public_token && window.open(`/api/v1/public/invoices/${r.public_token}/pdf?download=true`, '_blank'),
       visible: (r) => !!r.public_token,
     },
     {
@@ -171,6 +165,7 @@ export default function ProformaInvoicesPage() {
         onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
         stats={stats}
         actions={actions}
+        pdfKind="invoice"
         showPaymentStatus
         showDueDate
         showExpandLineItems
