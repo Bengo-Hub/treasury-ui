@@ -22,7 +22,7 @@ import {
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
 import {
-  Ban, Copy, Download, ExternalLink, FileText, Send, Trash2, Truck,
+  Ban, Copy, ExternalLink, FileText, Send, Trash2, Truck,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentCreateView';
@@ -133,12 +133,6 @@ export default function QuotationsPage() {
       visible: (r) => !!r.public_token,
     },
     {
-      label: 'Download PDF',
-      icon: <Download className="h-3.5 w-3.5" />,
-      onClick: (r) => r.public_token && window.open(`/api/v1/public/quotations/${r.public_token}/pdf?download=true`, '_blank'),
-      visible: (r) => !!r.public_token,
-    },
-    {
       label: 'Send',
       icon: <Send className="h-3.5 w-3.5" />,
       onClick: (r) => sendMutation.mutate(r.id),
@@ -244,6 +238,7 @@ export default function QuotationsPage() {
             searchQuery={searchQuery}
             onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
             actions={actions}
+            pdfKind="quotation"
             showDueDate
             showExpandLineItems
             storageKey="quotation-col-prefs"
