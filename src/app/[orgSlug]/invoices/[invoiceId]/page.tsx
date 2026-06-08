@@ -10,11 +10,12 @@ import {
   useRecordPayment,
   useCreateCreditNote,
   useCreateDebitNote,
+  useGenerateDeliveryNote,
 } from '@/hooks/use-invoices';
 import { cn } from '@/lib/utils';
 import {
   ArrowLeft, Ban, CheckCircle, Copy, DollarSign, Download,
-  ExternalLink, FileMinus, FilePlus, Loader2, Send, X,
+  ExternalLink, FileMinus, FilePlus, Loader2, Send, Truck, X,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
@@ -75,6 +76,7 @@ export default function InvoiceDetailPage() {
   const recordPayMut   = useRecordPayment(effectiveTenant);
   const creditNoteMut  = useCreateCreditNote(effectiveTenant);
   const debitNoteMut   = useCreateDebitNote(effectiveTenant);
+  const deliveryNoteMut = useGenerateDeliveryNote(effectiveTenant);
 
   const [paymentAmount, setPaymentAmount] = useState('');
   const [showPayModal, setShowPayModal]   = useState(false);
@@ -211,6 +213,18 @@ export default function InvoiceDetailPage() {
                 <FilePlus className="h-3.5 w-3.5" /> Debit Note
               </button>
             </>
+          )}
+          {invoice.status !== 'void' && invoice.status !== 'cancelled' && invoice.invoice_type !== 'delivery_challan' && (
+            <button
+              onClick={() => deliveryNoteMut.mutate(invoiceId, {
+                onSuccess: (dc: any) => toast.success(`Delivery note ${dc?.invoice_number ?? ''} generated`),
+                onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to generate delivery note'),
+              })}
+              disabled={deliveryNoteMut.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              {deliveryNoteMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />} Delivery Note
+            </button>
           )}
           {canVoid && (
             <button
