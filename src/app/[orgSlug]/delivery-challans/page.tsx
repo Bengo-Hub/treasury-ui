@@ -99,7 +99,7 @@ export default function DeliveryChallansPage() {
       showDueDate
       showExpandLineItems
       storageKey="delivery-challan-col-prefs"
-      emptyStateDescription="Delivery challans are generated from quotations. Use Generate Delivery Challan from a quotation's action menu."
+      emptyStateDescription="Delivery notes are generated from invoices (Generate Delivery Note in an invoice's action menu) or from a quotation's Generate Delivery Challan action."
     />
   );
 }
