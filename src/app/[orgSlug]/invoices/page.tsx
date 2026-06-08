@@ -70,6 +70,12 @@ export default function InvoicesPage() {
   // invoices — via the dedicated /platform/invoices endpoint.
   const isAggregate = isPlatformOwner && !tenantQueryParam;
 
+  // The tenant-specific tabs (suggested, clients, scanned, payments, reports) and the
+  // create/bulk flows always need a single tenant. For a platform owner with no tenant
+  // selected, default to their own org (orgSlug, e.g. "codevertex") so these surfaces show
+  // real content instead of a dead-end gate; selecting a tenant switches them to that tenant.
+  const docTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
+
   const [activeTab, setActiveTab] = useState<InvoiceTab>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -237,7 +243,7 @@ export default function InvoicesPage() {
   if (showCreateView) {
     return (
       <SharedDocumentCreateView
-        effectiveTenant={effectiveTenant}
+        effectiveTenant={docTenant}
         docType="invoice"
         onClose={() => { setShowCreateView(false); setEditId(undefined); }}
         editId={editId}
@@ -253,13 +259,6 @@ export default function InvoicesPage() {
         currency: statsData.currency,
       }
     : undefined;
-
-  // Non-overview tabs are tenant-specific; prompt to pick a tenant in the all-tenants view.
-  const tenantOnlyNotice = (label: string) => (
-    <div className="m-8 rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
-      Select a tenant from the filter above to manage {label}.
-    </div>
-  );
 
   return (
     <>
@@ -334,29 +333,28 @@ export default function InvoicesPage() {
       )}
 
       {activeTab === 'suggested' && (
-        isAggregate ? tenantOnlyNotice('suggested invoices')
-          : <SuggestedInvoice effectiveTenant={effectiveTenant} onCreateFromSuggestion={() => setShowCreateView(true)} />
+        <SuggestedInvoice effectiveTenant={docTenant} onCreateFromSuggestion={() => setShowCreateView(true)} />
       )}
 
       {activeTab === 'clients' && (
-        isAggregate ? tenantOnlyNotice('clients') : <ManageClients effectiveTenant={effectiveTenant} />
+        <ManageClients effectiveTenant={docTenant} />
       )}
 
       {activeTab === 'scanned' && (
-        isAggregate ? tenantOnlyNotice('scanned documents') : <ScannedDocuments effectiveTenant={effectiveTenant} />
+        <ScannedDocuments effectiveTenant={docTenant} />
       )}
 
       {activeTab === 'payments' && (
-        isAggregate ? tenantOnlyNotice('online payments') : <OnlinePayments effectiveTenant={effectiveTenant} />
+        <OnlinePayments effectiveTenant={docTenant} />
       )}
 
       {activeTab === 'reports' && (
-        isAggregate ? tenantOnlyNotice('reports') : <ReportsAndMore effectiveTenant={effectiveTenant} />
+        <ReportsAndMore effectiveTenant={docTenant} />
       )}
 
       {bulkUploadOpen && (
         <BulkUploadStepper
-          tenant={effectiveTenant}
+          tenant={docTenant}
           docType="invoice"
           onClose={() => setBulkUploadOpen(false)}
         />
