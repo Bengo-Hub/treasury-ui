@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
+import { allowedActions, type DocType } from '@/lib/documents/actions';
 import {
   useInvoice,
   useSendInvoice,
@@ -124,11 +125,16 @@ export default function InvoiceDetailPage() {
   const fmtAmount = (v: string | number) =>
     `${invoice.currency} ${Number(v).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const canSend        = invoice.status === 'draft';
-  const canVoid        = !['void', 'cancelled', 'paid'].includes(invoice.status);
-  const canRecordPay   = ['unpaid', 'partial'].includes(invoice.payment_status) && !['void', 'cancelled'].includes(invoice.status);
-  const canMarkPaid    = invoice.payment_status !== 'paid' && !['void', 'cancelled'].includes(invoice.status);
-  const canCreditDebit = ['sent', 'paid', 'overdue'].includes(invoice.status);
+  // Gate the action buttons via the centralized per-document-type policy, since this detail
+  // view is reached from every document family (credit notes, delivery challans, …) — not
+  // just standard invoices. This keeps the buttons consistent with the list action menus.
+  const acts = allowedActions(invoice.invoice_type as DocType, { status: invoice.status, payment_status: invoice.payment_status });
+  const canSend        = acts.includes('send');
+  const canVoid        = acts.includes('void');
+  const canRecordPay   = acts.includes('record_payment');
+  const canMarkPaid    = acts.includes('mark_paid');
+  const canCreditDebit = acts.includes('create_credit_note');
+  const canDeliveryNote = acts.includes('generate_delivery_note');
 
   return (
     <div className="min-h-screen bg-background">
@@ -214,7 +220,7 @@ export default function InvoiceDetailPage() {
               </button>
             </>
           )}
-          {invoice.status !== 'void' && invoice.status !== 'cancelled' && invoice.invoice_type !== 'delivery_challan' && (
+          {canDeliveryNote && (
             <button
               onClick={() => deliveryNoteMut.mutate(invoiceId, {
                 onSuccess: (dc: any) => toast.success(`Delivery note ${dc?.invoice_number ?? ''} generated`),
