@@ -28,8 +28,11 @@ import {
   convertQuotationToSalesOrder,
   convertProformaToInvoice,
   generateDeliveryChallan,
+  generateDeliveryNote,
   generateReceiptFromInvoice,
   generateReceiptFromIntent,
+  listPlatformInvoices,
+  getPlatformInvoiceStats,
   sendInvoice,
   sendQuotation,
   updateInvoice,
@@ -43,6 +46,7 @@ import {
   type InvoiceFilters,
   type QuotationFilters,
   type UpdateInvoiceRequest,
+  type PlatformInvoiceFilters,
 } from '@/lib/api/invoices';
 
 const STALE_MS = 2 * 60 * 1000;
@@ -54,6 +58,13 @@ export const invoiceKeys = {
   stats: (tenant: string) => ['invoices', tenant, 'stats'] as const,
   summary: (tenant: string) => ['invoices', tenant, 'summary'] as const,
   graph: (tenant: string) => ['invoices', tenant, 'graph'] as const,
+};
+
+export const platformInvoiceKeys = {
+  all: ['platform-invoices'] as const,
+  list: (filters?: PlatformInvoiceFilters) => ['platform-invoices', 'list', filters] as const,
+  stats: (filters?: Pick<PlatformInvoiceFilters, 'scope' | 'tenant_ids'>) =>
+    ['platform-invoices', 'stats', filters] as const,
 };
 
 export const quotationKeys = {
@@ -72,6 +83,32 @@ export function useInvoices(tenant: string, filters?: InvoiceFilters, enabled = 
     queryKey: invoiceKeys.list(tenant, filters),
     queryFn: () => listInvoices(tenant, filters),
     enabled: !!tenant && enabled,
+    staleTime: STALE_MS,
+  });
+}
+
+/**
+ * Platform-owner cross-tenant invoice list. Used on the invoices Overview tab when a
+ * platform owner has not narrowed to a single tenant — shows invoices across ALL tenants
+ * (including platform-level subscription invoices). `scope`/`tenant_ids` filter the set.
+ */
+export function usePlatformInvoices(filters?: PlatformInvoiceFilters, enabled = true) {
+  return useQuery({
+    queryKey: platformInvoiceKeys.list(filters),
+    queryFn: () => listPlatformInvoices(filters),
+    enabled,
+    staleTime: STALE_MS,
+  });
+}
+
+export function usePlatformInvoiceStats(
+  filters?: Pick<PlatformInvoiceFilters, 'scope' | 'tenant_ids'>,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: platformInvoiceKeys.stats(filters),
+    queryFn: () => getPlatformInvoiceStats(filters),
+    enabled,
     staleTime: STALE_MS,
   });
 }
@@ -389,6 +426,20 @@ export function useGenerateDeliveryChallan(tenant: string) {
     mutationFn: (quotationId: string) => generateDeliveryChallan(tenant, quotationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: quotationKeys.all(tenant) });
+    },
+  });
+}
+
+// Generate a delivery note (DC-prefixed delivery challan) document from an invoice.
+// Invalidates the invoice list so the new delivery_challan appears on the Delivery
+// Challans surface immediately.
+export function useGenerateDeliveryNote(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: string) => generateDeliveryNote(tenant, invoiceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: platformInvoiceKeys.all });
     },
   });
 }

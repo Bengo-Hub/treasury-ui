@@ -46,6 +46,10 @@ export interface InvoiceLine {
 export interface Invoice {
   id: string;
   tenant_id: string;
+  /** Owning tenant display name — only populated by the platform-wide (all-tenants) list. */
+  tenant_name?: string;
+  /** Owning tenant slug — only populated by the platform-wide (all-tenants) list. */
+  tenant_slug?: string;
   invoice_number: string;
   public_token: string;
   customer_id?: string;
@@ -322,7 +326,7 @@ export async function fetchPublicQuotation(token: string): Promise<PublicQuotati
 
 // ---- Invoice API Functions ----
 
-export function listInvoices(tenant: string, filters?: InvoiceFilters): Promise<ListInvoicesResponse> {
+export async function listInvoices(tenant: string, filters?: InvoiceFilters): Promise<ListInvoicesResponse> {
   const params: Record<string, unknown> = {};
   if (filters?.status) params.status = filters.status;
   if (filters?.payment_status) params.payment_status = filters.payment_status;
@@ -331,7 +335,23 @@ export function listInvoices(tenant: string, filters?: InvoiceFilters): Promise<
   if (filters?.to) params.to = filters.to;
   if (filters?.limit) params.limit = filters.limit;
   if (filters?.page) params.offset = (filters.page - 1) * (filters.limit || 50);
-  return apiClient.get<ListInvoicesResponse>(`${BASE}/${tenant}/invoices`, params);
+  const raw = await apiClient.get<Record<string, unknown>>(`${BASE}/${tenant}/invoices`, params);
+  return unwrapInvoiceList(raw, (params.offset as number) ?? 0);
+}
+
+/**
+ * The treasury-api list endpoints return a pagination envelope
+ * (`{ data, total, limit, page, hasMore }`). Map it into the typed
+ * `{ invoices, total, limit, offset }` shape the components consume,
+ * tolerating both the enveloped and legacy named-key responses.
+ */
+function unwrapInvoiceList(raw: any, fallbackOffset: number): ListInvoicesResponse {
+  return {
+    invoices: (raw?.invoices ?? raw?.data ?? []) as Invoice[],
+    total: Number(raw?.total ?? 0),
+    limit: Number(raw?.limit ?? 0),
+    offset: Number(raw?.offset ?? fallbackOffset),
+  };
 }
 
 export function createInvoice(tenant: string, body: CreateInvoiceRequest): Promise<Invoice> {
@@ -403,12 +423,58 @@ export function createDebitNote(tenant: string, invoiceId: string): Promise<Invo
   return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/create-debit-note`, {});
 }
 
+/** Generate a delivery note (delivery challan, DC-prefixed) document from an invoice. */
+export function generateDeliveryNote(tenant: string, invoiceId: string): Promise<Invoice> {
+  return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/delivery-note`, {});
+}
+
 export function convertProformaToInvoice(tenant: string, invoiceId: string): Promise<{ status: string; invoice: Invoice }> {
   return apiClient.post<{ status: string; invoice: Invoice }>(`${BASE}/${tenant}/invoices/${invoiceId}/convert-to-invoice`, {});
 }
 
 export function getInvoiceStats(tenant: string): Promise<InvoiceStats> {
   return apiClient.get<InvoiceStats>(`${BASE}/${tenant}/invoices/stats`);
+}
+
+// ---- Platform (cross-tenant) Invoice API ----
+// Platform owners see invoices across ALL tenants (incl. platform-level subscription
+// invoices) without selecting a tenant. `scope` narrows to platform-level or business
+// invoices; `tenant_ids` narrows to specific tenants.
+
+export type PlatformInvoiceScope = 'all' | 'platform' | 'business';
+
+export interface PlatformInvoiceFilters extends InvoiceFilters {
+  scope?: PlatformInvoiceScope;
+  tenant_ids?: string;
+}
+
+function platformInvoiceParams(filters?: PlatformInvoiceFilters): Record<string, unknown> {
+  const params: Record<string, unknown> = {};
+  if (filters?.scope && filters.scope !== 'all') params.scope = filters.scope;
+  if (filters?.tenant_ids) params.tenant_ids = filters.tenant_ids;
+  if (filters?.status) params.status = filters.status;
+  if (filters?.payment_status) params.payment_status = filters.payment_status;
+  if (filters?.type) params.type = filters.type;
+  if (filters?.from) params.from = filters.from;
+  if (filters?.to) params.to = filters.to;
+  if (filters?.limit) params.limit = filters.limit;
+  if (filters?.page) params.offset = (filters.page - 1) * (filters.limit || 50);
+  return params;
+}
+
+/** List invoices across all tenants (platform-owner view). */
+export async function listPlatformInvoices(filters?: PlatformInvoiceFilters): Promise<ListInvoicesResponse> {
+  const params = platformInvoiceParams(filters);
+  const raw = await apiClient.get<Record<string, unknown>>(`${BASE}/platform/invoices`, params);
+  return unwrapInvoiceList(raw, (params.offset as number) ?? 0);
+}
+
+/** Aggregate invoice stats across all tenants (platform-owner view). */
+export function getPlatformInvoiceStats(filters?: Pick<PlatformInvoiceFilters, 'scope' | 'tenant_ids'>): Promise<InvoiceStats> {
+  const params: Record<string, unknown> = {};
+  if (filters?.scope && filters.scope !== 'all') params.scope = filters.scope;
+  if (filters?.tenant_ids) params.tenant_ids = filters.tenant_ids;
+  return apiClient.get<InvoiceStats>(`${BASE}/platform/invoices/stats`, params);
 }
 
 export function getInvoiceSummary(tenant: string): Promise<{ summary: InvoiceStatusCount[] }> {
@@ -443,14 +509,20 @@ export function generateReceiptFromIntent(tenant: string, intentId: string, tena
 
 // ---- Quotation API Functions ----
 
-export function listQuotations(tenant: string, filters?: QuotationFilters): Promise<ListQuotationsResponse> {
+export async function listQuotations(tenant: string, filters?: QuotationFilters): Promise<ListQuotationsResponse> {
   const params: Record<string, unknown> = {};
   if (filters?.status) params.status = filters.status;
   if (filters?.from) params.from = filters.from;
   if (filters?.to) params.to = filters.to;
   if (filters?.limit) params.limit = filters.limit;
   if (filters?.page) params.offset = (filters.page - 1) * (filters.limit || 50);
-  return apiClient.get<ListQuotationsResponse>(`${BASE}/${tenant}/quotations`, params);
+  const raw = await apiClient.get<Record<string, unknown>>(`${BASE}/${tenant}/quotations`, params);
+  return {
+    quotations: (raw?.quotations ?? raw?.data ?? []) as Quotation[],
+    total: Number(raw?.total ?? 0),
+    limit: Number(raw?.limit ?? 0),
+    offset: Number(raw?.offset ?? (params.offset as number) ?? 0),
+  };
 }
 
 export function createQuotation(tenant: string, body: CreateQuotationRequest): Promise<Quotation> {

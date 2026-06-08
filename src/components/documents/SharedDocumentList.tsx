@@ -32,6 +32,10 @@ export interface DocumentLine {
 export interface DocumentRow {
   id: string;
   doc_number: string;
+  /** Owning tenant name — shown only in the platform-wide (all-tenants) view. */
+  tenant_name?: string;
+  /** Owning tenant slug — used to target row actions at the right tenant in the all-tenants view. */
+  tenant_slug?: string;
   customer_name?: string;
   customer_email?: string;
   currency: string;
@@ -101,6 +105,8 @@ export interface SharedDocumentListProps {
   showPaymentStatus?: boolean;
   showDueDate?: boolean;
   showExpandLineItems?: boolean;
+  /** Show an owning-tenant column (platform-wide all-tenants view). */
+  showTenant?: boolean;
   secondaryDateLabel?: string;
   emptyStateDescription?: string;
   storageKey?: string;
@@ -328,6 +334,7 @@ export function SharedDocumentList({
   showPaymentStatus = false,
   showDueDate = false,
   showExpandLineItems = false,
+  showTenant = false,
   secondaryDateLabel,
   emptyStateDescription,
   storageKey = 'shared-doc-column-prefs',
@@ -384,6 +391,7 @@ export function SharedDocumentList({
       date:           t['date']           ?? true,
       expand:         (t['expand']        ?? true) && showExpandLineItems,
       doc_number:     t['doc_number']     ?? true,
+      tenant:         showTenant,
       customer:       t['customer']       ?? true,
       amount:         t['amount']         ?? true,
       status:         t['status']         ?? true,
@@ -391,7 +399,7 @@ export function SharedDocumentList({
       due_date:       (t['due_date']      ?? false) && showDueDate,
       secondary_date: (t['secondary_date'] ?? false) && !!secondaryDateLabel,
     };
-  }, [colPrefs, showPaymentStatus, showDueDate, showExpandLineItems, secondaryDateLabel]);
+  }, [colPrefs, showPaymentStatus, showDueDate, showExpandLineItems, showTenant, secondaryDateLabel]);
 
   const colCount = Object.values(visibleCols).filter(Boolean).length + 1; // +1 for actions
   const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
@@ -502,6 +510,7 @@ export function SharedDocumentList({
                     {visibleCols.date && <th className={`${thCls} text-left`}>Date</th>}
                     {visibleCols.expand && <th className={`${thCls} w-8`} />}
                     {visibleCols.doc_number && <th className={`${thCls} text-left`}>Doc #</th>}
+                    {visibleCols.tenant && <th className={`${thCls} text-left`}>Tenant</th>}
                     {visibleCols.customer && <th className={`${thCls} text-left`}>Customer</th>}
                     {visibleCols.amount && <th className={`${thCls} text-right`}>Amount</th>}
                     {visibleCols.status && <th className={`${thCls} text-center`}>Status</th>}
@@ -548,6 +557,13 @@ export function SharedDocumentList({
                                   {row.doc_number}
                                 </span>
                               </div>
+                            </td>
+                          )}
+                          {visibleCols.tenant && (
+                            <td className="px-4 py-3">
+                              <span className="inline-flex items-center rounded-md bg-accent/40 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                {row.tenant_name || '—'}
+                              </span>
                             </td>
                           )}
                           {visibleCols.customer && (
@@ -648,6 +664,8 @@ export function invoiceToDocumentRow(inv: Invoice): DocumentRow {
   return {
     id: inv.id,
     doc_number: inv.invoice_number,
+    tenant_name: inv.tenant_name,
+    tenant_slug: inv.tenant_slug,
     customer_name: inv.customer_name,
     customer_email: inv.customer_email,
     currency: inv.currency,
