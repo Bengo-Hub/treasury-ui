@@ -33,6 +33,8 @@ import {
   generateReceiptFromIntent,
   listPlatformInvoices,
   getPlatformInvoiceStats,
+  listPlatformQuotations,
+  type PlatformQuotationFilters,
   sendInvoice,
   sendQuotation,
   updateInvoice,
@@ -65,6 +67,11 @@ export const platformInvoiceKeys = {
   list: (filters?: PlatformInvoiceFilters) => ['platform-invoices', 'list', filters] as const,
   stats: (filters?: Pick<PlatformInvoiceFilters, 'scope' | 'tenant_ids'>) =>
     ['platform-invoices', 'stats', filters] as const,
+};
+
+export const platformQuotationKeys = {
+  all: ['platform-quotations'] as const,
+  list: (filters?: PlatformQuotationFilters) => ['platform-quotations', 'list', filters] as const,
 };
 
 export const quotationKeys = {
@@ -108,6 +115,16 @@ export function usePlatformInvoiceStats(
   return useQuery({
     queryKey: platformInvoiceKeys.stats(filters),
     queryFn: () => getPlatformInvoiceStats(filters),
+    enabled,
+    staleTime: STALE_MS,
+  });
+}
+
+/** Platform-owner cross-tenant quotation list (all tenants). */
+export function usePlatformQuotations(filters?: PlatformQuotationFilters, enabled = true) {
+  return useQuery({
+    queryKey: platformQuotationKeys.list(filters),
+    queryFn: () => listPlatformQuotations(filters),
     enabled,
     staleTime: STALE_MS,
   });

@@ -173,9 +173,14 @@ export interface QuotationLine {
 export interface Quotation {
   id: string;
   tenant_id: string;
+  /** Owning tenant display name — only populated by the platform-wide (all-tenants) list. */
+  tenant_name?: string;
+  /** Owning tenant slug — only populated by the platform-wide (all-tenants) list. */
+  tenant_slug?: string;
   quote_number: string;
   public_token: string;
   customer_id?: string;
+  crm_customer_id?: string;
   customer_name?: string;
   customer_email?: string;
   quote_date: string;
@@ -201,6 +206,7 @@ export interface Quotation {
 
 export interface CreateQuotationRequest {
   customer_id?: string;
+  crm_customer_id?: string;
   customer_name?: string;
   customer_email?: string;
   quote_date: string;
@@ -475,6 +481,28 @@ export function getPlatformInvoiceStats(filters?: Pick<PlatformInvoiceFilters, '
   if (filters?.scope && filters.scope !== 'all') params.scope = filters.scope;
   if (filters?.tenant_ids) params.tenant_ids = filters.tenant_ids;
   return apiClient.get<InvoiceStats>(`${BASE}/platform/invoices/stats`, params);
+}
+
+export interface PlatformQuotationFilters extends QuotationFilters {
+  tenant_ids?: string;
+}
+
+/** List quotations across all tenants (platform-owner view). */
+export async function listPlatformQuotations(filters?: PlatformQuotationFilters): Promise<ListQuotationsResponse> {
+  const params: Record<string, unknown> = {};
+  if (filters?.tenant_ids) params.tenant_ids = filters.tenant_ids;
+  if (filters?.status) params.status = filters.status;
+  if (filters?.from) params.from = filters.from;
+  if (filters?.to) params.to = filters.to;
+  if (filters?.limit) params.limit = filters.limit;
+  if (filters?.page) params.offset = (filters.page - 1) * (filters.limit || 50);
+  const raw = await apiClient.get<Record<string, unknown>>(`${BASE}/platform/quotations`, params);
+  return {
+    quotations: (raw?.quotations ?? raw?.data ?? []) as Quotation[],
+    total: Number(raw?.total ?? 0),
+    limit: Number(raw?.limit ?? 0),
+    offset: Number(raw?.offset ?? (params.offset as number) ?? 0),
+  };
 }
 
 export function getInvoiceSummary(tenant: string): Promise<{ summary: InvoiceStatusCount[] }> {

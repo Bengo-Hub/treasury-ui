@@ -738,6 +738,8 @@ export function quotationToDocumentRow(qt: Quotation): DocumentRow {
   return {
     id: qt.id,
     doc_number: qt.quote_number,
+    tenant_name: qt.tenant_name,
+    tenant_slug: qt.tenant_slug,
     customer_name: qt.customer_name,
     customer_email: qt.customer_email,
     currency: qt.currency,
