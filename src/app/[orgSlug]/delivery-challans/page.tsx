@@ -1,91 +1,48 @@
 'use client';
 
-import {
-  SharedDocumentList,
-  invoiceToDocumentRow,
-  type DocAction,
-} from '@/components/documents/SharedDocumentList';
-import {
-  useDeleteInvoice,
-  useDuplicateInvoice,
-  useInvoices,
-  useSendInvoice,
-} from '@/hooks/use-invoices';
-import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { Copy, ExternalLink, Send, Trash2 } from 'lucide-react';
+import { SharedDocumentList } from '@/components/documents/SharedDocumentList';
+import { useDocumentListSource } from '@/hooks/use-document-list-source';
+import { useDocumentActions } from '@/hooks/use-document-actions';
+import { useDocRowAction } from '@/hooks/use-doc-row-action';
+import { voidInvoice, duplicateInvoice, deleteInvoice } from '@/lib/api/invoices';
+import { Ban, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 const ITEMS_PER_PAGE = 20;
 
 export default function DeliveryChallansPage() {
-  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
-
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
 
-  const filters = useMemo(() => ({
-    type: 'delivery_challan',
-    ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-    page,
-    limit: ITEMS_PER_PAGE,
-  }), [statusFilter, page]);
-
-  const { data, isLoading, error } = useInvoices(effectiveTenant, filters, !!effectiveTenant);
-
-  const invoices = data?.invoices ?? [];
-  const total = data?.total ?? 0;
-
-  const sendMutation      = useSendInvoice(effectiveTenant);
-  const duplicateMutation = useDuplicateInvoice(effectiveTenant);
-  const deleteMutation    = useDeleteInvoice(effectiveTenant);
-
-  const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);
+  const src = useDocumentListSource({ family: 'invoice', invoiceType: 'delivery_challan', status: statusFilter, page, limit: ITEMS_PER_PAGE });
+  const { run } = useDocRowAction();
 
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return rows;
+    if (!searchQuery.trim()) return src.rows;
     const q = searchQuery.toLowerCase();
-    return rows.filter(r =>
-      r.doc_number?.toLowerCase().includes(q) ||
-      r.customer_name?.toLowerCase().includes(q),
-    );
-  }, [rows, searchQuery]);
+    return src.rows.filter(r =>
+      r.doc_number?.toLowerCase().includes(q) || r.customer_name?.toLowerCase().includes(q) || r.tenant_name?.toLowerCase().includes(q));
+  }, [src.rows, searchQuery]);
 
-  const actions: DocAction[] = [
-    {
-      label: 'View Public Page',
-      icon: <ExternalLink className="h-3.5 w-3.5" />,
-      onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank'),
-      visible: (r) => !!r.public_token,
-    },
-    {
-      label: 'Send',
-      icon: <Send className="h-3.5 w-3.5" />,
-      onClick: (r) => sendMutation.mutate(r.id),
-      visible: (r) => r.status === 'draft',
-    },
-    {
-      label: 'Duplicate',
-      icon: <Copy className="h-3.5 w-3.5" />,
-      onClick: (r) => duplicateMutation.mutate(r.id),
-    },
-    {
-      label: 'Delete',
-      icon: <Trash2 className="h-3.5 w-3.5" />,
-      onClick: (r) => deleteMutation.mutate(r.id),
-      destructive: true,
-    },
-  ];
+  const actions = useDocumentActions('delivery_challan', {
+    view_details: { label: 'View Details', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => router.push(`/${src.detailHrefTenant(r)}/invoices/${r.id}`) },
+    view_public: { label: 'View Public Page', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank') },
+    duplicate: { label: 'Duplicate', icon: <Copy className="h-3.5 w-3.5" />, onClick: (r) => run(() => duplicateInvoice(src.rowTenant(r), r.id), 'Delivery note duplicated') },
+    void: { label: 'Cancel', icon: <Ban className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => voidInvoice(src.rowTenant(r), r.id), `Delivery note ${r.doc_number} cancelled`) },
+    delete: { label: 'Delete', icon: <Trash2 className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => deleteInvoice(src.rowTenant(r), r.id), 'Delivery note deleted') },
+  });
 
   return (
     <SharedDocumentList
       title="Delivery Challans"
-      subtitle="Track goods dispatched to customers."
+      subtitle={src.isAggregate ? 'All tenants — track goods dispatched to customers.' : 'Track goods dispatched to customers.'}
       rows={filtered}
-      isLoading={isLoading}
-      error={error}
-      total={total}
+      isLoading={src.isLoading}
+      error={src.error}
+      total={src.total}
       page={page}
       onPageChange={setPage}
       itemsPerPage={ITEMS_PER_PAGE}
@@ -98,6 +55,7 @@ export default function DeliveryChallansPage() {
       pdfKind="invoice"
       showDueDate
       showExpandLineItems
+      showTenant={src.showTenant}
       storageKey="delivery-challan-col-prefs"
       emptyStateDescription="Delivery notes are generated from invoices (Generate Delivery Note in an invoice's action menu) or from a quotation's Generate Delivery Challan action."
     />
