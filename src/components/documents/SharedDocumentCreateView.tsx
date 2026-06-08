@@ -146,6 +146,10 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
 
   const [initialized, setInitialized] = useState(false);
   const [customerId, setCustomerId]   = useState<string | null>(null);
+  // Marketflow CRM contact id (system of record) — set when a CRM contact is picked,
+  // sent as crm_customer_id so the document links to the canonical contact. Distinct from
+  // the treasury customer_id FK.
+  const [crmCustomerId, setCrmCustomerId] = useState<string | null>(null);
   const [clientSearch, setClientSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const clientRef = useRef<HTMLInputElement>(null);
@@ -174,6 +178,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   useEffect(() => {
     if (!isEdit || !existing || initialized) return;
     if (existing.customer_id) setCustomerId(existing.customer_id);
+    if (existing.crm_customer_id) setCrmCustomerId(existing.crm_customer_id);
     if (existing.customer_name) setClientSearch(existing.customer_name);
 
     const primaryDate = isQuotation
@@ -224,7 +229,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   const selectContact = useCallback((c: CRMContact) => {
-    setCustomerId(c.id);
+    // c.id is the MarketFlow CRM contact id → link via crm_customer_id, not the treasury FK.
+    setCrmCustomerId(c.id);
     const name = crmContactDisplayName(c);
     setClientSearch(name);
     setForm(p => ({ ...p, customer_name: name, customer_email: c.email ?? '' }));
@@ -255,7 +261,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
 
     if (isQuotation) {
       const base: CreateQuotationRequest = {
-        customer_id:    customerId ?? undefined,
+        customer_id:     customerId ?? undefined,
+        crm_customer_id: crmCustomerId ?? undefined,
         customer_name:  form.customer_name,
         customer_email: form.customer_email,
         quote_date:     form.primary_date,
@@ -272,7 +279,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       }
     } else {
       const base = {
-        customer_id:    customerId ?? undefined,
+        customer_id:     customerId ?? undefined,
+        crm_customer_id: crmCustomerId ?? undefined,
         customer_name:  form.customer_name,
         customer_email: form.customer_email,
         invoice_date:   form.primary_date,
@@ -291,7 +299,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         );
       }
     }
-  }, [form, buildLinePayload, customerId, isEdit, editId, config, isQuotation, createMutation, updateMutation, onClose]);
+  }, [form, buildLinePayload, customerId, crmCustomerId, isEdit, editId, config, isQuotation, createMutation, updateMutation, onClose]);
 
   if (isEdit && existingLoading) {
     return (
@@ -395,6 +403,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
                         const v = e.target.value;
                         setClientSearch(v);
                         setCustomerId(null);
+                        setCrmCustomerId(null);
                         setForm(p => ({ ...p, customer_name: v }));
                         setShowSuggestions(v.length >= 2);
                       }}
@@ -414,7 +423,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
                       ))}
                     </div>
                   )}
-                  {customerId && <p className="text-[10px] text-emerald-600 font-semibold mt-1">✓ Linked to CRM contact</p>}
+                  {crmCustomerId && <p className="text-[10px] text-emerald-600 font-semibold mt-1">✓ Linked to CRM contact</p>}
                 </div>
                 <div>
                   <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Customer Email</label>

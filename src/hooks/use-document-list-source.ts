@@ -1,0 +1,110 @@
+'use client';
+
+import { useCallback, useMemo, useState } from 'react';
+import { useResolvedTenant } from './use-resolved-tenant';
+import {
+  useInvoices,
+  useInvoiceStats,
+  usePlatformInvoices,
+  usePlatformInvoiceStats,
+  useQuotations,
+  usePlatformQuotations,
+} from './use-invoices';
+import {
+  invoiceToDocumentRow,
+  quotationToDocumentRow,
+  type DocumentRow,
+} from '@/components/documents/SharedDocumentList';
+import type { PlatformInvoiceScope } from '@/lib/api/invoices';
+
+interface Options {
+  /** 'invoice' covers the whole invoice family (filtered by invoiceType); 'quotation' is separate. */
+  family: 'invoice' | 'quotation';
+  /** invoice_type filter for sibling pages (credit_note, delivery_challan, …). Omit for the Invoices page. */
+  invoiceType?: string;
+  status: string; // 'all' or a specific status
+  page: number;
+  limit: number;
+  /** Fetch aggregate stats (Invoices Overview only). */
+  withStats?: boolean;
+  /** Expose the platform scope filter (all/platform/business) — Invoices Overview only. */
+  withScope?: boolean;
+}
+
+/**
+ * Shared data source for every document list page. Encapsulates the platform-owner
+ * "all tenants" behaviour so each page consistently shows an aggregate (via /platform/*)
+ * when no tenant is selected, or a tenant-scoped list otherwise — instead of an empty page.
+ * Returns normalized rows + the per-row tenant resolver used to target row actions.
+ */
+export function useDocumentListSource(opts: Options) {
+  const { tenantPathId, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  // Never-empty tenant for create/edit/sub-features (defaults to the platform owner's org).
+  const docTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
+  const isAggregate = isPlatformOwner && !tenantQueryParam;
+  const [scope, setScope] = useState<PlatformInvoiceScope>('all');
+
+  const status = opts.status !== 'all' ? opts.status : undefined;
+  const isInvoice = opts.family === 'invoice';
+
+  const tenantFilters = {
+    ...(opts.invoiceType ? { type: opts.invoiceType } : {}),
+    ...(status ? { status } : {}),
+    page: opts.page,
+    limit: opts.limit,
+  };
+  const platInvFilters = {
+    ...(opts.invoiceType ? { type: opts.invoiceType } : {}),
+    ...(opts.withScope && scope !== 'all' ? { scope } : {}),
+    ...(status ? { status } : {}),
+    page: opts.page,
+    limit: opts.limit,
+  };
+  const quoFilters = { ...(status ? { status } : {}), page: opts.page, limit: opts.limit };
+
+  const tenantInvQ = useInvoices(effectiveTenant, tenantFilters, isInvoice && !isAggregate && !!effectiveTenant);
+  const platInvQ = usePlatformInvoices(platInvFilters, isInvoice && isAggregate);
+  const tenantQuoQ = useQuotations(effectiveTenant, quoFilters, !isInvoice && !isAggregate && !!effectiveTenant);
+  const platQuoQ = usePlatformQuotations(quoFilters, !isInvoice && isAggregate);
+
+  const tenantStats = useInvoiceStats(effectiveTenant, !!opts.withStats && isInvoice && !isAggregate && !!effectiveTenant);
+  const platStats = usePlatformInvoiceStats({ scope }, !!opts.withStats && isInvoice && isAggregate);
+
+  const q = isInvoice ? (isAggregate ? platInvQ : tenantInvQ) : (isAggregate ? platQuoQ : tenantQuoQ);
+  const data = q.data as { invoices?: unknown[]; quotations?: unknown[]; total?: number } | undefined;
+
+  const rows: DocumentRow[] = useMemo(() => {
+    if (!data) return [];
+    return isInvoice
+      ? ((data.invoices ?? []) as any[]).map(invoiceToDocumentRow)
+      : ((data.quotations ?? []) as any[]).map(quotationToDocumentRow);
+  }, [data, isInvoice]);
+
+  const rowTenant = useCallback(
+    (r: DocumentRow) => (isAggregate ? r.tenant_slug ?? '' : effectiveTenant),
+    [isAggregate, effectiveTenant],
+  );
+  const detailHrefTenant = useCallback(
+    (r: DocumentRow) => (isAggregate ? r.tenant_slug ?? orgSlug : orgSlug),
+    [isAggregate, orgSlug],
+  );
+
+  return {
+    orgSlug,
+    isPlatformOwner,
+    isAggregate,
+    effectiveTenant,
+    docTenant,
+    rows,
+    total: data?.total ?? 0,
+    isLoading: q.isLoading,
+    error: q.error,
+    rowTenant,
+    detailHrefTenant,
+    showTenant: isAggregate,
+    scope,
+    setScope,
+    statsData: isAggregate ? platStats.data : tenantStats.data,
+  };
+}

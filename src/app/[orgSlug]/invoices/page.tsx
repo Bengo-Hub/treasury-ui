@@ -87,8 +87,13 @@ export default function InvoicesPage() {
   const [paymentDialog, setPaymentDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
 
+  // The Invoices Overview shows only standard invoices — credit/debit notes, proforma
+  // invoices, sales orders, delivery challans and receipts each have their own page. When
+  // the platform owner picks the "Platform (subscription)" scope, drop the type filter so
+  // subscription invoices (invoice_type=subscription) surface.
   const filters = useMemo(
     () => ({
+      type: 'standard',
       ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
       page,
       limit: ITEMS_PER_PAGE,
@@ -99,6 +104,7 @@ export default function InvoicesPage() {
   const platformFilters = useMemo(
     () => ({
       scope: scopeFilter,
+      ...(scopeFilter !== 'platform' ? { type: 'standard' } : {}),
       ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
       page,
       limit: ITEMS_PER_PAGE,

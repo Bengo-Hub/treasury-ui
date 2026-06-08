@@ -1,114 +1,57 @@
 'use client';
 
-import {
-  SharedDocumentList,
-  invoiceToDocumentRow,
-  type DocAction,
-} from '@/components/documents/SharedDocumentList';
-import {
-  useDeleteInvoice,
-  useDuplicateInvoice,
-  useInvoices,
-  useSendInvoice,
-  useVoidInvoice,
-} from '@/hooks/use-invoices';
-import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { SharedInvoiceCreateView } from '@/components/documents/SharedInvoiceCreateView';
+import { SharedDocumentList } from '@/components/documents/SharedDocumentList';
+import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentCreateView';
+import { useDocumentListSource } from '@/hooks/use-document-list-source';
+import { useDocumentActions } from '@/hooks/use-document-actions';
+import { useDocRowAction } from '@/hooks/use-doc-row-action';
+import { sendInvoice, voidInvoice, duplicateInvoice, deleteInvoice } from '@/lib/api/invoices';
 import { Ban, Copy, ExternalLink, Send, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 const ITEMS_PER_PAGE = 20;
 
 export default function CreditNotesPage() {
-  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
-
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
 
-  const filters = useMemo(() => ({
-    type: 'credit_note',
-    ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-    page,
-    limit: ITEMS_PER_PAGE,
-  }), [statusFilter, page]);
-
-  const { data, isLoading, error } = useInvoices(effectiveTenant, filters, !!effectiveTenant);
-
-  const invoices = data?.invoices ?? [];
-  const total = data?.total ?? 0;
-
-  const sendMutation      = useSendInvoice(effectiveTenant);
-  const voidMutation      = useVoidInvoice(effectiveTenant);
-  const duplicateMutation = useDuplicateInvoice(effectiveTenant);
-  const deleteMutation    = useDeleteInvoice(effectiveTenant);
-
-  const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);
+  const src = useDocumentListSource({ family: 'invoice', invoiceType: 'credit_note', status: statusFilter, page, limit: ITEMS_PER_PAGE });
+  const { run } = useDocRowAction();
 
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return rows;
+    if (!searchQuery.trim()) return src.rows;
     const q = searchQuery.toLowerCase();
-    return rows.filter(r =>
-      r.doc_number?.toLowerCase().includes(q) ||
-      r.customer_name?.toLowerCase().includes(q),
-    );
-  }, [rows, searchQuery]);
+    return src.rows.filter(r =>
+      r.doc_number?.toLowerCase().includes(q) || r.customer_name?.toLowerCase().includes(q) || r.tenant_name?.toLowerCase().includes(q));
+  }, [src.rows, searchQuery]);
 
-  const actions: DocAction[] = [
-    {
-      label: 'View Public Page',
-      icon: <ExternalLink className="h-3.5 w-3.5" />,
-      onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank'),
-      visible: (r) => !!r.public_token,
-    },
-    {
-      label: 'Send',
-      icon: <Send className="h-3.5 w-3.5" />,
-      onClick: (r) => sendMutation.mutate(r.id),
-      visible: (r) => r.status === 'draft',
-    },
-    {
-      label: 'Duplicate',
-      icon: <Copy className="h-3.5 w-3.5" />,
-      onClick: (r) => duplicateMutation.mutate(r.id),
-    },
-    {
-      label: 'Void',
-      icon: <Ban className="h-3.5 w-3.5" />,
-      onClick: (r) => voidMutation.mutate(r.id),
-      visible: (r) => r.status !== 'void',
-      destructive: true,
-    },
-    {
-      label: 'Delete',
-      icon: <Trash2 className="h-3.5 w-3.5" />,
-      onClick: (r) => deleteMutation.mutate(r.id),
-      destructive: true,
-    },
-  ];
+  const actions = useDocumentActions('credit_note', {
+    view_details: { label: 'View Details', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => router.push(`/${src.detailHrefTenant(r)}/invoices/${r.id}`) },
+    view_public: { label: 'View Public Page', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank') },
+    send: { label: 'Send', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => run(() => sendInvoice(src.rowTenant(r), r.id), `Credit note ${r.doc_number} sent`) },
+    duplicate: { label: 'Duplicate', icon: <Copy className="h-3.5 w-3.5" />, onClick: (r) => run(() => duplicateInvoice(src.rowTenant(r), r.id), 'Credit note duplicated') },
+    void: { label: 'Void', icon: <Ban className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => voidInvoice(src.rowTenant(r), r.id), `Credit note ${r.doc_number} voided`) },
+    delete: { label: 'Delete', icon: <Trash2 className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => deleteInvoice(src.rowTenant(r), r.id), 'Credit note deleted') },
+  });
 
   if (showCreate) {
-    return (
-      <SharedInvoiceCreateView
-        effectiveTenant={effectiveTenant}
-        docType="credit_note"
-        onClose={() => setShowCreate(false)}
-      />
-    );
+    return <SharedDocumentCreateView effectiveTenant={src.docTenant} docType="credit_note" onClose={() => setShowCreate(false)} />;
   }
 
   return (
     <SharedDocumentList
       title="Credit Notes"
-      subtitle="Issued to reduce a customer's outstanding balance."
-      createLabel="Create Credit Note"
-      onCreateClick={() => setShowCreate(true)}
+      subtitle={src.isAggregate ? 'All tenants — issued to reduce a customer’s outstanding balance.' : 'Issued to reduce a customer’s outstanding balance.'}
+      createLabel={src.isAggregate ? undefined : 'Create Credit Note'}
+      onCreateClick={src.isAggregate ? undefined : () => setShowCreate(true)}
       rows={filtered}
-      isLoading={isLoading}
-      error={error}
-      total={total}
+      isLoading={src.isLoading}
+      error={src.error}
+      total={src.total}
       page={page}
       onPageChange={setPage}
       itemsPerPage={ITEMS_PER_PAGE}
@@ -120,6 +63,7 @@ export default function CreditNotesPage() {
       actions={actions}
       pdfKind="invoice"
       showExpandLineItems
+      showTenant={src.showTenant}
       storageKey="credit-note-col-prefs"
       emptyStateDescription="Issue credit notes to reduce a customer's outstanding balance."
     />

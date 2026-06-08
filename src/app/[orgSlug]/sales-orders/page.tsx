@@ -1,130 +1,71 @@
 'use client';
 
-import {
-  SharedDocumentList,
-  invoiceToDocumentRow,
-  type DocAction,
-} from '@/components/documents/SharedDocumentList';
-import {
-  useDeleteInvoice,
-  useDuplicateInvoice,
-  useInvoices,
-  useSendInvoice,
-  useVoidInvoice,
-} from '@/hooks/use-invoices';
-import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { SharedInvoiceCreateView } from '@/components/documents/SharedInvoiceCreateView';
-import { Ban, Copy, ExternalLink, Send, Trash2 } from 'lucide-react';
+import { SharedDocumentList } from '@/components/documents/SharedDocumentList';
+import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentCreateView';
+import { useDocumentListSource } from '@/hooks/use-document-list-source';
+import { useDocumentActions } from '@/hooks/use-document-actions';
+import { useDocRowAction } from '@/hooks/use-doc-row-action';
+import { sendInvoice, voidInvoice, duplicateInvoice, generateDeliveryNote } from '@/lib/api/invoices';
+import { Ban, Copy, ExternalLink, Send, Truck } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 const ITEMS_PER_PAGE = 20;
 
 export default function SalesOrdersPage() {
-  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
-
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
-  const [editId, setEditId] = useState<string | undefined>(undefined);
 
-  const filters = useMemo(() => ({
-    type: 'sales_order',
-    ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-    page,
-    limit: ITEMS_PER_PAGE,
-  }), [statusFilter, page]);
-
-  const { data, isLoading, error } = useInvoices(effectiveTenant, filters, !!effectiveTenant);
-
-  const invoices = data?.invoices ?? [];
-  const total = data?.total ?? 0;
-
-  const sendMutation      = useSendInvoice(effectiveTenant);
-  const voidMutation      = useVoidInvoice(effectiveTenant);
-  const duplicateMutation = useDuplicateInvoice(effectiveTenant);
-  const deleteMutation    = useDeleteInvoice(effectiveTenant);
-
-  const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);
+  const src = useDocumentListSource({ family: 'invoice', invoiceType: 'sales_order', status: statusFilter, page, limit: ITEMS_PER_PAGE });
+  const { run } = useDocRowAction();
 
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return rows;
+    if (!searchQuery.trim()) return src.rows;
     const q = searchQuery.toLowerCase();
-    return rows.filter(r =>
-      r.doc_number?.toLowerCase().includes(q) ||
-      r.customer_name?.toLowerCase().includes(q),
-    );
-  }, [rows, searchQuery]);
+    return src.rows.filter(r =>
+      r.doc_number?.toLowerCase().includes(q) || r.customer_name?.toLowerCase().includes(q) || r.tenant_name?.toLowerCase().includes(q));
+  }, [src.rows, searchQuery]);
 
-  const actions: DocAction[] = [
-    {
-      label: 'View Public Page',
-      icon: <ExternalLink className="h-3.5 w-3.5" />,
-      onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank'),
-      visible: (r) => !!r.public_token,
-    },
-    {
-      label: 'Send',
-      icon: <Send className="h-3.5 w-3.5" />,
-      onClick: (r) => sendMutation.mutate(r.id),
-      visible: (r) => r.status === 'draft',
-    },
-    {
-      label: 'Duplicate',
-      icon: <Copy className="h-3.5 w-3.5" />,
-      onClick: (r) => duplicateMutation.mutate(r.id),
-    },
-    {
-      label: 'Void',
-      icon: <Ban className="h-3.5 w-3.5" />,
-      onClick: (r) => voidMutation.mutate(r.id),
-      visible: (r) => r.status !== 'void' && r.status !== 'cancelled',
-      destructive: true,
-    },
-    {
-      label: 'Delete',
-      icon: <Trash2 className="h-3.5 w-3.5" />,
-      onClick: (r) => deleteMutation.mutate(r.id),
-      destructive: true,
-    },
-  ];
+  const actions = useDocumentActions('sales_order', {
+    view_details: { label: 'View Details', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => router.push(`/${src.detailHrefTenant(r)}/invoices/${r.id}`) },
+    view_public: { label: 'View Public Page', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank') },
+    send: { label: 'Send', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => run(() => sendInvoice(src.rowTenant(r), r.id), `Sales order ${r.doc_number} sent`) },
+    generate_delivery_note: { label: 'Generate Delivery Note', icon: <Truck className="h-3.5 w-3.5" />, onClick: (r) => run(() => generateDeliveryNote(src.rowTenant(r), r.id), `Delivery note generated for ${r.doc_number}`) },
+    duplicate: { label: 'Duplicate', icon: <Copy className="h-3.5 w-3.5" />, onClick: (r) => run(() => duplicateInvoice(src.rowTenant(r), r.id), 'Sales order duplicated') },
+    void: { label: 'Void', icon: <Ban className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => voidInvoice(src.rowTenant(r), r.id), `Sales order ${r.doc_number} voided`) },
+  });
 
   if (showCreate) {
-    return (
-      <SharedInvoiceCreateView
-        effectiveTenant={effectiveTenant}
-        docType="sales_order"
-        onClose={() => { setShowCreate(false); setEditId(undefined); }}
-        editId={editId}
-      />
-    );
+    return <SharedDocumentCreateView effectiveTenant={src.docTenant} docType="sales_order" onClose={() => setShowCreate(false)} />;
   }
 
   return (
     <SharedDocumentList
       title="Sales Orders"
-      subtitle="Manage customer purchase orders before invoicing."
-      createLabel="Create Sales Order"
-      onCreateClick={() => setShowCreate(true)}
+      subtitle={src.isAggregate ? 'All tenants — confirmed customer orders ready for fulfilment.' : 'Confirmed customer orders ready for fulfilment.'}
+      createLabel={src.isAggregate ? undefined : 'Create Sales Order'}
+      onCreateClick={src.isAggregate ? undefined : () => setShowCreate(true)}
       rows={filtered}
-      isLoading={isLoading}
-      error={error}
-      total={total}
+      isLoading={src.isLoading}
+      error={src.error}
+      total={src.total}
       page={page}
       onPageChange={setPage}
       itemsPerPage={ITEMS_PER_PAGE}
-      statusOptions={['all', 'draft', 'confirmed', 'fulfilled', 'cancelled']}
+      statusOptions={['all', 'draft', 'sent', 'confirmed', 'void']}
       statusFilter={statusFilter}
       onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
       searchQuery={searchQuery}
       onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
       actions={actions}
       pdfKind="invoice"
-      showDueDate
       showExpandLineItems
+      showTenant={src.showTenant}
       storageKey="sales-order-col-prefs"
-      emptyStateDescription="Track customer purchase orders before converting them to invoices."
+      emptyStateDescription="Confirm customer orders before invoicing or dispatch."
     />
   );
 }
