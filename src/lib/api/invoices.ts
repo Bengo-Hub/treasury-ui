@@ -518,6 +518,42 @@ export function getInvoiceGraph(tenant: string): Promise<{ graph: InvoiceGraphPo
   return apiClient.get<{ graph: InvoiceGraphPoint[] }>(`${BASE}/${tenant}/invoices/graph`);
 }
 
+// ---- Accounts Receivable (aging / summary) ----
+
+export interface ARSummary {
+  total_receivable: string;
+  overdue: string;
+  due_this_week: string;
+  current: string;
+  customer_count: number;
+  open_invoices: number;
+}
+
+export interface ARAgingRow {
+  entity_id: string;
+  entity_name: string;
+  current: string;
+  days_1_to_30: string;
+  days_31_to_60: string;
+  days_61_to_90: string;
+  over_90: string;
+  total: string;
+}
+
+export interface ARAgingReport {
+  as_of: string;
+  type: string;
+  rows: ARAgingRow[];
+}
+
+export function getARSummary(tenant: string): Promise<ARSummary> {
+  return apiClient.get<ARSummary>(`${BASE}/${tenant}/ar/summary`);
+}
+
+export function getARAging(tenant: string): Promise<ARAgingReport> {
+  return apiClient.get<ARAgingReport>(`${BASE}/${tenant}/ar/aging`);
+}
+
 export function downloadInvoicePDF(tenant: string, publicToken: string, download = false): string {
   return `/api/v1/public/invoices/${publicToken}/pdf${download ? '?download=true' : ''}`;
 }

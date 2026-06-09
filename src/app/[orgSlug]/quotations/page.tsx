@@ -15,7 +15,7 @@ import {
   acceptQuotation, declineQuotation, convertQuotationToProforma,
   convertQuotationToSalesOrder, generateDeliveryChallan,
 } from '@/lib/api/invoices';
-import { Ban, CheckCircle, Copy, ExternalLink, FileText, Send, Trash2, Truck, XCircle } from 'lucide-react';
+import { Ban, CheckCircle, Copy, ExternalLink, FileText, Pencil, Send, Trash2, Truck, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
@@ -48,6 +48,7 @@ export default function QuotationsPage() {
 
   const actions = useDocumentActions('quotation', {
     view_public: { label: 'View Public Page', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => r.public_token && window.open(`/q/${r.public_token}`, '_blank') },
+    edit: { label: 'Edit', icon: <Pencil className="h-3.5 w-3.5" />, onClick: (r) => setEditId(r.id) },
     send: { label: 'Send', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => run(() => sendQuotation(src.rowTenant(r), r.id), `Quotation ${r.doc_number} sent`) },
     accept: { label: 'Accept', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (r) => run(() => acceptQuotation(src.rowTenant(r), r.id), `Quotation ${r.doc_number} accepted → invoice created`) },
     decline: { label: 'Decline', icon: <XCircle className="h-3.5 w-3.5" />, onClick: (r) => run(() => declineQuotation(src.rowTenant(r), r.id), `Quotation ${r.doc_number} declined`) },

@@ -14,6 +14,8 @@ import {
   getInvoiceGraph,
   getInvoiceStats,
   getInvoiceSummary,
+  getARSummary,
+  getARAging,
   getQuotation,
   getQuotationGraph,
   getQuotationStats,
@@ -163,6 +165,26 @@ export function useInvoiceGraph(tenant: string, enabled = true) {
     queryFn: () => getInvoiceGraph(tenant),
     enabled: !!tenant && enabled,
     staleTime: STALE_MS,
+  });
+}
+
+export function useARSummary(tenant: string, enabled = true) {
+  return useQuery({
+    queryKey: ['ar-summary', tenant],
+    queryFn: () => getARSummary(tenant),
+    enabled: !!tenant && enabled,
+    staleTime: STALE_MS,
+    retry: false, // AR tracking is a paid feature — fail fast and let the UI fall back.
+  });
+}
+
+export function useARAging(tenant: string, enabled = true) {
+  return useQuery({
+    queryKey: ['ar-aging', tenant],
+    queryFn: () => getARAging(tenant),
+    enabled: !!tenant && enabled,
+    staleTime: STALE_MS,
+    retry: false,
   });
 }
 

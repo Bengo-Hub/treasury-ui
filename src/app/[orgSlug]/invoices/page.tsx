@@ -26,7 +26,7 @@ import {
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ban, CheckCircle, DollarSign, ExternalLink, FileText, FileMinus, FilePlus, Loader2, Receipt, Send, Truck, Upload, X } from 'lucide-react';
+import { Ban, CheckCircle, DollarSign, ExternalLink, FileText, FileMinus, FilePlus, Loader2, Pencil, Receipt, Send, Truck, Upload, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useRouter, useParams } from 'next/navigation';
@@ -91,6 +91,8 @@ export default function InvoicesPage() {
   const [page, setPage] = useState(1);
   const [showCreateView, setShowCreateView] = useState(false);
   const [editId, setEditId] = useState<string | undefined>(undefined);
+  // In the all-tenants view a row's edit must target that row's tenant, not the owner org.
+  const [editTenant, setEditTenant] = useState<string | undefined>(undefined);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -199,6 +201,12 @@ export default function InvoicesPage() {
       visible: (r) => !!r.public_token,
     },
     {
+      label: 'Edit',
+      icon: <Pencil className="h-3.5 w-3.5" />,
+      onClick: (r) => { setEditId(r.id); setEditTenant(rowTenant(r) || docTenant); setShowCreateView(true); },
+      visible: (r) => r.status === 'draft',
+    },
+    {
       label: 'Send Invoice',
       icon: <Send className="h-3.5 w-3.5" />,
       onClick: (r) => run(() => sendInvoice(rowTenant(r), r.id), `Invoice ${r.doc_number} sent`),
@@ -254,9 +262,9 @@ export default function InvoicesPage() {
   if (showCreateView) {
     return (
       <SharedDocumentCreateView
-        effectiveTenant={docTenant}
+        effectiveTenant={editId ? (editTenant ?? docTenant) : docTenant}
         docType="invoice"
-        onClose={() => { setShowCreateView(false); setEditId(undefined); }}
+        onClose={() => { setShowCreateView(false); setEditId(undefined); setEditTenant(undefined); }}
         editId={editId}
       />
     );
