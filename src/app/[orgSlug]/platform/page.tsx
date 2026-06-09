@@ -19,6 +19,7 @@ import type { GatewayConfig } from '@/lib/api/gateways';
 import type { FeeRule, CreateFeeRuleRequest } from '@/lib/api/fee-rules';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api/client';
+import { fetchTenantDefaults } from '@/lib/api/tenant';
 import {
   Banknote,
   Check,
@@ -648,7 +649,15 @@ export default function PlatformPage() {
 
 interface PlatformPayAccount {
   business_name: string;
-  address: string;
+  tagline: string;
+  // Structured address — each part renders on its own line on the document.
+  building: string;
+  street: string;
+  city: string;
+  po_box: string;
+  postal_code: string;
+  country: string;
+  address: string; // legacy single-line fallback
   tax_pin: string;
   bank_name: string;
   account_name: string;
@@ -660,7 +669,8 @@ interface PlatformPayAccount {
 }
 
 const EMPTY_PAY_ACCOUNT: PlatformPayAccount = {
-  business_name: '', address: '', tax_pin: '', bank_name: '', account_name: '',
+  business_name: '', tagline: '', building: '', street: '', city: '', po_box: '',
+  postal_code: '', country: '', address: '', tax_pin: '', bank_name: '', account_name: '',
   account_number: '', branch_code: '', mpesa_paybill: '', mpesa_till: '', instructions: '',
 };
 
@@ -671,15 +681,30 @@ function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
 
   useEffect(() => {
     async function load() {
+      let saved: Partial<PlatformPayAccount> = {};
       try {
         const data = await apiClient.get<{ settings: Array<{ config_key: string; config_value: string }> }>(
           `/api/v1/platform/settings`
         );
         const row = (data.settings ?? []).find((s) => s.config_key === 'platform_payment_account');
-        if (row?.config_value) {
-          try { setAcct({ ...EMPTY_PAY_ACCOUNT, ...JSON.parse(row.config_value) }); } catch { /* ignore */ }
-        }
-      } catch { /* none yet */ } finally { setLoading(false); }
+        if (row?.config_value) { try { saved = JSON.parse(row.config_value); } catch { /* ignore */ } }
+      } catch { /* none yet */ }
+      // Pre-fill identity defaults from the logged-in tenant's auth-api profile, so the form
+      // reflects the real tenant (name, slogan, address, …) without manual re-entry. Saved
+      // values always win.
+      const def = await fetchTenantDefaults(orgSlug).catch(() => null);
+      setAcct({
+        ...EMPTY_PAY_ACCOUNT,
+        ...(def ? {
+          business_name: def.name,
+          tagline: def.tagline,
+          address: def.address,
+          country: def.country,
+          tax_pin: def.taxPin,
+        } : {}),
+        ...saved,
+      });
+      setLoading(false);
     }
     load();
   }, [orgSlug]);
@@ -739,8 +764,20 @@ function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Business Identity</p>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {field('Business / Legal Name', 'business_name', 'Codevertex Africa Limited')}
+                  {field('Slogan / Tagline', 'tagline', 'Tangible Solutions for Businesses')}
                   {field('Tax PIN', 'tax_pin', 'P051XXXXXXX')}
-                  {field('Address', 'address', 'P.O. Box 1234-00100, Nairobi')}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Address</p>
+                <p className="text-[11px] text-muted-foreground -mt-2 mb-3">Each part prints on its own line on the document (building, then street/city/country, then P.O. Box).</p>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {field('Building / Floor / Suite', 'building', '2nd Floor, Pioneer Hse')}
+                  {field('Street', 'street', 'Oginga Street')}
+                  {field('City / Town', 'city', 'Kisumu')}
+                  {field('P.O. Box', 'po_box', '547')}
+                  {field('Postal Code', 'postal_code', '40100')}
+                  {field('Country', 'country', 'Kenya')}
                 </div>
               </div>
               <div>
