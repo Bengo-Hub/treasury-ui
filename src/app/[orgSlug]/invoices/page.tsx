@@ -56,15 +56,15 @@ const SCOPE_OPTIONS: { value: PlatformInvoiceScope; label: string }[] = [
   { value: 'business', label: 'Tenant sales only' },
 ];
 
-// The Invoices page shows the sale-invoice family (standard + POS receipts + platform
-// subscription invoices) — credit/debit notes, proforma, sales orders, delivery challans
-// and manual receipts each have their own page. The scope filter narrows the type set.
+// The Invoices page shows the invoice family (standard + platform subscription invoices) —
+// credit/debit notes, proforma, sales orders, delivery challans and receipts (incl. POS
+// receipts) each have their own page. The scope filter narrows the type set.
 const SCOPE_TYPES: Record<PlatformInvoiceScope, string> = {
-  all: 'standard,pos_receipt,subscription',
+  all: 'standard,subscription',
   platform: 'subscription',
-  business: 'standard,pos_receipt',
+  business: 'standard',
 };
-const TENANT_INVOICE_TYPES = 'standard,pos_receipt';
+const TENANT_INVOICE_TYPES = 'standard';
 
 export default function InvoicesPage() {
   const router = useRouter();

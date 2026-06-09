@@ -48,14 +48,16 @@ export function useDocumentListSource(opts: Options) {
   const status = opts.status !== 'all' ? opts.status : undefined;
   const isInvoice = opts.family === 'invoice';
 
+  // `invoiceType` may be a single type or a comma list (e.g. "payment_receipt,pos_receipt"),
+  // sent as `types` so one page can cover several invoice_types.
   const tenantFilters = {
-    ...(opts.invoiceType ? { type: opts.invoiceType } : {}),
+    ...(opts.invoiceType ? { types: opts.invoiceType } : {}),
     ...(status ? { status } : {}),
     page: opts.page,
     limit: opts.limit,
   };
   const platInvFilters = {
-    ...(opts.invoiceType ? { type: opts.invoiceType } : {}),
+    ...(opts.invoiceType ? { types: opts.invoiceType } : {}),
     ...(opts.withScope && scope !== 'all' ? { scope } : {}),
     ...(status ? { status } : {}),
     page: opts.page,
