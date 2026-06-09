@@ -125,6 +125,8 @@ export interface InvoiceFilters {
   status?: string;
   payment_status?: string;
   type?: string;
+  /** Comma-separated invoice_types (e.g. "standard,pos_receipt"); takes precedence over `type`. */
+  types?: string;
   from?: string;
   to?: string;
   page?: number;
@@ -336,7 +338,8 @@ export async function listInvoices(tenant: string, filters?: InvoiceFilters): Pr
   const params: Record<string, unknown> = {};
   if (filters?.status) params.status = filters.status;
   if (filters?.payment_status) params.payment_status = filters.payment_status;
-  if (filters?.type) params.type = filters.type;
+  if (filters?.types) params.types = filters.types;
+  else if (filters?.type) params.type = filters.type;
   if (filters?.from) params.from = filters.from;
   if (filters?.to) params.to = filters.to;
   if (filters?.limit) params.limit = filters.limit;
@@ -438,8 +441,8 @@ export function convertProformaToInvoice(tenant: string, invoiceId: string): Pro
   return apiClient.post<{ status: string; invoice: Invoice }>(`${BASE}/${tenant}/invoices/${invoiceId}/convert-to-invoice`, {});
 }
 
-export function getInvoiceStats(tenant: string): Promise<InvoiceStats> {
-  return apiClient.get<InvoiceStats>(`${BASE}/${tenant}/invoices/stats`);
+export function getInvoiceStats(tenant: string, types?: string): Promise<InvoiceStats> {
+  return apiClient.get<InvoiceStats>(`${BASE}/${tenant}/invoices/stats`, types ? { types } : undefined);
 }
 
 // ---- Platform (cross-tenant) Invoice API ----
@@ -460,7 +463,8 @@ function platformInvoiceParams(filters?: PlatformInvoiceFilters): Record<string,
   if (filters?.tenant_ids) params.tenant_ids = filters.tenant_ids;
   if (filters?.status) params.status = filters.status;
   if (filters?.payment_status) params.payment_status = filters.payment_status;
-  if (filters?.type) params.type = filters.type;
+  if (filters?.types) params.types = filters.types;
+  else if (filters?.type) params.type = filters.type;
   if (filters?.from) params.from = filters.from;
   if (filters?.to) params.to = filters.to;
   if (filters?.limit) params.limit = filters.limit;
@@ -476,10 +480,11 @@ export async function listPlatformInvoices(filters?: PlatformInvoiceFilters): Pr
 }
 
 /** Aggregate invoice stats across all tenants (platform-owner view). */
-export function getPlatformInvoiceStats(filters?: Pick<PlatformInvoiceFilters, 'scope' | 'tenant_ids'>): Promise<InvoiceStats> {
+export function getPlatformInvoiceStats(filters?: Pick<PlatformInvoiceFilters, 'scope' | 'tenant_ids' | 'types'>): Promise<InvoiceStats> {
   const params: Record<string, unknown> = {};
   if (filters?.scope && filters.scope !== 'all') params.scope = filters.scope;
   if (filters?.tenant_ids) params.tenant_ids = filters.tenant_ids;
+  if (filters?.types) params.types = filters.types;
   return apiClient.get<InvoiceStats>(`${BASE}/platform/invoices/stats`, params);
 }
 
