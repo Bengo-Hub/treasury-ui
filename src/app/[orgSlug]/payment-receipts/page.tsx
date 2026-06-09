@@ -26,7 +26,8 @@ export default function PaymentReceiptsPage() {
   const [edit, setEdit] = useState<{ id: string; tenant: string } | null>(null);
   const [showRecordPayment, setShowRecordPayment] = useState(false);
 
-  const src = useDocumentListSource({ family: 'invoice', invoiceType: 'payment_receipt', status: statusFilter, page, limit: ITEMS_PER_PAGE });
+  // Both manual receipts (payment_receipt) and legacy POS receipts (pos_receipt) belong here.
+  const src = useDocumentListSource({ family: 'invoice', invoiceType: 'payment_receipt,pos_receipt', status: statusFilter, page, limit: ITEMS_PER_PAGE });
   const { run } = useDocRowAction();
 
   // Manually reconcile pending payment intents against their gateway (treasury also runs a 5-min cron).
