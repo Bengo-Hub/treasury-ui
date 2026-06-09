@@ -20,6 +20,7 @@ export type ActionKey =
   | 'view_details'
   | 'view_public'
   | 'download_pdf'
+  | 'edit'
   | 'send'
   | 'record_payment'
   | 'mark_paid'
@@ -54,6 +55,11 @@ const isPayable = (c: DocContext) =>
 export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
   const out: ActionKey[] = ['view_details', 'view_public', 'download_pdf'];
   const draft = ctx.status === 'draft';
+
+  // A document can be edited while it is still a draft (the backend UpdateInvoice/
+  // UpdateQuotation reject finalized documents); past that, status is managed via the
+  // lifecycle actions below (send / record payment / mark paid / void / cancel).
+  if (draft) out.push('edit');
 
   switch (docType) {
     case 'invoice':
