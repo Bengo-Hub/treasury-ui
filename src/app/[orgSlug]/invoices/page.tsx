@@ -36,27 +36,35 @@ import { DocTabNav, type DocTab } from '@/components/documents/DocTabNav';
 import { SuggestedInvoice } from './_components/SuggestedInvoice';
 import { ManageClients } from './_components/ManageClients';
 import { ScannedDocuments } from './_components/ScannedDocuments';
-import { OnlinePayments } from './_components/OnlinePayments';
 import { ReportsAndMore } from './_components/ReportsAndMore';
 
 const ITEMS_PER_PAGE = 20;
 
-type InvoiceTab = 'overview' | 'suggested' | 'clients' | 'scanned' | 'payments' | 'reports';
+type InvoiceTab = 'overview' | 'suggested' | 'clients' | 'scanned' | 'reports';
 
 const INVOICE_TABS: DocTab<InvoiceTab>[] = [
   { id: 'overview',  label: 'Overview' },
   { id: 'suggested', label: 'Suggested Invoice' },
   { id: 'clients',   label: 'Manage Clients' },
   { id: 'scanned',   label: 'Scanned Documents' },
-  { id: 'payments',  label: 'Online Payments' },
   { id: 'reports',   label: 'Reports & More' },
 ];
 
 const SCOPE_OPTIONS: { value: PlatformInvoiceScope; label: string }[] = [
   { value: 'all',      label: 'All invoices' },
   { value: 'platform', label: 'Platform (subscription) only' },
-  { value: 'business', label: 'Tenant business only' },
+  { value: 'business', label: 'Tenant sales only' },
 ];
+
+// The Invoices page shows the sale-invoice family (standard + POS receipts + platform
+// subscription invoices) — credit/debit notes, proforma, sales orders, delivery challans
+// and manual receipts each have their own page. The scope filter narrows the type set.
+const SCOPE_TYPES: Record<PlatformInvoiceScope, string> = {
+  all: 'standard,pos_receipt,subscription',
+  platform: 'subscription',
+  business: 'standard,pos_receipt',
+};
+const TENANT_INVOICE_TYPES = 'standard,pos_receipt';
 
 export default function InvoicesPage() {
   const router = useRouter();
@@ -87,13 +95,11 @@ export default function InvoicesPage() {
   const [paymentDialog, setPaymentDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
 
-  // The Invoices Overview shows only standard invoices — credit/debit notes, proforma
-  // invoices, sales orders, delivery challans and receipts each have their own page. When
-  // the platform owner picks the "Platform (subscription)" scope, drop the type filter so
-  // subscription invoices (invoice_type=subscription) surface.
+  const platformTypes = SCOPE_TYPES[scopeFilter];
+
   const filters = useMemo(
     () => ({
-      type: 'standard',
+      types: TENANT_INVOICE_TYPES,
       ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
       page,
       limit: ITEMS_PER_PAGE,
@@ -103,21 +109,20 @@ export default function InvoicesPage() {
 
   const platformFilters = useMemo(
     () => ({
-      scope: scopeFilter,
-      ...(scopeFilter !== 'platform' ? { type: 'standard' } : {}),
+      types: platformTypes,
       ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
       page,
       limit: ITEMS_PER_PAGE,
     }),
-    [scopeFilter, statusFilter, page],
+    [platformTypes, statusFilter, page],
   );
 
   // Tenant-scoped queries (regular tenant, or platform owner with a tenant selected).
   const tenantQuery = useInvoices(effectiveTenant, filters, !isAggregate && !!effectiveTenant);
-  const tenantStats = useInvoiceStats(effectiveTenant, !isAggregate && !!effectiveTenant);
+  const tenantStats = useInvoiceStats(effectiveTenant, TENANT_INVOICE_TYPES, !isAggregate && !!effectiveTenant);
   // Cross-tenant queries (platform owner, no tenant selected).
   const platformQuery = usePlatformInvoices(platformFilters, isAggregate);
-  const platformStats = usePlatformInvoiceStats({ scope: scopeFilter }, isAggregate);
+  const platformStats = usePlatformInvoiceStats({ types: platformTypes }, isAggregate);
 
   const data = isAggregate ? platformQuery.data : tenantQuery.data;
   const isLoading = isAggregate ? platformQuery.isLoading : tenantQuery.isLoading;
@@ -348,10 +353,6 @@ export default function InvoicesPage() {
 
       {activeTab === 'scanned' && (
         <ScannedDocuments effectiveTenant={docTenant} />
-      )}
-
-      {activeTab === 'payments' && (
-        <OnlinePayments effectiveTenant={docTenant} />
       )}
 
       {activeTab === 'reports' && (

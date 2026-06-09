@@ -19,7 +19,9 @@ export function useCRMContacts(tenantId: string, rawQuery: string) {
   return useQuery<CRMContact[]>({
     queryKey: ['crm-contacts', tenantId, query],
     queryFn:  () => searchCRMContacts(tenantId, query),
-    enabled:  !!tenantId && query.length >= 2,
+    // List all contacts when the query is empty (Manage Clients default) and search when
+    // 2+ chars are typed; skip the single-char in-between state.
+    enabled:  !!tenantId && query.length !== 1,
     staleTime: 60_000,
     placeholderData: [],
   });
