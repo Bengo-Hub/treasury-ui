@@ -178,6 +178,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     primary_date:   today,
     secondary_date: defaultSecondary,
     currency:       'KES',
+    reference:      '', // contract / tender / PO number → metadata.reference (meta box "Reference")
     terms:          '',
     notes:          '',
   });
@@ -206,6 +207,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       primary_date:   primaryDate,
       secondary_date: secondaryDate,
       currency:       existing.currency ?? 'KES',
+      reference:      (existing.metadata?.reference as string) ?? '',
       terms:          existing.terms ?? '',
       notes:          existing.notes ?? '',
     });
@@ -271,6 +273,14 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     const linePayload = buildLinePayload();
     const secondary = config.showDueDate ? form.secondary_date : form.primary_date;
 
+    // Merge the contract/tender/PO reference into metadata (preserving any existing keys,
+    // e.g. customer address, on edit). Rendered as the "Reference" row in the document.
+    const mergedMeta: Record<string, unknown> = {
+      ...((isEdit && existing?.metadata) ? existing.metadata : {}),
+      ...(form.reference.trim() ? { reference: form.reference.trim() } : {}),
+    };
+    const metadata = Object.keys(mergedMeta).length ? mergedMeta : undefined;
+
     if (isQuotation) {
       const base: CreateQuotationRequest = {
         customer_id:     customerId ?? undefined,
@@ -282,6 +292,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         currency:       form.currency,
         terms:          form.terms,
         notes:          form.notes,
+        metadata,
         lines:          linePayload,
       };
       if (isEdit && editId) {
@@ -300,6 +311,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         currency:       form.currency,
         terms:          form.terms,
         notes:          form.notes,
+        metadata,
         lines:          linePayload,
       };
       if (isEdit && editId) {
@@ -311,7 +323,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         );
       }
     }
-  }, [form, buildLinePayload, customerId, crmCustomerId, isEdit, editId, config, isQuotation, createMutation, updateMutation, onClose]);
+  }, [form, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose]);
 
   if (isEdit && existingLoading) {
     return (
@@ -456,6 +468,18 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
             currency={form.currency}
             onCurrencyChange={v => setForm(p => ({ ...p, currency: v }))}
           />
+
+          {/* Reference / Contract / Tender No. */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-foreground">Reference / Contract No.</label>
+            <input
+              value={form.reference}
+              onChange={e => setForm(p => ({ ...p, reference: e.target.value }))}
+              placeholder="e.g. tender, contract or PO number"
+              className="w-full rounded-lg py-2 px-3 text-xs border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <p className="text-[10px] text-muted-foreground">Appears as the “Reference” row on the document — for tender, contract or purchase-order numbers.</p>
+          </div>
 
           {/* Line items */}
           <LineItemsSection
