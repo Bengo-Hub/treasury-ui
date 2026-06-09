@@ -100,6 +100,45 @@ export async function listPlatformTenants(search?: string): Promise<TenantRespon
   }
 }
 
+export interface TenantDefaults {
+  name: string;
+  tagline: string;
+  address: string;
+  country: string;
+  email: string;
+  phone: string;
+  taxPin: string;
+}
+
+/** Fetch a tenant's identity defaults (name, slogan/tagline, address, …) from auth-api
+ *  by-slug — used to pre-fill the platform payment-details form for the logged-in tenant. */
+export async function fetchTenantDefaults(slug: string): Promise<TenantDefaults | null> {
+  if (!slug) return null;
+  try {
+    const res = await fetch(`${AUTH_API_URL}/api/v1/tenants/by-slug/${encodeURIComponent(slug)}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    const t = (await res.json()) as TenantResponse & { country?: string; contact_phone?: string };
+    const m = (t.metadata ?? {}) as Record<string, unknown>;
+    const s = (...keys: string[]): string => {
+      for (const k of keys) { const v = m[k]; if (typeof v === 'string' && v) return v; }
+      return '';
+    };
+    return {
+      name: t.name ?? '',
+      tagline: s('tagline', 'company_tagline', 'slogan'),
+      address: s('address', 'physical_address', 'postal_address', 'street_address'),
+      country: t.country ?? s('country'),
+      email: t.contact_email ?? '',
+      phone: t.contact_phone ?? '',
+      taxPin: s('tax_pin', 'kra_pin'),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchTenantBySlug(slug: string): Promise<TenantBrand | null> {
   if (!slug) return null;
   const url = `${AUTH_API_URL}/api/v1/tenants/by-slug/${encodeURIComponent(slug)}`;
