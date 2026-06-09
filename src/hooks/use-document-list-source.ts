@@ -68,8 +68,9 @@ export function useDocumentListSource(opts: Options) {
   const tenantQuoQ = useQuotations(effectiveTenant, quoFilters, !isInvoice && !isAggregate && !!effectiveTenant);
   const platQuoQ = usePlatformQuotations(quoFilters, !isInvoice && isAggregate);
 
-  const tenantStats = useInvoiceStats(effectiveTenant, !!opts.withStats && isInvoice && !isAggregate && !!effectiveTenant);
-  const platStats = usePlatformInvoiceStats({ scope }, !!opts.withStats && isInvoice && isAggregate);
+  // Stats are scoped to this page's invoice_type so the summary cards match the list.
+  const tenantStats = useInvoiceStats(effectiveTenant, opts.invoiceType, !!opts.withStats && isInvoice && !isAggregate && !!effectiveTenant);
+  const platStats = usePlatformInvoiceStats({ types: opts.invoiceType }, !!opts.withStats && isInvoice && isAggregate);
 
   const q = isInvoice ? (isAggregate ? platInvQ : tenantInvQ) : (isAggregate ? platQuoQ : tenantQuoQ);
   const data = q.data as { invoices?: unknown[]; quotations?: unknown[]; total?: number } | undefined;

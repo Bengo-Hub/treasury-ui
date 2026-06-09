@@ -65,7 +65,7 @@ export const invoiceKeys = {
 export const platformInvoiceKeys = {
   all: ['platform-invoices'] as const,
   list: (filters?: PlatformInvoiceFilters) => ['platform-invoices', 'list', filters] as const,
-  stats: (filters?: Pick<PlatformInvoiceFilters, 'scope' | 'tenant_ids'>) =>
+  stats: (filters?: Pick<PlatformInvoiceFilters, 'scope' | 'tenant_ids' | 'types'>) =>
     ['platform-invoices', 'stats', filters] as const,
 };
 
@@ -109,7 +109,7 @@ export function usePlatformInvoices(filters?: PlatformInvoiceFilters, enabled = 
 }
 
 export function usePlatformInvoiceStats(
-  filters?: Pick<PlatformInvoiceFilters, 'scope' | 'tenant_ids'>,
+  filters?: Pick<PlatformInvoiceFilters, 'scope' | 'tenant_ids' | 'types'>,
   enabled = true,
 ) {
   return useQuery({
@@ -139,10 +139,10 @@ export function useInvoice(tenant: string, invoiceId: string, enabled = true) {
   });
 }
 
-export function useInvoiceStats(tenant: string, enabled = true) {
+export function useInvoiceStats(tenant: string, types?: string, enabled = true) {
   return useQuery({
-    queryKey: invoiceKeys.stats(tenant),
-    queryFn: () => getInvoiceStats(tenant),
+    queryKey: [...invoiceKeys.stats(tenant), types ?? 'standard'],
+    queryFn: () => getInvoiceStats(tenant, types),
     enabled: !!tenant && enabled,
     staleTime: STALE_MS,
   });
