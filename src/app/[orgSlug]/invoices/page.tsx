@@ -207,10 +207,12 @@ export default function InvoicesPage() {
       visible: (r) => r.status === 'draft',
     },
     {
-      label: 'Send Invoice',
+      // Send doubles as resend — the backend re-emails the customer on sent→sent — so it
+      // stays available for sent/overdue invoices, not only drafts.
+      label: 'Send / Resend',
       icon: <Send className="h-3.5 w-3.5" />,
-      onClick: (r) => run(() => sendInvoice(rowTenant(r), r.id), `Invoice ${r.doc_number} sent`),
-      visible: (r) => r.status === 'draft',
+      onClick: (r) => run(() => sendInvoice(rowTenant(r), r.id), `Invoice ${r.doc_number} sent to customer`),
+      visible: (r) => r.status === 'draft' || r.status === 'sent' || r.status === 'overdue',
     },
     {
       label: 'Generate Delivery Note',

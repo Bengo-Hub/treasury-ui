@@ -55,6 +55,9 @@ const isPayable = (c: DocContext) =>
 export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
   const out: ActionKey[] = ['view_details', 'view_public', 'download_pdf'];
   const draft = ctx.status === 'draft';
+  // Send doubles as "resend": the backend re-emails the customer on sent→sent, so the
+  // action stays available for sent/overdue documents (not just drafts).
+  const canSend = draft || ctx.status === 'sent' || ctx.status === 'overdue';
 
   // A document can be edited while it is still a draft (the backend UpdateInvoice/
   // UpdateQuotation reject finalized documents); past that, status is managed via the
@@ -64,7 +67,7 @@ export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
   switch (docType) {
     case 'invoice':
     case 'subscription': {
-      if (draft) out.push('send');
+      if (canSend) out.push('send');
       if (isPayable(ctx)) out.push('record_payment', 'mark_paid');
       if (!isVoided(ctx.status)) out.push('generate_delivery_note');
       if (isFinalized(ctx.status)) out.push('create_credit_note', 'create_debit_note');
@@ -74,20 +77,20 @@ export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
       break;
     }
     case 'proforma_invoice': {
-      if (draft) out.push('send');
+      if (canSend) out.push('send');
       out.push('convert_to_invoice', 'duplicate');
       if (!isVoided(ctx.status)) out.push('void');
       break;
     }
     case 'sales_order': {
-      if (draft) out.push('send');
+      if (canSend) out.push('send');
       out.push('generate_delivery_note', 'duplicate');
       if (!isVoided(ctx.status)) out.push('void');
       break;
     }
     case 'credit_note':
     case 'debit_note': {
-      if (draft) out.push('send');
+      if (canSend) out.push('send');
       out.push('duplicate');
       if (!isVoided(ctx.status)) out.push('void');
       if (draft) out.push('delete');
@@ -108,7 +111,7 @@ export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
       break;
     }
     case 'quotation': {
-      if (draft) out.push('send');
+      if (canSend) out.push('send');
       if (ctx.status === 'sent' || ctx.status === 'draft') out.push('accept', 'decline');
       out.push('convert_to_proforma', 'convert_to_sales_order', 'generate_delivery_note', 'duplicate');
       if (ctx.status !== 'converted' && !isVoided(ctx.status)) out.push('cancel');
