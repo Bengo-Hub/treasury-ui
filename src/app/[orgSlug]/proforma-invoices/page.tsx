@@ -9,7 +9,7 @@ import {
   sendInvoice, voidInvoice, duplicateInvoice, markPaid, recordPayment,
   convertProformaToInvoice, createCreditNote,
 } from '@/lib/api/invoices';
-import { Ban, CheckCircle, Copy, DollarSign, ExternalLink, FileText, FileMinus, Loader2, Send, X } from 'lucide-react';
+import { Ban, CheckCircle, Copy, DollarSign, ExternalLink, FileText, FileMinus, Loader2, Pencil, Send, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -22,6 +22,7 @@ export default function ProformaInvoicesPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [edit, setEdit] = useState<{ id: string; tenant: string } | null>(null);
   const [paymentDialog, setPaymentDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
 
@@ -44,6 +45,7 @@ export default function ProformaInvoicesPage() {
   const actions = useDocumentActions('proforma_invoice', {
     view_details: { label: 'View Details', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => router.push(`/${src.detailHrefTenant(r)}/invoices/${r.id}`) },
     view_public: { label: 'View Public Page', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank') },
+    edit: { label: 'Edit', icon: <Pencil className="h-3.5 w-3.5" />, onClick: (r) => setEdit({ id: r.id, tenant: src.rowTenant(r) || src.docTenant }) },
     send: { label: 'Send', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => run(() => sendInvoice(src.rowTenant(r), r.id), `Proforma ${r.doc_number} sent`) },
     convert_to_invoice: { label: 'Convert to Invoice', icon: <FileText className="h-3.5 w-3.5" />, onClick: (r) => run(() => convertProformaToInvoice(src.rowTenant(r), r.id), `Converted ${r.doc_number} to invoice`) },
     record_payment: { label: 'Record Payment', icon: <DollarSign className="h-3.5 w-3.5" />, onClick: (r) => setPaymentDialog({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) },
@@ -53,8 +55,8 @@ export default function ProformaInvoicesPage() {
     void: { label: 'Void', icon: <Ban className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => voidInvoice(src.rowTenant(r), r.id), `Proforma ${r.doc_number} voided`) },
   });
 
-  if (showCreate) {
-    return <SharedDocumentCreateView effectiveTenant={src.docTenant} docType="proforma_invoice" onClose={() => setShowCreate(false)} />;
+  if (showCreate || edit) {
+    return <SharedDocumentCreateView effectiveTenant={edit?.tenant ?? src.docTenant} docType="proforma_invoice" editId={edit?.id} onClose={() => { setShowCreate(false); setEdit(null); }} />;
   }
 
   const stats = src.statsData
