@@ -114,6 +114,17 @@ export const DOC_CONFIGS: Record<string, DocTypeConfig> = {
     showDueDate: false,
     defaultSecondaryDays: 0,
   },
+  delivery_challan: {
+    invoiceType: 'delivery_challan',
+    apiFamily: 'invoice',
+    title: 'Delivery Note',
+    fromLabel: 'Delivered By',
+    forLabel: 'Deliver To',
+    primaryDateLabel: 'Delivery Date',
+    numberLabel: 'Delivery Note No',
+    showDueDate: false,
+    defaultSecondaryDays: 0,
+  },
 };
 
 interface Props {
@@ -124,7 +135,8 @@ interface Props {
 }
 
 export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, editId }: Props) {
-  const config = DOC_CONFIGS[docType];
+  // Fall back to the invoice config for any unmapped type so the form never hard-crashes.
+  const config = DOC_CONFIGS[docType] ?? DOC_CONFIGS.invoice;
   const isEdit = !!editId;
   const isQuotation = config.apiFamily === 'quotation';
 
