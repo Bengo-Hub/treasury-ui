@@ -55,7 +55,7 @@ export default function JournalsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data, isLoading } = useJournalEntries(effectiveTenant, statusFilter !== 'all' ? { status: statusFilter } : undefined);
+  const { data, isLoading, isError } = useJournalEntries(effectiveTenant, statusFilter !== 'all' ? { status: statusFilter } : undefined);
   const entries = data?.entries ?? [];
 
   const filtered = useMemo(() => entries, [entries]);
@@ -94,6 +94,7 @@ export default function JournalsPage() {
         <JournalEntriesList
           entries={filtered}
           isLoading={isLoading}
+          isError={isError}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
           statusOptions={statusOptions}
@@ -117,6 +118,7 @@ export default function JournalsPage() {
 function JournalEntriesList({
   entries,
   isLoading,
+  isError,
   statusFilter,
   setStatusFilter,
   statusOptions,
@@ -124,6 +126,7 @@ function JournalEntriesList({
 }: {
   entries: JournalEntry[];
   isLoading: boolean;
+  isError: boolean;
   statusFilter: string;
   setStatusFilter: (s: string) => void;
   statusOptions: string[];
@@ -171,7 +174,12 @@ function JournalEntriesList({
             <Loader2 className="h-5 w-5 animate-spin" /> Loading journal entries...
           </div>
         )}
-        {!isLoading && (
+        {!isLoading && isError && (
+          <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Failed to load journal entries. Check your connection and try again.
+          </div>
+        )}
+        {!isLoading && !isError && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -251,7 +259,7 @@ function JournalEntriesList({
             </table>
           </div>
         )}
-        {!isLoading && entries.length === 0 && (
+        {!isLoading && !isError && entries.length === 0 && (
           <div className="p-12 text-center text-muted-foreground">No journal entries found.</div>
         )}
       </CardContent>
@@ -262,7 +270,7 @@ function JournalEntriesList({
 // ---- Trial Balance View ----
 
 function TrialBalanceView({ tenantSlug }: { tenantSlug: string }) {
-  const { data, isLoading } = useTrialBalance(tenantSlug);
+  const { data, isLoading, isError } = useTrialBalance(tenantSlug);
 
   return (
     <Card>
@@ -283,7 +291,12 @@ function TrialBalanceView({ tenantSlug }: { tenantSlug: string }) {
             <Loader2 className="h-5 w-5 animate-spin" /> Loading trial balance...
           </div>
         )}
-        {!isLoading && data && (
+        {!isLoading && isError && (
+          <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Failed to load trial balance. Check your connection and try again.
+          </div>
+        )}
+        {!isLoading && !isError && data && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

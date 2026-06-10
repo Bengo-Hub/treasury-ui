@@ -41,7 +41,7 @@ export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
 
-  const { data, isLoading } = useInvoices(effectiveTenant, {}, !!effectiveTenant);
+  const { data, isLoading, error } = useInvoices(effectiveTenant, {}, !!effectiveTenant);
   const invoices = data?.invoices ?? [];
 
   const customers = useMemo(() => {
@@ -178,6 +178,12 @@ export default function CustomersPage() {
       {isPlatformOwner && !tenantQueryParam && (
         <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
           Select a tenant from the filter above to view their customers.
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Failed to load customers. Check your connection and try again.
         </div>
       )}
 
