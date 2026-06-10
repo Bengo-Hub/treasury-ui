@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -344,6 +345,18 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
 
   const lines = unreconciledData?.lines ?? [];
 
+  // Distinct statements present in the unmatched lines — so the user picks an imported
+  // statement instead of pasting its UUID.
+  const statementOptions: ComboboxOption[] = (() => {
+    const byId = new Map<string, number>();
+    for (const l of lines) byId.set(l.statement_id, (byId.get(l.statement_id) ?? 0) + 1);
+    return Array.from(byId.entries()).map(([id, count]) => ({
+      value: id,
+      label: `Statement ${id.slice(0, 8)} — ${count} unmatched line${count !== 1 ? 's' : ''}`,
+      hint: id.slice(0, 8),
+    }));
+  })();
+
   function handleAutoReconcile() {
     if (!statementIdForAuto) return;
     autoReconcileMutation.mutate(statementIdForAuto);
@@ -371,12 +384,14 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
         </CardHeader>
         <CardContent>
           <div className="flex items-end gap-3">
-            <FormField label="Statement ID" className="flex-1">
-              <input
-                className={inputClasses}
-                placeholder="Paste statement ID from import..."
+            <FormField label="Statement" className="flex-1">
+              <Combobox
+                options={statementOptions}
                 value={statementIdForAuto}
-                onChange={(e) => setStatementIdForAuto(e.target.value)}
+                onChange={setStatementIdForAuto}
+                placeholder="Select an imported statement…"
+                searchPlaceholder="Search statements…"
+                emptyText="No statements with unmatched lines"
               />
             </FormField>
             <Button
