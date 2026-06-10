@@ -3,7 +3,13 @@
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useProfitLoss, useBalanceSheet, useCashFlow, useTaxSummaryReport } from '@/hooks/use-reports';
+import {
+  useProfitLoss,
+  useBalanceSheet,
+  useCashFlow,
+  useTaxSummaryReport,
+  useProfitLossSummary,
+} from '@/hooks/use-reports';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import type { FinancialReport, ReportSection } from '@/lib/api/reports';
 import {
@@ -36,6 +42,8 @@ export default function ReportsPage() {
   const [cfTo, setCfTo] = useState(defaults.to);
   const [taxFrom, setTaxFrom] = useState(defaults.from);
   const [taxTo, setTaxTo] = useState(defaults.to);
+  const [plsFrom, setPlsFrom] = useState(defaults.from);
+  const [plsTo, setPlsTo] = useState(defaults.to);
 
   return (
     <div className="p-6 space-y-6">
@@ -52,6 +60,7 @@ export default function ReportsPage() {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="pl">Profit & Loss</TabsTrigger>
+            <TabsTrigger value="pls">P&L Summary</TabsTrigger>
             <TabsTrigger value="bs">Balance Sheet</TabsTrigger>
             <TabsTrigger value="cf">Cash Flow</TabsTrigger>
             <TabsTrigger value="tax">Tax Summary</TabsTrigger>
@@ -59,6 +68,9 @@ export default function ReportsPage() {
 
           <TabsContent value="pl" className="mt-6">
             <ProfitLossTab tenantSlug={effectiveTenant} from={plFrom} to={plTo} setFrom={setPlFrom} setTo={setPlTo} />
+          </TabsContent>
+          <TabsContent value="pls" className="mt-6">
+            <ProfitLossSummaryTab tenantSlug={effectiveTenant} from={plsFrom} to={plsTo} setFrom={setPlsFrom} setTo={setPlsTo} />
           </TabsContent>
           <TabsContent value="bs" className="mt-6">
             <BalanceSheetTab tenantSlug={effectiveTenant} asOf={bsAsOf} setAsOf={setBsAsOf} />
@@ -190,6 +202,133 @@ function ProfitLossTab({
           {!isLoading && !data?.sections?.length && <EmptyState message="No data for selected period." />}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ---- P&L Summary (source-document aggregation) ----
+
+function formatMoney(v: string | number | undefined): string {
+  return Number(v ?? 0).toLocaleString('en-KE', { minimumFractionDigits: 2 });
+}
+
+function KpiCard({
+  label,
+  amount,
+  positive,
+}: {
+  label: string;
+  amount: string;
+  positive?: boolean;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+        <p
+          className={`mt-1 text-2xl font-bold tabular-nums ${
+            positive === undefined ? '' : positive ? 'text-green-500' : 'text-red-500'
+          }`}
+        >
+          {formatMoney(amount)}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BreakdownTable({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: { name: string; amount: string }[];
+}) {
+  return (
+    <Card>
+      <CardHeader className="py-4">
+        <h3 className="font-bold text-sm uppercase tracking-tight">{title}</h3>
+      </CardHeader>
+      <CardContent className="p-0">
+        {rows.length === 0 ? (
+          <EmptyState message="No entries for selected period." />
+        ) : (
+          <div className="divide-y divide-border">
+            {rows.map((row, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between px-6 py-2 hover:bg-accent/5 transition-colors"
+              >
+                <span className="text-sm">{row.name}</span>
+                <span className="text-sm font-bold tabular-nums">{formatMoney(row.amount)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProfitLossSummaryTab({
+  tenantSlug,
+  from,
+  to,
+  setFrom,
+  setTo,
+}: {
+  tenantSlug: string;
+  from: string;
+  to: string;
+  setFrom: (v: string) => void;
+  setTo: (v: string) => void;
+}) {
+  const { data, isLoading, isError } = useProfitLossSummary(tenantSlug, from, to);
+
+  return (
+    <div className="space-y-6">
+      <DateRangeFilter from={from} to={to} setFrom={setFrom} setTo={setTo} />
+
+      {isLoading && (
+        <Card>
+          <CardContent className="p-0">
+            <LoadingIndicator />
+          </CardContent>
+        </Card>
+      )}
+
+      {!isLoading && isError && (
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState message="Failed to load P&L summary. Please try again." />
+          </CardContent>
+        </Card>
+      )}
+
+      {!isLoading && !isError && data && (
+        <>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+            <KpiCard label="Revenue" amount={data.total_revenue} positive />
+            <KpiCard label="COGS" amount={data.cost_of_goods} positive={false} />
+            <KpiCard
+              label="Gross Profit"
+              amount={data.gross_profit}
+              positive={Number(data.gross_profit) >= 0}
+            />
+            <KpiCard label="Operating Expenses" amount={data.total_expenses} positive={false} />
+            <KpiCard
+              label="Net Profit"
+              amount={data.net_profit}
+              positive={Number(data.net_profit) >= 0}
+            />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <BreakdownTable title="Expenses by Category" rows={data.by_category ?? []} />
+            <BreakdownTable title="Expenses by Cost Center" rows={data.by_cost_center ?? []} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
