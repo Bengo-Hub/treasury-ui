@@ -14,6 +14,7 @@ import {
   useAutoReconcile,
   useManualMatch,
   useUnreconciled,
+  useLedgerTransactions,
 } from '@/hooks/use-reconciliation';
 import type { StatementLine } from '@/lib/api/reconciliation';
 import {
@@ -345,6 +346,16 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
 
   const lines = unreconciledData?.lines ?? [];
 
+  const { data: ledgerTxnData, isLoading: loadingTxns } = useLedgerTransactions(tenantSlug);
+  const ledgerTxnOptions: ComboboxOption[] = (ledgerTxnData?.transactions ?? []).map((t) => {
+    const amt = Number(t.debit_amount) > 0 ? t.debit_amount : t.credit_amount;
+    return {
+      value: t.id,
+      label: `${(t.transaction_date ?? '').slice(0, 10)} · ${t.description || t.reference_type || 'Transaction'} · ${t.currency} ${amt}`,
+      hint: t.id.slice(0, 8),
+    };
+  });
+
   // Distinct statements present in the unmatched lines — so the user picks an imported
   // statement instead of pasting its UUID.
   const statementOptions: ComboboxOption[] = (() => {
@@ -500,12 +511,15 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
               </p>
             </div>
 
-            <FormField label="Ledger Transaction ID" required>
-              <input
-                className={inputClasses}
-                placeholder="Paste the ledger transaction UUID..."
+            <FormField label="Ledger Transaction" required>
+              <Combobox
+                options={ledgerTxnOptions}
                 value={matchTransactionId}
-                onChange={(e) => setMatchTransactionId(e.target.value)}
+                onChange={setMatchTransactionId}
+                loading={loadingTxns}
+                placeholder="Select a ledger transaction…"
+                searchPlaceholder="Search by date, description or amount…"
+                emptyText="No ledger transactions found"
               />
             </FormField>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Pagination } from '@/components/ui/pagination';
@@ -12,6 +13,8 @@ import {
   usePayBill,
 } from '@/hooks/use-bills';
 import type { Bill, BillLineReq, AgingRow } from '@/lib/api/bills';
+import { listPaymentIntents } from '@/lib/api/payments';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
@@ -84,6 +87,19 @@ export default function BillsPage() {
 
   const createMutation = useCreateBill(effectiveTenant);
   const payMutation = usePayBill(effectiveTenant);
+
+  // Payment intents to settle a bill with — fetched only while the Pay dialog is open.
+  const { data: intentsData, isLoading: loadingIntents } = useQuery({
+    queryKey: ['payment-intents', effectiveTenant],
+    queryFn: () => listPaymentIntents(effectiveTenant),
+    enabled: !!effectiveTenant,
+    staleTime: 60_000,
+  });
+  const intentOptions: ComboboxOption[] = (intentsData?.intents ?? []).map((it) => ({
+    value: it.id,
+    label: `${it.currency ?? 'KES'} ${it.amount} · ${it.status}${it.reference_type ? ` · ${it.reference_type}` : ''}`,
+    hint: it.id.slice(0, 8),
+  }));
 
   // Create form state
   const emptyLine: BillLineReq = { description: '', quantity: 1, unit_price: 0 };
@@ -411,14 +427,17 @@ export default function BillsPage() {
 
       {/* Pay Bill Dialog */}
       <Dialog open={!!payOpen} onOpenChange={() => setPayOpen(null)}>
-        <DialogContent title="Pay Bill" description="Enter payment intent ID to process payment." onClose={() => setPayOpen(null)}>
+        <DialogContent title="Pay Bill" description="Select the payment that settles this bill." onClose={() => setPayOpen(null)}>
           <div className="space-y-4">
-            <FormField label="Payment Intent ID" required>
-              <input
-                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary font-mono"
-                placeholder="Enter payment intent UUID"
+            <FormField label="Payment" required description="The payment intent that covers this bill.">
+              <Combobox
+                options={intentOptions}
                 value={paymentIntentId}
-                onChange={(e) => setPaymentIntentId(e.target.value)}
+                onChange={setPaymentIntentId}
+                loading={loadingIntents}
+                placeholder="Select a payment…"
+                searchPlaceholder="Search payments by amount, status or reference…"
+                emptyText="No payment intents found"
               />
             </FormField>
             <div className="flex justify-end gap-2">
