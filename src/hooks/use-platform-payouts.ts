@@ -24,6 +24,8 @@ export interface PlatformBalance {
   /** Already converted from smallest unit (e.g. kobo → KES) by the API */
   balance: number | string;
   ledger_balance?: number | string;
+  /** Collected but not yet settled into the available balance (Paystack T+1). */
+  pending_balance?: number | string;
 }
 
 export function usePlatformBanks(country = 'kenya') {

@@ -161,6 +161,7 @@ export interface PlatformBalance {
     currency: string;
     balance: number;
     ledger_balance?: number;
+    pending_balance?: number; // collected but not yet settled (Paystack T+1)
 }
 
 /** Get current Paystack platform balance. (superuser) */
