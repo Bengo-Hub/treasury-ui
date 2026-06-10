@@ -41,7 +41,7 @@ export default function CostCentersPage() {
   const [deleteCenter, setDeleteCenter] = useState<CostCenter | null>(null);
   const [formData, setFormData] = useState<CostCenterFormData>(emptyForm);
 
-  const { data, isLoading } = useCostCenters(effectiveTenant, { active_only: activeOnly });
+  const { data, isLoading, error } = useCostCenters(effectiveTenant, { active_only: activeOnly });
   const createMutation = useCreateCostCenter(effectiveTenant);
   const updateMutation = useUpdateCostCenter(effectiveTenant);
   const deleteMutation = useDeleteCostCenter(effectiveTenant);
@@ -129,6 +129,12 @@ export default function CostCentersPage() {
       {isPlatformOwner && !tenantQueryParam && (
         <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
           Select a tenant from the filter above to view their cost centers.
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Failed to load cost centers. Check your connection and try again.
         </div>
       )}
 

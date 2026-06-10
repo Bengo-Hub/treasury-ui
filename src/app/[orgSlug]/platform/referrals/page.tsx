@@ -80,8 +80,8 @@ export default function ReferralsPage() {
 
   const isPlatformOwner = user?.isPlatformOwner || user?.isSuperUser || orgSlug === 'codevertex';
 
-  const { data: programsData, isLoading: loadingPrograms } = useReferralPrograms();
-  const { data: referralsData, isLoading: loadingReferrals } = useReferrals();
+  const { data: programsData, isLoading: loadingPrograms, isError: programsError } = useReferralPrograms();
+  const { data: referralsData, isLoading: loadingReferrals, isError: referralsError } = useReferrals();
   const createProgram = useCreateReferralProgram();
   const updateProgram = useUpdateReferralProgram();
   const deleteProgram = useDeleteReferralProgram();
@@ -135,6 +135,10 @@ export default function ReferralsPage() {
               {loadingPrograms ? (
                 <div className="px-6 py-8 flex items-center justify-center gap-2 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading programs...
+                </div>
+              ) : programsError ? (
+                <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  Failed to load referral programs. Check your connection and try again.
                 </div>
               ) : programs.length === 0 ? (
                 <div className="px-6 py-8 text-center text-sm text-muted-foreground">
@@ -237,6 +241,10 @@ export default function ReferralsPage() {
               {loadingReferrals ? (
                 <div className="px-6 py-8 flex items-center justify-center gap-2 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading referrals...
+                </div>
+              ) : referralsError ? (
+                <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  Failed to load referrals. Check your connection and try again.
                 </div>
               ) : referrals.length === 0 ? (
                 <div className="px-6 py-8 text-center text-sm text-muted-foreground">

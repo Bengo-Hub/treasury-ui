@@ -69,7 +69,7 @@ export default function ReconciliationPage() {
 // ---------------------------------------------------------------------------
 
 function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
-  const { data, isLoading } = useBankAccounts(tenantSlug);
+  const { data, isLoading, isError } = useBankAccounts(tenantSlug);
   const createMutation = useCreateBankAccount(tenantSlug);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({
@@ -104,6 +104,10 @@ function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
           {isLoading ? (
             <div className="p-12 flex justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : isError ? (
+            <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              Failed to load bank accounts. Check your connection and try again.
             </div>
           ) : accounts.length === 0 ? (
             <div className="p-12 text-center text-muted-foreground">
@@ -330,7 +334,7 @@ function StatementsTab({ tenantSlug }: { tenantSlug: string }) {
 // ---------------------------------------------------------------------------
 
 function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
-  const { data: unreconciledData, isLoading } = useUnreconciled(tenantSlug);
+  const { data: unreconciledData, isLoading, isError } = useUnreconciled(tenantSlug);
   const autoReconcileMutation = useAutoReconcile(tenantSlug);
   const manualMatchMutation = useManualMatch(tenantSlug);
 
@@ -410,6 +414,10 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
           {isLoading ? (
             <div className="p-12 flex justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : isError ? (
+            <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              Failed to load unreconciled items. Check your connection and try again.
             </div>
           ) : lines.length === 0 ? (
             <div className="p-12 text-center text-muted-foreground">
