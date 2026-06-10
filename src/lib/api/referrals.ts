@@ -21,6 +21,8 @@ export interface ReferralProgram {
   discount_duration_months?: number;
   gift_card_value?: string;
   coupon_code_prefix?: string;
+  referral_type?: string;       // type_a (subscription credit) | type_b (equity)
+  equity_grant_pct?: string;    // for type_b vesting grant
   is_active: boolean;
   created_at: string;
 }
@@ -29,13 +31,15 @@ export interface CreateReferralProgramRequest {
   name: string;
   description?: string;
   reward_type: string;
-  revenue_share_percentage?: string;
-  fixed_reward_amount?: string;
+  revenue_share_percentage?: number;
+  fixed_reward_amount?: number;
   currency?: string;
-  discount_percentage?: string;
+  discount_percentage?: number;
   discount_duration_months?: number;
-  gift_card_value?: string;
+  gift_card_value?: number;
   coupon_code_prefix?: string;
+  referral_type?: string;     // type_a (subscription credit) | type_b (equity)
+  equity_grant_pct?: number;  // optional vesting grant for type_b
 }
 
 export interface Referral {
@@ -48,7 +52,24 @@ export interface Referral {
   notes?: string;
   attributed_at?: string;
   expires_at?: string;
+  equity_holder_id?: string; // set once converted to an equity holder
   created_at: string;
+}
+
+export interface ConvertToEquityRequest {
+  name?: string;
+  equity_pct?: number;
+  source_services?: string[];
+  payout_frequency?: string;
+  payout_method?: string;
+}
+
+export interface ConvertToEquityResponse {
+  holder_id: string;
+  name: string;
+  referral_id: string;
+  linked_tenant_ids: string[];
+  payout_frequency: string;
 }
 
 export interface CreateReferralRequest {
@@ -129,4 +150,15 @@ export function listRewards(referralId: string): Promise<{ rewards: ReferralRewa
 /** Issue a reward for a referral. */
 export function issueReward(referralId: string, body: IssueRewardRequest): Promise<ReferralReward> {
   return apiClient.post<ReferralReward>(`${BASE}/platform/referrals/${referralId}/issue-reward`, body);
+}
+
+/** Convert an active type_b referral into a revenue-share equity holder. */
+export function convertReferralToEquity(
+  referralId: string,
+  body: ConvertToEquityRequest,
+): Promise<ConvertToEquityResponse> {
+  return apiClient.post<ConvertToEquityResponse>(
+    `${BASE}/platform/referrals/${referralId}/convert-to-equity`,
+    body,
+  );
 }
