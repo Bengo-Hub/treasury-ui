@@ -4,6 +4,7 @@ import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/ba
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils/currency';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
   useAccounts,
@@ -61,7 +62,7 @@ export default function AccountsPage() {
   const [deleteAccount, setDeleteAccount] = useState<Account | null>(null);
   const [formData, setFormData] = useState<AccountFormData>(emptyForm);
 
-  const { data: accountsData, isLoading } = useAccounts(effectiveTenant, {});
+  const { data: accountsData, isLoading, error } = useAccounts(effectiveTenant, {});
   const createMutation = useCreateAccount(effectiveTenant);
   const updateMutation = useUpdateAccount(effectiveTenant);
   const deactivateMutation = useDeactivateAccount(effectiveTenant);
@@ -159,6 +160,12 @@ export default function AccountsPage() {
         </div>
       )}
 
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Failed to load accounts. Check your connection and try again.
+        </div>
+      )}
+
       <Card>
         <CardHeader className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between py-4">
           <div className="relative w-full max-w-sm group">
@@ -220,7 +227,7 @@ export default function AccountsPage() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <p className="text-sm font-bold">{account.balance}</p>
+                      <p className="text-sm font-bold tabular-nums">{formatCurrency(Number(account.balance), account.currency)}</p>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
                         Balance
                       </p>
@@ -228,7 +235,8 @@ export default function AccountsPage() {
                     {isPlatformOwner && (
                       <button
                         type="button"
-                        className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                        aria-label={`Deactivate account ${account.account_code} ${account.account_name}`}
+                        className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:opacity-100"
                         onClick={(e) => {
                           e.stopPropagation();
                           setDeleteAccount(account);
