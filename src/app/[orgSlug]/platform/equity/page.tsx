@@ -8,11 +8,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
     useCreateEquityHolder,
     useEquityHolders,
+    useEquitySchedule,
     useEquitySummary,
     useHolderPayouts,
     useTriggerEquityPayout,
     useUpdateEquityHolder,
+    useUpdateEquitySchedule,
 } from '@/hooks/use-equity';
+import ReferralsPanel from '../referrals/page';
 import {
     useCreateEntitlement,
     useDeactivateEntitlement,
@@ -24,7 +27,7 @@ import { useMe } from '@/hooks/useMe';
 import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import { useReferrals } from '@/hooks/use-referrals';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import type { CreateEquityHolderRequest, EquityHolder, EquityPayout } from '@/lib/api/equity';
+import type { CreateEquityHolderRequest, EquityHolder, EquityPayout, EquityPayoutSchedule } from '@/lib/api/equity';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
@@ -104,6 +107,7 @@ export default function EquityManagementPage() {
         from.setDate(from.getDate() - 30);
         return { from: format(from, 'yyyy-MM-dd'), to: format(to, 'yyyy-MM-dd') };
     });
+    const [activeTab, setActiveTab] = useState('holders');
     const [showAddHolder, setShowAddHolder] = useState(false);
     const [editingHolder, setEditingHolder] = useState<EquityHolder | null>(null);
     const [historyHolderId, setHistoryHolderId] = useState<string | null>(null);
@@ -175,6 +179,15 @@ export default function EquityManagementPage() {
                 </div>
             </div>
 
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                <TabsList className="flex flex-wrap gap-1">
+                    <TabsTrigger value="holders">Holders</TabsTrigger>
+                    <TabsTrigger value="referrals">Referrals &amp; Programs</TabsTrigger>
+                    <TabsTrigger value="schedule">Payout Schedule</TabsTrigger>
+                    <TabsTrigger value="agreements">Agreements</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="holders" className="space-y-6 mt-6">
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatsCard
@@ -266,6 +279,7 @@ export default function EquityManagementPage() {
                                             onHistory={() => setHistoryHolderId(holder.id)}
                                             onEntitlements={() => setEntitlementsHolderId(holder.id)}
                                             onPortalLink={() => generatePortalLink.mutate(holder.id)}
+                                            onOpen={() => router.push(`/${orgSlug}/platform/equity/${holder.id}`)}
                                             isTriggering={triggerPayout.isPending && triggerPayout.variables?.holderId === holder.id}
                                             isGeneratingLink={generatePortalLink.isPending && generatePortalLink.variables === holder.id}
                                         />
@@ -330,11 +344,8 @@ export default function EquityManagementPage() {
                 <div className="space-y-6">
                     <NextPayoutProjectionCard
                         holders={holders}
-                        dateRange={dateRange}
-                        onConfigure={() => {
-                            const primary = holders.find(h => h.is_active) ?? holders[0] ?? null;
-                            setFreqConfigHolder(primary);
-                        }}
+                        schedule={summary?.payout_schedule}
+                        onConfigure={() => setActiveTab('schedule')}
                     />
 
                     <Card className="border-none shadow-xl shadow-black/5">
@@ -362,67 +373,57 @@ export default function EquityManagementPage() {
                     </Card>
                 </div>
             </div>
+                </TabsContent>
+
+                <TabsContent value="referrals" className="mt-6">
+                    <ReferralsPanel />
+                </TabsContent>
+
+                <TabsContent value="schedule" className="mt-6">
+                    <GlobalPayoutScheduleCard />
+                </TabsContent>
+
+                <TabsContent value="agreements" className="mt-6">
+                    <AgreementsPanel holders={holders} />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
 
-/** Compute the next auto-run date from holders' payout frequencies. */
-function getNextPayoutDate(holders: EquityHolder[]): { date: string; frequency: string } {
+/** Compute the next auto-run date from the single platform-wide payout frequency. */
+function nextRunDateForFrequency(frequency: string, fyEndMonth = 12): string {
     const now = new Date();
-    const activeHolders = holders.filter(h => h.is_active);
-    if (activeHolders.length === 0) return { date: '-', frequency: 'none' };
-
-    // Count frequencies
-    const freqCounts: Record<string, number> = {};
-    for (const h of activeHolders) {
-        const f = h.payout_frequency ?? 'manual';
-        freqCounts[f] = (freqCounts[f] ?? 0) + 1;
+    if (frequency === 'manual') return 'Manual';
+    if (frequency === 'monthly') {
+        return format(new Date(now.getFullYear(), now.getMonth() + 1, 1), 'yyyy-MM-dd');
     }
-
-    // Most common frequency
-    const dominant = Object.entries(freqCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'manual';
-
-    if (dominant === 'manual') return { date: 'Manual', frequency: 'manual' };
-
-    if (dominant === 'monthly') {
-        // First of next month
-        const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        return { date: format(next, 'yyyy-MM-dd'), frequency: 'monthly' };
-    }
-
-    if (dominant === 'quarterly') {
-        const currentQuarter = Math.floor(now.getMonth() / 3);
-        const nextQuarterMonth = (currentQuarter + 1) * 3;
+    if (frequency === 'quarterly') {
+        const nextQuarterMonth = (Math.floor(now.getMonth() / 3) + 1) * 3;
         const next = nextQuarterMonth > 11
             ? new Date(now.getFullYear() + 1, nextQuarterMonth - 12, 1)
             : new Date(now.getFullYear(), nextQuarterMonth, 1);
-        return { date: format(next, 'yyyy-MM-dd'), frequency: 'quarterly' };
+        return format(next, 'yyyy-MM-dd');
     }
-
-    if (dominant === 'annually') {
-        // Use the most common financial_year_end_month from holders, default 12 (December)
-        const fyMonths = activeHolders.map(h => h.financial_year_end_month ?? 12);
-        const fyMonth = fyMonths.sort((a, b) =>
-            fyMonths.filter(v => v === b).length - fyMonths.filter(v => v === a).length
-        )[0] ?? 12;
-        const fyYear = now.getMonth() < fyMonth - 1 ? now.getFullYear() : now.getFullYear() + 1;
-        const next = new Date(fyYear, fyMonth - 1, 1); // 1st of FY-end month
-        return { date: format(next, 'yyyy-MM-dd'), frequency: 'annually' };
+    if (frequency === 'annually') {
+        const fyYear = now.getMonth() < fyEndMonth - 1 ? now.getFullYear() : now.getFullYear() + 1;
+        return format(new Date(fyYear, fyEndMonth - 1, 1), 'yyyy-MM-dd');
     }
-
-    return { date: '-', frequency: dominant };
+    return '-';
 }
 
 function NextPayoutProjectionCard({
     holders,
-    dateRange,
+    schedule,
     onConfigure,
 }: {
     holders: EquityHolder[];
-    dateRange: { from: string; to: string };
+    schedule?: EquityPayoutSchedule;
     onConfigure: () => void;
 }) {
-    const { date: nextDate, frequency } = getNextPayoutDate(holders);
+    // The cadence is now a single platform-wide schedule that applies to every holder.
+    const frequency = schedule?.frequency ?? 'manual';
+    const nextDate = nextRunDateForFrequency(frequency, schedule?.financial_year_end_month ?? 12);
     const hasActiveHolders = holders.some(h => h.is_active);
 
     return (
@@ -451,10 +452,10 @@ function NextPayoutProjectionCard({
                     <span className="font-mono font-bold">{nextDate}</span>
                 </div>
                 <p className="text-xs text-muted-foreground px-1 leading-relaxed">
-                    Profit is calculated from {dateRange.from} to {dateRange.to}. Payouts are triggered automatically if threshold is met.
+                    One platform-wide schedule governs all holders. Payouts are triggered automatically when the threshold is met.
                 </p>
                 <Button variant="outline" className="w-full bg-card shadow-sm hover:shadow-md transition-all border-none font-bold text-xs" onClick={onConfigure}>
-                    Configure Frequency <ArrowRight className="h-3 w-3 ml-2" />
+                    Configure Schedule <ArrowRight className="h-3 w-3 ml-2" />
                 </Button>
             </CardContent>
         </Card>
@@ -490,6 +491,7 @@ function HolderRow({
     onHistory,
     onEntitlements,
     onPortalLink,
+    onOpen,
     isTriggering,
     isGeneratingLink,
 }: {
@@ -500,6 +502,7 @@ function HolderRow({
     onHistory: () => void;
     onEntitlements: () => void;
     onPortalLink: () => void;
+    onOpen: () => void;
     isTriggering?: boolean;
     isGeneratingLink?: boolean;
 }) {
@@ -514,7 +517,9 @@ function HolderRow({
                 </div>
                 <div>
                     <h4 className="font-bold text-sm flex items-center gap-2">
-                        {holder.name}
+                        <button type="button" onClick={onOpen} className="hover:text-primary hover:underline transition-colors text-left">
+                            {holder.name}
+                        </button>
                         {holder.is_active ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <AlertCircle className="h-3 w-3 text-red-500" />}
                     </h4>
                     <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -1538,5 +1543,155 @@ function ExternalLink({ className }: { className?: string }) {
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
         </svg>
+    );
+}
+
+/**
+ * GlobalPayoutScheduleCard edits the single, platform-wide payout schedule that governs
+ * ALL equity holders (replacing the old per-holder frequency config).
+ */
+function GlobalPayoutScheduleCard() {
+    const { data, isLoading } = useEquitySchedule();
+    const updateSchedule = useUpdateEquitySchedule();
+    const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm';
+
+    const [form, setForm] = useState<EquityPayoutSchedule>({
+        frequency: 'manual',
+        schedule_day: 1,
+        financial_year_end_month: 12,
+        close_of_books_day: 0,
+        payout_threshold: 0,
+    });
+
+    useEffect(() => {
+        if (data?.schedule) setForm(data.schedule);
+    }, [data?.schedule]);
+
+    const set = <K extends keyof EquityPayoutSchedule>(key: K, value: EquityPayoutSchedule[K]) =>
+        setForm((f) => ({ ...f, [key]: value }));
+
+    return (
+        <Card className="border-none shadow-xl shadow-black/5 max-w-2xl">
+            <CardHeader className="bg-transparent border-none">
+                <h3 className="text-xl font-bold flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    Global Payout Schedule
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                    A single cadence applied to every equity holder. Individual holders no longer carry their own frequency.
+                </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Loading schedule...
+                    </div>
+                ) : (
+                    <form
+                        className="space-y-4"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            updateSchedule.mutate(form);
+                        }}
+                    >
+                        <FormField label="Frequency" description="How often payouts are automatically run for all holders.">
+                            <select className={inputClass} value={form.frequency} onChange={(e) => set('frequency', e.target.value as EquityPayoutSchedule['frequency'])}>
+                                <option value="manual">Manual (no auto-run)</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="quarterly">Quarterly</option>
+                                <option value="annually">Annually</option>
+                            </select>
+                        </FormField>
+
+                        {(form.frequency === 'monthly' || form.frequency === 'quarterly') && (
+                            <FormField label="Schedule Day" description="Day of month (1-28) for monthly; month-of-quarter (1-3) for quarterly.">
+                                <input type="number" min={0} max={28} value={form.schedule_day || ''} onChange={(e) => set('schedule_day', parseInt(e.target.value) || 0)} className={inputClass} />
+                            </FormField>
+                        )}
+
+                        {form.frequency === 'annually' && (
+                            <FormField label="Financial Year-End Month" description="Month (1-12) the financial year ends. 12 = December.">
+                                <input type="number" min={1} max={12} value={form.financial_year_end_month || ''} onChange={(e) => set('financial_year_end_month', parseInt(e.target.value) || 12)} className={inputClass} />
+                            </FormField>
+                        )}
+
+                        <FormField label="Close of Books Day" description="Day of month when books close for the period. 0 = last day.">
+                            <input type="number" min={0} max={28} value={form.close_of_books_day || ''} onChange={(e) => set('close_of_books_day', parseInt(e.target.value) || 0)} className={inputClass} placeholder="0 = last day" />
+                        </FormField>
+
+                        <FormField label="Payout Threshold (KES)" description="Minimum net allocation before a holder is paid in an auto-run. 0 = always pay.">
+                            <input type="number" min={0} value={form.payout_threshold || ''} onChange={(e) => set('payout_threshold', parseFloat(e.target.value) || 0)} className={inputClass} placeholder="0 = no threshold" />
+                        </FormField>
+
+                        <div className="pt-2">
+                            <Button type="submit" disabled={updateSchedule.isPending}>
+                                {updateSchedule.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                Save Schedule (applies to all holders)
+                            </Button>
+                        </div>
+                    </form>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+/**
+ * AgreementsPanel surfaces the legal/onboarding posture of each holder: whether they were
+ * onboarded through the auth-service application workflow (KYC + signed EPA) or quick-added,
+ * plus the KRA tax treatment that governs their payouts.
+ */
+function AgreementsPanel({ holders }: { holders: EquityHolder[] }) {
+    const treatmentLabel = (h: EquityHolder) => {
+        const t = h.payout_tax_treatment && h.payout_tax_treatment !== 'auto'
+            ? h.payout_tax_treatment
+            : (h.holder_type === 'royalty' ? 'royalty' : 'dividend');
+        const residency = h.tax_residency === 'non_resident' ? 'Non-resident' : 'Resident';
+        return `${t} · ${residency}`;
+    };
+
+    return (
+        <div className="space-y-6 max-w-4xl">
+            <Card className="border-none shadow-xl shadow-black/5 bg-primary/5">
+                <CardContent className="p-6 space-y-2">
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                        <Shield className="h-5 w-5 text-primary" /> Equity Participation Agreements
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                        Holders are contractual revenue/profit-share participants under an <strong>Equity Participation Agreement (EPA)</strong>, not registered
+                        shareholders. Production onboarding runs through the auth-service workflow:
+                        <span className="font-mono text-xs"> apply → KYC → EPA e-signature → approval</span>, which then provisions the treasury holder.
+                        Quick-added holders (internal / founders) bypass that workflow.
+                    </p>
+                </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-xl shadow-black/5">
+                <CardHeader className="bg-transparent border-none">
+                    <h3 className="font-bold">Holder Onboarding &amp; Tax Status</h3>
+                </CardHeader>
+                <CardContent className="p-0">
+                    {holders.length === 0 ? (
+                        <p className="p-6 text-sm text-muted-foreground">No holders yet.</p>
+                    ) : (
+                        <div className="divide-y divide-border/50">
+                            {holders.map((h) => (
+                                <div key={h.id} className="flex items-center justify-between px-6 py-4">
+                                    <div>
+                                        <p className="font-semibold text-sm">{h.name}</p>
+                                        <p className="text-xs text-muted-foreground">{treatmentLabel(h)} · KRA withholding applied at payout</p>
+                                    </div>
+                                    {h.application_id ? (
+                                        <Badge variant="success" className="gap-1"><CheckCircle2 className="h-3 w-3" /> EPA onboarded</Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="gap-1"><AlertCircle className="h-3 w-3" /> Quick-add (internal)</Badge>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
     );
 }

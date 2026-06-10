@@ -14,7 +14,6 @@ import {
   FileMinus,
   FilePlus,
   FileText,
-  Gift,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -273,16 +272,11 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       active: pathname?.startsWith(`/${orgSlug}/platform/payouts`) ?? false,
     },
     {
-      label: 'Equity',
+      // Referrals + Agreements + the global payout schedule now live as tabs inside Equity.
+      label: 'Equity & Referrals',
       icon: Wallet,
       href: `/${orgSlug}/platform/equity`,
       active: pathname?.startsWith(`/${orgSlug}/platform/equity`) ?? false,
-    },
-    {
-      label: 'Referrals',
-      icon: Gift,
-      href: `/${orgSlug}/platform/referrals`,
-      active: pathname?.startsWith(`/${orgSlug}/platform/referrals`) ?? false,
     },
     {
       label: 'Audit Log',
