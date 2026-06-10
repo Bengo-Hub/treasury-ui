@@ -11,10 +11,13 @@ import {
     useEquitySchedule,
     useEquitySummary,
     useHolderPayouts,
+    useRunEquityPayout,
     useTriggerEquityPayout,
     useUpdateEquityHolder,
     useUpdateEquitySchedule,
 } from '@/hooks/use-equity';
+import { useEquityApplications, useUpdateEquityApplication } from '@/hooks/use-equity-applications';
+import type { EquityApplication } from '@/lib/api/equity-applications';
 import ReferralsPanel from '../referrals/page';
 import {
     useCreateEntitlement,
@@ -27,7 +30,7 @@ import { useMe } from '@/hooks/useMe';
 import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import { useReferrals } from '@/hooks/use-referrals';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import type { CreateEquityHolderRequest, EquityHolder, EquityPayout, EquityPayoutSchedule } from '@/lib/api/equity';
+import type { CreateEquityHolderRequest, EquityHolder, EquityPayout, EquityPayoutSchedule, RunPayoutResult } from '@/lib/api/equity';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
@@ -108,6 +111,7 @@ export default function EquityManagementPage() {
         return { from: format(from, 'yyyy-MM-dd'), to: format(to, 'yyyy-MM-dd') };
     });
     const [activeTab, setActiveTab] = useState('holders');
+    const [showRunPayout, setShowRunPayout] = useState(false);
     const [showAddHolder, setShowAddHolder] = useState(false);
     const [editingHolder, setEditingHolder] = useState<EquityHolder | null>(null);
     const [historyHolderId, setHistoryHolderId] = useState<string | null>(null);
@@ -171,6 +175,10 @@ export default function EquityManagementPage() {
                         setDateRange({ from: format(from, 'yyyy-MM-dd'), to: format(to, 'yyyy-MM-dd') });
                     }}>
                         This Month
+                    </Button>
+                    <Button variant="outline" className="gap-2" onClick={() => setShowRunPayout(true)}>
+                        <RefreshCcw className="h-4 w-4" />
+                        Run Payout
                     </Button>
                     <Button className="gap-2 shadow-xl shadow-primary/20" onClick={() => setShowAddHolder(true)}>
                         <Plus className="h-4 w-4" />
@@ -387,6 +395,13 @@ export default function EquityManagementPage() {
                     <AgreementsPanel holders={holders} />
                 </TabsContent>
             </Tabs>
+
+            {showRunPayout && (
+                <RunPayoutModal
+                    defaultRange={dateRange}
+                    onClose={() => setShowRunPayout(false)}
+                />
+            )}
         </div>
     );
 }
@@ -668,6 +683,7 @@ function HolderFormModal({
     const resolveAccountMutation = useResolveAccount(tenantSlug);
     const [verifiedName, setVerifiedName] = useState<string | null>(null);
     const [verifyError, setVerifyError] = useState<string | null>(null);
+    const [verifyNote, setVerifyNote] = useState<string | null>(null);
 
     // Hydrate ALL fields when initial changes (edit mode) or reset to defaults (create mode)
     useEffect(() => {
@@ -1122,13 +1138,20 @@ function HolderFormModal({
                                                 disabled={!bankCode || !accountNumber || resolveAccountMutation.isPending}
                                                 onClick={() => {
                                                     setVerifyError(null);
+                                                    setVerifyNote(null);
                                                     resolveAccountMutation.mutate(
                                                         { accountNumber, bankCode },
                                                         {
                                                             onSuccess: (data: any) => {
-                                                                const resolved = data?.data?.account_name ?? data?.account_name ?? '';
-                                                                setVerifiedName(resolved);
-                                                                setAccountName(resolved);
+                                                                const payload = data?.data ?? data;
+                                                                // Mobile money (M-Pesa) can't be name-resolved by Paystack — enter the name manually.
+                                                                if (payload?.resolvable === false || !payload?.account_name) {
+                                                                    setVerifiedName(null);
+                                                                    setVerifyNote(payload?.message || 'Mobile money can’t be auto-verified — enter the account holder name manually.');
+                                                                    return;
+                                                                }
+                                                                setVerifiedName(payload.account_name);
+                                                                setAccountName(payload.account_name);
                                                             },
                                                             onError: (err: any) => {
                                                                 setVerifyError(err?.response?.data?.message || err?.message || 'Verification failed');
@@ -1145,6 +1168,12 @@ function HolderFormModal({
                                         <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
                                             <CheckCircle2 className="h-4 w-4" />
                                             {verifiedName}
+                                        </div>
+                                    )}
+                                    {verifyNote && (
+                                        <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                                            <Info className="h-4 w-4" />
+                                            {verifyNote}
                                         </div>
                                     )}
                                     {verifyError && (
@@ -1673,6 +1702,8 @@ function AgreementsPanel({ holders }: { holders: EquityHolder[] }) {
                 </CardContent>
             </Card>
 
+            <ApplicationsAdminCard />
+
             <Card className="border-none shadow-xl shadow-black/5">
                 <CardHeader className="bg-transparent border-none">
                     <h3 className="font-bold">Holder Onboarding &amp; Tax Status</h3>
@@ -1700,5 +1731,154 @@ function AgreementsPanel({ holders }: { holders: EquityHolder[] }) {
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+/**
+ * RunPayoutModal runs a payout for ALL active holders over a period. It always previews via a
+ * dry run first (computes net-of-WHT amounts + skip reasons) before allowing execution.
+ */
+function RunPayoutModal({
+    defaultRange,
+    onClose,
+}: {
+    defaultRange: { from: string; to: string };
+    onClose: () => void;
+}) {
+    const runPayout = useRunEquityPayout();
+    const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm';
+    const [range, setRange] = useState(defaultRange);
+    const [preview, setPreview] = useState<RunPayoutResult[] | null>(null);
+    const [previewed, setPreviewed] = useState(false);
+
+    const run = async (dryRun: boolean) => {
+        const res = await runPayout.mutateAsync({ period_start: range.from, period_end: range.to, dry_run: dryRun });
+        setPreview(res.results);
+        setPreviewed(dryRun);
+        if (!dryRun) {
+            // After a real run, refresh the preview to reflect new statuses, then close shortly.
+            setTimeout(onClose, 1200);
+        }
+    };
+
+    return (
+        <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+            <DialogContent title="Run Equity Payout" onClose={onClose} className="max-w-2xl">
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Period Start">
+                            <input type="date" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} className={inputClass} />
+                        </FormField>
+                        <FormField label="Period End">
+                            <input type="date" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} className={inputClass} />
+                        </FormField>
+                    </div>
+
+                    {preview && (
+                        <div className="rounded-lg border border-border/60 max-h-72 overflow-y-auto divide-y divide-border/50">
+                            {preview.length === 0 ? (
+                                <p className="p-4 text-sm text-muted-foreground">No holders / no allocation for this period.</p>
+                            ) : preview.map((r) => (
+                                <div key={r.holder_id} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                                    <span className="font-medium">{r.holder_name}</span>
+                                    <span className="flex items-center gap-2">
+                                        <span className="font-mono">KES {r.amount}</span>
+                                        {r.skipped
+                                            ? <Badge variant="outline" className="text-[10px]">{r.skipped}</Badge>
+                                            : <Badge variant="success" className="text-[10px]">{r.status ?? 'ok'}</Badge>}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 pt-1">
+                        <Button type="button" variant="outline" className="flex-1" onClick={() => run(true)} disabled={runPayout.isPending}>
+                            {runPayout.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            Preview (dry run)
+                        </Button>
+                        <Button
+                            type="button"
+                            className="flex-1"
+                            onClick={() => run(false)}
+                            disabled={runPayout.isPending || !previewed || (preview?.every((r) => !!r.skipped) ?? true)}
+                            title={!previewed ? 'Preview first' : ''}
+                        >
+                            Execute Payout
+                        </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        Execution disburses real Paystack transfers to every eligible holder for the selected period. Preview first.
+                    </p>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+const APP_STATUS_FLOW: Record<string, { next?: string; label: string }> = {
+    pending: { next: 'kyc_pending', label: 'Start KYC' },
+    kyc_pending: { next: 'kyc_approved', label: 'Mark KYC approved' },
+    kyc_approved: { next: 'epa_pending', label: 'Request EPA' },
+    epa_pending: { next: 'approved', label: 'Approve' },
+    approved: { label: 'Approved' },
+    rejected: { label: 'Rejected' },
+};
+
+/**
+ * ApplicationsAdminCard drives the auth-service equity-holder application workflow
+ * (apply → KYC → EPA → approval) from the treasury admin UI.
+ */
+function ApplicationsAdminCard() {
+    const { data: apps, isLoading, isError } = useEquityApplications();
+    const updateApp = useUpdateEquityApplication();
+
+    const advance = (a: EquityApplication) => {
+        const next = APP_STATUS_FLOW[a.status]?.next;
+        if (next) updateApp.mutate({ id: a.id, data: { status: next as EquityApplication['status'] } });
+    };
+
+    return (
+        <Card className="border-none shadow-xl shadow-black/5">
+            <CardHeader className="bg-transparent border-none flex flex-row items-center justify-between">
+                <h3 className="font-bold">Equity Applications</h3>
+                <Badge variant="outline" className="text-[10px]">auth-service workflow</Badge>
+            </CardHeader>
+            <CardContent className="p-0">
+                {isLoading ? (
+                    <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading applications...</div>
+                ) : isError ? (
+                    <p className="p-6 text-sm text-muted-foreground">Couldn&apos;t load applications (auth-service admin scope required).</p>
+                ) : !apps || apps.length === 0 ? (
+                    <p className="p-6 text-sm text-muted-foreground">No equity applications yet. External candidates apply via the auth-service, then progress here.</p>
+                ) : (
+                    <div className="divide-y divide-border/50">
+                        {apps.map((a) => (
+                            <div key={a.id} className="flex items-center justify-between px-6 py-4 gap-4">
+                                <div className="min-w-0">
+                                    <p className="font-semibold text-sm font-mono truncate">{a.tenant_id.slice(0, 8)}…</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {a.status.replace(/_/g, ' ')}{a.kyc_reference ? ` · KYC ${a.kyc_reference.slice(0, 8)}` : ''}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant={a.status === 'approved' ? 'success' : a.status === 'rejected' ? 'error' : 'outline'}>{a.status.replace(/_/g, ' ')}</Badge>
+                                    {APP_STATUS_FLOW[a.status]?.next && (
+                                        <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={updateApp.isPending} onClick={() => advance(a)}>
+                                            {APP_STATUS_FLOW[a.status]?.label} <ArrowRight className="h-3 w-3 ml-1" />
+                                        </Button>
+                                    )}
+                                    {a.status !== 'approved' && a.status !== 'rejected' && (
+                                        <Button size="sm" variant="ghost" className="h-8 text-[11px] text-red-500" disabled={updateApp.isPending} onClick={() => updateApp.mutate({ id: a.id, data: { status: 'rejected' } })}>
+                                            Reject
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
     );
 }

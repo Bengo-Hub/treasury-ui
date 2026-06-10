@@ -111,3 +111,19 @@ export function useIssueReward() {
     },
   });
 }
+
+export function useConvertToEquity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ referralId, data }: { referralId: string; data: referralsApi.ConvertToEquityRequest }) =>
+      referralsApi.convertReferralToEquity(referralId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['referrals'] });
+      queryClient.invalidateQueries({ queryKey: ['equity-holders'] });
+      toast.success('Referral converted to equity holder');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to convert referral to equity');
+    },
+  });
+}

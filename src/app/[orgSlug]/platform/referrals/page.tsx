@@ -14,6 +14,7 @@ import {
   useUpdateReferral,
   useReferralRewards,
   useIssueReward,
+  useConvertToEquity,
 } from '@/hooks/use-referrals';
 import { useMe } from '@/hooks/useMe';
 import type {
@@ -88,6 +89,7 @@ export default function ReferralsPage() {
   const createReferral = useCreateReferral();
   const updateReferral = useUpdateReferral();
   const issueReward = useIssueReward();
+  const convertToEquity = useConvertToEquity();
 
   const programs = programsData?.programs ?? [];
   const referrals = referralsData?.referrals ?? [];
@@ -337,6 +339,31 @@ export default function ReferralsPage() {
                                     >
                                       View Rewards
                                     </button>
+                                    {(() => {
+                                      const prog = programs.find((p) => p.id === referral.program_id);
+                                      const canConvert = prog?.referral_type === 'type_b' && referral.status === 'active' && !referral.equity_holder_id;
+                                      if (referral.equity_holder_id) {
+                                        return (
+                                          <div className="px-4 py-2 text-xs text-muted-foreground border-t border-border mt-1">
+                                            ✓ Converted to equity holder
+                                          </div>
+                                        );
+                                      }
+                                      if (!canConvert) return null;
+                                      return (
+                                        <>
+                                          <div className="border-t border-border my-1" />
+                                          <button
+                                            type="button"
+                                            className="w-full px-4 py-2 text-left text-sm font-medium text-primary hover:bg-accent disabled:opacity-50"
+                                            disabled={convertToEquity.isPending}
+                                            onClick={() => { convertToEquity.mutate({ referralId: referral.id, data: {} }); setOpenMenu(null); }}
+                                          >
+                                            Convert to Equity →
+                                          </button>
+                                        </>
+                                      );
+                                    })()}
                                   </div>
                                 )}
                               </div>
@@ -455,6 +482,14 @@ function ProgramFormDialog({
   const [discountDurationMonths, setDiscountDurationMonths] = useState(initialData?.discount_duration_months ?? 0);
   const [giftCardValue, setGiftCardValue] = useState(initialData?.gift_card_value ?? '');
   const [couponCodePrefix, setCouponCodePrefix] = useState(initialData?.coupon_code_prefix ?? '');
+  const [referralType, setReferralType] = useState(initialData?.referral_type ?? 'type_a');
+  const [equityGrantPct, setEquityGrantPct] = useState(initialData?.equity_grant_pct ?? '');
+
+  const num = (v: string | number | undefined): number | undefined => {
+    if (v === undefined || v === '') return undefined;
+    const n = parseFloat(String(v));
+    return Number.isFinite(n) ? n : undefined;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -463,15 +498,17 @@ function ProgramFormDialog({
       description: description || undefined,
       reward_type: rewardType,
       currency,
+      referral_type: referralType,
     };
-    if (rewardType === 'revenue_share') data.revenue_share_percentage = revenueSharePercentage;
-    if (rewardType === 'fixed_monetary') data.fixed_reward_amount = fixedRewardAmount;
+    if (rewardType === 'revenue_share') data.revenue_share_percentage = num(revenueSharePercentage);
+    if (rewardType === 'fixed_monetary') data.fixed_reward_amount = num(fixedRewardAmount);
     if (rewardType === 'discount') {
-      data.discount_percentage = discountPercentage;
+      data.discount_percentage = num(discountPercentage);
       data.discount_duration_months = discountDurationMonths || undefined;
     }
-    if (rewardType === 'gift_card') data.gift_card_value = giftCardValue;
+    if (rewardType === 'gift_card') data.gift_card_value = num(giftCardValue);
     if (rewardType === 'coupon') data.coupon_code_prefix = couponCodePrefix;
+    if (referralType === 'type_b') data.equity_grant_pct = num(equityGrantPct);
     onSubmit(data);
   };
 
@@ -498,6 +535,22 @@ function ProgramFormDialog({
           />
         </FormField>
 
+        <FormField label="Referral Type" required>
+          <select
+            value={referralType}
+            onChange={(e) => setReferralType(e.target.value)}
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="type_a">Type A — existing tenant refers (subscription credit)</option>
+            <option value="type_b">Type B — external referrer (revenue-share equity)</option>
+          </select>
+          <p className="text-xs text-muted-foreground mt-1">
+            {referralType === 'type_b'
+              ? 'Referrals on this program can be converted into a revenue-share equity holder scoped to the referred tenant.'
+              : 'Referrers are rewarded with a subscription credit on their own account.'}
+          </p>
+        </FormField>
+
         <FormField label="Reward Type" required>
           <select
             value={rewardType}
@@ -509,6 +562,21 @@ function ProgramFormDialog({
             ))}
           </select>
         </FormField>
+
+        {referralType === 'type_b' && (
+          <FormField label="Equity Grant % (optional)">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={equityGrantPct}
+              onChange={(e) => setEquityGrantPct(e.target.value)}
+              placeholder="e.g. 1.00 — vesting equity grant on conversion"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            />
+          </FormField>
+        )}
 
         <FormField label="Currency">
           <select

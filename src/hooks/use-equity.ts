@@ -75,6 +75,24 @@ export function useUpdateEquitySchedule() {
     });
 }
 
+export function useRunEquityPayout() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (data: equityApi.RunPayoutRequest) => equityApi.runEquityPayout(data),
+        onSuccess: (res) => {
+            if (!res.dry_run) {
+                queryClient.invalidateQueries({ queryKey: ['equity-summary'] });
+                queryClient.invalidateQueries({ queryKey: ['equity-payouts'] });
+                const paid = res.results.filter((r) => r.payout_id).length;
+                toast.success(`Payout run complete — ${paid} holder(s) paid`);
+            }
+        },
+        onError: (error: any) => {
+            toast.error(error.message || 'Failed to run payout');
+        },
+    });
+}
+
 export function useTriggerEquityPayout() {
     const queryClient = useQueryClient();
     return useMutation({
