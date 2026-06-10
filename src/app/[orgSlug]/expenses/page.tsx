@@ -13,6 +13,7 @@ import {
   useApproveExpense,
   useRejectExpense,
 } from '@/hooks/use-expenses';
+import { useCostCenters } from '@/hooks/use-cost-centers';
 import type { Expense } from '@/lib/api/expenses';
 import { cn } from '@/lib/utils';
 import {
@@ -51,6 +52,7 @@ export default function ExpensesPage() {
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [costCenterFilter, setCostCenterFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState<string | null>(null);
@@ -61,13 +63,18 @@ export default function ExpensesPage() {
     from: dateRange.from,
     to: dateRange.to,
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-  }), [dateRange, statusFilter]);
+    // Backend ListExpenses supports server-side cost_center_id filtering (expenses.go).
+    ...(costCenterFilter !== 'all' ? { cost_center_id: costCenterFilter } : {}),
+  }), [dateRange, statusFilter, costCenterFilter]);
 
   const { data, isLoading, error } = useExpenses(effectiveTenant, queryParams, !!effectiveTenant);
   const { data: catData } = useExpenseCategories(effectiveTenant, !!effectiveTenant);
+  // active_only: hide archived centers from the selector/filter.
+  const { data: costCenterData } = useCostCenters(effectiveTenant, { active_only: true });
 
   const list = data?.expenses ?? [];
   const categories = catData?.categories ?? [];
+  const costCenters = costCenterData?.cost_centers ?? [];
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return list;
@@ -83,7 +90,7 @@ export default function ExpensesPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginatedItems = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
-  useMemo(() => { setPage(1); }, [searchQuery, statusFilter]);
+  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, costCenterFilter]);
 
   const statusOptions = ['all', 'draft', 'submitted', 'approved', 'rejected', 'reimbursed'];
 
@@ -96,6 +103,7 @@ export default function ExpensesPage() {
   // Create form state
   const [form, setForm] = useState({
     category_id: '',
+    cost_center_id: '',
     description: '',
     amount: '',
     tax_amount: '',
@@ -110,11 +118,12 @@ export default function ExpensesPage() {
       amount: parseFloat(form.amount),
       tax_amount: form.tax_amount ? parseFloat(form.tax_amount) : undefined,
       category_id: form.category_id || undefined,
+      cost_center_id: form.cost_center_id || undefined,
       receipt_url: form.receipt_url || undefined,
       expense_date: form.expense_date || undefined,
     });
     setCreateOpen(false);
-    setForm({ category_id: '', description: '', amount: '', tax_amount: '', receipt_url: '', expense_date: new Date().toISOString().slice(0, 10) });
+    setForm({ category_id: '', cost_center_id: '', description: '', amount: '', tax_amount: '', receipt_url: '', expense_date: new Date().toISOString().slice(0, 10) });
   };
 
   const handleReject = async () => {
@@ -160,6 +169,20 @@ export default function ExpensesPage() {
             />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {costCenters.length > 0 && (
+              <select
+                value={costCenterFilter}
+                onChange={(e) => setCostCenterFilter(e.target.value)}
+                className="bg-accent/30 border border-border rounded-lg py-1.5 px-3 text-xs font-bold focus:ring-1 focus:ring-primary outline-none"
+              >
+                <option value="all">All cost centers</option>
+                {costCenters.map((cc) => (
+                  <option key={cc.id} value={cc.id}>
+                    {cc.code ? `${cc.code} - ${cc.name}` : cc.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Filter className="h-3.5 w-3.5" />
               <span className="font-semibold uppercase tracking-wider">Status:</span>
@@ -276,6 +299,20 @@ export default function ExpensesPage() {
                 <option value="">None</option>
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Cost Center">
+              <select
+                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
+                value={form.cost_center_id}
+                onChange={(e) => setForm((f) => ({ ...f, cost_center_id: e.target.value }))}
+              >
+                <option value="">None</option>
+                {costCenters.map((cc) => (
+                  <option key={cc.id} value={cc.id}>
+                    {cc.code ? `${cc.code} - ${cc.name}` : cc.name}
+                  </option>
                 ))}
               </select>
             </FormField>

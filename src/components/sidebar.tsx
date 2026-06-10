@@ -23,6 +23,7 @@ import {
   Settings,
   Shield,
   ShoppingCart,
+  Target,
   TrendingUp,
   Truck,
   Users,
@@ -193,6 +194,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: Landmark,
           href: `/${orgSlug}/ledger/accounts`,
           active: pathname.startsWith(`/${orgSlug}/ledger/accounts`),
+        },
+        {
+          label: 'Cost Centers',
+          icon: Target,
+          href: `/${orgSlug}/settings/cost-centers`,
+          active: pathname.startsWith(`/${orgSlug}/settings/cost-centers`),
         },
         {
           label: 'Journal Entries',
