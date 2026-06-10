@@ -137,9 +137,14 @@ export interface TriggerPayoutResponse {
 
 // ─── API Functions ────────────────────────────────────────────────────────────
 
-/** List all equity holders (active and inactive). */
-export function listEquityHolders(): Promise<{ holders: EquityHolder[] }> {
-    return apiClient.get<{ holders: EquityHolder[] }>(`${BASE}/platform/equity-holders`);
+/** List all equity holders (active and inactive).
+ *  The backend returns a paginated envelope `{ data: [], total, ... }`; older/alternate
+ *  shapes (`{ holders: [] }` or a bare array) are tolerated. */
+export async function listEquityHolders(): Promise<{ holders: EquityHolder[] }> {
+    const res = await apiClient.get<unknown>(`${BASE}/platform/equity-holders`);
+    const r = res as { data?: EquityHolder[]; holders?: EquityHolder[] } | EquityHolder[];
+    const holders = Array.isArray(r) ? r : (r.data ?? r.holders ?? []);
+    return { holders };
 }
 
 /** Create a new shareholder or royalty holder. */
