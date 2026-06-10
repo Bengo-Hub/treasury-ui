@@ -111,7 +111,7 @@ export default function EquityManagementPage() {
     const [freqConfigHolder, setFreqConfigHolder] = useState<EquityHolder | null>(null);
     const generatePortalLink = useGeneratePortalLink();
 
-    const { data: holdersData, isLoading: loadingHolders } = useEquityHolders();
+    const { data: holdersData, isLoading: loadingHolders, isError: holdersError } = useEquityHolders();
     const { data: summaryData, isLoading: loadingSummary } = useEquitySummary(dateRange.from, dateRange.to);
     const { data: balanceData, isLoading: loadingBalance } = usePlatformBalance();
     const triggerPayout = useTriggerEquityPayout();
@@ -231,6 +231,12 @@ export default function EquityManagementPage() {
                                 <div className="p-12 text-center text-muted-foreground flex flex-col items-center gap-3">
                                     <Loader2 className="h-8 w-8 animate-spin opacity-20" />
                                     <p className="text-sm">Loading holders...</p>
+                                </div>
+                            ) : holdersError ? (
+                                <div className="p-8">
+                                    <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                                        Failed to load equity holders. Check your connection and try again.
+                                    </div>
                                 </div>
                             ) : holders.length === 0 ? (
                                 <div className="p-12 text-center text-muted-foreground flex flex-col items-center gap-3">
@@ -577,7 +583,7 @@ function HolderRow({
                         {isTriggering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}
                         Pay Now
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onEdit}>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onEdit} aria-label="Edit holder">
                         <MoreVertical className="h-4 w-4" />
                     </Button>
                 </div>
@@ -1216,7 +1222,7 @@ function HolderFormModal({
 }
 
 function PayoutHistoryModal({ holderId, holderName, onClose }: { holderId: string; holderName: string; onClose: () => void }) {
-    const { data, isLoading } = useHolderPayouts(holderId);
+    const { data, isLoading, isError } = useHolderPayouts(holderId);
     const payouts = data?.payouts ?? [];
 
     return (
@@ -1224,7 +1230,7 @@ function PayoutHistoryModal({ holderId, holderName, onClose }: { holderId: strin
             <div className="bg-card rounded-xl shadow-xl border border-border max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between p-4 border-b border-border">
                     <h3 className="text-lg font-bold">Payout history — {holderName}</h3>
-                    <button type="button" onClick={onClose} className="p-1 rounded hover:bg-accent">
+                    <button type="button" onClick={onClose} className="p-1 rounded hover:bg-accent" aria-label="Close">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
@@ -1232,6 +1238,10 @@ function PayoutHistoryModal({ holderId, holderName, onClose }: { holderId: strin
                     {isLoading ? (
                         <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
                             <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+                        </div>
+                    ) : isError ? (
+                        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                            Failed to load payout history. Check your connection and try again.
                         </div>
                     ) : payouts.length === 0 ? (
                         <p className="text-sm text-muted-foreground py-6 text-center">No payouts yet.</p>
@@ -1260,7 +1270,7 @@ function PayoutHistoryModal({ holderId, holderName, onClose }: { holderId: strin
 }
 
 function EntitlementsModal({ holderId, holderName, onClose }: { holderId: string; holderName: string; onClose: () => void }) {
-    const { data, isLoading } = useEquityEntitlements(holderId);
+    const { data, isLoading, isError } = useEquityEntitlements(holderId);
     const createEntitlement = useCreateEntitlement(holderId);
     const deactivateEntitlement = useDeactivateEntitlement(holderId);
     const entitlements = data?.entitlements ?? [];
@@ -1301,7 +1311,7 @@ function EntitlementsModal({ holderId, holderName, onClose }: { holderId: string
                         <Button size="sm" className="h-8 gap-2 text-xs" onClick={() => setShowForm(true)}>
                             <Plus className="h-3.5 w-3.5" /> Add
                         </Button>
-                        <button type="button" onClick={onClose} className="p-1 rounded hover:bg-accent">
+                        <button type="button" onClick={onClose} className="p-1 rounded hover:bg-accent" aria-label="Close">
                             <X className="h-5 w-5" />
                         </button>
                     </div>
@@ -1356,6 +1366,10 @@ function EntitlementsModal({ holderId, holderName, onClose }: { holderId: string
                     {isLoading ? (
                         <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
                             <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+                        </div>
+                    ) : isError ? (
+                        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                            Failed to load entitlements. Check your connection and try again.
                         </div>
                     ) : entitlements.length === 0 ? (
                         <div className="py-8 text-center text-muted-foreground">
