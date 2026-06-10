@@ -1,9 +1,11 @@
 'use client';
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import {
   useReferralPrograms,
   useCreateReferralProgram,
@@ -705,6 +707,13 @@ function ReferralFormDialog({
   const [referredTenantId, setReferredTenantId] = useState('');
   const [notes, setNotes] = useState('');
 
+  const { data: tenants, isLoading: loadingTenants } = usePlatformTenants();
+  const tenantOptions: ComboboxOption[] = (tenants ?? []).map((t) => ({
+    value: t.id,
+    label: t.name || t.slug,
+    hint: t.slug,
+  }));
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
@@ -732,25 +741,25 @@ function ReferralFormDialog({
           </select>
         </FormField>
 
-        <FormField label="Referrer Tenant ID" required>
-          <input
-            type="text"
+        <FormField label="Referrer Tenant" required description="The tenant making the referral.">
+          <Combobox
+            options={tenantOptions}
             value={referrerTenantId}
-            onChange={(e) => setReferrerTenantId(e.target.value)}
-            placeholder="UUID of the referring tenant"
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
-            required
+            onChange={setReferrerTenantId}
+            loading={loadingTenants}
+            placeholder="Select the referring tenant…"
+            searchPlaceholder="Search tenants by name or slug…"
           />
         </FormField>
 
-        <FormField label="Referred Tenant ID" required>
-          <input
-            type="text"
+        <FormField label="Referred Tenant" required description="The tenant who was referred.">
+          <Combobox
+            options={tenantOptions.filter((t) => t.value !== referrerTenantId)}
             value={referredTenantId}
-            onChange={(e) => setReferredTenantId(e.target.value)}
-            placeholder="UUID of the referred tenant"
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
-            required
+            onChange={setReferredTenantId}
+            loading={loadingTenants}
+            placeholder="Select the referred tenant…"
+            searchPlaceholder="Search tenants by name or slug…"
           />
         </FormField>
 
@@ -765,7 +774,7 @@ function ReferralFormDialog({
 
         <div className="flex gap-2 justify-end pt-2">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || !programId || !referrerTenantId || !referredTenantId}>
             {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
             Create
           </Button>
