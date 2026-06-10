@@ -53,6 +53,28 @@ export function useUpdateEquityHolder() {
     });
 }
 
+export function useEquitySchedule() {
+    return useQuery({
+        queryKey: ['equity-schedule'],
+        queryFn: equityApi.getEquitySchedule,
+    });
+}
+
+export function useUpdateEquitySchedule() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (data: equityApi.EquityPayoutSchedule) => equityApi.updateEquitySchedule(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['equity-schedule'] });
+            queryClient.invalidateQueries({ queryKey: ['equity-summary'] });
+            toast.success('Payout schedule updated for all holders');
+        },
+        onError: (error: any) => {
+            toast.error(error.message || 'Failed to update payout schedule');
+        },
+    });
+}
+
 export function useTriggerEquityPayout() {
     const queryClient = useQueryClient();
     return useMutation({
