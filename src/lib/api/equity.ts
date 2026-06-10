@@ -191,6 +191,36 @@ export function triggerEquityPayout(
     );
 }
 
+// ─── Bulk Payout Run ────────────────────────────────────────────────────────────
+
+export interface RunPayoutRequest {
+    period_start: string; // YYYY-MM-DD
+    period_end: string;   // YYYY-MM-DD
+    dry_run: boolean;
+}
+
+export interface RunPayoutResult {
+    holder_id: string;
+    holder_name: string;
+    amount: string;
+    payout_id?: string;
+    reference?: string;
+    status?: string;
+    skipped?: string;
+}
+
+export interface RunPayoutResponse {
+    period_start: string;
+    period_end: string;
+    dry_run: boolean;
+    results: RunPayoutResult[];
+}
+
+/** Run a payout for ALL active holders over a period. dry_run computes amounts without paying. */
+export function runEquityPayout(body: RunPayoutRequest): Promise<RunPayoutResponse> {
+    return apiClient.post<RunPayoutResponse>(`${BASE}/platform/equity-holders/run`, body);
+}
+
 // ─── Global Payout Schedule ─────────────────────────────────────────────────────
 
 /** Get the platform-wide equity payout schedule (applies to all holders). */
