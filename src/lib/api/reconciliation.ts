@@ -76,6 +76,21 @@ export interface UnreconciledResponse {
   total: number;
 }
 
+export interface LedgerTxn {
+  id: string;
+  transaction_date: string;
+  description: string;
+  debit_amount: string;
+  credit_amount: string;
+  currency: string;
+  reference_type: string;
+}
+
+export interface LedgerTxnsResponse {
+  transactions: LedgerTxn[];
+  total: number;
+}
+
 // ---- API functions ----
 
 export function listBankAccounts(tenantIdOrSlug: string): Promise<BankAccountsResponse> {
@@ -103,6 +118,10 @@ export function manualMatch(tenantIdOrSlug: string, lineId: string, transactionI
     line_id: lineId,
     transaction_id: transactionId,
   });
+}
+
+export function listLedgerTransactions(tenantIdOrSlug: string): Promise<LedgerTxnsResponse> {
+  return apiClient.get<LedgerTxnsResponse>(`${BASE}/${tenantIdOrSlug}/banking/ledger-transactions`);
 }
 
 export function getUnreconciled(tenantIdOrSlug: string): Promise<UnreconciledResponse> {
