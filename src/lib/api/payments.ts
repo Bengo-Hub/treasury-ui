@@ -24,3 +24,25 @@ export interface ReconcileSummary {
 export function reconcilePendingPayments(tenantIdOrSlug: string) {
   return apiClient.post<ReconcileSummary>(`${BASE}/${tenantIdOrSlug}/payments/reconcile`, {});
 }
+
+export interface PaymentIntentSummary {
+  id: string;
+  amount: string | number;
+  currency?: string;
+  status: string;
+  reference_id?: string;
+  reference_type?: string;
+  description?: string;
+  created_at?: string;
+}
+
+/** List payment intents for a tenant, optionally filtered by status. */
+export function listPaymentIntents(
+  tenantIdOrSlug: string,
+  status?: string,
+): Promise<{ intents: PaymentIntentSummary[] }> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  return apiClient.get<{ intents: PaymentIntentSummary[] }>(
+    `${BASE}/${tenantIdOrSlug}/payments/intents${qs}`,
+  );
+}

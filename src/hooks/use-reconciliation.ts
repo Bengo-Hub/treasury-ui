@@ -9,12 +9,14 @@ import {
   autoReconcile,
   manualMatch,
   getUnreconciled,
+  listLedgerTransactions,
   type BankAccountsResponse,
   type CreateBankAccountRequest,
   type ImportStatementRequest,
   type StatementLinesResponse,
   type AutoReconcileResponse,
   type UnreconciledResponse,
+  type LedgerTxnsResponse,
 } from '@/lib/api/reconciliation';
 
 const STALE_MS = 5 * 60 * 1000;
@@ -89,6 +91,15 @@ export function useUnreconciled(tenantSlug: string) {
   return useQuery<UnreconciledResponse>({
     queryKey: reconKeys.unreconciled(tenantSlug),
     queryFn: () => getUnreconciled(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: STALE_MS,
+  });
+}
+
+export function useLedgerTransactions(tenantSlug: string) {
+  return useQuery<LedgerTxnsResponse>({
+    queryKey: ['banking', 'ledger-transactions', tenantSlug],
+    queryFn: () => listLedgerTransactions(tenantSlug),
     enabled: !!tenantSlug,
     staleTime: STALE_MS,
   });
