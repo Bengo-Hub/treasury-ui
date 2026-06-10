@@ -13,6 +13,7 @@ import {
 } from '@/hooks/use-bills';
 import type { Bill, BillLineReq, AgingRow } from '@/lib/api/bills';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils/currency';
 import {
   Briefcase,
   CreditCard,
@@ -180,12 +181,12 @@ export default function BillsPage() {
                   {agingRows.map((row: AgingRow) => (
                     <tr key={row.entity_id} className="hover:bg-accent/5 transition-colors">
                       <td className="px-6 py-3 text-xs font-medium">{row.entity_name}</td>
-                      <td className="px-4 py-3 text-right text-xs">{row.current}</td>
-                      <td className="px-4 py-3 text-right text-xs">{row.days_1_to_30}</td>
-                      <td className="px-4 py-3 text-right text-xs">{row.days_31_to_60}</td>
-                      <td className="px-4 py-3 text-right text-xs">{row.days_61_to_90}</td>
-                      <td className="px-4 py-3 text-right text-xs">{row.over_90}</td>
-                      <td className="px-6 py-3 text-right text-xs font-bold">{row.total}</td>
+                      <td className="px-4 py-3 text-right text-xs tabular-nums">{formatCurrency(Number(row.current))}</td>
+                      <td className="px-4 py-3 text-right text-xs tabular-nums">{formatCurrency(Number(row.days_1_to_30))}</td>
+                      <td className="px-4 py-3 text-right text-xs tabular-nums">{formatCurrency(Number(row.days_31_to_60))}</td>
+                      <td className="px-4 py-3 text-right text-xs tabular-nums">{formatCurrency(Number(row.days_61_to_90))}</td>
+                      <td className="px-4 py-3 text-right text-xs tabular-nums">{formatCurrency(Number(row.over_90))}</td>
+                      <td className="px-6 py-3 text-right text-xs font-bold tabular-nums">{formatCurrency(Number(row.total))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -274,7 +275,7 @@ export default function BillsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-xs">{bill.vendor_name || '---'}</td>
-                      <td className="px-6 py-4 text-right font-bold text-xs">{bill.currency} {bill.total_amount}</td>
+                      <td className="px-6 py-4 text-right font-bold text-xs tabular-nums">{formatCurrency(Number(bill.total_amount), bill.currency)}</td>
                       <td className="px-6 py-4 text-xs">{new Date(bill.due_date).toLocaleDateString()}</td>
                       <td className="px-6 py-4 text-center">
                         <Badge variant={statusVariant[bill.status] ?? 'outline'}>

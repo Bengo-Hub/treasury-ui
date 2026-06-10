@@ -16,6 +16,7 @@ import {
 import { useCostCenters } from '@/hooks/use-cost-centers';
 import type { Expense } from '@/lib/api/expenses';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils/currency';
 import {
   Calendar,
   Check,
@@ -226,7 +227,7 @@ export default function ExpensesPage() {
                       <td className="px-6 py-4 font-mono text-xs font-bold">{exp.expense_number}</td>
                       <td className="px-6 py-4 text-xs">{exp.category_name || '---'}</td>
                       <td className="px-6 py-4 text-xs max-w-[200px] truncate">{exp.description}</td>
-                      <td className="px-6 py-4 text-right font-bold text-xs">{exp.currency} {exp.total_amount}</td>
+                      <td className="px-6 py-4 text-right font-bold text-xs tabular-nums">{formatCurrency(Number(exp.total_amount), exp.currency)}</td>
                       <td className="px-6 py-4 text-center">
                         <Badge variant={statusVariant[exp.status] ?? 'outline'}>
                           {exp.status}
