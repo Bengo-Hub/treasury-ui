@@ -101,7 +101,7 @@ function DateRangeFilter({
   setTo: (v: string) => void;
 }) {
   return (
-    <div className="flex gap-4 items-end">
+    <div className="flex flex-wrap gap-4 items-end">
       <FormField label="From">
         <input
           type="date"
@@ -166,7 +166,7 @@ function ProfitLossTab({
   setFrom: (v: string) => void;
   setTo: (v: string) => void;
 }) {
-  const { data, isLoading } = useProfitLoss(tenantSlug, from, to);
+  const { data, isLoading, isError } = useProfitLoss(tenantSlug, from, to);
 
   return (
     <div className="space-y-6">
@@ -186,7 +186,8 @@ function ProfitLossTab({
         </CardHeader>
         <CardContent className="p-0">
           {isLoading && <LoadingIndicator />}
-          {!isLoading && data && (
+          {!isLoading && isError && <EmptyState message="Failed to load profit & loss statement. Please try again." />}
+          {!isLoading && !isError && data && (
             <div className="divide-y divide-border">
               {data.sections.map((s, i) => (
                 <ReportSectionView key={i} section={s} />
@@ -199,7 +200,7 @@ function ProfitLossTab({
               </div>
             </div>
           )}
-          {!isLoading && !data?.sections?.length && <EmptyState message="No data for selected period." />}
+          {!isLoading && !isError && !data?.sections?.length && <EmptyState message="No data for selected period." />}
         </CardContent>
       </Card>
     </div>
@@ -344,7 +345,7 @@ function BalanceSheetTab({
   asOf: string;
   setAsOf: (v: string) => void;
 }) {
-  const { data, isLoading } = useBalanceSheet(tenantSlug, asOf);
+  const { data, isLoading, isError } = useBalanceSheet(tenantSlug, asOf);
 
   return (
     <div className="space-y-6">
@@ -368,14 +369,15 @@ function BalanceSheetTab({
         </CardHeader>
         <CardContent className="p-0">
           {isLoading && <LoadingIndicator />}
-          {!isLoading && data && (
+          {!isLoading && isError && <EmptyState message="Failed to load balance sheet. Please try again." />}
+          {!isLoading && !isError && data && (
             <div className="divide-y divide-border">
               {data.sections.map((s, i) => (
                 <ReportSectionView key={i} section={s} />
               ))}
             </div>
           )}
-          {!isLoading && !data?.sections?.length && <EmptyState message="No balance sheet data." />}
+          {!isLoading && !isError && !data?.sections?.length && <EmptyState message="No balance sheet data." />}
         </CardContent>
       </Card>
     </div>
@@ -397,7 +399,7 @@ function CashFlowTab({
   setFrom: (v: string) => void;
   setTo: (v: string) => void;
 }) {
-  const { data, isLoading } = useCashFlow(tenantSlug, from, to);
+  const { data, isLoading, isError } = useCashFlow(tenantSlug, from, to);
 
   return (
     <div className="space-y-6">
@@ -417,7 +419,8 @@ function CashFlowTab({
         </CardHeader>
         <CardContent className="p-0">
           {isLoading && <LoadingIndicator />}
-          {!isLoading && data && (
+          {!isLoading && isError && <EmptyState message="Failed to load cash flow statement. Please try again." />}
+          {!isLoading && !isError && data && (
             <div className="divide-y divide-border">
               {data.sections.map((s, i) => (
                 <ReportSectionView key={i} section={s} />
@@ -432,7 +435,7 @@ function CashFlowTab({
               )}
             </div>
           )}
-          {!isLoading && !data?.sections?.length && <EmptyState message="No cash flow data for selected period." />}
+          {!isLoading && !isError && !data?.sections?.length && <EmptyState message="No cash flow data for selected period." />}
         </CardContent>
       </Card>
     </div>
@@ -454,7 +457,7 @@ function TaxSummaryTab({
   setFrom: (v: string) => void;
   setTo: (v: string) => void;
 }) {
-  const { data, isLoading } = useTaxSummaryReport(tenantSlug, from, to);
+  const { data, isLoading, isError } = useTaxSummaryReport(tenantSlug, from, to);
 
   return (
     <div className="space-y-6">
@@ -469,14 +472,15 @@ function TaxSummaryTab({
         </CardHeader>
         <CardContent className="p-0">
           {isLoading && <LoadingIndicator />}
-          {!isLoading && data && (
+          {!isLoading && isError && <EmptyState message="Failed to load tax summary. Please try again." />}
+          {!isLoading && !isError && data && (
             <div className="divide-y divide-border">
               {data.sections.map((s, i) => (
                 <ReportSectionView key={i} section={s} />
               ))}
             </div>
           )}
-          {!isLoading && !data?.sections?.length && <EmptyState message="No tax data for selected period." />}
+          {!isLoading && !isError && !data?.sections?.length && <EmptyState message="No tax data for selected period." />}
         </CardContent>
       </Card>
     </div>
