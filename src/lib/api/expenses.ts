@@ -29,6 +29,7 @@ export interface Expense {
   receipt_url?: string;
   vendor_id?: string;
   account_id?: string;
+  cost_center_id?: string;
   payment_intent_id?: string;
   source_service?: string;
   source_reference_id?: string;
@@ -64,6 +65,7 @@ export interface CategoriesResponse {
 export interface ExpensesParams {
   status?: string;
   category_id?: string;
+  cost_center_id?: string;
   from?: string;
   to?: string;
   source_service?: string;
@@ -82,6 +84,7 @@ export interface CreateExpenseRequest {
   receipt_url?: string;
   vendor_id?: string;
   account_id?: string;
+  cost_center_id?: string;
   metadata?: Record<string, any>;
 }
 
