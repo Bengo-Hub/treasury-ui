@@ -42,7 +42,7 @@ const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' 
 export default function BudgetsPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
-  const { data, isLoading } = useBudgets(effectiveTenant);
+  const { data, isLoading, error } = useBudgets(effectiveTenant);
   const budgets = data?.budgets ?? [];
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -63,6 +63,12 @@ export default function BudgetsPage() {
       {isPlatformOwner && !tenantQueryParam && (
         <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
           Select a tenant from the filter above to view their budgets.
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Failed to load budgets. Check your connection and try again.
         </div>
       )}
 

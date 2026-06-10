@@ -141,7 +141,7 @@ export default function TaxPage() {
 // ---- Tax Codes Tab ----
 
 function TaxCodesTab({ tenantSlug }: { tenantSlug: string }) {
-  const { data, isLoading } = useTaxCodes(tenantSlug);
+  const { data, isLoading, isError } = useTaxCodes(tenantSlug);
   const codes = data?.tax_codes ?? [];
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -163,7 +163,12 @@ function TaxCodesTab({ tenantSlug }: { tenantSlug: string }) {
               <Loader2 className="h-5 w-5 animate-spin" /> Loading tax codes...
             </div>
           )}
-          {!isLoading && (
+          {!isLoading && isError && (
+            <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              Failed to load tax codes. Check your connection and try again.
+            </div>
+          )}
+          {!isLoading && !isError && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -193,7 +198,7 @@ function TaxCodesTab({ tenantSlug }: { tenantSlug: string }) {
               </table>
             </div>
           )}
-          {!isLoading && codes.length === 0 && (
+          {!isLoading && !isError && codes.length === 0 && (
             <div className="p-12 text-center text-muted-foreground">No tax codes configured.</div>
           )}
         </CardContent>
@@ -308,7 +313,7 @@ function CreateTaxCodeDialog({
 // ---- Tax Periods Tab ----
 
 function TaxPeriodsTab({ tenantSlug }: { tenantSlug: string }) {
-  const { data, isLoading } = useTaxPeriods(tenantSlug);
+  const { data, isLoading, isError } = useTaxPeriods(tenantSlug);
   const periods = data?.periods ?? [];
   const calculateMutation = useCalculateTaxLiability();
 
@@ -326,7 +331,12 @@ function TaxPeriodsTab({ tenantSlug }: { tenantSlug: string }) {
             <Loader2 className="h-5 w-5 animate-spin" /> Loading tax periods...
           </div>
         )}
-        {!isLoading && (
+        {!isLoading && isError && (
+          <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Failed to load tax periods. Check your connection and try again.
+          </div>
+        )}
+        {!isLoading && !isError && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -376,7 +386,7 @@ function TaxPeriodsTab({ tenantSlug }: { tenantSlug: string }) {
             </table>
           </div>
         )}
-        {!isLoading && periods.length === 0 && (
+        {!isLoading && !isError && periods.length === 0 && (
           <div className="p-12 text-center text-muted-foreground">No tax periods found.</div>
         )}
       </CardContent>
@@ -387,7 +397,7 @@ function TaxPeriodsTab({ tenantSlug }: { tenantSlug: string }) {
 // ---- eTIMS Devices Tab ----
 
 function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
-  const { data, isLoading } = useEtimsDevices(tenantSlug);
+  const { data, isLoading, isError } = useEtimsDevices(tenantSlug);
   const devices = data?.devices ?? [];
   const [registerOpen, setRegisterOpen] = useState(false);
   const initDevice = useInitEtimsDevice();
@@ -423,7 +433,12 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
               <Loader2 className="h-5 w-5 animate-spin" /> Loading devices...
             </div>
           )}
-          {!isLoading && (
+          {!isLoading && isError && (
+            <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              Failed to load eTIMS devices. Check your connection and try again.
+            </div>
+          )}
+          {!isLoading && !isError && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -467,7 +482,7 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
               </table>
             </div>
           )}
-          {!isLoading && devices.length === 0 && (
+          {!isLoading && !isError && devices.length === 0 && (
             <div className="p-12 text-center text-muted-foreground">No eTIMS devices registered.</div>
           )}
         </CardContent>
