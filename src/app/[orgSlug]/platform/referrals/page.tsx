@@ -274,8 +274,10 @@ export default function ReferralsPage() {
                         return (
                           <tr key={referral.id} className="hover:bg-accent/5 transition-colors">
                             <td className="px-6 py-4 font-mono text-xs">{referral.referral_code}</td>
-                            <td className="px-6 py-4 text-xs text-muted-foreground font-mono truncate max-w-[120px]">
-                              {referral.referrer_tenant_id}
+                            <td className="px-6 py-4 text-xs text-muted-foreground truncate max-w-[140px]">
+                              {referral.referrer_name
+                                ? <span title={referral.referrer_email}>{referral.referrer_name} <span className="text-[10px] opacity-60">(external)</span></span>
+                                : <span className="font-mono">{referral.referrer_tenant_id}</span>}
                             </td>
                             <td className="px-6 py-4 text-xs text-muted-foreground font-mono truncate max-w-[120px]">
                               {referral.referred_tenant_id}
@@ -704,8 +706,13 @@ function ReferralFormDialog({
   const activePrograms = programs.filter((p) => p.is_active);
   const [programId, setProgramId] = useState(activePrograms[0]?.id ?? '');
   const [referrerTenantId, setReferrerTenantId] = useState('');
+  const [referrerName, setReferrerName] = useState('');
+  const [referrerEmail, setReferrerEmail] = useState('');
   const [referredTenantId, setReferredTenantId] = useState('');
   const [notes, setNotes] = useState('');
+
+  const selectedProgram = activePrograms.find((p) => p.id === programId);
+  const isTypeB = selectedProgram?.referral_type === 'type_b';
 
   const { data: tenants, isLoading: loadingTenants } = usePlatformTenants();
   const tenantOptions: ComboboxOption[] = (tenants ?? []).map((t) => ({
@@ -714,12 +721,17 @@ function ReferralFormDialog({
     hint: t.slug,
   }));
 
+  // Type-A needs a referrer tenant; Type-B needs an external referrer name.
+  const referrerReady = isTypeB ? !!referrerName.trim() : !!referrerTenantId;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       program_id: programId,
-      referrer_tenant_id: referrerTenantId,
       referred_tenant_id: referredTenantId,
+      ...(isTypeB
+        ? { referrer_name: referrerName.trim(), referrer_email: referrerEmail.trim() || undefined }
+        : { referrer_tenant_id: referrerTenantId }),
       notes: notes || undefined,
     });
   };
@@ -739,18 +751,48 @@ function ReferralFormDialog({
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+          {selectedProgram && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {isTypeB
+                ? 'Type B — external referrer (becomes a revenue-share equity holder on conversion).'
+                : 'Type A — existing tenant referrer (rewarded with subscription credit).'}
+            </p>
+          )}
         </FormField>
 
-        <FormField label="Referrer Tenant" required description="The tenant making the referral.">
-          <Combobox
-            options={tenantOptions}
-            value={referrerTenantId}
-            onChange={setReferrerTenantId}
-            loading={loadingTenants}
-            placeholder="Select the referring tenant…"
-            searchPlaceholder="Search tenants by name or slug…"
-          />
-        </FormField>
+        {isTypeB ? (
+          <>
+            <FormField label="Referrer Name" required description="External referrer (not a tenant) who earns equity.">
+              <input
+                type="text"
+                value={referrerName}
+                onChange={(e) => setReferrerName(e.target.value)}
+                placeholder="e.g. Jane Doe / Acme Partners Ltd"
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              />
+            </FormField>
+            <FormField label="Referrer Email" description="Used for the equity holder & payout notifications.">
+              <input
+                type="email"
+                value={referrerEmail}
+                onChange={(e) => setReferrerEmail(e.target.value)}
+                placeholder="referrer@example.com"
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              />
+            </FormField>
+          </>
+        ) : (
+          <FormField label="Referrer Tenant" required description="The tenant making the referral.">
+            <Combobox
+              options={tenantOptions}
+              value={referrerTenantId}
+              onChange={setReferrerTenantId}
+              loading={loadingTenants}
+              placeholder="Select the referring tenant…"
+              searchPlaceholder="Search tenants by name or slug…"
+            />
+          </FormField>
+        )}
 
         <FormField label="Referred Tenant" required description="The tenant who was referred.">
           <Combobox
@@ -774,7 +816,7 @@ function ReferralFormDialog({
 
         <div className="flex gap-2 justify-end pt-2">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={isSubmitting || !programId || !referrerTenantId || !referredTenantId}>
+          <Button type="submit" disabled={isSubmitting || !programId || !referrerReady || !referredTenantId}>
             {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
             Create
           </Button>
