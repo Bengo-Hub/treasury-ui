@@ -34,6 +34,10 @@ export interface EquityHolder {
     payout_schedule_day: number;
     financial_year_end_month: number;
     close_of_books_day: number;
+    compensation_model?: 'equity_revenue_share' | 'dividend' | 'royalty';
+    tax_residency?: 'resident' | 'non_resident';
+    payout_tax_treatment?: 'auto' | 'dividend' | 'royalty' | 'commission' | 'business_income' | 'exempt';
+    application_id?: string; // auth-service onboarding application (KYC + EPA)
     is_active: boolean;
     created_at: string;
     updated_at: string;
@@ -54,6 +58,19 @@ export interface CreateEquityHolderRequest {
     payout_schedule_day?: number;
     financial_year_end_month?: number;
     close_of_books_day?: number;
+    compensation_model?: 'equity_revenue_share' | 'dividend' | 'royalty';
+    tax_residency?: 'resident' | 'non_resident';
+    payout_tax_treatment?: 'auto' | 'dividend' | 'royalty' | 'commission' | 'business_income' | 'exempt';
+    application_id?: string;
+}
+
+/** Platform-wide payout schedule that governs ALL equity holders. */
+export interface EquityPayoutSchedule {
+    frequency: 'manual' | 'monthly' | 'quarterly' | 'annually';
+    schedule_day: number;
+    financial_year_end_month: number;
+    close_of_books_day: number;
+    payout_threshold: number;
 }
 
 export interface EquityPayout {
@@ -99,6 +116,7 @@ export interface EquitySummaryResponse {
     };
     holders: HolderProjection[];
     total_allocated: number;
+    payout_schedule?: EquityPayoutSchedule;
 }
 
 export interface TriggerPayoutRequest {
@@ -166,6 +184,20 @@ export function triggerEquityPayout(
         `${BASE}/platform/equity-holders/${holderId}/trigger-payout`,
         body,
     );
+}
+
+// ─── Global Payout Schedule ─────────────────────────────────────────────────────
+
+/** Get the platform-wide equity payout schedule (applies to all holders). */
+export function getEquitySchedule(): Promise<{ schedule: EquityPayoutSchedule }> {
+    return apiClient.get<{ schedule: EquityPayoutSchedule }>(`${BASE}/platform/equity-settings`);
+}
+
+/** Update the platform-wide equity payout schedule. */
+export function updateEquitySchedule(
+    body: EquityPayoutSchedule,
+): Promise<{ schedule: EquityPayoutSchedule }> {
+    return apiClient.put<{ schedule: EquityPayoutSchedule }>(`${BASE}/platform/equity-settings`, body);
 }
 
 // ─── Entitlements ─────────────────────────────────────────────────────────────

@@ -78,26 +78,50 @@ export function parseBrandFromTenant(t: TenantResponse): TenantBrand {
  * List all active tenants (platform admin only).
  * Calls auth-api GET /api/v1/admin/tenants with the current JWT.
  */
+export class TenantFetchError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'TenantFetchError';
+    this.status = status;
+  }
+}
+
+/**
+ * List all active tenants (platform admin only).
+ *
+ * auth-api `GET /api/v1/admin/tenants` returns a paginated envelope
+ * (`@Bengo-Hub/pagination` → `{ data: [], total, limit, page, hasMore }`).
+ * Older/alternate shapes (`[]` or `{ tenants: [] }`) are also tolerated.
+ * Throws TenantFetchError on auth/transport failures so callers can surface
+ * an error state instead of rendering a silent "No tenants available".
+ */
 export async function listPlatformTenants(search?: string): Promise<TenantResponse[]> {
   const token = useAuthStore.getState().session?.accessToken;
-  if (!token) return [];
+  if (!token) throw new TenantFetchError('Not authenticated', 401);
   const url = new URL(`${AUTH_API_URL}/api/v1/admin/tenants`);
   if (search) url.searchParams.set('search', search);
+  let res: Response;
   try {
-    const res = await fetch(url.toString(), {
+    res = await fetch(url.toString(), {
       method: 'GET',
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
       },
     });
-    if (!res.ok) return [];
-    const data = await res.json();
-    // auth-api returns an array directly
-    return Array.isArray(data) ? data : (data.tenants ?? []);
-  } catch {
-    return [];
+  } catch (err) {
+    console.error('[listPlatformTenants] network error', err);
+    throw new TenantFetchError('Network error while loading tenants', 0);
   }
+  if (!res.ok) {
+    console.error('[listPlatformTenants] auth-api returned', res.status, url.toString());
+    throw new TenantFetchError(`Failed to load tenants (HTTP ${res.status})`, res.status);
+  }
+  const data = await res.json();
+  // Paginated envelope (preferred) → { data: [] }; tolerate [] and { tenants: [] }.
+  if (Array.isArray(data)) return data;
+  return (data?.data ?? data?.tenants ?? data?.items ?? []) as TenantResponse[];
 }
 
 export interface TenantDefaults {
