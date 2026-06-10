@@ -13,8 +13,8 @@ export default function PlatformAnalyticsPage() {
   const tenantIds = useTenantFilterStore((s) => s.tenantIdsParam)();
 
   const { data: overview, isLoading: loadingOverview } = usePlatformOverview(from || undefined, to || undefined, tenantIds || undefined);
-  const { data: byTenant, isLoading: loadingTenants } = usePlatformByTenant(from || undefined, to || undefined, tenantIds || undefined);
-  const { data: byService, isLoading: loadingServices } = usePlatformByService(from || undefined, to || undefined, tenantIds || undefined);
+  const { data: byTenant, isLoading: loadingTenants, isError: tenantsError } = usePlatformByTenant(from || undefined, to || undefined, tenantIds || undefined);
+  const { data: byService, isLoading: loadingServices, isError: servicesError } = usePlatformByService(from || undefined, to || undefined, tenantIds || undefined);
 
   return (
     <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -86,6 +86,12 @@ export default function PlatformAnalyticsPage() {
           <CardContent>
             {loadingTenants ? (
               <div className="min-h-[300px] flex items-center justify-center text-muted-foreground">Loading breakdown...</div>
+            ) : tenantsError ? (
+              <div className="min-h-[300px] flex items-center justify-center">
+                <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  Failed to load tenant revenue. Check your connection and try again.
+                </div>
+              </div>
             ) : byTenant?.tenants?.length === 0 ? (
               <div className="min-h-[300px] flex flex-col items-center justify-center text-muted-foreground">
                 <BarChart className="h-12 w-12 mb-4 opacity-20" />
@@ -156,6 +162,12 @@ export default function PlatformAnalyticsPage() {
         <CardContent>
           {loadingServices ? (
             <div className="min-h-50 flex items-center justify-center text-muted-foreground">Loading service breakdown...</div>
+          ) : servicesError ? (
+            <div className="min-h-50 flex items-center justify-center">
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                Failed to load service revenue. Check your connection and try again.
+              </div>
+            </div>
           ) : !byService?.breakdown?.length ? (
             <div className="min-h-50 flex flex-col items-center justify-center text-muted-foreground">
               <BarChart className="h-12 w-12 mb-4 opacity-20" />

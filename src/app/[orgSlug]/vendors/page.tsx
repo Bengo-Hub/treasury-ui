@@ -36,7 +36,7 @@ export default function VendorsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
 
-  const { data, isLoading } = useBills(effectiveTenant, {}, !!effectiveTenant);
+  const { data, isLoading, error } = useBills(effectiveTenant, {}, !!effectiveTenant);
   const bills = data?.bills ?? [];
 
   // Derive unique vendors from bills
@@ -143,6 +143,12 @@ export default function VendorsPage() {
       {isPlatformOwner && !tenantQueryParam && (
         <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
           Select a tenant from the filter above to view their vendors.
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Failed to load vendors. Check your connection and try again.
         </div>
       )}
 
