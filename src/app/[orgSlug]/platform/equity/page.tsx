@@ -340,14 +340,8 @@ export default function EquityManagementPage() {
                     />
                 )}
 
-                {/* Sidebar Projections & Config */}
+                {/* Sidebar — Paystack balance (the payout-schedule projection lives in the Payout Schedule tab) */}
                 <div className="space-y-6">
-                    <NextPayoutProjectionCard
-                        holders={holders}
-                        schedule={summary?.payout_schedule}
-                        onConfigure={() => setActiveTab('schedule')}
-                    />
-
                     <Card className="border-none shadow-xl shadow-black/5">
                         <CardHeader className="bg-transparent border-none">
                             <h3 className="font-bold flex items-center gap-2">
@@ -380,7 +374,13 @@ export default function EquityManagementPage() {
                 </TabsContent>
 
                 <TabsContent value="schedule" className="mt-6">
-                    <GlobalPayoutScheduleCard />
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                        <GlobalPayoutScheduleCard />
+                        <NextPayoutProjectionCard
+                            holders={holders}
+                            schedule={summary?.payout_schedule}
+                        />
+                    </div>
                 </TabsContent>
 
                 <TabsContent value="agreements" className="mt-6">
@@ -419,7 +419,7 @@ function NextPayoutProjectionCard({
 }: {
     holders: EquityHolder[];
     schedule?: EquityPayoutSchedule;
-    onConfigure: () => void;
+    onConfigure?: () => void;
 }) {
     // The cadence is now a single platform-wide schedule that applies to every holder.
     const frequency = schedule?.frequency ?? 'manual';
@@ -454,9 +454,11 @@ function NextPayoutProjectionCard({
                 <p className="text-xs text-muted-foreground px-1 leading-relaxed">
                     One platform-wide schedule governs all holders. Payouts are triggered automatically when the threshold is met.
                 </p>
-                <Button variant="outline" className="w-full bg-card shadow-sm hover:shadow-md transition-all border-none font-bold text-xs" onClick={onConfigure}>
-                    Configure Schedule <ArrowRight className="h-3 w-3 ml-2" />
-                </Button>
+                {onConfigure && (
+                    <Button variant="outline" className="w-full bg-card shadow-sm hover:shadow-md transition-all border-none font-bold text-xs" onClick={onConfigure}>
+                        Configure Schedule <ArrowRight className="h-3 w-3 ml-2" />
+                    </Button>
+                )}
             </CardContent>
         </Card>
     );
@@ -1653,15 +1655,20 @@ function AgreementsPanel({ holders }: { holders: EquityHolder[] }) {
     return (
         <div className="space-y-6 max-w-4xl">
             <Card className="border-none shadow-xl shadow-black/5 bg-primary/5">
-                <CardContent className="p-6 space-y-2">
+                <CardContent className="p-6 space-y-4">
                     <h3 className="text-lg font-bold flex items-center gap-2">
-                        <Shield className="h-5 w-5 text-primary" /> Equity Participation Agreements
+                        <Shield className="h-5 w-5 text-primary" /> Onboarding Flow
                     </h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                        Holders are contractual revenue/profit-share participants under an <strong>Equity Participation Agreement (EPA)</strong>, not registered
-                        shareholders. Production onboarding runs through the auth-service workflow:
-                        <span className="font-mono text-xs"> apply → KYC → EPA e-signature → approval</span>, which then provisions the treasury holder.
-                        Quick-added holders (internal / founders) bypass that workflow.
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                        {['Apply', 'KYC', 'EPA e-signature', 'Approval', 'Treasury holder provisioned'].map((step, i, arr) => (
+                            <span key={step} className="flex items-center gap-2">
+                                <span className="px-3 py-1.5 rounded-lg bg-background border border-border/60 shadow-sm">{step}</span>
+                                {i < arr.length - 1 && <ArrowRight className="h-4 w-4 text-primary shrink-0" />}
+                            </span>
+                        ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        Quick-add (internal / founders) bypasses this workflow.
                     </p>
                 </CardContent>
             </Card>
