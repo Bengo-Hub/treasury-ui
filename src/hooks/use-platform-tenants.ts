@@ -10,5 +10,11 @@ export function usePlatformTenants() {
     queryKey: ['platform-tenants'],
     queryFn: () => listPlatformTenants(),
     staleTime: 5 * 60 * 1000,
+    // Don't hammer auth-api on a 401/403 (missing admin scope); one retry for transient errors.
+    retry: (failureCount, error) => {
+      const status = (error as { status?: number })?.status;
+      if (status === 401 || status === 403) return false;
+      return failureCount < 1;
+    },
   });
 }
