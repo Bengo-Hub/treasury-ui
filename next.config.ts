@@ -9,8 +9,20 @@ const withPWA = withPWAInit({
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
   workboxOptions: {
-    skipWaiting: false,
+    skipWaiting: true,
     clientsClaim: true,
+    // The service worker must NEVER serve API responses from cache — otherwise a GET
+    // refetched right after a mutation (e.g. updating an equity holder) returns a stale
+    // cached body and the change appears "not picked" in production. Force all API traffic
+    // (treasury-api / auth-api hosts and any /api/ path) to go straight to the network.
+    runtimeCaching: [
+      {
+        urlPattern: ({ url }: { url: URL }) =>
+          url.pathname.includes('/api/') ||
+          /(booksapi|sso|accounts)\.codevertexitsolutions\.com$/.test(url.hostname),
+        handler: 'NetworkOnly' as const,
+      },
+    ],
   },
 });
 
