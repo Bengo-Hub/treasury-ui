@@ -367,6 +367,11 @@ export default function EquityManagementPage() {
                                 ) : (
                                     <p className="text-sm opacity-70">Unable to fetch balance</p>
                                 )}
+                                {!loadingBalance && Number((balanceData as { pending_balance?: number } | undefined)?.pending_balance ?? 0) > 0 && (
+                                    <p className="text-xs opacity-80 mt-2">
+                                        + {paystackCurrency} {Number((balanceData as { pending_balance?: number }).pending_balance).toLocaleString()} pending settlement
+                                    </p>
+                                )}
                             </div>
                             <Button variant="ghost" className="w-full text-xs text-muted-foreground h-8" onClick={() => window.open('https://dashboard.paystack.com', '_blank')}>
                                 View on Paystack <ExternalLink className="h-3 w-3 ml-2" />
