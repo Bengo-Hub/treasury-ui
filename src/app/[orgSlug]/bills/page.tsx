@@ -39,6 +39,7 @@ export default function BillsPage() {
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'bill' | 'credit_note'>('all');
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [payOpen, setPayOpen] = useState<string | null>(null);
@@ -54,22 +55,31 @@ export default function BillsPage() {
   const list = data?.bills ?? [];
   const agingRows = agingData?.rows ?? [];
 
+  // Note: the bills list endpoint does not support a document_type query filter
+  // (BillFilters has no DocumentType), so type filtering is done client-side here.
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return list;
-    const q = searchQuery.toLowerCase();
-    return list.filter(
-      (bill: Bill) =>
+    const q = searchQuery.trim().toLowerCase();
+    return list.filter((bill: Bill) => {
+      if (typeFilter !== 'all' && (bill.document_type ?? 'bill') !== typeFilter) return false;
+      if (!q) return true;
+      return (
         bill.bill_number?.toLowerCase().includes(q) ||
         bill.vendor_name?.toLowerCase().includes(q)
-    );
-  }, [list, searchQuery]);
+      );
+    });
+  }, [list, searchQuery, typeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginatedItems = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
-  useMemo(() => { setPage(1); }, [searchQuery, statusFilter]);
+  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, typeFilter]);
 
   const statusOptions = ['all', 'draft', 'pending', 'paid', 'overdue'];
+  const typeOptions: { value: 'all' | 'bill' | 'credit_note'; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'bill', label: 'Bills' },
+    { value: 'credit_note', label: 'Credit Notes' },
+  ];
 
   const createMutation = useCreateBill(effectiveTenant);
   const payMutation = usePayBill(effectiveTenant);
@@ -78,6 +88,7 @@ export default function BillsPage() {
   const emptyLine: BillLineReq = { description: '', quantity: 1, unit_price: 0 };
   const [form, setForm] = useState({
     vendor_name: '',
+    document_type: 'bill' as 'bill' | 'credit_note',
     bill_date: new Date().toISOString().slice(0, 10),
     due_date: '',
     currency: '',
@@ -100,6 +111,7 @@ export default function BillsPage() {
     if (!form.vendor_name || !form.due_date || form.lines.length === 0) return;
     await createMutation.mutateAsync({
       vendor_name: form.vendor_name,
+      document_type: form.document_type,
       bill_date: form.bill_date,
       due_date: form.due_date,
       currency: form.currency || undefined,
@@ -110,7 +122,7 @@ export default function BillsPage() {
       })),
     });
     setCreateOpen(false);
-    setForm({ vendor_name: '', bill_date: new Date().toISOString().slice(0, 10), due_date: '', currency: '', lines: [{ ...emptyLine }] });
+    setForm({ vendor_name: '', document_type: 'bill', bill_date: new Date().toISOString().slice(0, 10), due_date: '', currency: '', lines: [{ ...emptyLine }] });
   };
 
   const handlePay = async () => {
@@ -211,6 +223,21 @@ export default function BillsPage() {
                 {s}
               </button>
             ))}
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground ml-2">
+              <Filter className="h-3.5 w-3.5" />
+              <span className="font-semibold uppercase tracking-wider">Type:</span>
+            </div>
+            {typeOptions.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => setTypeFilter(t.value)}
+                className={cn("px-3 py-1 rounded-full text-xs font-bold transition-all",
+                  typeFilter === t.value ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -236,7 +263,16 @@ export default function BillsPage() {
                 <tbody className="divide-y divide-border">
                   {paginatedItems.map((bill: Bill) => (
                     <tr key={bill.id} className="hover:bg-accent/5 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs font-bold">{bill.bill_number}</td>
+                      <td className="px-6 py-4 font-mono text-xs font-bold">
+                        <div className="flex items-center gap-2">
+                          <span>{bill.bill_number}</span>
+                          {bill.document_type === 'credit_note' ? (
+                            <Badge variant="warning">Credit Note</Badge>
+                          ) : (
+                            <Badge variant="outline">Bill</Badge>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-xs">{bill.vendor_name || '---'}</td>
                       <td className="px-6 py-4 text-right font-bold text-xs">{bill.currency} {bill.total_amount}</td>
                       <td className="px-6 py-4 text-xs">{new Date(bill.due_date).toLocaleDateString()}</td>
@@ -286,6 +322,16 @@ export default function BillsPage() {
                 value={form.vendor_name}
                 onChange={(e) => setForm((f) => ({ ...f, vendor_name: e.target.value }))}
               />
+            </FormField>
+            <FormField label="Document Type">
+              <select
+                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
+                value={form.document_type}
+                onChange={(e) => setForm((f) => ({ ...f, document_type: e.target.value as 'bill' | 'credit_note' }))}
+              >
+                <option value="bill">Bill</option>
+                <option value="credit_note">Credit Note</option>
+              </select>
             </FormField>
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Bill Date">
@@ -355,7 +401,7 @@ export default function BillsPage() {
                 disabled={createMutation.isPending || !form.vendor_name || !form.due_date}
               >
                 {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Briefcase className="h-4 w-4 mr-1" />}
-                Create Bill
+                {form.document_type === 'credit_note' ? 'Create Credit Note' : 'Create Bill'}
               </Button>
             </div>
           </div>

@@ -23,6 +23,7 @@ export interface Bill {
   id: string;
   tenant_id: string;
   bill_number: string;
+  document_type: 'bill' | 'credit_note';
   vendor_id?: string;
   vendor_name?: string;
   bill_date: string;
@@ -65,6 +66,8 @@ export interface BillLineReq {
 export interface CreateBillRequest {
   vendor_id?: string;
   vendor_name?: string;
+  /** 'bill' (a payable, default) or 'credit_note' (a supplier credit that nets against payables). */
+  document_type?: 'bill' | 'credit_note';
   bill_date: string;
   due_date: string;
   currency?: string;
