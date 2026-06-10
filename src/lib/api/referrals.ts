@@ -45,7 +45,9 @@ export interface CreateReferralProgramRequest {
 export interface Referral {
   id: string;
   program_id: string;
-  referrer_tenant_id: string;
+  referrer_tenant_id?: string; // Type-A: referring tenant
+  referrer_name?: string;      // Type-B: external referrer
+  referrer_email?: string;     // Type-B: external referrer
   referred_tenant_id: string;
   referral_code: string;
   status: string;
@@ -74,7 +76,9 @@ export interface ConvertToEquityResponse {
 
 export interface CreateReferralRequest {
   program_id: string;
-  referrer_tenant_id: string;
+  referrer_tenant_id?: string; // Type-A
+  referrer_name?: string;      // Type-B (external referrer)
+  referrer_email?: string;     // Type-B
   referred_tenant_id: string;
   notes?: string;
 }
