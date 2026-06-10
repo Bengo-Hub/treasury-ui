@@ -104,6 +104,7 @@ export default function PlatformPayoutsPage() {
   };
 
   const netBalance = Number(balanceData?.balance ?? 0);
+  const pendingBalance = Number(balanceData?.pending_balance ?? 0);
   const currency = balanceData?.currency ?? 'KES';
 
   return (
@@ -137,6 +138,15 @@ export default function PlatformPayoutsPage() {
               </div>
             )}
             <p className="text-slate-400 text-sm font-medium">Available for tenant settlements</p>
+            {!loadingBalance && pendingBalance > 0 && (
+              <div className="mt-4 pt-4 border-t border-slate-700/60 flex items-center justify-between">
+                <span className="text-slate-400 text-sm">Pending settlement</span>
+                <span className="text-amber-300 font-semibold">{formatCurrency(pendingBalance, currency)}</span>
+              </div>
+            )}
+            <p className="text-slate-500 text-xs mt-2">
+              Pending funds settle to your available balance automatically (Paystack settles T+1 in Kenya).
+            </p>
           </CardContent>
         </Card>
 
