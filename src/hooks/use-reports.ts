@@ -32,3 +32,16 @@ export function useTaxSummaryReport(tenantSlug: string, from: string, to: string
     enabled: !!tenantSlug && !!from && !!to,
   });
 }
+
+export function useProfitLossSummary(
+  tenantSlug: string,
+  from: string,
+  to: string,
+  currency?: string,
+) {
+  return useQuery({
+    queryKey: ['report-pl-summary', tenantSlug, from, to, currency],
+    queryFn: () => reportsApi.getProfitLossSummary(tenantSlug, { from, to, currency }),
+    enabled: !!tenantSlug && !!from && !!to,
+  });
+}
