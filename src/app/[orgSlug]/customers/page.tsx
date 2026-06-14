@@ -2,17 +2,19 @@
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { useInvoices } from '@/hooks/use-invoices';
-import type { Invoice } from '@/lib/api/invoices';
+import { useInvoices, useCustomerBalances, useRecordCustomerPayment } from '@/hooks/use-invoices';
+import type { Invoice, CustomerBalance } from '@/lib/api/invoices';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
   ArrowLeft,
   ArrowUpRight,
+  Banknote,
   Loader2,
   Mail,
   Search,
   User,
+  X,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -43,6 +45,40 @@ export default function CustomersPage() {
 
   const { data, isLoading, error } = useInvoices(effectiveTenant, {}, !!effectiveTenant);
   const invoices = data?.invoices ?? [];
+
+  // Operational AR balances (CustomerBalance) — includes POS credit sales that create no invoice.
+  const { data: balances } = useCustomerBalances(effectiveTenant, !!effectiveTenant);
+  const outstanding = useMemo(
+    () => (balances ?? []).filter((b) => (parseFloat(b.balance_due) || 0) > 0.0001),
+    [balances],
+  );
+  const recordPay = useRecordCustomerPayment(effectiveTenant);
+  const [payTarget, setPayTarget] = useState<CustomerBalance | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState('cash');
+  const [payRef, setPayRef] = useState('');
+  const [payError, setPayError] = useState('');
+
+  const openReceive = (b: CustomerBalance) => {
+    setPayTarget(b);
+    setPayAmount(b.balance_due);
+    setPayMethod('cash');
+    setPayRef('');
+    setPayError('');
+  };
+  const submitReceive = () => {
+    if (!payTarget) return;
+    const amt = parseFloat(payAmount);
+    if (!amt || amt <= 0) { setPayError('Enter a valid amount.'); return; }
+    const contactId = payTarget.crm_contact_id || payTarget.customer_identifier || payTarget.id;
+    recordPay.mutate(
+      { contactId, amount: amt, paymentMethod: payMethod, reference: payRef || undefined },
+      {
+        onSuccess: () => setPayTarget(null),
+        onError: (e: unknown) => setPayError(e instanceof Error ? e.message : 'Payment failed.'),
+      },
+    );
+  };
 
   const customers = useMemo(() => {
     const map = new Map<string, CustomerSummary>();
@@ -184,6 +220,91 @@ export default function CustomersPage() {
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           Failed to load customers. Check your connection and try again.
+        </div>
+      )}
+
+      {/* Outstanding AR balances (operational ledger) — includes POS credit sales (no invoice).
+          This is where on-account debt is settled via "Receive Payment". */}
+      {outstanding.length > 0 && (
+        <Card>
+          <CardHeader className="py-4">
+            <div className="flex items-center gap-2">
+              <Banknote className="h-4 w-4 text-amber-500" />
+              <h3 className="text-sm font-bold">Outstanding balances (on account)</h3>
+              <Badge variant="warning" className="ml-1">{outstanding.length}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border">
+              {outstanding.map((b) => (
+                <div key={b.id} className="px-6 py-4 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-bold truncate">{b.customer_name || b.customer_identifier || 'Customer'}</h4>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Paid {formatCurrency(parseFloat(b.total_paid) || 0, b.currency)} of {formatCurrency(parseFloat(b.total_invoiced) || 0, b.currency)}
+                      {b.last_payment_date && ` · last paid ${new Date(b.last_payment_date).toLocaleDateString()}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0">
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-amber-600">{formatCurrency(parseFloat(b.balance_due) || 0, b.currency)}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">due</p>
+                    </div>
+                    <Button size="sm" onClick={() => openReceive(b)}>Receive payment</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Receive Payment modal */}
+      {payTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !recordPay.isPending && setPayTarget(null)}>
+          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between py-4">
+              <h3 className="text-base font-bold">Receive payment</h3>
+              <Button variant="ghost" size="icon" onClick={() => setPayTarget(null)} disabled={recordPay.isPending}><X className="h-4 w-4" /></Button>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-lg bg-accent/20 px-3 py-2 text-sm">
+                <p className="font-semibold">{payTarget.customer_name || payTarget.customer_identifier || 'Customer'}</p>
+                <p className="text-xs text-muted-foreground">Balance due: {formatCurrency(parseFloat(payTarget.balance_due) || 0, payTarget.currency)}</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Amount ({payTarget.currency})</label>
+                <input type="number" inputMode="decimal" value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
+                  className="w-full mt-1 bg-accent/30 border-none rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Method</label>
+                <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}
+                  className="w-full mt-1 bg-accent/30 border-none rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary">
+                  <option value="cash">Cash</option>
+                  <option value="mpesa">M-Pesa</option>
+                  <option value="bank">Bank transfer</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="card">Card</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Reference (optional)</label>
+                <input value={payRef} onChange={(e) => setPayRef(e.target.value)} placeholder="M-Pesa code, cheque no., etc."
+                  className="w-full mt-1 bg-accent/30 border-none rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary" />
+              </div>
+              {payError && <p className="text-xs text-destructive">{payError}</p>}
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setPayTarget(null)} disabled={recordPay.isPending}>Cancel</Button>
+                <Button className="flex-1 gap-2" onClick={submitReceive} disabled={recordPay.isPending}>
+                  {recordPay.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Confirm
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          </div>
         </div>
       )}
 
