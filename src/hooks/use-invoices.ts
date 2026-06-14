@@ -16,6 +16,8 @@ import {
   getInvoiceSummary,
   getARSummary,
   getARAging,
+  getCustomerBalances,
+  recordCustomerPayment,
   getQuotation,
   getQuotationGraph,
   getQuotationStats,
@@ -185,6 +187,31 @@ export function useARAging(tenant: string, enabled = true) {
     enabled: !!tenant && enabled,
     staleTime: STALE_MS,
     retry: false,
+  });
+}
+
+// Per-customer running AR balances (operational ledger; includes POS credit sales).
+export function useCustomerBalances(tenant: string, enabled = true) {
+  return useQuery({
+    queryKey: ['ar-customer-balances', tenant],
+    queryFn: () => getCustomerBalances(tenant),
+    enabled: !!tenant && enabled,
+    staleTime: STALE_MS,
+    retry: false,
+  });
+}
+
+// Receive a customer's AR repayment; refreshes balances + AR summary/aging on success.
+export function useRecordCustomerPayment(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ contactId, amount, paymentMethod, reference }: { contactId: string; amount: number; paymentMethod?: string; reference?: string }) =>
+      recordCustomerPayment(tenant, contactId, { amount, payment_method: paymentMethod, reference }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+    },
   });
 }
 
