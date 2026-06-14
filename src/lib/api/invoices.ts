@@ -554,6 +554,45 @@ export function getARAging(tenant: string): Promise<ARAgingReport> {
   return apiClient.get<ARAgingReport>(`${BASE}/${tenant}/ar/aging`);
 }
 
+// Per-customer running AR balances (the operational AR ledger — includes POS credit sales,
+// which create no invoice). The `id`/`crm_contact_id` is used to receive a repayment.
+export interface CustomerBalance {
+  id: string;
+  crm_contact_id?: string;
+  customer_identifier?: string;
+  customer_name?: string;
+  total_invoiced: string;
+  total_paid: string;
+  total_credits: string;
+  balance_due: string;
+  credit_limit?: string;
+  currency: string;
+  last_payment_date?: string;
+  last_invoice_date?: string;
+  updated_at: string;
+}
+
+interface Paginated<T> { data: T[]; total: number; page: number; limit: number }
+
+export async function getCustomerBalances(tenant: string): Promise<CustomerBalance[]> {
+  const res = await apiClient.get<Paginated<CustomerBalance> | CustomerBalance[]>(`${BASE}/${tenant}/ar/customers`);
+  return Array.isArray(res) ? res : res.data ?? [];
+}
+
+// Receive a customer's repayment against their AR balance. `contactId` = crm_contact_id (or the
+// customer_identifier for non-CRM rows). Returns the updated balance.
+export function recordCustomerPayment(
+  tenant: string,
+  contactId: string,
+  body: { amount: number; payment_method?: string; reference?: string },
+): Promise<CustomerBalance> {
+  return apiClient.post<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/payment`, {
+    amount: String(body.amount),
+    payment_method: body.payment_method,
+    reference: body.reference,
+  });
+}
+
 export function downloadInvoicePDF(tenant: string, publicToken: string, download = false): string {
   return `/api/v1/public/invoices/${publicToken}/pdf${download ? '?download=true' : ''}`;
 }
