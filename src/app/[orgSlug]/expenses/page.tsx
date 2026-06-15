@@ -7,23 +7,20 @@ import { Pagination } from '@/components/ui/pagination';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
   useExpenses,
-  useExpenseCategories,
-  useCreateExpense,
   useSubmitExpense,
   useApproveExpense,
   useRejectExpense,
 } from '@/hooks/use-expenses';
+import { useRouter } from 'next/navigation';
 import { useCostCenters } from '@/hooks/use-cost-centers';
 import type { Expense } from '@/lib/api/expenses';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
-  Calendar,
   Check,
   Filter,
   Loader2,
   Plus,
-  Receipt,
   Search,
   Send,
   X,
@@ -49,13 +46,13 @@ function defaultDateRange(): { from: string; to: string } {
 }
 
 export default function ExpensesPage() {
-  const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  const router = useRouter();
+  const { tenantPathId, tenantQueryParam, isPlatformOwner, orgSlug } = useResolvedTenant();
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [costCenterFilter, setCostCenterFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
-  const [createOpen, setCreateOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const dateRange = useMemo(() => defaultDateRange(), []);
@@ -69,12 +66,10 @@ export default function ExpensesPage() {
   }), [dateRange, statusFilter, costCenterFilter]);
 
   const { data, isLoading, error } = useExpenses(effectiveTenant, queryParams, !!effectiveTenant);
-  const { data: catData } = useExpenseCategories(effectiveTenant, !!effectiveTenant);
   // active_only: hide archived centers from the selector/filter.
   const { data: costCenterData } = useCostCenters(effectiveTenant, { active_only: true });
 
   const list = data?.expenses ?? [];
-  const categories = catData?.categories ?? [];
   const costCenters = costCenterData?.cost_centers ?? [];
 
   const filtered = useMemo(() => {
@@ -96,36 +91,11 @@ export default function ExpensesPage() {
   const statusOptions = ['all', 'draft', 'submitted', 'approved', 'rejected', 'reimbursed'];
 
   // Mutations
-  const createMutation = useCreateExpense(effectiveTenant);
   const submitMutation = useSubmitExpense(effectiveTenant);
   const approveMutation = useApproveExpense(effectiveTenant);
   const rejectMutation = useRejectExpense(effectiveTenant);
 
-  // Create form state
-  const [form, setForm] = useState({
-    category_id: '',
-    cost_center_id: '',
-    description: '',
-    amount: '',
-    tax_amount: '',
-    receipt_url: '',
-    expense_date: new Date().toISOString().slice(0, 10),
-  });
-
-  const handleCreate = async () => {
-    if (!form.description || !form.amount) return;
-    await createMutation.mutateAsync({
-      description: form.description,
-      amount: parseFloat(form.amount),
-      tax_amount: form.tax_amount ? parseFloat(form.tax_amount) : undefined,
-      category_id: form.category_id || undefined,
-      cost_center_id: form.cost_center_id || undefined,
-      receipt_url: form.receipt_url || undefined,
-      expense_date: form.expense_date || undefined,
-    });
-    setCreateOpen(false);
-    setForm({ category_id: '', cost_center_id: '', description: '', amount: '', tax_amount: '', receipt_url: '', expense_date: new Date().toISOString().slice(0, 10) });
-  };
+  const goToNewExpenditure = () => router.push(`/${orgSlug}/expenses/new`);
 
   const handleReject = async () => {
     if (!rejectOpen) return;
@@ -141,8 +111,8 @@ export default function ExpensesPage() {
           <h1 className="text-3xl font-bold tracking-tight">Expenses</h1>
           <p className="text-muted-foreground mt-1">Track, submit, and manage expense claims.</p>
         </div>
-        <Button className="gap-2 shadow-lg shadow-primary/20" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" /> New Expense
+        <Button className="gap-2 shadow-lg shadow-primary/20" onClick={goToNewExpenditure}>
+          <Plus className="h-4 w-4" /> New Expenditure
         </Button>
       </div>
 
@@ -286,96 +256,6 @@ export default function ExpensesPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Create Expense Dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent title="New Expense" description="Create a new expense claim." onClose={() => setCreateOpen(false)}>
-          <div className="space-y-4">
-            <FormField label="Category">
-              <select
-                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
-                value={form.category_id}
-                onChange={(e) => setForm((f) => ({ ...f, category_id: e.target.value }))}
-              >
-                <option value="">None</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Cost Center">
-              <select
-                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
-                value={form.cost_center_id}
-                onChange={(e) => setForm((f) => ({ ...f, cost_center_id: e.target.value }))}
-              >
-                <option value="">None</option>
-                {costCenters.map((cc) => (
-                  <option key={cc.id} value={cc.id}>
-                    {cc.code ? `${cc.code} - ${cc.name}` : cc.name}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Description" required>
-              <input
-                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
-                placeholder="Expense description"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </FormField>
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="Amount" required>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
-                  placeholder="0.00"
-                  value={form.amount}
-                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                />
-              </FormField>
-              <FormField label="Tax Amount">
-                <input
-                  type="number"
-                  step="0.01"
-                  className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
-                  placeholder="0.00"
-                  value={form.tax_amount}
-                  onChange={(e) => setForm((f) => ({ ...f, tax_amount: e.target.value }))}
-                />
-              </FormField>
-            </div>
-            <FormField label="Expense Date">
-              <input
-                type="date"
-                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
-                value={form.expense_date}
-                onChange={(e) => setForm((f) => ({ ...f, expense_date: e.target.value }))}
-              />
-            </FormField>
-            <FormField label="Receipt URL">
-              <input
-                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
-                placeholder="https://..."
-                value={form.receipt_url}
-                onChange={(e) => setForm((f) => ({ ...f, receipt_url: e.target.value }))}
-              />
-            </FormField>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-              <Button
-                onClick={handleCreate}
-                disabled={createMutation.isPending || !form.description || !form.amount}
-              >
-                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Receipt className="h-4 w-4 mr-1" />}
-                Create Expense
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Reject Dialog */}
       <Dialog open={!!rejectOpen} onOpenChange={() => setRejectOpen(null)}>

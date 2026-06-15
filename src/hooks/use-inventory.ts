@@ -1,12 +1,17 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  createVendor,
   getInventoryItem,
+  getVendor,
   listCarriers,
   listInventoryItemTypes,
   listInventoryUnits,
+  listVendors,
   searchInventoryItems,
+  type CreateVendorRequest,
+  type ListVendorsParams,
   type SearchItemsParams,
 } from '@/lib/api/inventory';
 
@@ -20,6 +25,8 @@ export const inventoryKeys = {
   carriers: (tenant: string) => ['inventory', tenant, 'carriers'] as const,
   units: (tenant: string) => ['inventory', tenant, 'units'] as const,
   itemTypes: (tenant: string) => ['inventory', tenant, 'item-types'] as const,
+  vendors: (tenant: string, params?: ListVendorsParams) => ['inventory', tenant, 'vendors', params] as const,
+  vendor: (tenant: string, vendorId: string) => ['inventory', tenant, 'vendor', vendorId] as const,
 };
 
 export function useInventoryItems(tenant: string, params?: SearchItemsParams, enabled = true) {
@@ -64,5 +71,35 @@ export function useInventoryItemTypes(tenant: string, enabled = true) {
     queryFn: () => listInventoryItemTypes(tenant),
     enabled: !!tenant && enabled,
     staleTime: STALE_12H,
+  });
+}
+
+// ---- Vendors / Suppliers (owned by inventory-api) ----
+
+export function useVendors(tenant: string, params?: ListVendorsParams, enabled = true) {
+  return useQuery({
+    queryKey: inventoryKeys.vendors(tenant, params),
+    queryFn: () => listVendors(tenant, params),
+    enabled: !!tenant && enabled,
+    staleTime: STALE_MS,
+  });
+}
+
+export function useVendor(tenant: string, vendorId: string, enabled = true) {
+  return useQuery({
+    queryKey: inventoryKeys.vendor(tenant, vendorId),
+    queryFn: () => getVendor(tenant, vendorId),
+    enabled: !!tenant && !!vendorId && enabled,
+    staleTime: STALE_MS,
+  });
+}
+
+export function useCreateVendor(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateVendorRequest) => createVendor(tenant, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory', tenant, 'vendors'] });
+    },
   });
 }

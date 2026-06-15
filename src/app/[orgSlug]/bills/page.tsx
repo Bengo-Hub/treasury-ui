@@ -6,26 +6,23 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Pagination } from '@/components/ui/pagination';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import {
-  useBills,
-  useAPAging,
-  useCreateBill,
-  usePayBill,
-} from '@/hooks/use-bills';
-import type { Bill, BillLineReq, AgingRow } from '@/lib/api/bills';
+import { useBills, useAPAging, usePayBill } from '@/hooks/use-bills';
+import type { Bill, AgingRow } from '@/lib/api/bills';
 import { listPaymentIntents } from '@/lib/api/payments';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
-  Briefcase,
   CreditCard,
   Filter,
   Loader2,
   Plus,
+  Receipt,
   Search,
-  Trash2,
+  ShoppingBag,
+  Upload,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
@@ -39,13 +36,13 @@ const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' 
 };
 
 export default function BillsPage() {
-  const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  const router = useRouter();
+  const { tenantPathId, tenantQueryParam, isPlatformOwner, orgSlug } = useResolvedTenant();
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'bill' | 'credit_note'>('all');
   const [page, setPage] = useState(1);
-  const [createOpen, setCreateOpen] = useState(false);
   const [payOpen, setPayOpen] = useState<string | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState('');
 
@@ -85,7 +82,6 @@ export default function BillsPage() {
     { value: 'credit_note', label: 'Credit Notes' },
   ];
 
-  const createMutation = useCreateBill(effectiveTenant);
   const payMutation = usePayBill(effectiveTenant);
 
   // Payment intents to settle a bill with — fetched only while the Pay dialog is open.
@@ -101,46 +97,18 @@ export default function BillsPage() {
     hint: it.id.slice(0, 8),
   }));
 
-  // Create form state
-  const emptyLine: BillLineReq = { description: '', quantity: 1, unit_price: 0 };
-  const [form, setForm] = useState({
-    vendor_name: '',
-    document_type: 'bill' as 'bill' | 'credit_note',
-    bill_date: new Date().toISOString().slice(0, 10),
-    due_date: '',
-    currency: '',
-    lines: [{ ...emptyLine }] as BillLineReq[],
-  });
+  const goToNewPurchase = () => router.push(`/${orgSlug}/bills/new`);
 
-  const addLine = () => setForm((f) => ({ ...f, lines: [...f.lines, { ...emptyLine }] }));
-  const removeLine = (idx: number) => setForm((f) => ({
-    ...f,
-    lines: f.lines.length > 1 ? f.lines.filter((_, i) => i !== idx) : f.lines,
-  }));
-  const updateLine = (idx: number, field: keyof BillLineReq, value: string | number) => {
-    setForm((f) => ({
-      ...f,
-      lines: f.lines.map((l, i) => i === idx ? { ...l, [field]: value } : l),
-    }));
-  };
-
-  const handleCreate = async () => {
-    if (!form.vendor_name || !form.due_date || form.lines.length === 0) return;
-    await createMutation.mutateAsync({
-      vendor_name: form.vendor_name,
-      document_type: form.document_type,
-      bill_date: form.bill_date,
-      due_date: form.due_date,
-      currency: form.currency || undefined,
-      lines: form.lines.map((l) => ({
-        description: l.description,
-        quantity: Number(l.quantity),
-        unit_price: Number(l.unit_price),
-      })),
-    });
-    setCreateOpen(false);
-    setForm({ vendor_name: '', document_type: 'bill', bill_date: new Date().toISOString().slice(0, 10), due_date: '', currency: '', lines: [{ ...emptyLine }] });
-  };
+  // The Refrens-style landing only shows before any bills exist — i.e. no bills
+  // returned with the default (unfiltered) view.
+  const showEmptyLanding =
+    !isLoading &&
+    !error &&
+    !!effectiveTenant &&
+    list.length === 0 &&
+    statusFilter === 'all' &&
+    typeFilter === 'all' &&
+    !searchQuery.trim();
 
   const handlePay = async () => {
     if (!payOpen || !paymentIntentId) return;
@@ -156,8 +124,8 @@ export default function BillsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Bills</h1>
           <p className="text-muted-foreground mt-1">Manage vendor bills and accounts payable.</p>
         </div>
-        <Button className="gap-2 shadow-lg shadow-primary/20" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" /> New Bill
+        <Button className="gap-2 shadow-lg shadow-primary/20" onClick={goToNewPurchase}>
+          <Plus className="h-4 w-4" /> New Purchase
         </Button>
       </div>
 
@@ -170,6 +138,44 @@ export default function BillsPage() {
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           Failed to load bills. Check your connection and try again.
+        </div>
+      )}
+
+      {showEmptyLanding && (
+        <div className="flex justify-center py-10">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-8 pb-8 px-8 text-center space-y-5">
+              <div>
+                <h2 className="text-xl font-black">Purchases and Expenses</h2>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Create, Manage, Track &amp; Optimize Your Purchases and Expenses Instantly. Get
+                  essential purchase and expense reports within seconds.
+                </p>
+              </div>
+              <div className="mx-auto flex h-36 w-full max-w-[260px] items-center justify-center rounded-xl bg-accent/30">
+                <Receipt className="h-14 w-14 text-primary/60" />
+              </div>
+              <div className="space-y-3">
+                <Button className="w-full" onClick={goToNewPurchase}>
+                  <ShoppingBag className="h-4 w-4 mr-2" /> Create First Purchase
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/${orgSlug}/expenses/new`)}
+                  className="block w-full text-sm font-semibold text-primary hover:underline"
+                >
+                  Create New Expenditure
+                </button>
+                <button
+                  type="button"
+                  onClick={goToNewPurchase}
+                  className="inline-flex items-center justify-center gap-1.5 w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Upload className="h-4 w-4" /> Upload Purchases
+                </button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -213,6 +219,7 @@ export default function BillsPage() {
       )}
 
       {/* Bills Table */}
+      {!showEmptyLanding && (
       <Card>
         <CardHeader className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between py-4">
           <div className="relative w-full max-w-sm group">
@@ -327,103 +334,7 @@ export default function BillsPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Create Bill Dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent title="New Bill" description="Create a new vendor bill." onClose={() => setCreateOpen(false)} className="max-w-lg">
-          <div className="space-y-4">
-            <FormField label="Vendor Name" required>
-              <input
-                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
-                placeholder="Vendor name"
-                value={form.vendor_name}
-                onChange={(e) => setForm((f) => ({ ...f, vendor_name: e.target.value }))}
-              />
-            </FormField>
-            <FormField label="Document Type">
-              <select
-                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
-                value={form.document_type}
-                onChange={(e) => setForm((f) => ({ ...f, document_type: e.target.value as 'bill' | 'credit_note' }))}
-              >
-                <option value="bill">Bill</option>
-                <option value="credit_note">Credit Note</option>
-              </select>
-            </FormField>
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="Bill Date">
-                <input
-                  type="date"
-                  className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
-                  value={form.bill_date}
-                  onChange={(e) => setForm((f) => ({ ...f, bill_date: e.target.value }))}
-                />
-              </FormField>
-              <FormField label="Due Date" required>
-                <input
-                  type="date"
-                  className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
-                  value={form.due_date}
-                  onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
-                />
-              </FormField>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-muted-foreground">Line Items</span>
-                <Button variant="ghost" size="sm" onClick={addLine} className="text-xs gap-1">
-                  <Plus className="h-3 w-3" /> Add Line
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {form.lines.map((line, idx) => (
-                  <div key={idx} className="flex gap-2 items-start">
-                    <input
-                      className="flex-1 bg-accent/30 border border-border rounded-lg py-2 px-3 text-xs focus:ring-1 focus:ring-primary"
-                      placeholder="Description"
-                      value={line.description}
-                      onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                    />
-                    <input
-                      type="number"
-                      className="w-16 bg-accent/30 border border-border rounded-lg py-2 px-2 text-xs focus:ring-1 focus:ring-primary"
-                      placeholder="Qty"
-                      value={line.quantity}
-                      onChange={(e) => updateLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="w-24 bg-accent/30 border border-border rounded-lg py-2 px-2 text-xs focus:ring-1 focus:ring-primary"
-                      placeholder="Price"
-                      value={line.unit_price}
-                      onChange={(e) => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                    />
-                    <button
-                      onClick={() => removeLine(idx)}
-                      className="p-2 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-              <Button
-                onClick={handleCreate}
-                disabled={createMutation.isPending || !form.vendor_name || !form.due_date}
-              >
-                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Briefcase className="h-4 w-4 mr-1" />}
-                {form.document_type === 'credit_note' ? 'Create Credit Note' : 'Create Bill'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      )}
 
       {/* Pay Bill Dialog */}
       <Dialog open={!!payOpen} onOpenChange={() => setPayOpen(null)}>
