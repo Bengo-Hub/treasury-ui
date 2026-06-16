@@ -29,7 +29,7 @@ export function KRAComplianceTab({ tenantSlug }: Props) {
             onChange={(e) => setPin(e.target.value)}
           />
           <button
-            className="rounded bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
             disabled={!pin || validatePIN.isPending}
             onClick={() => validatePIN.mutate({ tenantSlug, pin }, { onSuccess: setPinResult })}
           >
@@ -37,18 +37,18 @@ export function KRAComplianceTab({ tenantSlug }: Props) {
           </button>
         </div>
         {pinResult?.PINDATA && (
-          <div className="rounded bg-green-50 p-3 text-sm space-y-1">
+          <div className="rounded bg-muted p-3 text-sm space-y-1">
             <p><span className="font-medium">Name:</span> {pinResult.PINDATA.Name}</p>
             <p><span className="font-medium">Type:</span> {pinResult.PINDATA.TypeOfTaxpayer}</p>
             <p>
               <span className="font-medium">Status:</span>{' '}
-              <span className={pinResult.PINDATA.StatusOfPIN === 'Active' ? 'text-green-700' : 'text-red-600'}>
+              <span className={pinResult.PINDATA.StatusOfPIN === 'Active' ? 'text-primary' : 'text-destructive'}>
                 {pinResult.PINDATA.StatusOfPIN}
               </span>
             </p>
           </div>
         )}
-        {pinResult?.ErrorMessage && <p className="text-sm text-red-600">{pinResult.ErrorMessage}</p>}
+        {pinResult?.ErrorMessage && <p className="text-sm text-destructive">{pinResult.ErrorMessage}</p>}
       </div>
 
       <div className="rounded-lg border p-4 space-y-3">
@@ -57,7 +57,7 @@ export function KRAComplianceTab({ tenantSlug }: Props) {
           <input className="flex-1 rounded border px-3 py-2 text-sm" placeholder="KRA PIN" value={pin} onChange={(e) => setPin(e.target.value)} />
           <input className="flex-1 rounded border px-3 py-2 text-sm" placeholder="TCC Number (optional)" value={tccNumber} onChange={(e) => setTccNumber(e.target.value)} />
           <button
-            className="rounded bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
             disabled={!pin || checkTCC.isPending}
             onClick={() => checkTCC.mutate({ tenantSlug, pin, tccNumber }, { onSuccess: setTccResult })}
           >
@@ -65,12 +65,12 @@ export function KRAComplianceTab({ tenantSlug }: Props) {
           </button>
         </div>
         {tccResult?.TCCDATA && (
-          <div className="rounded bg-green-50 p-3 text-sm space-y-1">
+          <div className="rounded bg-muted p-3 text-sm space-y-1">
             <p><span className="font-medium">Certificate:</span> {tccResult.TCCDATA.Number}</p>
             <p><span className="font-medium">Taxpayer:</span> {tccResult.TCCDATA.TaxpayerName}</p>
             <p>
               <span className="font-medium">Status:</span>{' '}
-              <span className={tccResult.TCCDATA.Status === 'Valid' ? 'text-green-700' : 'text-red-600'}>{tccResult.TCCDATA.Status}</span>
+              <span className={tccResult.TCCDATA.Status === 'Valid' ? 'text-primary' : 'text-destructive'}>{tccResult.TCCDATA.Status}</span>
             </p>
             <p><span className="font-medium">Expires:</span> {tccResult.TCCDATA.ExpiryDate}</p>
           </div>
@@ -82,7 +82,7 @@ export function KRAComplianceTab({ tenantSlug }: Props) {
         <div className="flex gap-2">
           <input className="flex-1 rounded border px-3 py-2 text-sm" placeholder="KRA PIN" value={obligationsPin} onChange={(e) => setObligationsPin(e.target.value)} />
           <button
-            className="rounded bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
             disabled={!obligationsPin || loadingObligations}
             onClick={() => fetchObligations()}
           >
@@ -91,7 +91,7 @@ export function KRAComplianceTab({ tenantSlug }: Props) {
         </div>
         {obligations?.OBLIGATIONS && obligations.OBLIGATIONS.length > 0 && (
           <table className="w-full text-sm border">
-            <thead className="bg-gray-50 text-left">
+            <thead className="bg-muted text-left">
               <tr>
                 <th className="px-3 py-2">Code</th>
                 <th className="px-3 py-2">Description</th>
@@ -108,7 +108,7 @@ export function KRAComplianceTab({ tenantSlug }: Props) {
                   <td className="px-3 py-2">{o.DueDate}</td>
                   <td className="px-3 py-2 text-right">{Number(o.Amount).toLocaleString()}</td>
                   <td className="px-3 py-2">
-                    <span className={o.Status === 'Paid' ? 'text-green-700' : o.Status === 'Overdue' ? 'text-red-600' : 'text-yellow-700'}>
+                    <span className={o.Status === 'Paid' ? 'text-primary' : o.Status === 'Overdue' ? 'text-destructive' : 'text-muted-foreground'}>
                       {o.Status}
                     </span>
                   </td>
