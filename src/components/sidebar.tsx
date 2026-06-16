@@ -9,6 +9,7 @@ import {
   Briefcase,
   Calculator,
   ChevronDown,
+  DatabaseBackup,
   ClipboardCheck,
   FileCheck,
   FileMinus,
@@ -243,6 +244,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       icon: Landmark,
       href: `/${orgSlug}/accounts`,
       active: pathname.startsWith(`/${orgSlug}/accounts`),
+    },
+    {
+      label: 'Backups',
+      icon: DatabaseBackup,
+      href: `/${orgSlug}/backups`,
+      active: pathname.startsWith(`/${orgSlug}/backups`),
     },
     {
       label: 'Settings',
