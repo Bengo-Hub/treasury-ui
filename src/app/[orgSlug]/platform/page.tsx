@@ -30,6 +30,7 @@ import {
   Eye,
   EyeOff,
   Info,
+  KeyRound,
   Loader2,
   MoreVertical,
   Pencil,
@@ -203,7 +204,7 @@ export default function PlatformPage() {
   const { data: user } = useMe();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
-  const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims' | 'payments'>('gateways');
+  const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims' | 'payments' | 'encryption'>('gateways');
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [showAddGateway, setShowAddGateway] = useState(false);
@@ -290,6 +291,13 @@ export default function PlatformPage() {
         >
           <Banknote className="h-4 w-4 inline mr-2" />
           Payments
+        </button>
+        <button
+          onClick={() => setActiveTab('encryption')}
+          className={cn("px-6 py-2 rounded-md text-sm font-medium transition-all", activeTab === 'encryption' ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+        >
+          <KeyRound className="h-4 w-4 inline mr-2" />
+          Encryption
         </button>
       </div>
 
@@ -639,6 +647,10 @@ export default function PlatformPage() {
       {activeTab === 'payments' && (
         <PlatformPaymentsSection orgSlug={orgSlug} />
       )}
+
+      {activeTab === 'encryption' && (
+        <EncryptionKeySection />
+      )}
     </div>
   );
 }
@@ -814,6 +826,187 @@ function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
               </div>
             </>
           )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── Credential Encryption Key ──────────────────────────────────────────────────
+// Manages the credential-encryption key used by treasury-api to encrypt gateway
+// secrets (and other credentials) at rest. The raw key is never returned by the
+// API — only a fingerprint + source. Rotating encrypts NEW credentials with the
+// new key; existing credentials remain readable (decryption tries previous keys).
+
+interface EncryptionKeyStatus {
+  configured: boolean;
+  source: 'db' | 'env' | 'dev';
+  key_fingerprint: string;
+  updated_at: string | null;
+}
+
+function EncryptionKeySection() {
+  const [status, setStatus] = useState<EncryptionKeyStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [keyInput, setKeyInput] = useState('');
+
+  const loadStatus = async () => {
+    try {
+      const data = await apiClient.get<EncryptionKeyStatus>('/api/v1/platform/encryption-key');
+      setStatus(data);
+      setError(null);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || e?.message || 'Failed to load encryption key status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+  }, []);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      await apiClient.put('/api/v1/platform/encryption-key', { generate: true });
+      await loadStatus();
+      toast.success('New encryption key generated and activated');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e?.message || 'Failed to generate key');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleSaveKey = async () => {
+    if (!keyInput.trim()) return;
+    setSavingKey(true);
+    try {
+      await apiClient.put('/api/v1/platform/encryption-key', { key: keyInput.trim() });
+      await loadStatus();
+      setKeyInput('');
+      toast.success('Encryption key saved and activated');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e?.message || 'Invalid key — provide a base64-encoded 32-byte key');
+    } finally {
+      setSavingKey(false);
+    }
+  };
+
+  const statusBadge = () => {
+    if (!status) return null;
+    if (status.source === 'db') {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 px-3 py-1 text-xs font-medium text-green-700 dark:text-green-400">
+          <CheckCircle2 className="h-3.5 w-3.5" /> Configured (database)
+        </span>
+      );
+    }
+    if (status.source === 'env') {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+          <Info className="h-3.5 w-3.5" /> Using environment fallback
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-1 text-xs font-medium text-red-700 dark:text-red-400">
+        <XCircle className="h-3.5 w-3.5" /> Insecure dev key — set a key
+      </span>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 py-4">
+          <KeyRound className="h-4 w-4 text-primary" />
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-tight">Credential Encryption</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Key used by treasury-api to encrypt gateway secrets and other credentials at rest (AES-256-GCM).
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5 pb-6">
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading encryption key status…
+            </div>
+          ) : error ? (
+            <div className="px-1 py-2 text-sm text-destructive">{error}</div>
+          ) : status ? (
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                {statusBadge()}
+                {status.key_fingerprint && (
+                  <code className="text-xs bg-muted/50 px-2 py-1 rounded font-mono text-muted-foreground">
+                    fp: {status.key_fingerprint}
+                  </code>
+                )}
+                {status.updated_at && (
+                  <span className="text-xs text-muted-foreground">
+                    Last updated: {new Date(status.updated_at).toLocaleString()}
+                  </span>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700 dark:text-blue-400">
+                    Rotating the key encrypts NEW credentials with the new key; existing credentials stay
+                    readable (decryption tries previous keys). The raw key is never displayed.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={handleGenerate} disabled={generating || savingKey} className="gap-2">
+                  {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                  Generate &amp; activate new key
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdvanced((v) => !v)}
+                >
+                  {showAdvanced ? 'Hide advanced' : 'Advanced: paste a key'}
+                </Button>
+              </div>
+
+              {showAdvanced && (
+                <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Shield className="h-3 w-3" /> Base64-encoded 32-byte key
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={keyInput}
+                      onChange={(e) => setKeyInput(e.target.value)}
+                      placeholder="Paste base64 key…"
+                      className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
+                      autoComplete="off"
+                    />
+                    <Button onClick={handleSaveKey} disabled={savingKey || generating || !keyInput.trim()} className="gap-2">
+                      {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      Save key
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Must decode to exactly 32 bytes. Prefer &quot;Generate&quot; unless migrating an existing key.
+                  </p>
+                </div>
+              )}
+            </>
+          ) : null}
         </CardContent>
       </Card>
     </div>
