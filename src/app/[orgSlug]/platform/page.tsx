@@ -20,6 +20,7 @@ import type { FeeRule, CreateFeeRuleRequest } from '@/lib/api/fee-rules';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api/client';
 import { fetchTenantDefaults } from '@/lib/api/tenant';
+import { PaymentAccountFields, EMPTY_PAYMENT_ACCOUNT, type PaymentAccount } from '@/components/payments/payment-account-form';
 import {
   Banknote,
   Check,
@@ -671,41 +672,14 @@ export default function PlatformPage() {
 // Stored as a single JSON platform setting (platform_payment_account). Used on
 // platform→tenant subscription invoices for the issuer block + "How to pay" section.
 
-interface PlatformPayAccount {
-  business_name: string;
-  tagline: string;
-  // Structured address — each part renders on its own line on the document.
-  building: string;
-  street: string;
-  city: string;
-  po_box: string;
-  postal_code: string;
-  country: string;
-  address: string; // legacy single-line fallback
-  tax_pin: string;
-  bank_name: string;
-  account_name: string;
-  account_number: string;
-  branch_code: string;
-  mpesa_paybill: string;
-  mpesa_till: string;
-  instructions: string;
-}
-
-const EMPTY_PAY_ACCOUNT: PlatformPayAccount = {
-  business_name: '', tagline: '', building: '', street: '', city: '', po_box: '',
-  postal_code: '', country: '', address: '', tax_pin: '', bank_name: '', account_name: '',
-  account_number: '', branch_code: '', mpesa_paybill: '', mpesa_till: '', instructions: '',
-};
-
 function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
-  const [acct, setAcct] = useState<PlatformPayAccount>(EMPTY_PAY_ACCOUNT);
+  const [acct, setAcct] = useState<PaymentAccount>(EMPTY_PAYMENT_ACCOUNT);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     async function load() {
-      let saved: Partial<PlatformPayAccount> = {};
+      let saved: Partial<PaymentAccount> = {};
       try {
         const data = await apiClient.get<{ settings: Array<{ config_key: string; config_value: string }> }>(
           `/api/v1/platform/settings`
@@ -718,7 +692,7 @@ function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
       // values always win.
       const def = await fetchTenantDefaults(orgSlug).catch(() => null);
       setAcct({
-        ...EMPTY_PAY_ACCOUNT,
+        ...EMPTY_PAYMENT_ACCOUNT,
         ...(def ? {
           business_name: def.name,
           tagline: def.tagline,
@@ -733,8 +707,8 @@ function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
     load();
   }, [orgSlug]);
 
-  const set = (k: keyof PlatformPayAccount) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setAcct((p) => ({ ...p, [k]: e.target.value }));
+  const onChange = (k: keyof PaymentAccount, v: string | boolean) =>
+    setAcct((p) => ({ ...p, [k]: v }));
 
   const handleSave = async () => {
     setSaving(true);
@@ -752,18 +726,6 @@ function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
       setSaving(false);
     }
   };
-
-  const field = (label: string, k: keyof PlatformPayAccount, placeholder = '') => (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      <input
-        value={acct[k]}
-        onChange={set(k)}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-      />
-    </div>
-  );
 
   return (
     <div className="space-y-6">
@@ -784,52 +746,7 @@ function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
             </div>
           ) : (
             <>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Business Identity</p>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {field('Business / Legal Name', 'business_name', 'Codevertex Africa Limited')}
-                  {field('Slogan / Tagline', 'tagline', 'Tangible Solutions for Businesses')}
-                  {field('Tax PIN', 'tax_pin', 'P051XXXXXXX')}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Address</p>
-                <p className="text-[11px] text-muted-foreground -mt-2 mb-3">Each part prints on its own line on the document (building, then street/city/country, then P.O. Box).</p>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {field('Building / Floor / Suite', 'building', '2nd Floor, Pioneer Hse')}
-                  {field('Street', 'street', 'Oginga Street')}
-                  {field('City / Town', 'city', 'Kisumu')}
-                  {field('P.O. Box', 'po_box', '547')}
-                  {field('Postal Code', 'postal_code', '40100')}
-                  {field('Country', 'country', 'Kenya')}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Bank Account</p>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {field('Bank Name', 'bank_name', 'Equity Bank')}
-                  {field('Branch / IBAN / Swift', 'branch_code')}
-                  {field('Account Name', 'account_name')}
-                  {field('Account Number', 'account_number')}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Mobile Money</p>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {field('M-Pesa Paybill', 'mpesa_paybill')}
-                  {field('M-Pesa Till', 'mpesa_till')}
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Payment Instructions (optional)</label>
-                <textarea
-                  value={acct.instructions}
-                  onChange={set('instructions')}
-                  rows={2}
-                  placeholder="e.g. Use your invoice number as the payment reference."
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
+              <PaymentAccountFields acct={acct} onChange={onChange} />
               <div className="flex justify-end">
                 <Button onClick={handleSave} disabled={saving}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

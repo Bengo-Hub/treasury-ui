@@ -132,6 +132,8 @@ export interface TenantDefaults {
   email: string;
   phone: string;
   taxPin: string;
+  vatRegistered: boolean;
+  vatRegisteredOn: string;
 }
 
 /** Fetch a tenant's identity defaults (name, slogan/tagline, address, …) from auth-api
@@ -143,7 +145,13 @@ export async function fetchTenantDefaults(slug: string): Promise<TenantDefaults 
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return null;
-    const t = (await res.json()) as TenantResponse & { country?: string; contact_phone?: string };
+    const t = (await res.json()) as TenantResponse & {
+      country?: string;
+      contact_phone?: string;
+      tax_pin?: string;
+      vat_registered?: boolean;
+      vat_registered_on?: string;
+    };
     const m = (t.metadata ?? {}) as Record<string, unknown>;
     const s = (...keys: string[]): string => {
       for (const k of keys) { const v = m[k]; if (typeof v === 'string' && v) return v; }
@@ -156,7 +164,10 @@ export async function fetchTenantDefaults(slug: string): Promise<TenantDefaults 
       country: t.country ?? s('country'),
       email: t.contact_email ?? '',
       phone: t.contact_phone ?? '',
-      taxPin: s('tax_pin', 'kra_pin'),
+      // tax_pin / VAT are first-class auth-api fields now; fall back to metadata for older tenants.
+      taxPin: t.tax_pin ?? s('tax_pin', 'kra_pin'),
+      vatRegistered: !!t.vat_registered,
+      vatRegisteredOn: (t.vat_registered_on ?? '').slice(0, 10),
     };
   } catch {
     return null;
