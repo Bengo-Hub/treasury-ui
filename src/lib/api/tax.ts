@@ -337,3 +337,55 @@ export function fileTOTReturn(tenantSlug: string, req: TOTReturnRequest): Promis
 export function fileNILReturn(tenantSlug: string, req: NILReturnRequest): Promise<ReturnResponse> {
   return apiClient.post(`${BASE}/${tenantSlug}/tax/kra/filing/nil`, req);
 }
+
+// ---- Tax eligibility / registration profile (Phase 2) ----
+
+export interface EligibilityPosition {
+  tenant_id: string;
+  rolling_turnover_12m: string;
+  currency: string;
+  vat_threshold: string;
+  vat_eligible: boolean;
+  vat_registered: boolean;
+  etims_activated: boolean;
+  vat_compliant: boolean;
+  auto_charge_vat: boolean;
+  tot_eligible: boolean;
+  tot_threshold_min: string;
+  tot_threshold_max: string;
+  kra_pin?: string;
+  severity: 'ok' | 'info' | 'warning' | 'critical';
+  warnings: string[];
+  actions: string[];
+}
+
+export interface TaxProfile {
+  id: string;
+  tenant_id: string;
+  kra_pin?: string;
+  vat_registered: boolean;
+  tot_registered: boolean;
+  auto_charge_vat: boolean;
+  etims_activated: boolean;
+  registered_obligations?: { id: string; name: string; type: string }[];
+  obligations_synced_at?: string;
+}
+
+export function getEligibilityPosition(tenantSlug: string): Promise<EligibilityPosition> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/eligibility-position`);
+}
+
+export function getTaxProfile(tenantSlug: string): Promise<TaxProfile> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/profile`);
+}
+
+export function updateTaxProfile(
+  tenantSlug: string,
+  body: Partial<Pick<TaxProfile, 'kra_pin' | 'vat_registered' | 'tot_registered' | 'auto_charge_vat'>>,
+): Promise<TaxProfile> {
+  return apiClient.put(`${BASE}/${tenantSlug}/tax/profile`, body);
+}
+
+export function syncTaxObligations(tenantSlug: string): Promise<TaxProfile> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/profile/sync-obligations`, {});
+}

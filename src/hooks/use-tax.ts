@@ -206,3 +206,45 @@ export function useFileNILReturn() {
     onError: (err: any) => toast.error(err?.response?.data?.error || 'NIL return filing failed'),
   });
 }
+
+// ---- Tax eligibility / profile (Phase 2) ----
+
+export function useTaxEligibility(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['tax-eligibility', tenantSlug],
+    queryFn: () => taxApi.getEligibilityPosition(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useTaxProfile(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['tax-profile', tenantSlug],
+    queryFn: () => taxApi.getTaxProfile(tenantSlug),
+    enabled: !!tenantSlug,
+  });
+}
+
+export function useUpdateTaxProfile(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<{ kra_pin: string; vat_registered: boolean; tot_registered: boolean; auto_charge_vat: boolean }>) =>
+      taxApi.updateTaxProfile(tenantSlug, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tax-profile', tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['tax-eligibility', tenantSlug] });
+    },
+  });
+}
+
+export function useSyncTaxObligations(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => taxApi.syncTaxObligations(tenantSlug),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tax-profile', tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['tax-eligibility', tenantSlug] });
+    },
+  });
+}
