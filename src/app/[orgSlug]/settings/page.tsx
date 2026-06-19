@@ -6,7 +6,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useSettings, useUpdateSetting, getSettingValue } from '@/hooks/use-settings';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { PaymentsTab } from './_components/payments-tab';
+import { PaymentDetailsTab } from './_components/payment-details-tab';
 import {
+  Banknote,
   Bell,
   CreditCard,
   FileDigit,
@@ -110,6 +112,9 @@ export default function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="payments">
             <span className="flex items-center gap-1.5"><CreditCard className="h-3.5 w-3.5" /> Payments</span>
+          </TabsTrigger>
+          <TabsTrigger value="payment-details">
+            <span className="flex items-center gap-1.5"><Banknote className="h-3.5 w-3.5" /> Payment Details</span>
           </TabsTrigger>
           <TabsTrigger value="notifications">
             <span className="flex items-center gap-1.5"><Bell className="h-3.5 w-3.5" /> Notifications</span>
@@ -277,6 +282,11 @@ export default function SettingsPage() {
             onSaveMaxAmount={() => saveSetting('max_payment_amount', maxPaymentAmount, 'number')}
             isSavingSettings={updateSetting.isPending}
           />
+        </TabsContent>
+
+        {/* Payment Details — issuer block (business identity + bank + paybill/till) */}
+        <TabsContent value="payment-details">
+          <PaymentDetailsTab orgSlug={orgSlug} tenantSlug={tenantSlug} />
         </TabsContent>
 
         {/* Notifications */}
