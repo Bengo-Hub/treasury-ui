@@ -15,6 +15,7 @@ import {
   useRefreshCodeLists,
 } from '@/hooks/use-tax';
 import { KRAComplianceTab } from './kra-compliance-tab';
+import { TaxProfileTab } from './tax-profile-tab';
 import { WHTPaymentRefTab } from './wht-prn-tab';
 import { TaxReturnsTab } from './tax-returns-tab';
 import { TransmissionHistoryTab } from './transmission-history-tab';
@@ -99,6 +100,7 @@ export default function TaxPage() {
       ) : (
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
+            <TabsTrigger value="profile">Compliance</TabsTrigger>
             <TabsTrigger value="codes">Tax Codes</TabsTrigger>
             <TabsTrigger value="periods">Tax Periods</TabsTrigger>
             <TabsTrigger value="etims" className="flex items-center gap-1.5">
@@ -111,6 +113,9 @@ export default function TaxPage() {
             <TabsTrigger value="transmissions">Transmissions</TabsTrigger>
           </TabsList>
 
+          <TabsContent value="profile" className="mt-6">
+            <TaxProfileTab tenantSlug={effectiveTenant} />
+          </TabsContent>
           <TabsContent value="codes" className="mt-6">
             <TaxCodesTab tenantSlug={effectiveTenant} />
           </TabsContent>
