@@ -136,12 +136,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           active: pathname.startsWith(`/${orgSlug}/credit-notes`),
         },
         {
-          label: 'Debit Notes',
-          icon: FilePlus,
-          href: `/${orgSlug}/debit-notes`,
-          active: pathname.startsWith(`/${orgSlug}/debit-notes`),
-        },
-        {
           label: 'Sales Orders',
           icon: ShoppingCart,
           href: `/${orgSlug}/sales-orders`,
@@ -182,6 +176,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: Users,
           href: `/${orgSlug}/vendors`,
           active: pathname.startsWith(`/${orgSlug}/vendors`),
+        },
+        {
+          label: 'Debit Notes',
+          icon: FilePlus,
+          href: `/${orgSlug}/debit-notes`,
+          active: pathname.startsWith(`/${orgSlug}/debit-notes`),
         },
       ],
     },
