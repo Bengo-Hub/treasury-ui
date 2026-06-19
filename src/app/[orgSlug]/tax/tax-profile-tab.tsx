@@ -8,6 +8,7 @@ import {
   useSyncTaxObligations,
   useValidateKRAPIN,
   useCheckTaxCompliance,
+  useTaxPositionEstimate,
 } from '@/hooks/use-tax';
 
 interface Props { tenantSlug: string }
@@ -29,6 +30,7 @@ function money(v?: string) {
 export function TaxProfileTab({ tenantSlug }: Props) {
   const { data: profile } = useTaxProfile(tenantSlug);
   const { data: position } = useTaxEligibility(tenantSlug);
+  const { data: estimate } = useTaxPositionEstimate(tenantSlug);
   const update = useUpdateTaxProfile(tenantSlug);
   const sync = useSyncTaxObligations(tenantSlug);
   const validatePIN = useValidateKRAPIN();
@@ -62,6 +64,42 @@ export function TaxProfileTab({ tenantSlug }: Props) {
           </div>
           {position.warnings?.map((w, i) => <p key={i} className="text-sm">{w}</p>)}
           {position.actions?.length > 0 && <p className="text-xs opacity-75">Next steps: {position.actions.join(' · ')}</p>}
+        </div>
+      )}
+
+      {/* Current-period liability estimate + obligation exposure */}
+      {estimate && (estimate.vat_registered || estimate.tot_registered || estimate.obligations.length > 0) && (
+        <div className="rounded-lg border p-4 space-y-3">
+          <h3 className="font-semibold text-sm">
+            This period’s estimate <span className="font-normal text-muted-foreground">({estimate.period_start} → {estimate.period_end})</span>
+          </h3>
+          {estimate.vat_registered && (
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div><span className={label}>Output VAT</span><div className="font-medium">{money(estimate.output_vat)}</div></div>
+              <div><span className={label}>Input VAT</span><div className="font-medium">{money(estimate.input_vat)}</div></div>
+              <div><span className={label}>VAT payable</span><div className="font-medium">{money(estimate.vat_payable)}</div></div>
+            </div>
+          )}
+          {estimate.tot_registered && (
+            <div className="text-sm"><span className={label}>Turnover Tax payable</span><div className="font-medium">{money(estimate.tot_payable)}</div></div>
+          )}
+          {estimate.obligations.length > 0 && (
+            <div className="space-y-1.5">
+              {estimate.obligations.map((o, i) => (
+                <div key={i} className={`rounded border px-3 py-2 text-sm ${o.overdue ? 'border-destructive/30 bg-destructive/10' : 'border-border'}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{o.obligation}</span>
+                    <span className={o.overdue ? 'text-destructive font-medium' : 'text-muted-foreground'}>
+                      {o.overdue ? `Overdue by ${Math.abs(o.days_until_due)}d` : `Due in ${o.days_until_due}d`} · {o.next_due_date}
+                    </span>
+                  </div>
+                  {o.amount_estimate && <p className="text-xs text-muted-foreground">Estimated: {money(o.amount_estimate)}</p>}
+                  {o.penalty_rule && <p className="text-xs text-muted-foreground">{o.penalty_rule}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+          {estimate.notes?.map((n, i) => <p key={i} className="text-xs text-muted-foreground">{n}</p>)}
         </div>
       )}
 
