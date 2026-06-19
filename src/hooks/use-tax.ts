@@ -164,7 +164,7 @@ export function useGenerateRentalWHTPRN() {
   return useMutation({
     mutationFn: ({ tenantSlug, req }: { tenantSlug: string; req: taxApi.WHTPaymentRequest }) =>
       taxApi.generateRentalWHTPRN(tenantSlug, req),
-    onSuccess: (data) => toast.success(`Rental WHT PRN generated: ${data.PRN}`),
+    onSuccess: (data) => toast.success(`Rental WHT PRN generated: ${data.responseData?.prnNumber ?? data.status}`),
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to generate rental WHT PRN'),
   });
 }
@@ -173,7 +173,7 @@ export function useGenerateIncomeTaxWHTPRN() {
   return useMutation({
     mutationFn: ({ tenantSlug, req }: { tenantSlug: string; req: taxApi.WHTPaymentRequest }) =>
       taxApi.generateIncomeTaxWHTPRN(tenantSlug, req),
-    onSuccess: (data) => toast.success(`Income tax WHT PRN generated: ${data.PRN}`),
+    onSuccess: (data) => toast.success(`Income tax WHT PRN generated: ${data.responseData?.prnNumber ?? data.status}`),
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to generate income tax WHT PRN'),
   });
 }
@@ -182,7 +182,7 @@ export function useGenerateVATWHTPRN() {
   return useMutation({
     mutationFn: ({ tenantSlug, req }: { tenantSlug: string; req: taxApi.WHTPaymentRequest }) =>
       taxApi.generateVATWHTPRN(tenantSlug, req),
-    onSuccess: (data) => toast.success(`VAT WHT PRN generated: ${data.PRN}`),
+    onSuccess: (data) => toast.success(`VAT WHT PRN generated: ${data.responseData?.prnNumber ?? data.status}`),
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to generate VAT WHT PRN'),
   });
 }
@@ -193,7 +193,7 @@ export function useFileTOTReturn() {
   return useMutation({
     mutationFn: ({ tenantSlug, req }: { tenantSlug: string; req: taxApi.TOTReturnRequest }) =>
       taxApi.fileTOTReturn(tenantSlug, req),
-    onSuccess: (data) => toast.success(`TOT return filed — Ack: ${data.AcknowledgementNumber}`),
+    onSuccess: (data) => toast.success(`TOT return filed — Ack: ${data.AckNumber}`),
     onError: (err: any) => toast.error(err?.response?.data?.error || 'TOT return filing failed'),
   });
 }
@@ -202,7 +202,7 @@ export function useFileNILReturn() {
   return useMutation({
     mutationFn: ({ tenantSlug, req }: { tenantSlug: string; req: taxApi.NILReturnRequest }) =>
       taxApi.fileNILReturn(tenantSlug, req),
-    onSuccess: (data) => toast.success(`NIL return filed — Ack: ${data.AcknowledgementNumber}`),
+    onSuccess: (data) => toast.success(`NIL return filed — Ack: ${data.AckNumber}`),
     onError: (err: any) => toast.error(err?.response?.data?.error || 'NIL return filing failed'),
   });
 }
