@@ -64,15 +64,15 @@ export function KRAComplianceTab({ tenantSlug }: Props) {
             {checkTCC.isPending ? 'Checking...' : 'Check TCC'}
           </button>
         </div>
-        {tccResult?.TCCDATA && (
+        {tccResult?.TCCData && (
           <div className="rounded bg-muted p-3 text-sm space-y-1">
-            <p><span className="font-medium">Certificate:</span> {tccResult.TCCDATA.Number}</p>
-            <p><span className="font-medium">Taxpayer:</span> {tccResult.TCCDATA.TaxpayerName}</p>
+            <p><span className="font-medium">Certificate:</span> {tccResult.TCCData.TCCNumber}</p>
+            <p><span className="font-medium">KRA PIN:</span> {tccResult.TCCData.KRAPIN}</p>
             <p>
               <span className="font-medium">Status:</span>{' '}
-              <span className={tccResult.TCCDATA.Status === 'Valid' ? 'text-primary' : 'text-destructive'}>{tccResult.TCCDATA.Status}</span>
+              <span className={tccResult.TCCData.TCCStatus === 'Approved' ? 'text-primary' : 'text-destructive'}>{tccResult.TCCData.TCCStatus}</span>
             </p>
-            <p><span className="font-medium">Expires:</span> {tccResult.TCCDATA.ExpiryDate}</p>
+            <p><span className="font-medium">Issued:</span> {tccResult.TCCData.TCCIssueDate} &middot; <span className="font-medium">Expires:</span> {tccResult.TCCData.TCCExpiryDate}</p>
           </div>
         )}
       </div>
@@ -89,28 +89,22 @@ export function KRAComplianceTab({ tenantSlug }: Props) {
             {loadingObligations ? 'Loading...' : 'Fetch'}
           </button>
         </div>
-        {obligations?.OBLIGATIONS && obligations.OBLIGATIONS.length > 0 && (
+        {obligations?.ObligationsList && obligations.ObligationsList.length > 0 && (
           <table className="w-full text-sm border">
             <thead className="bg-muted text-left">
               <tr>
-                <th className="px-3 py-2">Code</th>
-                <th className="px-3 py-2">Description</th>
-                <th className="px-3 py-2">Due Date</th>
-                <th className="px-3 py-2 text-right">Amount (KES)</th>
-                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">ID</th>
+                <th className="px-3 py-2">Obligation</th>
+                <th className="px-3 py-2">Type</th>
               </tr>
             </thead>
             <tbody>
-              {obligations.OBLIGATIONS.map((o, i) => (
+              {obligations.ObligationsList.map((o, i) => (
                 <tr key={i} className="border-t">
-                  <td className="px-3 py-2">{o.ObligationCode}</td>
-                  <td className="px-3 py-2">{o.ObligationDescription}</td>
-                  <td className="px-3 py-2">{o.DueDate}</td>
-                  <td className="px-3 py-2 text-right">{Number(o.Amount).toLocaleString()}</td>
+                  <td className="px-3 py-2">{o.obligationId}</td>
+                  <td className="px-3 py-2">{o.obligationName}</td>
                   <td className="px-3 py-2">
-                    <span className={o.Status === 'Paid' ? 'text-primary' : o.Status === 'Overdue' ? 'text-destructive' : 'text-muted-foreground'}>
-                      {o.Status}
-                    </span>
+                    <span className="text-muted-foreground">{o.obligationType === 'NRM' ? 'Normal' : o.obligationType === 'SPL' ? 'Special' : o.obligationType}</span>
                   </td>
                 </tr>
               ))}

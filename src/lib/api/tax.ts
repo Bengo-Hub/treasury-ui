@@ -89,62 +89,100 @@ export interface PINData {
 }
 
 export interface PINResponse {
+  ResponseCode?: string;
+  Message?: string;
+  Status?: string;
   PINDATA?: PINData;
-  ErrorMessage?: string;
+  errorMessage?: string;
 }
 
 export interface TCCData {
-  Number: string;
-  Status: string;
-  ExpiryDate: string;
-  IssuedDate: string;
-  TaxpayerName: string;
+  KRAPIN: string;
+  TCCNumber: string;
+  TCCStatus: string;
+  TCCIssueDate: string;
+  TCCExpiryDate: string;
 }
 
 export interface TCCResponse {
-  TCCDATA?: TCCData;
-  ErrorMessage?: string;
+  ResponseCode?: string;
+  Message?: string;
+  Status?: string;
+  TCCData?: TCCData;
+  errorMessage?: string;
 }
 
 export interface Obligation {
-  ObligationCode: string;
-  ObligationDescription: string;
-  DueDate: string;
-  Amount: number;
-  Status: string;
+  obligationId: string;
+  obligationName: string;
+  obligationType: string; // NRM | SPL
 }
 
 export interface ObligationsResponse {
-  OBLIGATIONS?: Obligation[];
-  ErrorMessage?: string;
+  ResponseCode?: string;
+  ResponseMsg?: string;
+  Status?: string;
+  ObligationsList?: Obligation[];
+  errorMessage?: string;
+}
+
+// KRA WHT PRN — nested header + details[] (taxObligation: WHTIT | WHTRENT | WHTVAT).
+export interface WHTTransactionHeader {
+  withholderPin: string;
+  transactionUniqueNo: string;
+  noOfTransactions: number;
+  taxObligation?: string;
+  taxPeriodFrom: string; // ISO 8601
+  taxPeriodTo: string;
+  totalGrossAmount: string;
+  totalTaxAmount: string;
+}
+
+export interface WHTTransactionDetail {
+  invoiceNo?: string;
+  invoiceDate?: string;
+  paymentDate?: string;
+  grossAmount?: string;
+  taxRate?: number;
+  taxAmount?: number;
+  // Income Tax
+  natureOfTransaction?: string;
+  residentialStatus?: string;
+  country?: string;
+  withholdeePin?: string;
+  withholdeeName?: string;
+  // Rental
+  typeOfProperty?: string;
+  landlordPin?: string;
+  lrNumber?: string;
+  building?: string;
+  street?: string;
+  town?: string;
 }
 
 export interface WHTPaymentRequest {
-  WithholdeePIN: string;
-  WithholderPIN: string;
-  Amount: number;
-  PaymentPeriod: string;
-  PaymentDate: string;
+  transactionHeader: WHTTransactionHeader;
+  transactionDetails: WHTTransactionDetail[];
 }
 
 export interface PRNResponse {
-  PRN: string;
-  Amount: number;
-  PaymentSlip?: {
-    SlipNumber: string;
-    GeneratedDate: string;
-    ExpiryDate: string;
+  responseCode?: string;
+  responseDesc?: string;
+  status?: string;
+  responseData?: {
+    prnNumber: string;
+    prnDate: string;
+    prnAmount: number;
   };
-  ErrorMessage?: string;
+  errorMessage?: string;
 }
 
 export interface TOTReturnRequest {
   TAXPAYERDETAILS: {
     TaxpayerPIN: string;
-    Period: string;
-    TurnoverAmount: number;
-    TaxAmount: number;
-    ObligationCode: string;
+    Month: string;
+    Year: string;
+    GrossTurnover: number;
   };
 }
 
@@ -159,9 +197,13 @@ export interface NILReturnRequest {
 }
 
 export interface ReturnResponse {
-  AcknowledgementNumber?: string;
-  Status?: string;
+  ResponseCode?: string;
   Message?: string;
+  Status?: string;
+  AckNumber?: string;
+  PRN?: string;
+  ComputedTax?: string;
+  TaxPayable?: string;
   ErrorMessage?: string;
 }
 
