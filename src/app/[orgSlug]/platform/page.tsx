@@ -26,6 +26,7 @@ import {
   CheckCircle2,
   Copy,
   CreditCard,
+  Database,
   DollarSign,
   Eye,
   EyeOff,
@@ -204,7 +205,7 @@ export default function PlatformPage() {
   const { data: user } = useMe();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
-  const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims' | 'payments' | 'encryption'>('gateways');
+  const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims' | 'payments' | 'encryption' | 'backups'>('gateways');
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [showAddGateway, setShowAddGateway] = useState(false);
@@ -298,6 +299,13 @@ export default function PlatformPage() {
         >
           <KeyRound className="h-4 w-4 inline mr-2" />
           Encryption
+        </button>
+        <button
+          onClick={() => setActiveTab('backups')}
+          className={cn("px-6 py-2 rounded-md text-sm font-medium transition-all", activeTab === 'backups' ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+        >
+          <Database className="h-4 w-4 inline mr-2" />
+          Backups
         </button>
       </div>
 
@@ -650,6 +658,10 @@ export default function PlatformPage() {
 
       {activeTab === 'encryption' && (
         <EncryptionKeySection />
+      )}
+
+      {activeTab === 'backups' && (
+        <BackupDestinationSection />
       )}
     </div>
   );
@@ -1007,6 +1019,364 @@ function EncryptionKeySection() {
               )}
             </>
           ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── Backup Destination ─────────────────────────────────────────────────────────
+// Configures an OPTIONAL remote mirror for treasury backups. The local cluster
+// volume (PVC) is ALWAYS written and remains the fallback; when a destination is
+// enabled here, each backup is also copied to that remote. Credentials are stored
+// encrypted by treasury-api and never returned (secret params come back as set:true
+// with no value). On save we omit blank secret params so existing secrets persist.
+
+interface BackupParam {
+  key: string;
+  is_secret: boolean;
+  set: boolean;
+  value?: string;
+}
+
+interface BackupDestination {
+  configured: boolean;
+  type: string;
+  enabled: boolean;
+  remote_path: string;
+  params: BackupParam[];
+}
+
+type BackupParamSpec = {
+  key: string;
+  label: string;
+  secret?: boolean;
+  required?: boolean;
+  placeholder?: string;
+  hint?: string;
+};
+
+const BACKUP_TYPES = [
+  { value: 's3', label: 'S3 / S3-compatible' },
+  { value: 'onedrive', label: 'OneDrive' },
+  { value: 'gdrive', label: 'Google Drive' },
+  { value: 'webdav', label: 'WebDAV' },
+  { value: 'sftp', label: 'SFTP' },
+  { value: 'smb', label: 'SMB / CIFS' },
+] as const;
+
+const BACKUP_TYPE_HELP: Record<string, string> = {
+  s3: 'AWS S3 or any S3-compatible store (MinIO, Wasabi, R2). Provide a bucket and access keys.',
+  onedrive: 'Microsoft OneDrive. Paste an rclone OAuth token JSON and (optionally) the target drive.',
+  gdrive: 'Google Drive. Use an rclone OAuth token JSON or a service-account credentials JSON.',
+  webdav: 'Any WebDAV endpoint (Nextcloud, ownCloud, etc.). Provide the URL and login.',
+  sftp: 'SFTP server. Authenticate with a password or a private key (PEM).',
+  smb: 'SMB / CIFS network share (e.g. a NAS). Provide host, share and login.',
+};
+
+const BACKUP_PARAM_SPECS: Record<string, BackupParamSpec[]> = {
+  s3: [
+    { key: 'bucket', label: 'Bucket', required: true, placeholder: 'treasury-backups' },
+    { key: 'region', label: 'Region', placeholder: 'us-east-1' },
+    { key: 'endpoint', label: 'Endpoint', placeholder: 'https://s3.amazonaws.com (or MinIO URL)' },
+    { key: 'access_key_id', label: 'Access Key ID', secret: true },
+    { key: 'secret_access_key', label: 'Secret Access Key', secret: true },
+    { key: 'provider', label: 'Provider', placeholder: 'AWS', hint: 'rclone S3 provider (AWS, Minio, Wasabi, Cloudflare…). Default AWS.' },
+  ],
+  onedrive: [
+    { key: 'token', label: 'OAuth Token (JSON)', secret: true, hint: 'rclone OneDrive token JSON.' },
+    { key: 'drive_id', label: 'Drive ID' },
+    { key: 'drive_type', label: 'Drive Type', placeholder: 'personal | business | documentLibrary' },
+  ],
+  gdrive: [
+    { key: 'token', label: 'OAuth Token (JSON)', secret: true, hint: 'rclone Google Drive token JSON. Use this OR a service account.' },
+    { key: 'service_account_credentials', label: 'Service Account Credentials (JSON)', secret: true, hint: 'Service-account key JSON. Use this OR an OAuth token.' },
+    { key: 'drive_id', label: 'Root Folder ID', hint: 'Google Drive folder/shared-drive ID to use as the root.' },
+  ],
+  webdav: [
+    { key: 'url', label: 'URL', required: true, placeholder: 'https://cloud.example.com/remote.php/dav/files/user' },
+    { key: 'user', label: 'User', required: true },
+    { key: 'pass', label: 'Password', secret: true },
+    { key: 'vendor', label: 'Vendor', placeholder: 'nextcloud | owncloud | other' },
+  ],
+  sftp: [
+    { key: 'host', label: 'Host', required: true, placeholder: 'backup.example.com' },
+    { key: 'port', label: 'Port', placeholder: '22' },
+    { key: 'user', label: 'User', required: true },
+    { key: 'pass', label: 'Password', secret: true, hint: 'Provide a password OR a private key.' },
+    { key: 'key_pem', label: 'Private Key (PEM)', secret: true, hint: 'PEM-encoded private key. Used instead of a password.' },
+  ],
+  smb: [
+    { key: 'host', label: 'Host', required: true, placeholder: 'nas.local' },
+    { key: 'user', label: 'User', required: true },
+    { key: 'pass', label: 'Password', secret: true },
+    { key: 'domain', label: 'Domain', placeholder: 'WORKGROUP' },
+    { key: 'share', label: 'Share', placeholder: 'backups' },
+  ],
+};
+
+function BackupDestinationSection() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  const [type, setType] = useState<string>('s3');
+  const [enabled, setEnabled] = useState(false);
+  const [remotePath, setRemotePath] = useState('');
+  // Map of param key → current input value. Empty string for a secret means
+  // "unchanged" (we never send blanks for secrets). Tracks which secrets are
+  // already set server-side so we can render the "leave blank to keep" hint.
+  const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [secretSet, setSecretSet] = useState<Record<string, boolean>>({});
+  const [visible, setVisible] = useState<Record<string, boolean>>({});
+
+  const specs = BACKUP_PARAM_SPECS[type] ?? [];
+
+  const applyDestination = (d: BackupDestination) => {
+    setType(d.type || 's3');
+    setEnabled(!!d.enabled);
+    setRemotePath(d.remote_path || '');
+    const vals: Record<string, string> = {};
+    const sset: Record<string, boolean> = {};
+    (d.params ?? []).forEach((p) => {
+      if (p.is_secret) {
+        sset[p.key] = !!p.set;
+        // never prefill secret values into the input
+      } else if (p.value !== undefined && p.value !== null) {
+        vals[p.key] = p.value;
+      }
+    });
+    setParamValues(vals);
+    setSecretSet(sset);
+  };
+
+  const load = async () => {
+    try {
+      const d = await apiClient.get<BackupDestination>('/api/v1/platform/backups/destination');
+      if (d.configured) applyDestination(d);
+      setError(null);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || e?.message || 'Failed to load backup destination');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  // When the user switches type, drop param values that don't belong to the new
+  // type so we don't accidentally submit stale fields.
+  const handleTypeChange = (next: string) => {
+    setType(next);
+    setVisible({});
+  };
+
+  const setParam = (key: string) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setParamValues((p) => ({ ...p, [key]: e.target.value }));
+
+  // Builds the PUT/test param map: only include params for the current type, and
+  // for secrets only include them when the user actually typed a new value (so
+  // existing encrypted secrets are preserved).
+  const buildParams = (): Record<string, string> => {
+    const out: Record<string, string> = {};
+    specs.forEach((s) => {
+      const v = paramValues[s.key];
+      if (s.secret) {
+        if (v && v.trim()) out[s.key] = v;
+      } else if (v !== undefined && v !== '') {
+        out[s.key] = v;
+      }
+    });
+    return out;
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      const res = await apiClient.post<{ ok: boolean; message: string }>(
+        '/api/v1/platform/backups/destination/test',
+        { type, enabled, remote_path: remotePath, params: buildParams() }
+      );
+      if (res.ok) {
+        toast.success(res.message || 'Connection succeeded');
+      } else {
+        toast.error(res.message || 'Connection failed');
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Connection test failed');
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const d = await apiClient.put<BackupDestination>('/api/v1/platform/backups/destination', {
+        type,
+        enabled,
+        remote_path: remotePath,
+        params: buildParams(),
+      });
+      if (d.configured) applyDestination(d);
+      // Clear typed secret inputs after a successful save (they're now stored).
+      setParamValues((p) => {
+        const next = { ...p };
+        specs.forEach((s) => { if (s.secret) delete next[s.key]; });
+        return next;
+      });
+      toast.success('Backup destination saved');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e?.message || 'Failed to save backup destination');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleVisible = (key: string) =>
+    setVisible((p) => ({ ...p, [key]: !p[key] }));
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 py-4">
+          <Database className="h-4 w-4 text-primary" />
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-tight">Backup Destination</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Configure an optional remote mirror for treasury backups. The local cluster volume is always kept.
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5 pb-6">
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading backup destination…
+            </div>
+          ) : error ? (
+            <div className="px-1 py-2 text-sm text-destructive">{error}</div>
+          ) : (
+            <>
+              <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700 dark:text-blue-400">
+                    Backups are always written to the local cluster volume (PVC). When a destination is enabled,
+                    each backup is also mirrored there; the PVC copy remains the fallback. Credentials are stored
+                    encrypted and never shown.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Destination type</label>
+                  <select
+                    value={type}
+                    onChange={(e) => handleTypeChange(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    {BACKUP_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-muted-foreground">{BACKUP_TYPE_HELP[type]}</p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Remote path</label>
+                  <input
+                    type="text"
+                    value={remotePath}
+                    onChange={(e) => setRemotePath(e.target.value)}
+                    placeholder="treasury/backups"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Folder / key prefix within the destination (e.g. S3 key prefix or Drive folder path).
+                  </p>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={enabled}
+                  onChange={(e) => setEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-input accent-primary"
+                />
+                <div>
+                  <p className="text-sm font-medium">Mirror backups to this remote destination</p>
+                  <p className="text-xs text-muted-foreground">
+                    When off, only the local cluster volume (PVC) is used — no remote copy is made.
+                  </p>
+                </div>
+              </label>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 border-b border-border pb-2">
+                  <Shield className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                    {BACKUP_TYPES.find((t) => t.value === type)?.label} settings
+                  </span>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {specs.map((s) => {
+                    const isSet = secretSet[s.key];
+                    const isVisible = visible[s.key] ?? false;
+                    const placeholder = s.secret && isSet
+                      ? '•••• (set — leave blank to keep)'
+                      : (s.placeholder ?? '');
+                    return (
+                      <div key={s.key} className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                          {s.label}
+                          {s.required && <span className="text-destructive">*</span>}
+                          {s.secret && (
+                            <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">Secret</span>
+                          )}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={s.secret && !isVisible ? 'password' : 'text'}
+                            value={paramValues[s.key] ?? ''}
+                            onChange={setParam(s.key)}
+                            placeholder={placeholder}
+                            autoComplete="off"
+                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono pr-10"
+                          />
+                          {s.secret && (
+                            <button
+                              type="button"
+                              onClick={() => toggleVisible(s.key)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              tabIndex={-1}
+                            >
+                              {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          )}
+                        </div>
+                        {s.hint && <p className="text-[10px] text-muted-foreground">{s.hint}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2 pt-1">
+                <Button type="button" variant="outline" onClick={handleTest} disabled={testing || saving} className="gap-2">
+                  {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Test connection
+                </Button>
+                <Button onClick={handleSave} disabled={saving || testing} className="gap-2">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  Save
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
