@@ -248,3 +248,12 @@ export function useSyncTaxObligations(tenantSlug: string) {
     },
   });
 }
+
+export function useTaxPositionEstimate(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['tax-position-estimate', tenantSlug],
+    queryFn: () => taxApi.getTaxPositionEstimate(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: 10 * 60 * 1000,
+  });
+}

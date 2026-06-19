@@ -389,3 +389,33 @@ export function updateTaxProfile(
 export function syncTaxObligations(tenantSlug: string): Promise<TaxProfile> {
   return apiClient.post(`${BASE}/${tenantSlug}/tax/profile/sync-obligations`, {});
 }
+
+export interface ObligationPosition {
+  obligation: string;
+  categories: string[];
+  frequency: string;
+  next_due_date: string;
+  days_until_due: number;
+  overdue: boolean;
+  amount_estimate?: string;
+  penalty_rule?: string;
+}
+
+export interface TaxPositionEstimate {
+  tenant_id: string;
+  period_start: string;
+  period_end: string;
+  currency: string;
+  vat_registered: boolean;
+  output_vat: string;
+  input_vat: string;
+  vat_payable: string;
+  tot_registered: boolean;
+  tot_payable: string;
+  obligations: ObligationPosition[];
+  notes: string[];
+}
+
+export function getTaxPositionEstimate(tenantSlug: string): Promise<TaxPositionEstimate> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/position-estimate`);
+}
