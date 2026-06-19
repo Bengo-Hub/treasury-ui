@@ -14,7 +14,6 @@ import {
   useInitEtimsDevice,
   useRefreshCodeLists,
 } from '@/hooks/use-tax';
-import { KRAComplianceTab } from './kra-compliance-tab';
 import { TaxProfileTab } from './tax-profile-tab';
 import { WHTPaymentRefTab } from './wht-prn-tab';
 import { TaxReturnsTab } from './tax-returns-tab';
@@ -107,7 +106,6 @@ export default function TaxPage() {
               eTIMS Devices
               {!subLoading && !canUseEtims && <Lock className="size-3 text-muted-foreground" />}
             </TabsTrigger>
-            <TabsTrigger value="kra-compliance">KRA Compliance</TabsTrigger>
             <TabsTrigger value="wht-prn">WHT PRN</TabsTrigger>
             <TabsTrigger value="tax-returns">Tax Returns</TabsTrigger>
             <TabsTrigger value="transmissions">Transmissions</TabsTrigger>
@@ -124,9 +122,6 @@ export default function TaxPage() {
           </TabsContent>
           <TabsContent value="etims" className="mt-6">
             {canUseEtims ? <EtimsTab tenantSlug={effectiveTenant} /> : <EtimsUpgradePrompt />}
-          </TabsContent>
-          <TabsContent value="kra-compliance" className="mt-6">
-            <KRAComplianceTab tenantSlug={effectiveTenant} />
           </TabsContent>
           <TabsContent value="wht-prn" className="mt-6">
             <WHTPaymentRefTab tenantSlug={effectiveTenant} />

@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useTaxEligibility, useTaxProfile, useUpdateTaxProfile, useSyncTaxObligations } from '@/hooks/use-tax';
+import {
+  useTaxEligibility,
+  useTaxProfile,
+  useUpdateTaxProfile,
+  useSyncTaxObligations,
+  useValidateKRAPIN,
+  useCheckTaxCompliance,
+} from '@/hooks/use-tax';
 
 interface Props { tenantSlug: string }
 
@@ -13,13 +20,24 @@ function money(v?: string) {
   return `KES ${n.toLocaleString()}`;
 }
 
+/**
+ * Unified Compliance tab — the tenant's tax position + registration profile in one place.
+ * Merges the former "KRA Compliance" tab (PIN validation, TCC check, obligations) into the
+ * profile so the single saved KRA PIN drives every check (no duplicate PIN entry / obligations
+ * fetch). Obligations are pulled into the profile via Sync and displayed below.
+ */
 export function TaxProfileTab({ tenantSlug }: Props) {
   const { data: profile } = useTaxProfile(tenantSlug);
   const { data: position } = useTaxEligibility(tenantSlug);
   const update = useUpdateTaxProfile(tenantSlug);
   const sync = useSyncTaxObligations(tenantSlug);
+  const validatePIN = useValidateKRAPIN();
+  const checkTCC = useCheckTaxCompliance();
 
   const [pin, setPin] = useState('');
+  const [tccNumber, setTccNumber] = useState('');
+  const [pinResult, setPinResult] = useState<any>(null);
+  const [tccResult, setTccResult] = useState<any>(null);
   useEffect(() => { if (profile?.kra_pin) setPin(profile.kra_pin); }, [profile?.kra_pin]);
 
   const sev = position?.severity ?? 'ok';
@@ -60,7 +78,22 @@ export function TaxProfileTab({ tenantSlug }: Props) {
                 disabled={!pin || update.isPending}
                 onClick={() => update.mutate({ kra_pin: pin })}
               >Save</button>
+              <button
+                className="rounded border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                disabled={!pin || validatePIN.isPending}
+                onClick={() => validatePIN.mutate({ tenantSlug, pin }, { onSuccess: setPinResult })}
+              >{validatePIN.isPending ? 'Validating…' : 'Validate'}</button>
             </div>
+            {pinResult?.PINDATA && (
+              <div className="mt-2 rounded bg-muted p-3 text-sm space-y-1">
+                <p><span className="font-medium">Name:</span> {pinResult.PINDATA.Name}</p>
+                <p><span className="font-medium">Type:</span> {pinResult.PINDATA.TypeOfTaxpayer}</p>
+                <p><span className="font-medium">Status:</span>{' '}
+                  <span className={pinResult.PINDATA.StatusOfPIN === 'Active' ? 'text-primary' : 'text-destructive'}>{pinResult.PINDATA.StatusOfPIN}</span>
+                </p>
+              </div>
+            )}
+            {pinResult?.ErrorMessage && <p className="mt-2 text-sm text-destructive">{pinResult.ErrorMessage}</p>}
           </div>
           <div className="flex items-end">
             <button
@@ -95,6 +128,30 @@ export function TaxProfileTab({ tenantSlug }: Props) {
             <ul className="text-sm list-disc pl-5">
               {profile.registered_obligations.map((o, i) => <li key={i}>{o.name} <span className="text-muted-foreground">({o.type})</span></li>)}
             </ul>
+          </div>
+        )}
+      </div>
+
+      {/* Tax Compliance Certificate (TCC) */}
+      <div className="rounded-lg border p-4 space-y-3">
+        <h3 className="font-semibold text-sm">Tax Compliance Certificate (TCC)</h3>
+        <div className="flex gap-2">
+          <input className="flex-1 rounded border px-3 py-2 text-sm" placeholder="KRA PIN" value={pin} onChange={(e) => setPin(e.target.value)} />
+          <input className="flex-1 rounded border px-3 py-2 text-sm" placeholder="TCC Number (optional)" value={tccNumber} onChange={(e) => setTccNumber(e.target.value)} />
+          <button
+            className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
+            disabled={!pin || checkTCC.isPending}
+            onClick={() => checkTCC.mutate({ tenantSlug, pin, tccNumber }, { onSuccess: setTccResult })}
+          >{checkTCC.isPending ? 'Checking…' : 'Check TCC'}</button>
+        </div>
+        {tccResult?.TCCData && (
+          <div className="rounded bg-muted p-3 text-sm space-y-1">
+            <p><span className="font-medium">Certificate:</span> {tccResult.TCCData.TCCNumber}</p>
+            <p><span className="font-medium">KRA PIN:</span> {tccResult.TCCData.KRAPIN}</p>
+            <p><span className="font-medium">Status:</span>{' '}
+              <span className={tccResult.TCCData.TCCStatus === 'Approved' ? 'text-primary' : 'text-destructive'}>{tccResult.TCCData.TCCStatus}</span>
+            </p>
+            <p><span className="font-medium">Issued:</span> {tccResult.TCCData.TCCIssueDate} &middot; <span className="font-medium">Expires:</span> {tccResult.TCCData.TCCExpiryDate}</p>
           </div>
         )}
       </div>
