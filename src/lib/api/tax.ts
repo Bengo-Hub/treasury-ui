@@ -419,3 +419,40 @@ export interface TaxPositionEstimate {
 export function getTaxPositionEstimate(tenantSlug: string): Promise<TaxPositionEstimate> {
   return apiClient.get(`${BASE}/${tenantSlug}/tax/position-estimate`);
 }
+
+export interface FlaggedExpense {
+  source: string;
+  reference: string;
+  description: string;
+  date: string;
+  amount: string;
+  tax_amount: string;
+  reason: string;
+}
+
+export interface DeductionsSummary {
+  tenant_id: string;
+  period_start: string;
+  period_end: string;
+  currency: string;
+  deductible_amount: string;
+  at_risk_amount: string;
+  non_deductible_amount: string;
+  recoverable_input_vat: string;
+  missed_input_vat: string;
+  estimated_tax_at_risk: string;
+  cit_rate: string;
+  flagged: FlaggedExpense[];
+  notes: string[];
+}
+
+export function getDeductionsSummary(
+  tenantSlug: string,
+  params?: { from?: string; to?: string },
+): Promise<DeductionsSummary> {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  const q = qs.toString() ? `?${qs}` : '';
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/deductions${q}`);
+}
