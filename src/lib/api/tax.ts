@@ -520,3 +520,44 @@ export function createCAAsset(
 export function deleteCAAsset(tenantSlug: string, assetID: string): Promise<{ status: string }> {
   return apiClient.delete(`${BASE}/${tenantSlug}/tax/capital-allowances/assets/${assetID}`);
 }
+
+// ---- Structuring guidance ----
+
+export interface StructuringOption {
+  key: string;
+  title: string;
+  when_to_use: string;
+  tax_treatment: string;
+  documentation: string[];
+  red_flags: string[];
+}
+
+export interface InterestCapResult {
+  ebitda: string;
+  gross_interest: string;
+  cap_rate: string;
+  interest_cap: string;
+  allowed_interest: string;
+  disallowed_interest: string;
+  additional_tax: string;
+  cit_rate: string;
+  note: string;
+}
+
+export interface StructuringGuidance {
+  tenant_id: string;
+  options: StructuringOption[];
+  interest_cap: InterestCapResult;
+  notes: string[];
+}
+
+export function getStructuringGuidance(
+  tenantSlug: string,
+  params?: { ebitda?: number; gross_interest?: number },
+): Promise<StructuringGuidance> {
+  const qs = new URLSearchParams();
+  if (params?.ebitda) qs.set('ebitda', String(params.ebitda));
+  if (params?.gross_interest) qs.set('gross_interest', String(params.gross_interest));
+  const q = qs.toString() ? `?${qs}` : '';
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/structuring${q}`);
+}
