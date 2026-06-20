@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api/client';
-import { buildAuthorizeUrl, buildLogoutUrl, exchangeCodeForTokens, fetchProfile } from '@/lib/auth/api';
+import { buildAuthorizeUrl, buildLogoutUrl, exchangeCodeForTokens, fetchProfile, revokeServerSession } from '@/lib/auth/api';
 import {
     generateCodeChallenge,
     generateCodeVerifier,
@@ -167,6 +167,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
+        // Revoke the backend session (Redis session_token keys + DB sessions)
+        // while the access token is still available.
+        const token = get().session?.accessToken;
+        await revokeServerSession(token);
+
         set({ status: 'idle', user: null, session: null, subscriptionInfo: undefined, lastAuthenticatedAt: null });
         apiClient.setAccessToken(null);
         if (typeof window !== 'undefined') {
@@ -174,7 +179,8 @@ export const useAuthStore = create<AuthState>()(
           try { localStorage.removeItem('tenantSlug'); } catch { /* no-op */ }
           try { localStorage.removeItem('treasury-auth-storage'); } catch { /* no-op */ }
           try { sessionStorage.clear(); } catch { /* no-op */ }
-          window.location.href = buildLogoutUrl('https://accounts.codevertexitsolutions.com');
+          const returnTo = encodeURIComponent(window.location.origin);
+          window.location.href = buildLogoutUrl(`https://accounts.codevertexitsolutions.com/login?return_to=${returnTo}`);
         }
       },
 
