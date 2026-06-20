@@ -305,3 +305,11 @@ export function useDeleteCAAsset(tenantSlug: string) {
     },
   });
 }
+
+export function useStructuringGuidance(tenantSlug: string, params?: { ebitda?: number; gross_interest?: number }) {
+  return useQuery({
+    queryKey: ['tax-structuring', tenantSlug, params?.ebitda, params?.gross_interest],
+    queryFn: () => taxApi.getStructuringGuidance(tenantSlug, params),
+    enabled: !!tenantSlug,
+  });
+}

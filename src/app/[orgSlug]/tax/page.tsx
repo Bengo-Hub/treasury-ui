@@ -17,6 +17,7 @@ import {
 import { TaxProfileTab } from './tax-profile-tab';
 import { DeductionsTab } from './deductions-tab';
 import { CapitalAllowancesTab } from './capital-allowances-tab';
+import { StructuringTab } from './structuring-tab';
 import { WHTPaymentRefTab } from './wht-prn-tab';
 import { TaxReturnsTab } from './tax-returns-tab';
 import { TransmissionHistoryTab } from './transmission-history-tab';
@@ -104,6 +105,7 @@ export default function TaxPage() {
             <TabsTrigger value="profile">Compliance</TabsTrigger>
             <TabsTrigger value="deductions">Deductions</TabsTrigger>
             <TabsTrigger value="capital-allowances">Capital Allowances</TabsTrigger>
+            <TabsTrigger value="structuring">Structuring</TabsTrigger>
             <TabsTrigger value="codes">Tax Codes</TabsTrigger>
             <TabsTrigger value="periods">Tax Periods</TabsTrigger>
             <TabsTrigger value="etims" className="flex items-center gap-1.5">
@@ -123,6 +125,9 @@ export default function TaxPage() {
           </TabsContent>
           <TabsContent value="capital-allowances" className="mt-6">
             <CapitalAllowancesTab tenantSlug={effectiveTenant} />
+          </TabsContent>
+          <TabsContent value="structuring" className="mt-6">
+            <StructuringTab tenantSlug={effectiveTenant} />
           </TabsContent>
           <TabsContent value="codes" className="mt-6">
             <TaxCodesTab tenantSlug={effectiveTenant} />
