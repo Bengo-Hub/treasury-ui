@@ -266,3 +266,42 @@ export function useDeductionsSummary(tenantSlug: string, params?: { from?: strin
     staleTime: 10 * 60 * 1000,
   });
 }
+
+export function useCapitalAllowanceSchedule(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['ca-schedule', tenantSlug],
+    queryFn: () => taxApi.getCapitalAllowanceSchedule(tenantSlug),
+    enabled: !!tenantSlug,
+  });
+}
+
+export function useCAAssets(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['ca-assets', tenantSlug],
+    queryFn: () => taxApi.listCAAssets(tenantSlug),
+    enabled: !!tenantSlug,
+  });
+}
+
+export function useCreateCAAsset(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; description?: string; ca_class_code: string; method?: string; cost: number; purchase_date?: string }) =>
+      taxApi.createCAAsset(tenantSlug, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ca-assets', tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['ca-schedule', tenantSlug] });
+    },
+  });
+}
+
+export function useDeleteCAAsset(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (assetID: string) => taxApi.deleteCAAsset(tenantSlug, assetID),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ca-assets', tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['ca-schedule', tenantSlug] });
+    },
+  });
+}
