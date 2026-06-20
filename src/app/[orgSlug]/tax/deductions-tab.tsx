@@ -38,6 +38,17 @@ export function DeductionsTab({ tenantSlug }: Props) {
         {data.notes?.map((n, i) => <p key={i} className="text-xs text-muted-foreground">{n}</p>)}
       </div>
 
+      <div className="rounded-lg border p-4 space-y-2">
+        <h3 className="font-semibold text-sm">Income tax projection</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+          <div><span className={label}>Business revenue</span><div className="font-medium">{money(data.taxable_revenue)}</div></div>
+          <div><span className={label}>Less deductible costs</span><div className="font-medium">{money(data.deductible_amount)}</div></div>
+          <div><span className={label}>Estimated taxable profit</span><div className="font-medium">{money(data.estimated_taxable_profit)}</div></div>
+          <div><span className={label}>Estimated CIT ({Number(data.cit_rate)}%)</span><div className="font-medium">{money(data.estimated_cit)}</div></div>
+          <div><span className={label}>Potential saving if at-risk costs validated</span><div className="font-medium text-primary">{money(data.estimated_tax_at_risk)}</div></div>
+        </div>
+      </div>
+
       {data.flagged.length > 0 && (
         <div className="rounded-lg border p-4 space-y-2">
           <h3 className="font-semibold text-sm">Flagged costs ({data.flagged.length})</h3>
