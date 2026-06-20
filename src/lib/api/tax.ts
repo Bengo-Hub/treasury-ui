@@ -440,6 +440,9 @@ export interface DeductionsSummary {
   non_deductible_amount: string;
   recoverable_input_vat: string;
   missed_input_vat: string;
+  taxable_revenue: string;
+  estimated_taxable_profit: string;
+  estimated_cit: string;
   estimated_tax_at_risk: string;
   cit_rate: string;
   flagged: FlaggedExpense[];
