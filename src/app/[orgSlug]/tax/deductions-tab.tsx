@@ -43,6 +43,7 @@ export function DeductionsTab({ tenantSlug }: Props) {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
           <div><span className={label}>Business revenue</span><div className="font-medium">{money(data.taxable_revenue)}</div></div>
           <div><span className={label}>Less deductible costs</span><div className="font-medium">{money(data.deductible_amount)}</div></div>
+          <div><span className={label}>Less capital allowances</span><div className="font-medium">{money(data.capital_allowance)}</div></div>
           <div><span className={label}>Estimated taxable profit</span><div className="font-medium">{money(data.estimated_taxable_profit)}</div></div>
           <div><span className={label}>Estimated CIT ({Number(data.cit_rate)}%)</span><div className="font-medium">{money(data.estimated_cit)}</div></div>
           <div><span className={label}>Potential saving if at-risk costs validated</span><div className="font-medium text-primary">{money(data.estimated_tax_at_risk)}</div></div>

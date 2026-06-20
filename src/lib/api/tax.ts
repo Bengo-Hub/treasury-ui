@@ -441,6 +441,7 @@ export interface DeductionsSummary {
   recoverable_input_vat: string;
   missed_input_vat: string;
   taxable_revenue: string;
+  capital_allowance: string;
   estimated_taxable_profit: string;
   estimated_cit: string;
   estimated_tax_at_risk: string;
@@ -458,4 +459,64 @@ export function getDeductionsSummary(
   if (params?.to) qs.set('to', params.to);
   const q = qs.toString() ? `?${qs}` : '';
   return apiClient.get(`${BASE}/${tenantSlug}/tax/deductions${q}`);
+}
+
+// ---- Capital allowances ----
+
+export interface CAClassLine {
+  class_code: string;
+  class_name: string;
+  rate: string;
+  method: string;
+  asset_count: number;
+  pool_cost: string;
+  opening_wdv: string;
+  annual_allowance: string;
+  closing_wdv: string;
+}
+
+export interface CapitalAllowanceSchedule {
+  tenant_id: string;
+  year: number;
+  currency: string;
+  classes: CAClassLine[];
+  total_annual_allowance: string;
+  notes: string[];
+}
+
+export interface CAAsset {
+  id: string;
+  name: string;
+  description?: string;
+  ca_class_code: string;
+  method: string;
+  cost: string;
+  written_down_value: string;
+  purchase_date: string;
+  disposed: boolean;
+}
+
+export interface CAClassOption {
+  code: string;
+  name: string;
+  rate: string;
+}
+
+export function getCapitalAllowanceSchedule(tenantSlug: string): Promise<CapitalAllowanceSchedule> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/capital-allowances`);
+}
+
+export function listCAAssets(tenantSlug: string): Promise<{ assets: CAAsset[]; classes: CAClassOption[]; total: number }> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/capital-allowances/assets`);
+}
+
+export function createCAAsset(
+  tenantSlug: string,
+  body: { name: string; description?: string; ca_class_code: string; method?: string; cost: number; purchase_date?: string },
+): Promise<CAAsset> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/capital-allowances/assets`, body);
+}
+
+export function deleteCAAsset(tenantSlug: string, assetID: string): Promise<{ status: string }> {
+  return apiClient.delete(`${BASE}/${tenantSlug}/tax/capital-allowances/assets/${assetID}`);
 }
