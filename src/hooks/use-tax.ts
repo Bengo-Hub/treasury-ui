@@ -257,3 +257,12 @@ export function useTaxPositionEstimate(tenantSlug: string) {
     staleTime: 10 * 60 * 1000,
   });
 }
+
+export function useDeductionsSummary(tenantSlug: string, params?: { from?: string; to?: string }) {
+  return useQuery({
+    queryKey: ['tax-deductions', tenantSlug, params?.from, params?.to],
+    queryFn: () => taxApi.getDeductionsSummary(tenantSlug, params),
+    enabled: !!tenantSlug,
+    staleTime: 10 * 60 * 1000,
+  });
+}
