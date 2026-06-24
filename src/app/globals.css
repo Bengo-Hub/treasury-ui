@@ -227,3 +227,41 @@ button:focus-visible {
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
+
+/*
+ * Print scoping for financial report documents.
+ * When a ReportDocument is being printed it sets `data-printing` on <html>.
+ * Everything outside the active `.report-document` is hidden so the printout
+ * is just the branded ReportDocument on a clean A4 page (header/sidebar/charts/
+ * buttons removed). Charts and any element tagged `.print-hidden` are dropped.
+ */
+@media print {
+  html[data-printing] body * {
+    visibility: hidden;
+  }
+  html[data-printing] .report-document,
+  html[data-printing] .report-document * {
+    visibility: visible;
+  }
+  html[data-printing] .report-document {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    width: 100%;
+    background: #fff;
+    color: #000;
+  }
+  html[data-printing] .print-hidden {
+    display: none !important;
+  }
+  /* Force solid borders/zebra to render in print (browsers strip backgrounds). */
+  html[data-printing] .report-document * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 14mm;
+}

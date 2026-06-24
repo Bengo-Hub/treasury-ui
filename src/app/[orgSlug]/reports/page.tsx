@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Card, CardContent } from '@/components/ui/base';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -12,18 +12,25 @@ import {
 } from '@/hooks/use-reports';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils/currency';
 import type { FinancialReport, ReportSection } from '@/lib/api/reports';
+import { ReportDocument, type ReportKpi } from '@/components/reports/ReportDocument';
+import { ReportTable, type ReportTableSection } from '@/components/reports/ReportTable';
+import { ChartCard } from '@/components/charts/ChartCard';
+import { CHART_COLORS, SERIES, compactNumber, money } from '@/components/charts/chart-theme';
 import {
-  AlertTriangle,
-  BarChart3,
-  CheckCircle2,
-  DollarSign,
-  FileText,
-  Loader2,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
   PieChart,
-  TrendingDown,
-  TrendingUp,
-} from 'lucide-react';
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 function getDefaultRange() {
@@ -32,6 +39,42 @@ function getDefaultRange() {
   const to = now.toISOString().slice(0, 10);
   return { from, to };
 }
+
+const num = (v: string | number | undefined) => Number(v ?? 0);
+
+function rangeLabel(from: string, to: string) {
+  return `For the period ${from} to ${to}`;
+}
+function asOfLabel(asOf: string) {
+  return `As at ${asOf}`;
+}
+
+/**
+ * Map a backend ReportSection[] (account-code / name / amount rows with a
+ * section total) onto the shared ReportTable section shape. This is the ONE
+ * adapter every ledger-style report (P&L, balance sheet, cash flow, tax) uses,
+ * so there is no per-report table code.
+ */
+function sectionsToTable(sections: ReportSection[], currency = 'KES'): ReportTableSection[] {
+  return (sections ?? []).map((s) => ({
+    title: s.name,
+    rows: [
+      ...(s.rows ?? []).map((r) => ({
+        cells: [r.account_code, r.account_name, formatCurrency(num(r.amount), currency)],
+      })),
+      {
+        subtotal: true,
+        cells: ['', `Total ${s.name}`, formatCurrency(num(s.total), currency)],
+      },
+    ],
+  }));
+}
+
+const LEDGER_COLUMNS = [
+  { header: 'Code', className: 'w-20' },
+  { header: 'Account' },
+  { header: 'Amount', align: 'right' as const, className: 'w-40' },
+];
 
 export default function ReportsPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
@@ -50,7 +93,7 @@ export default function ReportsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
+      <div className="print-hidden">
         <h1 className="text-3xl font-bold tracking-tight">Financial Reports</h1>
         <p className="text-muted-foreground mt-1">View financial statements and summaries.</p>
       </div>
@@ -61,7 +104,7 @@ export default function ReportsPage() {
         </div>
       ) : (
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
+          <TabsList className="print-hidden">
             <TabsTrigger value="pl">Profit & Loss</TabsTrigger>
             <TabsTrigger value="pls">P&L Summary</TabsTrigger>
             <TabsTrigger value="bs">Balance Sheet</TabsTrigger>
@@ -104,7 +147,7 @@ function DateRangeFilter({
   setTo: (v: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-4 items-end">
+    <div className="flex flex-wrap gap-4 items-end print-hidden">
       <FormField label="From">
         <input
           type="date"
@@ -125,33 +168,14 @@ function DateRangeFilter({
   );
 }
 
-// ---- Report Section Renderer ----
+// ---- Helper: find a section total by name (case-insensitive contains) ----
 
-function ReportSectionView({ section }: { section: ReportSection }) {
-  return (
-    <div className="space-y-1">
-      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-6 pt-4">
-        {section.name}
-      </h4>
-      {(section.rows ?? []).map((row, i) => (
-        <div key={i} className="flex items-center justify-between px-6 py-2 hover:bg-accent/5 transition-colors">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-muted-foreground w-12">{row.account_code}</span>
-            <span className="text-sm">{row.account_name}</span>
-          </div>
-          <span className="text-sm font-bold tabular-nums">
-            {Number(row.amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-          </span>
-        </div>
-      ))}
-      <div className="flex items-center justify-between px-6 py-2 bg-accent/10 font-bold">
-        <span className="text-xs uppercase">Total {section.name}</span>
-        <span className="text-sm tabular-nums">
-          {Number(section.total).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-        </span>
-      </div>
-    </div>
+function findSectionTotal(report: FinancialReport | undefined, ...needles: string[]): number {
+  if (!report?.sections) return 0;
+  const s = report.sections.find((sec) =>
+    needles.some((n) => sec.name.toLowerCase().includes(n.toLowerCase())),
   );
+  return s ? num(s.total) : 0;
 }
 
 // ---- Profit & Loss ----
@@ -171,108 +195,64 @@ function ProfitLossTab({
 }) {
   const { data, isLoading, isError } = useProfitLoss(tenantSlug, from, to);
 
+  const revenue = findSectionTotal(data, 'revenue', 'income', 'sales');
+  const cogs = findSectionTotal(data, 'cost of goods', 'cogs', 'cost of sales');
+  const expenses = findSectionTotal(data, 'expense', 'operating');
+  const net = num(data?.total);
+
+  const kpis: ReportKpi[] = [
+    { label: 'Revenue', value: money(revenue), tone: 'success' },
+    { label: 'COGS', value: money(cogs), tone: 'warning' },
+    { label: 'Gross Profit', value: money(revenue - cogs), tone: revenue - cogs >= 0 ? 'success' : 'destructive' },
+    { label: 'Expenses', value: money(expenses), tone: 'warning' },
+    { label: 'Net Profit', value: money(net), tone: net >= 0 ? 'success' : 'destructive' },
+  ];
+
+  const chartData = [
+    { name: 'Revenue', value: revenue, fill: SERIES.revenue },
+    { name: 'Expenses', value: Math.abs(cogs) + Math.abs(expenses), fill: SERIES.expenses },
+    { name: 'Net', value: net, fill: SERIES.net },
+  ];
+
   return (
     <div className="space-y-6">
       <DateRangeFilter from={from} to={to} setFrom={setFrom} setTo={setTo} />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between py-4">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            <h3 className="font-bold text-sm uppercase tracking-tight">Profit & Loss Statement</h3>
+      {isLoading && <LoadingCard />}
+      {!isLoading && isError && <ErrorCard message="Failed to load profit & loss statement. Please try again." />}
+      {!isLoading && !isError && data && (
+        <>
+          <div className="print-hidden">
+            <ChartCard title="Revenue vs Expenses vs Net" subtitle="Profit & loss at a glance" height={260}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+                <YAxis tickFormatter={compactNumber} tickLine={false} axisLine={false} fontSize={12} width={48} />
+                <Tooltip formatter={(v) => money(Number(v))} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  {chartData.map((d, i) => (
+                    <Cell key={i} fill={d.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ChartCard>
           </div>
-          {data?.total && (
-            <Badge variant={Number(data.total) >= 0 ? 'success' : 'error'}>
-              Net: {Number(data.total).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-            </Badge>
-          )}
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading && <LoadingIndicator />}
-          {!isLoading && isError && <EmptyState message="Failed to load profit & loss statement. Please try again." />}
-          {!isLoading && !isError && data && (
-            <div className="divide-y divide-border">
-              {data.sections.map((s, i) => (
-                <ReportSectionView key={i} section={s} />
-              ))}
-              <div className="flex items-center justify-between px-6 py-3 bg-primary/5 font-bold border-t-2 border-primary/20">
-                <span className="text-sm uppercase">Net Income</span>
-                <span className="text-lg tabular-nums">
-                  {Number(data.total).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
-          )}
-          {!isLoading && !isError && !data?.sections?.length && <EmptyState message="No data for selected period." />}
-        </CardContent>
-      </Card>
+
+          <ReportDocument title="Profit & Loss Statement" periodLabel={rangeLabel(from, to)} kpis={kpis}>
+            <ReportTable
+              columns={LEDGER_COLUMNS}
+              sections={sectionsToTable(data.sections)}
+              grandTotal={{ cells: ['', 'Net Income', money(net)] }}
+            />
+          </ReportDocument>
+        </>
+      )}
+      {!isLoading && !isError && !data?.sections?.length && <EmptyCard message="No data for selected period." />}
     </div>
   );
 }
 
 // ---- P&L Summary (source-document aggregation) ----
-
-function formatMoney(v: string | number | undefined): string {
-  return Number(v ?? 0).toLocaleString('en-KE', { minimumFractionDigits: 2 });
-}
-
-function KpiCard({
-  label,
-  amount,
-  positive,
-}: {
-  label: string;
-  amount: string;
-  positive?: boolean;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
-        <p
-          className={`mt-1 text-2xl font-bold tabular-nums ${
-            positive === undefined ? '' : positive ? 'text-green-500' : 'text-red-500'
-          }`}
-        >
-          {formatMoney(amount)}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function BreakdownTable({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: { name: string; amount: string }[];
-}) {
-  return (
-    <Card>
-      <CardHeader className="py-4">
-        <h3 className="font-bold text-sm uppercase tracking-tight">{title}</h3>
-      </CardHeader>
-      <CardContent className="p-0">
-        {rows.length === 0 ? (
-          <EmptyState message="No entries for selected period." />
-        ) : (
-          <div className="divide-y divide-border">
-            {rows.map((row, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between px-6 py-2 hover:bg-accent/5 transition-colors"
-              >
-                <span className="text-sm">{row.name}</span>
-                <span className="text-sm font-bold tabular-nums">{formatMoney(row.amount)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 function ProfitLossSummaryTab({
   tenantSlug,
@@ -293,54 +273,124 @@ function ProfitLossSummaryTab({
     <div className="space-y-6">
       <DateRangeFilter from={from} to={to} setFrom={setFrom} setTo={setTo} />
 
-      {isLoading && (
-        <Card>
-          <CardContent className="p-0">
-            <LoadingIndicator />
-          </CardContent>
-        </Card>
-      )}
-
-      {!isLoading && isError && (
-        <Card>
-          <CardContent className="p-0">
-            <EmptyState message="Failed to load P&L summary. Please try again." />
-          </CardContent>
-        </Card>
-      )}
+      {isLoading && <LoadingCard />}
+      {!isLoading && isError && <ErrorCard message="Failed to load P&L summary. Please try again." />}
 
       {!isLoading && !isError && data && (
         <>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-            <KpiCard label="Revenue" amount={data.total_revenue} positive />
-            <KpiCard label="COGS" amount={data.cost_of_goods} positive={false} />
-            <KpiCard
-              label="Gross Profit"
-              amount={data.gross_profit}
-              positive={Number(data.gross_profit) >= 0}
-            />
-            <KpiCard label="Operating Expenses" amount={data.total_expenses} positive={false} />
-            <KpiCard
-              label="Net Profit"
-              amount={data.net_profit}
-              positive={Number(data.net_profit) >= 0}
-            />
-          </div>
+          {(() => {
+            const cur = data.currency || 'KES';
+            const kpis: ReportKpi[] = [
+              { label: 'Revenue', value: money(data.total_revenue, cur), tone: 'success' },
+              { label: 'COGS', value: money(data.cost_of_goods, cur), tone: 'warning' },
+              { label: 'Gross Profit', value: money(data.gross_profit, cur), tone: num(data.gross_profit) >= 0 ? 'success' : 'destructive' },
+              { label: 'Operating Expenses', value: money(data.total_expenses, cur), tone: 'warning' },
+              { label: 'Net Profit', value: money(data.net_profit, cur), tone: num(data.net_profit) >= 0 ? 'success' : 'destructive' },
+            ];
 
-          <GLReconciliationCard
-            sourceNetProfit={data.net_profit}
-            glNetProfit={data.gl_net_profit}
-            variance={data.reconciliation_variance}
-            currency={data.currency}
-          />
+            const categories = (data.by_category ?? []).slice(0, 8);
+            const summaryChart = [
+              { name: 'Revenue', value: num(data.total_revenue), fill: SERIES.revenue },
+              { name: 'COGS', value: num(data.cost_of_goods), fill: SERIES.outstanding },
+              { name: 'Expenses', value: num(data.total_expenses), fill: SERIES.expenses },
+              { name: 'Net', value: num(data.net_profit), fill: SERIES.net },
+            ];
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <BreakdownTable title="Expenses by Category" rows={data.by_category ?? []} />
-            <BreakdownTable title="Expenses by Cost Center" rows={data.by_cost_center ?? []} />
-          </div>
+            return (
+              <>
+                <GLReconciliationCard
+                  sourceNetProfit={data.net_profit}
+                  glNetProfit={data.gl_net_profit}
+                  variance={data.reconciliation_variance}
+                  currency={cur}
+                />
+
+                <div className="grid gap-4 lg:grid-cols-2 print-hidden">
+                  <ChartCard title="P&L Composition" subtitle="Revenue, COGS, expenses, net" height={260}>
+                    <BarChart data={summaryChart}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+                      <YAxis tickFormatter={compactNumber} tickLine={false} axisLine={false} fontSize={12} width={48} />
+                      <Tooltip formatter={(v) => money(Number(v), cur)} />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                        {summaryChart.map((d, i) => (
+                          <Cell key={i} fill={d.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ChartCard>
+                  <ChartCard
+                    title="Expenses by Category"
+                    subtitle="Distribution"
+                    height={260}
+                    empty={categories.length === 0}
+                  >
+                    <PieChart>
+                      <Pie
+                        data={categories}
+                        dataKey="amount"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={90}
+                        paddingAngle={2}
+                      >
+                        {categories.map((_, i) => (
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v) => money(Number(v), cur)} />
+                      <Legend />
+                    </PieChart>
+                  </ChartCard>
+                </div>
+
+                <ReportDocument title="Profit & Loss Summary" periodLabel={rangeLabel(from, to)} kpis={kpis}>
+                  <BreakdownReportTable
+                    title="Expenses by Category"
+                    rows={data.by_category ?? []}
+                    currency={cur}
+                  />
+                  <BreakdownReportTable
+                    title="Expenses by Cost Center"
+                    rows={data.by_cost_center ?? []}
+                    currency={cur}
+                  />
+                </ReportDocument>
+              </>
+            );
+          })()}
         </>
       )}
     </div>
+  );
+}
+
+/** Reuses the shared ReportTable for a simple name/amount breakdown. */
+function BreakdownReportTable({
+  title,
+  rows,
+  currency,
+}: {
+  title: string;
+  rows: { name: string; amount: string }[];
+  currency: string;
+}) {
+  const total = rows.reduce((s, r) => s + num(r.amount), 0);
+  return (
+    <ReportTable
+      columns={[{ header: title }, { header: 'Amount', align: 'right', className: 'w-40' }]}
+      sections={[
+        {
+          rows:
+            rows.length === 0
+              ? [{ cells: ['No entries for selected period.', ''] }]
+              : rows.map((r) => ({ cells: [r.name, formatCurrency(num(r.amount), currency)] })),
+        },
+      ]}
+      grandTotal={rows.length ? { cells: ['Total', formatCurrency(total, currency)] } : undefined}
+    />
   );
 }
 
@@ -364,11 +414,10 @@ function GLReconciliationCard({
   const v = Number(variance) || 0;
   const reconciled = Math.abs(v) < 0.01;
   const cur = currency || 'KES';
-  const fmt = (n: number) =>
-    `${cur} ${Math.abs(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (n: number) => formatCurrency(Math.abs(n), cur);
 
   return (
-    <Card className={cn('border', reconciled ? 'border-green-500/40' : 'border-destructive/40')}>
+    <Card className={cn('border print-hidden', reconciled ? 'border-green-500/40' : 'border-destructive/40')}>
       <CardContent className="p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -417,9 +466,22 @@ function BalanceSheetTab({
 }) {
   const { data, isLoading, isError } = useBalanceSheet(tenantSlug, asOf);
 
+  const assets = findSectionTotal(data, 'asset');
+  const liabilities = findSectionTotal(data, 'liabilit');
+  const equity = findSectionTotal(data, 'equity', 'capital');
+  const lhs = assets;
+  const rhs = liabilities + equity;
+  const balanced = Math.abs(lhs - rhs) < 0.01;
+
+  const kpis: ReportKpi[] = [
+    { label: 'Total Assets', value: money(assets), tone: 'primary' },
+    { label: 'Total Liabilities', value: money(liabilities), tone: 'warning' },
+    { label: 'Total Equity', value: money(equity), tone: 'success' },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex gap-4 items-end">
+      <div className="flex gap-4 items-end print-hidden">
         <FormField label="As Of">
           <input
             type="date"
@@ -430,26 +492,41 @@ function BalanceSheetTab({
         </FormField>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between py-4">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-primary" />
-            <h3 className="font-bold text-sm uppercase tracking-tight">Balance Sheet</h3>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading && <LoadingIndicator />}
-          {!isLoading && isError && <EmptyState message="Failed to load balance sheet. Please try again." />}
-          {!isLoading && !isError && data && (
-            <div className="divide-y divide-border">
-              {data.sections.map((s, i) => (
-                <ReportSectionView key={i} section={s} />
-              ))}
+      {isLoading && <LoadingCard />}
+      {!isLoading && isError && <ErrorCard message="Failed to load balance sheet. Please try again." />}
+      {!isLoading && !isError && data && (
+        <ReportDocument title="Balance Sheet" periodLabel={asOfLabel(asOf)} kpis={kpis}>
+          {/* Accounting check: Assets = Liabilities + Equity */}
+          <div
+            className={cn(
+              'flex items-center gap-3 rounded-lg border px-4 py-3',
+              balanced ? 'border-green-500/40 bg-green-500/5' : 'border-destructive/40 bg-destructive/5',
+            )}
+          >
+            {balanced ? (
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
+            )}
+            <div className="flex flex-wrap items-center gap-x-2 text-sm">
+              <span className={cn('font-bold', balanced ? 'text-green-600' : 'text-destructive')}>
+                Assets = Liabilities + Equity
+              </span>
+              <span className="tabular-nums text-muted-foreground">
+                {money(lhs)} {balanced ? '=' : '≠'} {money(rhs)}
+              </span>
+              {!balanced && (
+                <span className="font-semibold text-destructive">
+                  (out of balance by {money(Math.abs(lhs - rhs))})
+                </span>
+              )}
             </div>
-          )}
-          {!isLoading && !isError && !data?.sections?.length && <EmptyState message="No balance sheet data." />}
-        </CardContent>
-      </Card>
+          </div>
+
+          <ReportTable columns={LEDGER_COLUMNS} sections={sectionsToTable(data.sections)} />
+        </ReportDocument>
+      )}
+      {!isLoading && !isError && !data?.sections?.length && <EmptyCard message="No balance sheet data." />}
     </div>
   );
 }
@@ -471,43 +548,59 @@ function CashFlowTab({
 }) {
   const { data, isLoading, isError } = useCashFlow(tenantSlug, from, to);
 
+  const operating = findSectionTotal(data, 'operating');
+  const investing = findSectionTotal(data, 'investing');
+  const financing = findSectionTotal(data, 'financing');
+  const net = num(data?.total);
+
+  const kpis: ReportKpi[] = [
+    { label: 'Operating', value: money(operating), tone: operating >= 0 ? 'success' : 'destructive' },
+    { label: 'Investing', value: money(investing), tone: investing >= 0 ? 'success' : 'destructive' },
+    { label: 'Financing', value: money(financing), tone: financing >= 0 ? 'success' : 'destructive' },
+    { label: 'Net Cash Flow', value: money(net), tone: net >= 0 ? 'success' : 'destructive' },
+  ];
+
+  const chartData = [
+    { name: 'Operating', value: operating },
+    { name: 'Investing', value: investing },
+    { name: 'Financing', value: financing },
+    { name: 'Net', value: net },
+  ];
+
   return (
     <div className="space-y-6">
       <DateRangeFilter from={from} to={to} setFrom={setFrom} setTo={setTo} />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between py-4">
-          <div className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-primary" />
-            <h3 className="font-bold text-sm uppercase tracking-tight">Cash Flow Statement</h3>
+      {isLoading && <LoadingCard />}
+      {!isLoading && isError && <ErrorCard message="Failed to load cash flow statement. Please try again." />}
+      {!isLoading && !isError && data && (
+        <>
+          <div className="print-hidden">
+            <ChartCard title="Cash Flow by Activity" subtitle="Operating, investing, financing & net" height={260}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+                <YAxis tickFormatter={compactNumber} tickLine={false} axisLine={false} fontSize={12} width={48} />
+                <Tooltip formatter={(v) => money(Number(v))} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  {chartData.map((d, i) => (
+                    <Cell key={i} fill={d.value >= 0 ? SERIES.revenue : SERIES.expenses} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ChartCard>
           </div>
-          {data?.total && (
-            <Badge variant={Number(data.total) >= 0 ? 'success' : 'error'}>
-              Net: {Number(data.total).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-            </Badge>
-          )}
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading && <LoadingIndicator />}
-          {!isLoading && isError && <EmptyState message="Failed to load cash flow statement. Please try again." />}
-          {!isLoading && !isError && data && (
-            <div className="divide-y divide-border">
-              {data.sections.map((s, i) => (
-                <ReportSectionView key={i} section={s} />
-              ))}
-              {data.total && (
-                <div className="flex items-center justify-between px-6 py-3 bg-primary/5 font-bold border-t-2 border-primary/20">
-                  <span className="text-sm uppercase">Net Cash Flow</span>
-                  <span className="text-lg tabular-nums">
-                    {Number(data.total).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-          {!isLoading && !isError && !data?.sections?.length && <EmptyState message="No cash flow data for selected period." />}
-        </CardContent>
-      </Card>
+
+          <ReportDocument title="Cash Flow Statement" periodLabel={rangeLabel(from, to)} kpis={kpis}>
+            <ReportTable
+              columns={LEDGER_COLUMNS}
+              sections={sectionsToTable(data.sections)}
+              grandTotal={data.total ? { cells: ['', 'Net Cash Flow', money(net)] } : undefined}
+            />
+          </ReportDocument>
+        </>
+      )}
+      {!isLoading && !isError && !data?.sections?.length && <EmptyCard message="No cash flow data for selected period." />}
     </div>
   );
 }
@@ -529,44 +622,56 @@ function TaxSummaryTab({
 }) {
   const { data, isLoading, isError } = useTaxSummaryReport(tenantSlug, from, to);
 
+  const kpis: ReportKpi[] = (data?.sections ?? []).slice(0, 4).map((s) => ({
+    label: s.name,
+    value: money(s.total),
+    tone: 'primary' as const,
+  }));
+
   return (
     <div className="space-y-6">
       <DateRangeFilter from={from} to={to} setFrom={setFrom} setTo={setTo} />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between py-4">
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-primary" />
-            <h3 className="font-bold text-sm uppercase tracking-tight">Tax Summary</h3>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading && <LoadingIndicator />}
-          {!isLoading && isError && <EmptyState message="Failed to load tax summary. Please try again." />}
-          {!isLoading && !isError && data && (
-            <div className="divide-y divide-border">
-              {data.sections.map((s, i) => (
-                <ReportSectionView key={i} section={s} />
-              ))}
-            </div>
-          )}
-          {!isLoading && !isError && !data?.sections?.length && <EmptyState message="No tax data for selected period." />}
-        </CardContent>
-      </Card>
+      {isLoading && <LoadingCard />}
+      {!isLoading && isError && <ErrorCard message="Failed to load tax summary. Please try again." />}
+      {!isLoading && !isError && data && (
+        <ReportDocument
+          title="Tax Summary"
+          periodLabel={rangeLabel(from, to)}
+          kpis={kpis.length ? kpis : undefined}
+        >
+          <ReportTable columns={LEDGER_COLUMNS} sections={sectionsToTable(data.sections)} />
+        </ReportDocument>
+      )}
+      {!isLoading && !isError && !data?.sections?.length && <EmptyCard message="No tax data for selected period." />}
     </div>
   );
 }
 
-// ---- Shared Components ----
+// ---- Shared State Cards ----
 
-function LoadingIndicator() {
+function LoadingCard() {
   return (
-    <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-      <Loader2 className="h-5 w-5 animate-spin" /> Loading report...
-    </div>
+    <Card>
+      <CardContent className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" /> Loading report...
+      </CardContent>
+    </Card>
   );
 }
 
-function EmptyState({ message }: { message: string }) {
-  return <div className="p-12 text-center text-muted-foreground">{message}</div>;
+function ErrorCard({ message }: { message: string }) {
+  return (
+    <Card>
+      <CardContent className="p-12 text-center text-muted-foreground">{message}</CardContent>
+    </Card>
+  );
+}
+
+function EmptyCard({ message }: { message: string }) {
+  return (
+    <Card>
+      <CardContent className="p-12 text-center text-muted-foreground">{message}</CardContent>
+    </Card>
+  );
 }
