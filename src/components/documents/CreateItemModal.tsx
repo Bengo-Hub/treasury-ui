@@ -3,31 +3,9 @@
 import { useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api/client';
+import { createInventoryItem, type CreateInventoryItemRequest } from '@/lib/api/inventory';
 import { useInventoryUnits, useInventoryItemTypes } from '@/hooks/use-inventory';
 import type { LineRow } from './sections/LineItemsSection';
-
-interface CreateItemRequest {
-  name: string;
-  sku?: string;
-  item_type?: string;
-  unit?: string;
-  unit_price?: string;
-  tax_code?: string;
-  tax_rate?: string;
-  description?: string;
-}
-
-interface CreatedItem {
-  id: string;
-  name: string;
-  sku?: string;
-  item_type?: string;
-  unit?: string;
-  unit_price?: string;
-  tax_code?: string;
-  tax_rate?: string;
-}
 
 const FALLBACK_ITEM_TYPES = ['GOODS', 'SERVICE', 'DIGITAL', 'SUBSCRIPTION', 'BUNDLE'];
 const FALLBACK_UNITS = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'hr', 'day', 'month'];
@@ -67,8 +45,7 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
   const defaultUnit = form.unit || units[0] || '';
 
   const mutation = useMutation({
-    mutationFn: (body: CreateItemRequest) =>
-      apiClient.post<CreatedItem>(`/api/v1/${tenant}/inventory/items`, body),
+    mutationFn: (body: CreateInventoryItemRequest) => createInventoryItem(tenant, body),
     onSuccess: (item) => {
       onCreated({
         description: item.name,
@@ -188,10 +165,8 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
               name: form.name.trim(),
               sku: form.sku || undefined,
               item_type: form.item_type || defaultType || undefined,
-              unit: form.unit || defaultUnit || undefined,
               unit_price: form.unit_price || undefined,
               tax_code: form.tax_code || undefined,
-              tax_rate: form.tax_rate || undefined,
               description: form.description || undefined,
             })}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50">

@@ -10,7 +10,7 @@ import type {
   CreateInvoiceRequest, UpdateInvoiceRequest,
   CreateQuotationRequest, UpdateQuotationRequest,
 } from '@/lib/api/invoices';
-import { crmContactDisplayName, type CRMContact } from '@/lib/api/crm';
+import { createCRMContact, crmContactDisplayName, type CRMContact } from '@/lib/api/crm';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, Loader2, Search, UserPlus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -251,6 +251,31 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     setShowSuggestions(false);
   }, []);
 
+  // Create a new CRM contact (customer) in marketflow from the currently-typed name/email and
+  // link it to this document. marketflow is the customer source of truth.
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [createClientError, setCreateClientError] = useState('');
+  const handleAddNewClient = useCallback(async () => {
+    const name = (clientSearch || form.customer_name).trim();
+    if (!name) { setCreateClientError('Enter a customer name first'); return; }
+    setCreatingClient(true);
+    setCreateClientError('');
+    try {
+      const [first, ...rest] = name.split(/\s+/);
+      const created = await createCRMContact(effectiveTenant, {
+        first_name: first,
+        last_name: rest.join(' ') || undefined,
+        email: form.customer_email || undefined,
+      });
+      if (created?.id) selectContact(created);
+      else setCreateClientError('Could not create client');
+    } catch {
+      setCreateClientError('Could not create client');
+    } finally {
+      setCreatingClient(false);
+    }
+  }, [clientSearch, form.customer_name, form.customer_email, effectiveTenant, selectContact]);
+
   const buildLinePayload = useCallback(() =>
     lines
       .filter(l => l.description.trim())
@@ -455,9 +480,15 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
                     onChange={e => setForm(p => ({ ...p, customer_email: e.target.value }))}
                     className="mt-1 w-full rounded-lg py-2 px-3 text-xs border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
                 </div>
-                <button className="inline-flex items-center gap-1 px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-all">
-                  <UserPlus className="h-3.5 w-3.5" /> Add New Client
+                <button
+                  type="button"
+                  onClick={handleAddNewClient}
+                  disabled={creatingClient || !(clientSearch || form.customer_name).trim()}
+                  className="inline-flex items-center gap-1 px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50"
+                >
+                  <UserPlus className="h-3.5 w-3.5" /> {creatingClient ? 'Adding…' : 'Add New Client'}
                 </button>
+                {createClientError && <p className="text-[10px] text-destructive font-semibold">{createClientError}</p>}
               </div>
             </div>
           </div>
