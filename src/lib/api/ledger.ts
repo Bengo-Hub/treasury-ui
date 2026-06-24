@@ -94,6 +94,37 @@ export interface CreatePeriodRequest {
   end_date: string;
 }
 
+export interface AccountLedgerLine {
+  transaction_date: string;
+  journal_entry_id?: string;
+  entry_number?: string;
+  description?: string;
+  debit_amount: string | number;
+  credit_amount: string | number;
+  running_balance: string | number;
+  currency: string;
+  reference_type?: string;
+  reference_id?: string;
+}
+
+export interface AccountLedgerResponse {
+  account_id: string;
+  account_code: string;
+  account_name: string;
+  account_type: string;
+  opening_balance: string | number;
+  closing_balance: string | number;
+  lines: AccountLedgerLine[];
+  total: number;
+}
+
+export interface AccountLedgerParams {
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
 // ---- API Functions ----
 
 export function listJournalEntries(
@@ -170,4 +201,16 @@ export function closePeriod(
   periodID: string,
 ): Promise<{ status: string }> {
   return apiClient.post(`${BASE}/${tenantSlug}/ledger/periods/${periodID}/close`);
+}
+
+/**
+ * Per-account ledger (General Ledger drill-down): transactions for a single
+ * account with a running balance. Backend: GET /{tenant}/ledger/accounts/{id}/ledger
+ */
+export function getAccountLedger(
+  tenantSlug: string,
+  accountID: string,
+  params?: AccountLedgerParams,
+): Promise<AccountLedgerResponse> {
+  return apiClient.get(`${BASE}/${tenantSlug}/ledger/accounts/${accountID}/ledger`, params);
 }

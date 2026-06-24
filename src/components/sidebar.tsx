@@ -8,6 +8,7 @@ import {
   BookOpen,
   Briefcase,
   Calculator,
+  CalendarRange,
   ChevronDown,
   DatabaseBackup,
   ClipboardCheck,
@@ -192,20 +193,34 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {
           label: 'Chart of Accounts',
           icon: Landmark,
-          href: `/${orgSlug}/ledger/accounts`,
-          active: pathname.startsWith(`/${orgSlug}/ledger/accounts`),
+          href: `/${orgSlug}/accounts`,
+          active: pathname.startsWith(`/${orgSlug}/accounts`),
+        },
+        {
+          label: 'Journal Entries',
+          icon: BookOpen,
+          href: `/${orgSlug}/ledger/journals`,
+          active:
+            pathname.startsWith(`/${orgSlug}/ledger/journals`) ||
+            (pathname.startsWith(`/${orgSlug}/ledger/accounts`) && pathname !== `/${orgSlug}/ledger/accounts`),
+        },
+        {
+          label: 'Trial Balance',
+          icon: Calculator,
+          href: `/${orgSlug}/ledger/journals?view=trial-balance`,
+          active: false,
+        },
+        {
+          label: 'Accounting Periods',
+          icon: CalendarRange,
+          href: `/${orgSlug}/ledger/periods`,
+          active: pathname.startsWith(`/${orgSlug}/ledger/periods`),
         },
         {
           label: 'Cost Centers',
           icon: Target,
           href: `/${orgSlug}/settings/cost-centers`,
           active: pathname.startsWith(`/${orgSlug}/settings/cost-centers`),
-        },
-        {
-          label: 'Journal Entries',
-          icon: BookOpen,
-          href: `/${orgSlug}/ledger/journals`,
-          active: pathname.startsWith(`/${orgSlug}/ledger/journals`),
         },
         {
           label: 'Reconciliation',
@@ -238,12 +253,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           active: pathname.startsWith(`/${orgSlug}/budgets`),
         },
       ],
-    },
-    {
-      label: 'Accounts & Ledgers',
-      icon: Landmark,
-      href: `/${orgSlug}/accounts`,
-      active: pathname.startsWith(`/${orgSlug}/accounts`),
     },
     {
       label: 'Backups',

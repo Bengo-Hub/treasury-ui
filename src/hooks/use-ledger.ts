@@ -112,6 +112,18 @@ export function useCreatePeriod() {
   });
 }
 
+export function useAccountLedger(
+  tenantSlug: string,
+  accountID: string,
+  params?: ledgerApi.AccountLedgerParams,
+) {
+  return useQuery({
+    queryKey: ['account-ledger', tenantSlug, accountID, params],
+    queryFn: () => ledgerApi.getAccountLedger(tenantSlug, accountID, params),
+    enabled: !!tenantSlug && !!accountID,
+  });
+}
+
 export function useClosePeriod() {
   const qc = useQueryClient();
   return useMutation({

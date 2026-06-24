@@ -14,13 +14,15 @@ import {
 } from '@/hooks/use-accounts';
 import type { Account } from '@/lib/api/accounts';
 import {
-  ArrowUpRight,
+  BookOpen,
   Landmark,
   Loader2,
   Plus,
   Search,
   Trash2,
 } from 'lucide-react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { useState } from 'react';
 
 const typeColors: Record<string, string> = {
@@ -53,6 +55,8 @@ const emptyForm: AccountFormData = {
 export default function AccountsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const params = useParams();
+  const orgSlug = params?.orgSlug as string;
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
 
@@ -245,7 +249,14 @@ export default function AccountsPage() {
                         <Trash2 className="h-4 w-4" />
                       </button>
                     )}
-                    <ArrowUpRight className="h-4 w-4 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+                    <Link
+                      href={`/${orgSlug}/ledger/accounts/${account.id}`}
+                      aria-label={`View ledger for ${account.account_code} ${account.account_name}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <BookOpen className="h-3.5 w-3.5" /> Ledger
+                    </Link>
                   </div>
                 </div>
               ))}
