@@ -1,266 +1,86 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Badge, Card, CardContent } from '@/components/ui/base';
-import { useAnalyticsSummary, useTransactions } from '@/hooks/use-analytics';
-import { usePlatformOverview, usePlatformTransactions } from '@/hooks/use-platform-analytics';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import {
-    ArrowUpRight,
-    Banknote,
-    CreditCard,
-    DollarSign,
-    Loader2,
-    Wallet
-} from 'lucide-react';
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+import { usePlatformOverview } from '@/hooks/use-platform-analytics';
+import { StatCard } from '@/components/charts/StatCard';
+import { money } from '@/components/charts/chart-theme';
+import { KpiCards } from '@/components/dashboard/KpiCards';
+import { FinancialPerformanceChart } from '@/components/dashboard/FinancialPerformanceChart';
+import { ReceivablesPayables } from '@/components/dashboard/ReceivablesPayables';
+import { ExpenseBreakdown } from '@/components/dashboard/ExpenseBreakdown';
+import { ComplianceSnapshot } from '@/components/dashboard/ComplianceSnapshot';
+import { Banknote, CheckCircle2, Activity, Users, Loader2 } from 'lucide-react';
 
-function formatDateRange(from: Date, to: Date): { from: string; to: string } {
-  return {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
-  };
+function last30(): { from: string; to: string } {
+  const now = new Date();
+  const from = new Date(now);
+  from.setDate(from.getDate() - 30);
+  return { from: from.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) };
 }
 
+/**
+ * Dashboard — a thin shell that composes self-contained, reusable analytics widgets (each owns
+ * its own data + chart) rather than a monolith. Commercial tenants get the full financial
+ * dashboard; platform owners get the cross-tenant overview.
+ */
 export default function DashboardPage() {
   const { tenantPathId, tenantIdsParam, isPlatformOwner } = useResolvedTenant();
-  const now = new Date();
-  const last30 = new Date(now);
-  last30.setDate(last30.getDate() - 30);
-  const range = formatDateRange(last30, now);
+  const { from, to } = last30();
 
-  // Platform owners use platform-level endpoints (all tenants by default; tenant_ids filter optional)
-  const platformOverview = usePlatformOverview(range.from, range.to, tenantIdsParam || undefined);
-  const platformTxs = usePlatformTransactions(isPlatformOwner ? { from: range.from, to: range.to, tenant_ids: tenantIdsParam || undefined, limit: 6 } : undefined);
-  const tenantSummary = useAnalyticsSummary(tenantPathId, { ...range });
-  const tenantTxs = useTransactions(tenantPathId, { ...range }, !isPlatformOwner && !!tenantPathId);
+  if (isPlatformOwner) {
+    return <PlatformDashboard from={from} to={to} tenantIds={tenantIdsParam || undefined} />;
+  }
 
-  const summaryLoading = isPlatformOwner ? platformOverview.isLoading : tenantSummary.isLoading;
-  const txLoading = isPlatformOwner ? platformTxs.isLoading : tenantTxs.isLoading;
-  const summaryError = isPlatformOwner ? platformOverview.error : tenantSummary.error;
-  const txError = isPlatformOwner ? platformTxs.error : tenantTxs.error;
-
-  const summary = isPlatformOwner ? platformOverview.data : tenantSummary.data;
-  const recentTransactions = isPlatformOwner
-    ? (platformTxs.data?.data?.slice(0, 6) ?? [])
-    : (tenantTxs.data?.transactions?.slice(0, 6) ?? []);
-  const currency = (summary as any)?.currency ?? 'KES';
-  // Normalise field names that differ between AnalyticsSummary and PlatformOverview
-  const totalRevenue = (summary as any)?.total_revenue ?? 0;
-  const succeededCount = (summary as any)?.succeeded_count ?? 0;
-  const pendingCount = (summary as any)?.pending_count ?? 0;
-  const totalTransactions = (summary as any)?.total_transactions ?? (summary as any)?.total_count ?? 0;
-
-  const kpis = [
-    {
-      label: 'Total Revenue',
-      value: summary ? `${currency} ${Number(totalRevenue).toLocaleString('en-KE', { maximumFractionDigits: 0 })}` : '—',
-      trend: summary ? `${succeededCount} succeeded` : '',
-      up: true,
-      icon: DollarSign,
-      color: 'text-green-500 bg-green-500/10',
-    },
-    {
-      label: isPlatformOwner ? 'Transactions' : 'Pending',
-      value: summary ? (isPlatformOwner ? `${totalTransactions} txns` : `${pendingCount} txns`) : '—',
-      trend: summary ? (isPlatformOwner ? `${succeededCount} succeeded` : `${pendingCount} pending`) : '',
-      up: false,
-      icon: Wallet,
-      color: 'text-amber-500 bg-amber-500/10',
-    },
-    {
-      label: 'Payment methods',
-      value: '—',
-      trend: 'From gateways',
-      up: true,
-      icon: CreditCard,
-      color: 'text-blue-500 bg-blue-500/10',
-    },
-    {
-      label: 'Transactions (period)',
-      value: summary ? String(totalTransactions || (succeededCount + pendingCount + ((summary as any)?.failed_count ?? 0))) : '—',
-      trend: summary ? `${succeededCount} ok, ${(summary as any)?.failed_count ?? 0} failed` : '',
-      up: true,
-      icon: Banknote,
-      color: 'text-purple-500 bg-purple-500/10',
-    },
-  ];
-
-  // --- Chart data: Revenue Over Time (by day) ---
-  const revenueOverTime = useMemo(() => {
-    const txns = recentTransactions;
-    const byDay: Record<string, number> = {};
-    for (const txn of txns) {
-      if (txn.status !== 'succeeded') continue;
-      const day = txn.created_at.slice(0, 10); // YYYY-MM-DD
-      byDay[day] = (byDay[day] ?? 0) + Number(txn.amount);
-    }
-    return Object.entries(byDay)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .reduce<{ date: string; revenue: number; cumulative: number }[]>((acc, [date, revenue]) => {
-        const prev = acc.length > 0 ? acc[acc.length - 1].cumulative : 0;
-        acc.push({ date, revenue, cumulative: prev + revenue });
-        return acc;
-      }, []);
-  }, [recentTransactions]);
-
-  // --- Chart data: Revenue by Payment Method ---
-  const revenueByMethod = useMemo(() => {
-    const txns = recentTransactions;
-    const byMethod: Record<string, number> = {};
-    for (const txn of txns) {
-      if (txn.status !== 'succeeded') continue;
-      const method = txn.payment_method || 'unknown';
-      byMethod[method] = (byMethod[method] ?? 0) + Number(txn.amount);
-    }
-    return Object.entries(byMethod)
-      .map(([method, total]) => ({ method, total }))
-      .sort((a, b) => b.total - a.total);
-  }, [recentTransactions]);
-
-  const loading = summaryLoading || txLoading;
-  const hasError = summaryError || txError;
+  if (!tenantPathId) {
+    return (
+      <div className="flex items-center gap-2 p-8 text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+      </div>
+    );
+  }
 
   return (
-    <div className="p-8">
-      <div className="flex flex-col gap-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Treasury Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Monitor revenue, settlements, and payment operations.</p>
+    <div className="space-y-6 p-6 lg:p-8">
+      <header>
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">Financial performance · last 30 days</p>
+      </header>
+
+      <KpiCards tenant={tenantPathId} from={from} to={to} />
+      <FinancialPerformanceChart tenant={tenantPathId} from={from} to={to} />
+      <ReceivablesPayables tenant={tenantPathId} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <ExpenseBreakdown tenant={tenantPathId} from={from} to={to} />
         </div>
-
-        {loading && (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading analytics…
-          </div>
-        )}
-        {hasError && (
-          <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Failed to load dashboard data. Check your connection and try again.
-          </div>
-        )}
-
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {kpis.map((kpi) => (
-            <Card key={kpi.label} className="group hover:border-primary/30 transition-all">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${kpi.color}`}>
-                    <kpi.icon className="h-5 w-5" />
-                  </div>
-                  {kpi.trend && (
-                    <div className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
-                      {kpi.up && <ArrowUpRight className="h-3 w-3" />}
-                      {kpi.trend}
-                    </div>
-                  )}
-                </div>
-                <p className="text-sm font-medium text-muted-foreground">{kpi.label}</p>
-                <p className="text-2xl font-bold mt-1">{kpi.value}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Charts */}
-        {!loading && !hasError && (
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Revenue Over Time */}
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="font-bold mb-4">Revenue Over Time</h3>
-                {revenueOverTime.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-8 text-center">No succeeded transactions in this period.</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <AreaChart data={revenueOverTime}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip
-                        formatter={(value) => [`${currency} ${Number(value).toLocaleString()}`, 'Cumulative']}
-                        labelFormatter={(label) => `Date: ${label}`}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="cumulative"
-                        stroke="hsl(142, 76%, 36%)"
-                        fill="hsl(142, 76%, 36%)"
-                        fillOpacity={0.15}
-                        strokeWidth={2}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Revenue by Payment Method */}
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="font-bold mb-4">Revenue by Payment Method</h3>
-                {revenueByMethod.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-8 text-center">No succeeded transactions in this period.</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={revenueByMethod} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis type="number" tick={{ fontSize: 12 }} />
-                      <YAxis dataKey="method" type="category" tick={{ fontSize: 12 }} width={100} />
-                      <Tooltip
-                        formatter={(value) => [`${currency} ${Number(value).toLocaleString()}`, 'Revenue']}
-                      />
-                      <Bar dataKey="total" fill="hsl(221, 83%, 53%)" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        <Card>
-          <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-            <h3 className="font-bold">Recent Transactions</h3>
-            <Badge variant="outline">{summary?.period ?? 'Last 30 days'}</Badge>
-          </div>
-          <div className="divide-y divide-border">
-            {recentTransactions.length === 0 && !txLoading && (
-              <div className="px-6 py-12 text-center text-muted-foreground">No transactions in this period.</div>
-            )}
-            {recentTransactions.map((txn) => (
-              <div key={txn.id} className="px-6 py-4 flex items-center justify-between hover:bg-accent/5 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="h-9 w-9 rounded-lg bg-accent/30 flex items-center justify-center">
-                    <Banknote className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold font-mono">{txn.reference_id}</p>
-                    <p className="text-xs text-muted-foreground">{txn.payment_method}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-6">
-                  <p className="text-sm font-bold">{txn.currency} {txn.amount}</p>
-                  <Badge variant={txn.status === 'succeeded' ? 'success' : txn.status === 'pending' || txn.status === 'processing' ? 'warning' : 'error'}>
-                    {txn.status}
-                  </Badge>
-                  <p className="text-xs text-muted-foreground w-32 text-right">{new Date(txn.created_at).toLocaleString()}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+        <ComplianceSnapshot tenant={tenantPathId} />
       </div>
+    </div>
+  );
+}
+
+function PlatformDashboard({ from, to, tenantIds }: { from: string; to: string; tenantIds?: string }) {
+  const overview = usePlatformOverview(from, to, tenantIds);
+  const d = overview.data as any;
+  const loading = overview.isLoading;
+
+  return (
+    <div className="space-y-6 p-6 lg:p-8">
+      <header>
+        <h1 className="text-2xl font-bold tracking-tight">Platform Dashboard</h1>
+        <p className="text-sm text-muted-foreground">Across all tenants · last 30 days</p>
+      </header>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Total Revenue" value={money(d?.total_revenue)} tone="success" loading={loading} icon={<Banknote className="h-5 w-5" />} />
+        <StatCard label="Transactions" value={(d?.total_transactions ?? 0).toLocaleString()} tone="primary" loading={loading} icon={<Activity className="h-5 w-5" />} />
+        <StatCard label="Succeeded" value={(d?.succeeded_count ?? 0).toLocaleString()} tone="success" loading={loading} icon={<CheckCircle2 className="h-5 w-5" />} />
+        <StatCard label="Active Tenants" value={(d?.tenant_count ?? d?.active_tenants ?? 0).toLocaleString()} tone="default" loading={loading} icon={<Users className="h-5 w-5" />} />
+      </div>
+      {overview.error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Failed to load platform analytics.
+        </div>
+      )}
     </div>
   );
 }
