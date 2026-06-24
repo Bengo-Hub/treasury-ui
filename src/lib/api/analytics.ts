@@ -136,3 +136,43 @@ export function exportTransactionsCSV(
 export function getPayoutHistory(tenantIdOrSlug: string): Promise<PayoutHistoryResponse> {
   return apiClient.get<PayoutHistoryResponse>(`${BASE}/${tenantIdOrSlug}/payout/history`);
 }
+
+// ---- Dashboard analytics (timeseries + money flow) ----
+
+export interface TimeseriesPoint {
+  date: string;
+  revenue: string;
+  expenses: string;
+  net_profit: string;
+}
+
+export interface TimeseriesResponse {
+  series: TimeseriesPoint[];
+  total_revenue: string;
+  total_expenses: string;
+  net_profit: string;
+  from: string;
+  to: string;
+}
+
+export function getTimeseries(tenant: string, params: { from: string; to: string }): Promise<TimeseriesResponse> {
+  return apiClient.get<TimeseriesResponse>(`/api/v1/${tenant}/analytics/timeseries`, params);
+}
+
+export interface MoneyFlowService {
+  source_service: string;
+  money_in: string;
+  costs: string;
+  net: string;
+}
+
+export interface MoneyFlowResponse {
+  services: MoneyFlowService[];
+  total_in: string;
+  total_costs: string;
+  total_net: string;
+}
+
+export function getMoneyFlow(tenant: string, params: { from: string; to: string }): Promise<MoneyFlowResponse> {
+  return apiClient.get<MoneyFlowResponse>(`/api/v1/${tenant}/analytics/money-flow`, params);
+}

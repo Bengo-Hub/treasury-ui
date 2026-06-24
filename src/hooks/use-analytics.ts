@@ -4,6 +4,8 @@ import {
     getAnalyticsSummary,
     getPayoutHistory,
     getTransactions,
+    getTimeseries,
+    getMoneyFlow,
     type TransactionsParams,
 } from '@/lib/api/analytics';
 import { useQuery } from '@tanstack/react-query';
@@ -53,5 +55,23 @@ export function usePayoutHistory(tenantIdOrSlug: string | undefined, enabled = t
     queryFn: () => getPayoutHistory(tenantIdOrSlug!),
     enabled: !!tenantIdOrSlug && enabled,
     staleTime: STALE_MS,
+  });
+}
+
+export function useTimeseries(tenant: string | undefined, params: { from: string; to: string }, enabled = true) {
+  return useQuery({
+    queryKey: ['analytics-timeseries', tenant, params.from, params.to],
+    queryFn: () => getTimeseries(tenant!, params),
+    enabled: enabled && !!tenant,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useMoneyFlow(tenant: string | undefined, params: { from: string; to: string }, enabled = true) {
+  return useQuery({
+    queryKey: ['analytics-money-flow', tenant, params.from, params.to],
+    queryFn: () => getMoneyFlow(tenant!, params),
+    enabled: enabled && !!tenant,
+    staleTime: 2 * 60 * 1000,
   });
 }
