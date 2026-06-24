@@ -14,10 +14,9 @@ import {
   useTrialBalance,
 } from '@/hooks/use-ledger';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { apiClient } from '@/lib/api/client';
+import { useAccounts } from '@/hooks/use-accounts';
 import type { JournalEntry, JournalLine } from '@/lib/api/ledger';
 import { cn } from '@/lib/utils';
-import { useQuery } from '@tanstack/react-query';
 import {
   BookOpen,
   CheckCircle2,
@@ -31,14 +30,8 @@ import {
   Stamp,
   Trash2,
 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
-
-interface LedgerAccount {
-  id: string;
-  code: string;
-  name: string;
-  type: string;
-}
 
 const statusVariant: Record<string, 'default' | 'warning' | 'success' | 'error' | 'secondary'> = {
   draft: 'secondary',
@@ -51,7 +44,10 @@ const statusVariant: Record<string, 'default' | 'warning' | 'success' | 'error' 
 export default function JournalsPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
-  const [view, setView] = useState<'entries' | 'trial-balance'>('entries');
+  const searchParams = useSearchParams();
+  const [view, setView] = useState<'entries' | 'trial-balance'>(
+    searchParams.get('view') === 'trial-balance' ? 'trial-balance' : 'entries',
+  );
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -364,11 +360,7 @@ function CreateJournalDialog({
     { account_id: '', debit_amount: '', credit_amount: '', description: '' },
   ]);
 
-  const { data: accountsData } = useQuery({
-    queryKey: ['ledger-accounts-list', tenantSlug],
-    queryFn: () => apiClient.get<{ accounts: LedgerAccount[] }>(`/api/v1/${tenantSlug}/ledger/accounts`),
-    enabled: !!tenantSlug && open,
-  });
+  const { data: accountsData } = useAccounts(tenantSlug);
   const accounts = accountsData?.accounts ?? [];
 
   function updateLine(i: number, field: keyof LineInput, value: string) {
@@ -478,7 +470,7 @@ function CreateJournalDialog({
                           <option value="">Select account...</option>
                           {accounts.map((a) => (
                             <option key={a.id} value={a.id}>
-                              {a.code} - {a.name}
+                              {a.account_code} - {a.account_name}
                             </option>
                           ))}
                         </select>
