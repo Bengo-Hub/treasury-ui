@@ -48,12 +48,85 @@ export interface SearchItemsParams {
   type?: string;
 }
 
-export function searchInventoryItems(tenant: string, params?: SearchItemsParams): Promise<{ items: InventoryItem[]; total: number }> {
-  return apiClient.get<{ items: InventoryItem[]; total: number }>(`${BASE}/${tenant}/inventory/items`, params);
+// inventory-api ItemDTO — the shape inventory actually returns (and the list is a
+// paginated `{ data, total }` envelope using a `search` query param, NOT `q`/`items`).
+interface InventoryItemDTO {
+  id: string;
+  sku?: string;
+  name: string;
+  type?: string;
+  description?: string;
+  image_url?: string;
+  selling_price?: number | null;
+  suggested_price?: number | null;
+  cost_price?: number | null;
+  tax_code_id?: string;
+  tax_rate?: number | null;
 }
 
-export function getInventoryItem(tenant: string, itemId: string): Promise<InventoryItem> {
-  return apiClient.get<InventoryItem>(`${BASE}/${tenant}/inventory/items/${itemId}`);
+function dtoToInventoryItem(d: InventoryItemDTO): InventoryItem {
+  const price = d.selling_price ?? d.suggested_price ?? d.cost_price ?? undefined;
+  return {
+    id: d.id,
+    name: d.name,
+    sku: d.sku,
+    item_type: d.type,
+    image_url: d.image_url,
+    unit_price: price != null ? String(price) : undefined,
+    tax_code: d.tax_code_id,
+    tax_rate: d.tax_rate != null ? String(d.tax_rate) : undefined,
+    description: d.description,
+  };
+}
+
+export async function searchInventoryItems(tenant: string, params?: SearchItemsParams): Promise<{ items: InventoryItem[]; total: number }> {
+  // inventory-api expects `search` (not `q`) and returns a `{ data, total }` envelope.
+  const query: Record<string, unknown> = {};
+  if (params?.q) query.search = params.q;
+  if (params?.limit != null) query.limit = params.limit;
+  if (params?.type) query.type = params.type;
+  const res = await apiClient.get<{ data?: InventoryItemDTO[]; total?: number } | InventoryItemDTO[]>(
+    `${BASE}/${tenant}/inventory/items`,
+    query,
+  );
+  const rows = Array.isArray(res) ? res : (res.data ?? []);
+  return {
+    items: rows.map(dtoToInventoryItem),
+    total: Array.isArray(res) ? rows.length : (res.total ?? rows.length),
+  };
+}
+
+export async function getInventoryItem(tenant: string, itemId: string): Promise<InventoryItem> {
+  const d = await apiClient.get<InventoryItemDTO>(`${BASE}/${tenant}/inventory/items/${itemId}`);
+  return dtoToInventoryItem(d);
+}
+
+export interface CreateInventoryItemRequest {
+  name: string;
+  sku?: string;
+  item_type?: string;
+  unit_price?: string;
+  tax_code?: string;
+  description?: string;
+}
+
+// createInventoryItem maps the treasury form fields onto inventory-api's ItemDTO field names
+// (`type`, `selling_price`, `tax_code_id`) so the item is actually created in inventory, then
+// maps the response back to the treasury InventoryItem shape.
+export async function createInventoryItem(tenant: string, data: CreateInventoryItemRequest): Promise<InventoryItem> {
+  const body: Record<string, unknown> = {
+    name: data.name,
+    type: data.item_type || 'GOODS',
+  };
+  if (data.sku) body.sku = data.sku;
+  if (data.description) body.description = data.description;
+  if (data.tax_code) body.tax_code_id = data.tax_code;
+  if (data.unit_price) {
+    const p = parseFloat(data.unit_price);
+    if (!Number.isNaN(p)) body.selling_price = p;
+  }
+  const d = await apiClient.post<InventoryItemDTO>(`${BASE}/${tenant}/inventory/items`, body);
+  return dtoToInventoryItem(d);
 }
 
 export function listCarriers(tenant: string): Promise<{ carriers: Carrier[] }> {
