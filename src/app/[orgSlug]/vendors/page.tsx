@@ -4,15 +4,20 @@ import { Badge, Button, Card, CardContent } from '@/components/ui/base';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useOrgBranding } from '@/hooks/use-org-branding';
 import { useBills } from '@/hooks/use-bills';
+import { useAPSummary, useVendorBalances } from '@/hooks/use-arpa';
 import type { Bill } from '@/lib/api/bills';
+import type { VendorBalance } from '@/lib/api/arpa';
+import { StatementDialog } from '@/components/statement-dialog';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
   ArrowLeft,
   ArrowUpDown,
+  Banknote,
   ChevronRight,
   Columns3,
   Download,
+  FileText,
   Filter,
   Inbox,
   Loader2,
@@ -37,6 +42,10 @@ interface VendorSummary {
   lastCommunication: string;
   /** A vendor is archived when every one of its bills is cancelled. */
   archived: boolean;
+  /** AP ledger vendor UUID (from /ap/vendors), when this vendor has a balance row. */
+  vendorId?: string;
+  /** Running AP balance owed from the operational ledger (/ap/vendors), if known. */
+  balanceOwed?: number;
 }
 
 const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
@@ -55,7 +64,8 @@ type ColumnKey =
   | 'email'
   | 'country'
   | 'status'
-  | 'lastComm';
+  | 'lastComm'
+  | 'actions';
 
 interface ColumnDef {
   key: ColumnKey;
@@ -74,6 +84,7 @@ const COLUMNS: ColumnDef[] = [
   { key: 'country', label: 'Country' },
   { key: 'status', label: 'Status', align: 'center' },
   { key: 'lastComm', label: 'Last Communication Date', align: 'right' },
+  { key: 'actions', label: 'Actions', locked: true, align: 'right' },
 ];
 
 type SortKey = 'name' | 'total' | 'lastComm';
@@ -100,9 +111,24 @@ export default function VendorsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('total');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
+  const [statementVendor, setStatementVendor] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading, error } = useBills(effectiveTenant, {}, !!effectiveTenant);
   const bills = useMemo(() => data?.bills ?? [], [data]);
+
+  // AP balances + summary (the operational AP ledger — opening/advance + owed per supplier).
+  const { data: apSummary } = useAPSummary(effectiveTenant, !!effectiveTenant);
+  const { data: vendorBalances } = useVendorBalances(effectiveTenant, !!effectiveTenant);
+
+  // name -> VendorBalance, so the derived (bill-history) vendor rows can surface a real
+  // balance_owed and a vendor_id (needed for the statement drill-down endpoint).
+  const balanceByName = useMemo(() => {
+    const m = new Map<string, VendorBalance>();
+    (vendorBalances ?? []).forEach((b) => {
+      if (b.vendor_name) m.set(b.vendor_name, b);
+    });
+    return m;
+  }, [vendorBalances]);
 
   // Derive vendors from bill history (no dedicated vendor service yet).
   const vendors = useMemo(() => {
@@ -139,11 +165,16 @@ export default function VendorsPage() {
         });
       }
     });
-    return Array.from(map.values()).map(({ _allCancelled, ...v }) => ({
-      ...v,
-      archived: _allCancelled,
-    }));
-  }, [bills]);
+    return Array.from(map.values()).map(({ _allCancelled, ...v }) => {
+      const bal = balanceByName.get(v.name);
+      return {
+        ...v,
+        archived: _allCancelled,
+        vendorId: bal?.vendor_id,
+        balanceOwed: bal ? parseFloat(bal.balance_owed) || 0 : undefined,
+      };
+    });
+  }, [bills, balanceByName]);
 
   const currencies = useMemo(
     () => Array.from(new Set(vendors.map((v) => v.currency))).sort(),
@@ -365,6 +396,28 @@ export default function VendorsPage() {
         </div>
       )}
 
+      {/* AP summary strip — total payable / overdue / due-this-week from /ap/summary. */}
+      {apSummary && (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[
+            { label: 'Total Payable', value: formatCurrency(parseFloat(apSummary.total_payable) || 0), tone: 'default' as const },
+            { label: 'Overdue', value: formatCurrency(parseFloat(apSummary.overdue) || 0), tone: 'destructive' as const },
+            { label: 'Due This Week', value: formatCurrency(parseFloat(apSummary.due_this_week) || 0), tone: 'default' as const },
+            { label: 'Open Bills', value: String(apSummary.open_bills), tone: 'default' as const },
+          ].map(({ label, value, tone }) => (
+            <Card key={label}>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Banknote className={cn('h-3.5 w-3.5', tone === 'destructive' ? 'text-destructive' : 'text-muted-foreground')} />
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{label}</p>
+                </div>
+                <p className={cn('text-xl font-black', tone === 'destructive' && 'text-destructive')}>{value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {topTab === 'reports' ? (
         <div className="grid gap-4 md:grid-cols-3">
           {[
@@ -576,6 +629,9 @@ export default function VendorsPage() {
                                   <span className="font-bold group-hover:text-primary transition-colors">{vendor.name}</span>
                                   <span className="block text-[10px] text-muted-foreground mt-0.5">
                                     {vendor.billCount} bill{vendor.billCount !== 1 ? 's' : ''} · {formatCurrency(vendor.totalAmount, vendor.currency)}
+                                    {vendor.balanceOwed !== undefined && vendor.balanceOwed > 0.0001 && (
+                                      <span className="text-amber-600 font-semibold"> · {formatCurrency(vendor.balanceOwed, vendor.currency)} owed</span>
+                                    )}
                                   </span>
                                 </td>
                               );
@@ -599,6 +655,24 @@ export default function VendorsPage() {
                               return (
                                 <td key={col.key} className="px-6 py-3 text-right text-xs text-muted-foreground whitespace-nowrap">
                                   {vendor.lastCommunication ? new Date(vendor.lastCommunication).toLocaleDateString() : EMPTY}
+                                </td>
+                              );
+                            case 'actions':
+                              return (
+                                <td key={col.key} className="px-6 py-3 text-right whitespace-nowrap">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={!vendor.vendorId}
+                                    title={vendor.vendorId ? 'View vendor statement' : 'No AP ledger balance for this vendor yet'}
+                                    onClick={(e: React.MouseEvent) => {
+                                      e.stopPropagation();
+                                      if (vendor.vendorId) setStatementVendor({ id: vendor.vendorId, name: vendor.name });
+                                    }}
+                                  >
+                                    <FileText className="h-3.5 w-3.5 mr-1" />
+                                    Statement
+                                  </Button>
                                 </td>
                               );
                             default:
@@ -632,6 +706,17 @@ export default function VendorsPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {statementVendor && (
+        <StatementDialog
+          kind="vendor"
+          open={!!statementVendor}
+          onClose={() => setStatementVendor(null)}
+          tenant={effectiveTenant}
+          entityId={statementVendor.id}
+          name={statementVendor.name}
+        />
       )}
     </div>
   );

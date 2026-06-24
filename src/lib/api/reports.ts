@@ -57,6 +57,18 @@ export interface ProfitLossSummaryReport {
   net_profit: string;
   by_category: ProfitLossBreakdown[];
   by_cost_center: ProfitLossBreakdown[];
+
+  /**
+   * GL-based reconciliation (additive). These restate the same period from the
+   * authoritative General Ledger so the UI can flag drift between the
+   * source-document P&L above and the double-entry ledger.
+   * `reconciliation_variance` = source-doc net_profit − gl_net_profit; ~0 means
+   * the two views agree. All fixed-2 decimal strings.
+   */
+  gl_revenue: string;
+  gl_expenses: string;
+  gl_net_profit: string;
+  reconciliation_variance: string;
 }
 
 // ---- API Functions ----

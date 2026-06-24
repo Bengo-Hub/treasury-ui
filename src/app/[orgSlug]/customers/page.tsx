@@ -4,12 +4,14 @@ import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/ba
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useInvoices, useCustomerBalances, useRecordCustomerPayment } from '@/hooks/use-invoices';
 import type { Invoice, CustomerBalance } from '@/lib/api/invoices';
+import { StatementDialog } from '@/components/statement-dialog';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
   ArrowLeft,
   ArrowUpRight,
   Banknote,
+  FileText,
   Loader2,
   Mail,
   Search,
@@ -26,6 +28,8 @@ interface CustomerSummary {
   paidAmount: number;
   currency: string;
   lastInvoiceDate: string;
+  /** CRM contact / customer UUID used by the AR statement endpoint, if known. */
+  customerId?: string;
 }
 
 const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
@@ -42,6 +46,7 @@ export default function CustomersPage() {
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+  const [statementCustomer, setStatementCustomer] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading, error } = useInvoices(effectiveTenant, {}, !!effectiveTenant);
   const invoices = data?.invoices ?? [];
@@ -88,11 +93,13 @@ export default function CustomersPage() {
       const key = email || name;
       const amount = parseFloat(inv.total_amount ?? '0') || 0;
       const paid = inv.status === 'paid' ? amount : 0;
+      const contactId = inv.customer_id || inv.crm_customer_id;
       const existing = map.get(key);
       if (existing) {
         existing.invoiceCount += 1;
         existing.totalAmount += amount;
         existing.paidAmount += paid;
+        if (!existing.customerId && contactId) existing.customerId = contactId;
         if (inv.created_at > existing.lastInvoiceDate) {
           existing.lastInvoiceDate = inv.created_at;
         }
@@ -105,6 +112,7 @@ export default function CustomersPage() {
           paidAmount: paid,
           currency: inv.currency || 'KES',
           lastInvoiceDate: inv.created_at,
+          customerId: contactId,
         });
       }
     });
@@ -137,7 +145,7 @@ export default function CustomersPage() {
           <Button variant="ghost" size="icon" onClick={() => setSelectedCustomer(null)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-3xl font-bold tracking-tight">{customer?.name}</h1>
             {customer?.email && (
               <p className="text-muted-foreground mt-1 flex items-center gap-1">
@@ -146,7 +154,28 @@ export default function CustomersPage() {
               </p>
             )}
           </div>
+          {customer?.customerId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setStatementCustomer({ id: customer.customerId!, name: customer.name })}
+            >
+              <FileText className="h-4 w-4 mr-1.5" />
+              Statement
+            </Button>
+          )}
         </div>
+
+        {statementCustomer && (
+          <StatementDialog
+            kind="customer"
+            open={!!statementCustomer}
+            onClose={() => setStatementCustomer(null)}
+            tenant={effectiveTenant}
+            entityId={statementCustomer.id}
+            name={statementCustomer.name}
+          />
+        )}
 
         <div className="grid gap-4 md:grid-cols-3">
           {[
@@ -356,6 +385,19 @@ export default function CustomersPage() {
                           {outstanding > 0 ? `${formatCurrency(outstanding, customer.currency)} due` : 'Fully paid'}
                         </p>
                       </div>
+                      {customer.customerId && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            setStatementCustomer({ id: customer.customerId!, name: customer.name });
+                          }}
+                        >
+                          <FileText className="h-3.5 w-3.5 mr-1" />
+                          Statement
+                        </Button>
+                      )}
                       <ArrowUpRight className="h-4 w-4 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
                     </div>
                   </div>
@@ -368,6 +410,17 @@ export default function CustomersPage() {
           )}
         </CardContent>
       </Card>
+
+      {statementCustomer && (
+        <StatementDialog
+          kind="customer"
+          open={!!statementCustomer}
+          onClose={() => setStatementCustomer(null)}
+          tenant={effectiveTenant}
+          entityId={statementCustomer.id}
+          name={statementCustomer.name}
+        />
+      )}
     </div>
   );
 }
