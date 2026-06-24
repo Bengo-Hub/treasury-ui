@@ -57,6 +57,8 @@ export default function JournalsPage() {
 
   const { data, isLoading, isError } = useJournalEntries(effectiveTenant, statusFilter !== 'all' ? { status: statusFilter } : undefined);
   const entries = data?.entries ?? [];
+  const draftCount = entries.filter((entry) => entry.status === 'draft').length;
+  const postedCount = entries.filter((entry) => entry.status === 'posted').length;
 
   const filtered = useMemo(() => entries, [entries]);
 
@@ -64,23 +66,33 @@ export default function JournalsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Journal Entries</h1>
-          <p className="text-muted-foreground mt-1">Manage journal entries and view the trial balance.</p>
-        </div>
-        <div className="flex gap-2">
-          <Tabs value={view} onValueChange={(v) => setView(v as 'entries' | 'trial-balance')}>
-            <TabsList>
-              <TabsTrigger value="entries">Entries</TabsTrigger>
-              <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          {view === 'entries' && (
-            <Button onClick={() => setCreateOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" /> New Entry
-            </Button>
-          )}
+      <div className="rounded-2xl border border-primary/10 bg-gradient-to-br from-primary/10 via-background to-accent/20 p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="rounded-2xl border border-primary/20 bg-background/80 p-3 shadow-sm">
+              <BookOpen className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Ledger workflow</p>
+              <h1 className="text-3xl font-bold tracking-tight">Journal Entries</h1>
+              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                Review draft, submitted, approved, and posted entries in one place to keep your books accurate and audit-ready.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Tabs value={view} onValueChange={(v) => setView(v as 'entries' | 'trial-balance')}>
+              <TabsList>
+                <TabsTrigger value="entries">Entries</TabsTrigger>
+                <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            {view === 'entries' && (
+              <Button onClick={() => setCreateOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" /> New Entry
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -89,6 +101,23 @@ export default function JournalsPage() {
           Select a tenant from the filter above to view their journal entries.
         </div>
       )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="border-primary/10 bg-primary/5">
+          <CardContent className="p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Journal entries</p>
+            <p className="mt-2 text-2xl font-bold">{entries.length}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Captured transactions for the selected period</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Workflow health</p>
+            <p className="mt-2 text-sm font-medium text-muted-foreground">Drafts {draftCount} · Posted {postedCount}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Use the status filters to focus on what needs attention</p>
+          </CardContent>
+        </Card>
+      </div>
 
       {(!isPlatformOwner || tenantQueryParam) && (view === 'entries' ? (
         <JournalEntriesList
@@ -260,7 +289,15 @@ function JournalEntriesList({
           </div>
         )}
         {!isLoading && !isError && entries.length === 0 && (
-          <div className="p-12 text-center text-muted-foreground">No journal entries found.</div>
+          <div className="p-12 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-accent/30">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <h3 className="mt-4 text-base font-semibold">No entries in this view</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Create a new journal entry to start recording posting activity for the month.
+            </p>
+          </div>
         )}
       </CardContent>
     </Card>

@@ -190,6 +190,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       icon: BookOpen,
       children: [
         {
+          label: 'Accounting Hub',
+          icon: LayoutDashboard,
+          href: `/${orgSlug}/accounting`,
+          active: pathname.startsWith(`/${orgSlug}/accounting`),
+        },
+        {
           label: 'Chart of Accounts',
           icon: Landmark,
           href: `/${orgSlug}/ledger/accounts`,
@@ -206,6 +212,24 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: BookOpen,
           href: `/${orgSlug}/ledger/journals`,
           active: pathname.startsWith(`/${orgSlug}/ledger/journals`),
+        },
+        {
+          label: 'Vouchers',
+          icon: Receipt,
+          href: `/${orgSlug}/ledger/vouchers`,
+          active: pathname.startsWith(`/${orgSlug}/ledger/vouchers`),
+        },
+        {
+          label: 'Close Periods',
+          icon: Shield,
+          href: `/${orgSlug}/accounting/close-periods`,
+          active: pathname.startsWith(`/${orgSlug}/accounting/close-periods`),
+        },
+        {
+          label: 'Audit History',
+          icon: FileCheck,
+          href: `/${orgSlug}/accounting/audit-history`,
+          active: pathname.startsWith(`/${orgSlug}/accounting/audit-history`),
         },
         {
           label: 'Reconciliation',

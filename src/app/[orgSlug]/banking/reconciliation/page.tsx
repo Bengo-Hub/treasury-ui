@@ -38,11 +38,21 @@ export default function ReconciliationPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Bank Reconciliation</h1>
-        <p className="text-muted-foreground mt-1">
-          Connect bank accounts, import statements, and reconcile transactions.
-        </p>
+      <div className="rounded-2xl border border-primary/10 bg-gradient-to-br from-primary/10 via-background to-accent/20 p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="rounded-2xl border border-primary/20 bg-background/80 p-3 shadow-sm">
+              <CheckCircle2 className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Cash matching</p>
+              <h1 className="text-3xl font-bold tracking-tight">Bank Reconciliation</h1>
+              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                Connect bank accounts, import statements, and resolve unmatched movements with a focused review workflow.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -94,8 +104,11 @@ function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold">Bank Accounts</h2>
+      <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-accent/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-bold">Bank Accounts</h2>
+          <p className="text-sm text-muted-foreground">Link the accounts you want to reconcile against the ledger.</p>
+        </div>
         <Button className="gap-2" onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4" /> Add Bank Account
         </Button>
@@ -112,8 +125,14 @@ function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
               Failed to load bank accounts. Check your connection and try again.
             </div>
           ) : accounts.length === 0 ? (
-            <div className="p-12 text-center text-muted-foreground">
-              No bank accounts yet. Add one to start reconciling.
+            <div className="p-12 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-accent/30">
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <h3 className="mt-4 text-base font-semibold">No bank accounts linked yet</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Add a bank account to begin importing statements and matching transactions.
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -263,8 +282,9 @@ function StatementsTab({ tenantSlug }: { tenantSlug: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 rounded-2xl border border-border/70 bg-accent/10 p-4">
         <h2 className="text-lg font-bold">Import Statement</h2>
+        <p className="text-sm text-muted-foreground">Upload bank statements to generate the lines you will review and match.</p>
       </div>
 
       <Card>
@@ -345,6 +365,7 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
   const [statementIdForAuto, setStatementIdForAuto] = useState('');
 
   const lines = unreconciledData?.lines ?? [];
+  const matchedCount = Math.max(0, (unreconciledData?.total ?? 0) - lines.length);
 
   const { data: ledgerTxnData, isLoading: loadingTxns } = useLedgerTransactions(tenantSlug);
   const ledgerTxnOptions: ComboboxOption[] = (ledgerTxnData?.transactions ?? []).map((t) => {
@@ -388,6 +409,23 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
 
   return (
     <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="border-primary/10 bg-primary/5">
+          <CardContent className="p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Unreconciled lines</p>
+            <p className="mt-2 text-2xl font-bold">{lines.length}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Open items waiting for a match</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reconciled status</p>
+            <p className="mt-2 text-sm font-medium text-muted-foreground">Auto-matched {matchedCount} · Manual matching available</p>
+            <p className="mt-1 text-sm text-muted-foreground">Use either path to close the gap quickly</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Auto Reconcile Section */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between py-3">

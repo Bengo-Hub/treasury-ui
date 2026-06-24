@@ -1,5 +1,3 @@
-import { redirect } from 'next/navigation';
+import AccountsPage from '../../accounts/page';
 
-export default function LedgerAccountsRedirect({ params }: { params: { orgSlug: string } }) {
-  redirect(`/${params.orgSlug}/accounts`);
-}
+export default AccountsPage;

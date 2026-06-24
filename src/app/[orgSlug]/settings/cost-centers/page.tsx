@@ -47,6 +47,7 @@ export default function CostCentersPage() {
   const deleteMutation = useDeleteCostCenter(effectiveTenant);
 
   const centers = data?.cost_centers ?? [];
+  const activeCount = centers.filter((cc) => cc.is_active).length;
 
   const filtered = centers.filter((cc) => {
     const name = cc.name ?? '';
@@ -114,16 +115,24 @@ export default function CostCentersPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Cost Centers</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage cost centers to tag expenses to an organizational unit for reporting.
-          </p>
+      <div className="rounded-2xl border border-primary/10 bg-gradient-to-br from-primary/10 via-background to-accent/20 p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="rounded-2xl border border-primary/20 bg-background/80 p-3 shadow-sm">
+              <Target className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Spend accountability</p>
+              <h1 className="text-3xl font-bold tracking-tight">Cost Centers</h1>
+              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                Organize expenses by department, team, or business unit so reporting stays meaningful and actionable.
+              </p>
+            </div>
+          </div>
+          <Button className="gap-2 shadow-lg shadow-primary/20" onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Add Cost Center
+          </Button>
         </div>
-        <Button className="gap-2 shadow-lg shadow-primary/20" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Add Cost Center
-        </Button>
       </div>
 
       {isPlatformOwner && !tenantQueryParam && (
@@ -137,6 +146,23 @@ export default function CostCentersPage() {
           Failed to load cost centers. Check your connection and try again.
         </div>
       )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="border-primary/10 bg-primary/5">
+          <CardContent className="p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total cost centers</p>
+            <p className="mt-2 text-2xl font-bold">{centers.length}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Tracked dimensions for reporting and approvals</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active centers</p>
+            <p className="mt-2 text-2xl font-bold">{activeCount}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Ready to receive operational spend</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between py-4">
@@ -229,8 +255,17 @@ export default function CostCentersPage() {
                 </div>
               ))}
               {filtered.length === 0 && (
-                <div className="p-12 text-center text-muted-foreground">
-                  No cost centers match your search.
+                <div className="p-12 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-accent/30">
+                    <Target className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold">No matching cost centers</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Try a broader search or create a new cost center to organize your spend.
+                  </p>
+                  <Button className="mt-5 gap-2" onClick={openCreate}>
+                    <Plus className="h-4 w-4" /> Create one
+                  </Button>
                 </div>
               )}
             </div>
