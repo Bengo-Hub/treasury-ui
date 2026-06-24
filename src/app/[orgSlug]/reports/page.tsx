@@ -11,9 +11,12 @@ import {
   useProfitLossSummary,
 } from '@/hooks/use-reports';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
+import { cn } from '@/lib/utils';
 import type { FinancialReport, ReportSection } from '@/lib/api/reports';
 import {
+  AlertTriangle,
   BarChart3,
+  CheckCircle2,
   DollarSign,
   FileText,
   Loader2,
@@ -324,6 +327,13 @@ function ProfitLossSummaryTab({
             />
           </div>
 
+          <GLReconciliationCard
+            sourceNetProfit={data.net_profit}
+            glNetProfit={data.gl_net_profit}
+            variance={data.reconciliation_variance}
+            currency={data.currency}
+          />
+
           <div className="grid gap-4 lg:grid-cols-2">
             <BreakdownTable title="Expenses by Category" rows={data.by_category ?? []} />
             <BreakdownTable title="Expenses by Cost Center" rows={data.by_cost_center ?? []} />
@@ -331,6 +341,66 @@ function ProfitLossSummaryTab({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * GLReconciliationCard surfaces whether the source-document P&L net profit
+ * reconciles with the General Ledger. A near-zero variance shows a green
+ * "Reconciled with GL" state; any drift shows an amber/destructive warning with
+ * the variance amount so the books can be investigated.
+ */
+function GLReconciliationCard({
+  sourceNetProfit,
+  glNetProfit,
+  variance,
+  currency,
+}: {
+  sourceNetProfit: string;
+  glNetProfit: string;
+  variance: string;
+  currency: string;
+}) {
+  const v = Number(variance) || 0;
+  const reconciled = Math.abs(v) < 0.01;
+  const cur = currency || 'KES';
+  const fmt = (n: number) =>
+    `${cur} ${Math.abs(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  return (
+    <Card className={cn('border', reconciled ? 'border-green-500/40' : 'border-destructive/40')}>
+      <CardContent className="p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            {reconciled ? (
+              <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+            )}
+            <div>
+              <p className={cn('text-sm font-bold', reconciled ? 'text-green-600' : 'text-destructive')}>
+                {reconciled ? 'Reconciled with GL' : `Variance: ${fmt(v)}`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {reconciled
+                  ? 'Source-document P&L matches the General Ledger.'
+                  : 'Source-document P&L differs from the General Ledger — review postings.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="text-right">
+              <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Source Net Profit</p>
+              <p className="text-sm font-bold tabular-nums">{fmt(Number(sourceNetProfit) || 0)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">GL Net Profit</p>
+              <p className="text-sm font-bold tabular-nums">{fmt(Number(glNetProfit) || 0)}</p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
