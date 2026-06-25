@@ -12,11 +12,16 @@ import {
   useCreateCreditNote,
   useCreateDebitNote,
   useGenerateDeliveryNote,
+  useSubmitInvoiceForApproval,
+  useApproveInvoice,
+  useRejectInvoice,
 } from '@/hooks/use-invoices';
+import { useAuthStore } from '@/store/auth';
+import { userHasPermission } from '@/lib/auth/permissions';
 import { cn } from '@/lib/utils';
 import {
-  ArrowLeft, Ban, CheckCircle, Copy, DollarSign, Download,
-  ExternalLink, FileMinus, FilePlus, Loader2, Send, Truck, X,
+  ArrowLeft, Ban, Check, CheckCircle, Copy, DollarSign, Download,
+  ExternalLink, FileMinus, FilePlus, Loader2, Send, ThumbsUp, Truck, X,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
@@ -25,16 +30,18 @@ import { downloadPublicInvoicePdf } from '@/lib/api/documents';
 
 function StatusBadge({ status }: { status: string }) {
   const variants: Record<string, string> = {
-    paid:     'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    sent:     'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    draft:    'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
-    overdue:  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    void:     'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500',
-    cancelled:'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500',
+    paid:             'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    approved:         'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    sent:             'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    pending_approval: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    draft:            'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
+    overdue:          'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    void:             'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500',
+    cancelled:        'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500',
   };
   return (
     <span className={cn('inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide', variants[status] ?? 'bg-zinc-100 text-zinc-600')}>
-      {status}
+      {status?.replace(/_/g, ' ')}
     </span>
   );
 }
@@ -78,9 +85,22 @@ export default function InvoiceDetailPage() {
   const creditNoteMut  = useCreateCreditNote(effectiveTenant);
   const debitNoteMut   = useCreateDebitNote(effectiveTenant);
   const deliveryNoteMut = useGenerateDeliveryNote(effectiveTenant);
+  const submitMut       = useSubmitInvoiceForApproval(effectiveTenant);
+  const approveMut      = useApproveInvoice(effectiveTenant);
+  const rejectMut       = useRejectInvoice(effectiveTenant);
+
+  // Approve/reject/submit are privileged — gate on the backend's treasury.invoices.change|manage.
+  const user = useAuthStore((s) => s.user);
+  const canApprove = userHasPermission(
+    user as Parameters<typeof userHasPermission>[0],
+    ['treasury.invoices.change', 'treasury.invoices.manage'],
+    'or',
+  );
 
   const [paymentAmount, setPaymentAmount] = useState('');
   const [showPayModal, setShowPayModal]   = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason]   = useState('');
 
   const handleRecordPayment = useCallback(() => {
     if (!paymentAmount) return;
@@ -89,6 +109,16 @@ export default function InvoiceDetailPage() {
       { onSuccess: () => { setShowPayModal(false); setPaymentAmount(''); } },
     );
   }, [invoiceId, paymentAmount, recordPayMut]);
+
+  const handleReject = useCallback(() => {
+    rejectMut.mutate(
+      { invoiceId, reason: rejectReason || undefined },
+      {
+        onSuccess: () => { toast.success('Invoice rejected'); setShowRejectModal(false); setRejectReason(''); },
+        onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to reject invoice'),
+      },
+    );
+  }, [invoiceId, rejectReason, rejectMut]);
 
   // Preview-first PDF: open the shared modal (Download / Print / Open-in-tab)
   // instead of force-downloading the file.
@@ -135,6 +165,9 @@ export default function InvoiceDetailPage() {
   const canMarkPaid    = acts.includes('mark_paid');
   const canCreditDebit = acts.includes('create_credit_note');
   const canDeliveryNote = acts.includes('generate_delivery_note');
+  const canSubmitApproval = canApprove && acts.includes('submit_for_approval');
+  const canApproveNow     = canApprove && acts.includes('approve');
+  const canRejectNow      = canApprove && acts.includes('reject');
 
   return (
     <div className="min-h-screen bg-background">
@@ -174,6 +207,40 @@ export default function InvoiceDetailPage() {
                 <Download className="h-3.5 w-3.5" /> PDF
               </button>
             </>
+          )}
+          {canSubmitApproval && (
+            <button
+              onClick={() => submitMut.mutate(invoiceId, {
+                onSuccess: () => toast.success('Invoice submitted for approval'),
+                onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to submit for approval'),
+              })}
+              disabled={submitMut.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {submitMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ThumbsUp className="h-3.5 w-3.5" />}
+              Submit for Approval
+            </button>
+          )}
+          {canApproveNow && (
+            <button
+              onClick={() => approveMut.mutate({ invoiceId }, {
+                onSuccess: () => toast.success('Invoice approved'),
+                onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to approve invoice'),
+              })}
+              disabled={approveMut.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+            >
+              {approveMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              Approve
+            </button>
+          )}
+          {canRejectNow && (
+            <button
+              onClick={() => setShowRejectModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" /> Reject
+            </button>
           )}
           {canSend && (
             <button
@@ -412,6 +479,54 @@ export default function InvoiceDetailPage() {
               >
                 {recordPayMut.isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
                 Record Payment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Approval Modal */}
+      {showRejectModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/75"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowRejectModal(false); }}
+        >
+          <div className="relative w-full max-w-sm rounded-2xl border border-border p-6 space-y-4 bg-card shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-foreground">Reject Invoice</h2>
+              <button onClick={() => setShowRejectModal(false)}>
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {invoice.invoice_number} will be sent back to draft for revision.
+            </p>
+            <div>
+              <label className="text-xs font-bold block mb-1 text-foreground">Reason</label>
+              <textarea
+                className="w-full rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-ring bg-background border border-input text-foreground min-h-20"
+                placeholder="Reason for rejection..."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowRejectModal(false)}
+                className="px-4 py-2 rounded-lg text-xs font-medium hover:bg-accent transition-colors text-muted-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={rejectMut.isPending}
+                className={cn(
+                  'px-5 py-2 rounded-lg text-xs font-bold transition-all bg-destructive text-destructive-foreground hover:bg-destructive/90',
+                  rejectMut.isPending && 'opacity-50 cursor-not-allowed',
+                )}
+              >
+                {rejectMut.isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
+                Reject Invoice
               </button>
             </div>
           </div>

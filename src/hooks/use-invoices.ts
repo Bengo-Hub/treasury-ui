@@ -44,6 +44,9 @@ import {
   updateInvoice,
   updateQuotation,
   voidInvoice,
+  submitInvoiceForApproval,
+  approveInvoice,
+  rejectInvoice,
   acceptQuotation,
   declineQuotation,
   type CreateInvoiceRequest,
@@ -284,6 +287,46 @@ export function useVoidInvoice(tenant: string) {
     onSuccess: (_data, invoiceId) => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+    },
+  });
+}
+
+// ---- Invoice approval hooks ----
+
+export function useSubmitInvoiceForApproval(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: string) => submitInvoiceForApproval(tenant, invoiceId),
+    onSuccess: (_data, invoiceId) => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: platformInvoiceKeys.all });
+    },
+  });
+}
+
+export function useApproveInvoice(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invoiceId, comment }: { invoiceId: string; comment?: string }) =>
+      approveInvoice(tenant, invoiceId, comment),
+    onSuccess: (_data, { invoiceId }) => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: platformInvoiceKeys.all });
+    },
+  });
+}
+
+export function useRejectInvoice(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invoiceId, reason }: { invoiceId: string; reason?: string }) =>
+      rejectInvoice(tenant, invoiceId, reason),
+    onSuccess: (_data, { invoiceId }) => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: platformInvoiceKeys.all });
     },
   });
 }

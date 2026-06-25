@@ -21,6 +21,9 @@ export type ActionKey =
   | 'view_public'
   | 'download_pdf'
   | 'edit'
+  | 'submit_for_approval'
+  | 'approve'
+  | 'reject'
   | 'send'
   | 'record_payment'
   | 'mark_paid'
@@ -55,9 +58,11 @@ const isPayable = (c: DocContext) =>
 export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
   const out: ActionKey[] = ['view_details', 'view_public', 'download_pdf'];
   const draft = ctx.status === 'draft';
-  // Send doubles as "resend": the backend re-emails the customer on sent→sent, so the
-  // action stays available for sent/overdue documents (not just drafts).
-  const canSend = draft || ctx.status === 'sent' || ctx.status === 'overdue';
+  const pendingApproval = ctx.status === 'pending_approval';
+  // An invoice that cleared the approval workflow lands in "approved" — it is then sendable
+  // like a draft. Send doubles as "resend": the backend re-emails the customer on sent→sent,
+  // so the action stays available for sent/overdue documents (not just drafts).
+  const canSend = draft || ctx.status === 'approved' || ctx.status === 'sent' || ctx.status === 'overdue';
 
   // A document can be edited while it is still a draft (the backend UpdateInvoice/
   // UpdateQuotation reject finalized documents); past that, status is managed via the
@@ -67,6 +72,10 @@ export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
   switch (docType) {
     case 'invoice':
     case 'subscription': {
+      // Approval workflow: a draft can be submitted; a pending_approval invoice can be
+      // approved/rejected. These gate on treasury.invoices.change|manage at the button.
+      if (draft) out.push('submit_for_approval');
+      if (pendingApproval) out.push('approve', 'reject');
       if (canSend) out.push('send');
       if (isPayable(ctx)) out.push('record_payment', 'mark_paid');
       if (!isVoided(ctx.status)) out.push('generate_delivery_note');

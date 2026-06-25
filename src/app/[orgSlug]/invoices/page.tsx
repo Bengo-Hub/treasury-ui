@@ -21,12 +21,17 @@ import {
   createDebitNote,
   generateReceiptFromInvoice,
   generateDeliveryNote,
+  submitInvoiceForApproval,
+  approveInvoice,
+  rejectInvoice,
   type PlatformInvoiceScope,
 } from '@/lib/api/invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
+import { useAuthStore } from '@/store/auth';
+import { userHasPermission } from '@/lib/auth/permissions';
 import { cn } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ban, CheckCircle, DollarSign, ExternalLink, FileText, FileMinus, FilePlus, Loader2, Pencil, Receipt, Send, Truck, Upload, X } from 'lucide-react';
+import { Ban, Check, CheckCircle, DollarSign, ExternalLink, FileText, FileMinus, FilePlus, Loader2, Pencil, Receipt, Send, ThumbsUp, Truck, Upload, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useRouter, useParams } from 'next/navigation';
@@ -96,6 +101,17 @@ export default function InvoicesPage() {
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [rejectDialog, setRejectDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  // Approve/reject/submit are privileged: the backend gates them on
+  // treasury.invoices.change|manage — mirror that here so a view-only user never sees them.
+  const user = useAuthStore((s) => s.user);
+  const canApprove = userHasPermission(
+    user as Parameters<typeof userHasPermission>[0],
+    ['treasury.invoices.change', 'treasury.invoices.manage'],
+    'or',
+  );
 
   const platformTypes = SCOPE_TYPES[scopeFilter];
 
@@ -168,6 +184,14 @@ export default function InvoicesPage() {
     );
   }, [paymentDialog, paymentAmount, rowAction, invalidate]);
 
+  const handleReject = useCallback(() => {
+    if (!rejectDialog) return;
+    rowAction.mutate(
+      { fn: () => rejectInvoice(rejectDialog.tenant, rejectDialog.invoiceId, rejectReason || undefined), label: `Invoice ${rejectDialog.invoiceNumber} rejected` },
+      { onSuccess: () => { invalidate(); setRejectDialog(null); setRejectReason(''); } },
+    );
+  }, [rejectDialog, rejectReason, rowAction, invalidate]);
+
   // Build a tenant-scoped detail route. In the all-tenants view a platform owner can
   // open any tenant's invoice because the API resolves the tenant from the URL slug.
   const detailHref = useCallback(
@@ -207,12 +231,32 @@ export default function InvoicesPage() {
       visible: (r) => r.status === 'draft',
     },
     {
+      label: 'Submit for Approval',
+      icon: <ThumbsUp className="h-3.5 w-3.5" />,
+      onClick: (r) => run(() => submitInvoiceForApproval(rowTenant(r), r.id), `Invoice ${r.doc_number} submitted for approval`),
+      // Draft invoices only; gated on the same permission the backend requires.
+      visible: (r) => canApprove && r.status === 'draft',
+    },
+    {
+      label: 'Approve',
+      icon: <Check className="h-3.5 w-3.5" />,
+      onClick: (r) => run(() => approveInvoice(rowTenant(r), r.id), `Invoice ${r.doc_number} approved`),
+      visible: (r) => canApprove && r.status === 'pending_approval',
+    },
+    {
+      label: 'Reject',
+      icon: <X className="h-3.5 w-3.5" />,
+      onClick: (r) => setRejectDialog({ tenant: rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }),
+      visible: (r) => canApprove && r.status === 'pending_approval',
+      destructive: true,
+    },
+    {
       // Send doubles as resend — the backend re-emails the customer on sent→sent — so it
       // stays available for sent/overdue invoices, not only drafts.
       label: 'Send / Resend',
       icon: <Send className="h-3.5 w-3.5" />,
       onClick: (r) => run(() => sendInvoice(rowTenant(r), r.id), `Invoice ${r.doc_number} sent to customer`),
-      visible: (r) => r.status === 'draft' || r.status === 'sent' || r.status === 'overdue',
+      visible: (r) => r.status === 'draft' || r.status === 'approved' || r.status === 'sent' || r.status === 'overdue',
     },
     {
       label: 'Generate Delivery Note',
@@ -324,7 +368,7 @@ export default function InvoicesPage() {
             page={page}
             onPageChange={setPage}
             itemsPerPage={ITEMS_PER_PAGE}
-            statusOptions={['all', 'draft', 'sent', 'paid', 'overdue', 'void']}
+            statusOptions={['all', 'draft', 'pending_approval', 'approved', 'sent', 'paid', 'overdue', 'void']}
             statusFilter={statusFilter}
             onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
             searchQuery={searchQuery}
@@ -420,6 +464,53 @@ export default function InvoicesPage() {
               >
                 {rowAction.isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
                 Record Payment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rejectDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/75"
+          onClick={(e) => { if (e.target === e.currentTarget) setRejectDialog(null); }}
+        >
+          <div className="relative w-full max-w-sm rounded-2xl border border-border p-6 space-y-4 bg-card shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-foreground">Reject Invoice</h2>
+              <button onClick={() => setRejectDialog(null)}>
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Invoice {rejectDialog.invoiceNumber} will be sent back to draft for revision.
+            </p>
+            <div>
+              <label className="text-xs font-bold block mb-1 text-foreground">Reason</label>
+              <textarea
+                className="w-full rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-ring bg-background border border-input text-foreground min-h-20"
+                placeholder="Reason for rejection..."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setRejectDialog(null)}
+                className="px-4 py-2 rounded-lg text-xs font-medium hover:bg-accent transition-colors text-muted-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={rowAction.isPending}
+                className={cn(
+                  'px-5 py-2 rounded-lg text-xs font-bold transition-all bg-destructive text-destructive-foreground hover:bg-destructive/90',
+                  rowAction.isPending && 'opacity-50 cursor-not-allowed',
+                )}
+              >
+                {rowAction.isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
+                Reject Invoice
               </button>
             </div>
           </div>

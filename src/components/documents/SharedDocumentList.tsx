@@ -121,9 +121,9 @@ export interface SharedDocumentListProps {
 // ---- Utilities ----
 
 function statusVariant(s: string): 'success' | 'secondary' | 'warning' | 'error' | 'default' {
-  if (['paid', 'accepted', 'delivered', 'confirmed', 'converted'].includes(s)) return 'success';
+  if (['paid', 'accepted', 'delivered', 'confirmed', 'converted', 'approved'].includes(s)) return 'success';
   if (['draft'].includes(s)) return 'secondary';
-  if (['overdue', 'expired', 'partial', 'sent'].includes(s)) return 'warning';
+  if (['overdue', 'expired', 'partial', 'sent', 'pending_approval'].includes(s)) return 'warning';
   if (['void', 'cancelled', 'declined'].includes(s)) return 'error';
   return 'default';
 }
@@ -530,7 +530,7 @@ export function SharedDocumentList({
                     : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
                 )}
               >
-                {s}
+                {s.replace(/_/g, ' ')}
               </button>
             ))}
             <button
@@ -632,7 +632,7 @@ export function SharedDocumentList({
                           {visibleCols.status && (
                             <td className="px-4 py-3 text-center">
                               <Badge variant={statusVariant(row.status)} className="capitalize text-[10px]">
-                                {row.status}
+                                {row.status?.replace(/_/g, ' ')}
                               </Badge>
                             </td>
                           )}
