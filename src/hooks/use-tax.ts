@@ -372,3 +372,25 @@ export function useComplianceCalendar(tenantSlug: string) {
     staleTime: 30 * 60 * 1000,
   });
 }
+
+export function useEtimsItems(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['tax-etims-items', tenantSlug],
+    queryFn: () => taxApi.listEtimsItems(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useRegisterEtimsItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, data }: { tenantSlug: string; data: taxApi.RegisterEtimsItemRequest }) =>
+      taxApi.registerEtimsItem(tenantSlug, data),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['tax-etims-items', vars.tenantSlug] });
+      toast.success('Item registered with eTIMS');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to register item'),
+  });
+}

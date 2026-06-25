@@ -700,3 +700,38 @@ export function listStatutoryRates(tenantSlug: string, category?: string): Promi
 export function getComplianceCalendar(tenantSlug: string): Promise<{ items: ComplianceCalendarItem[]; total: number }> {
   return apiClient.get(`${BASE}/${tenantSlug}/tax/compliance-calendar`);
 }
+
+// ---- eTIMS item master (KRA item registration — prerequisite for sales transmission) ----
+
+export interface EtimsItem {
+  id: string;
+  item_cd: string;
+  item_cls_cd?: string;
+  item_nm: string;
+  item_ty_cd?: string;
+  tax_ty_cd?: string;
+  pkg_unit_cd?: string;
+  qty_unit_cd?: string;
+  dft_prc?: number;
+  registered: boolean;
+  last_synced_at?: string;
+}
+
+export interface RegisterEtimsItemRequest {
+  item_cd: string;
+  item_nm: string;
+  item_cls_cd?: string;
+  item_ty_cd?: string;
+  tax_ty_cd?: string;
+  pkg_unit_cd?: string;
+  qty_unit_cd?: string;
+  dft_prc?: number;
+}
+
+export function listEtimsItems(tenantSlug: string): Promise<{ items: EtimsItem[]; total: number }> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/items`);
+}
+
+export function registerEtimsItem(tenantSlug: string, body: RegisterEtimsItemRequest): Promise<EtimsItem> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/items`, body);
+}
