@@ -313,3 +313,12 @@ export function useStructuringGuidance(tenantSlug: string, params?: { ebitda?: n
     enabled: !!tenantSlug,
   });
 }
+
+export function useBadDebtRelief(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['tax-bad-debt-relief', tenantSlug],
+    queryFn: () => taxApi.getBadDebtRelief(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: 10 * 60 * 1000,
+  });
+}

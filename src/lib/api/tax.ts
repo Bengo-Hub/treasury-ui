@@ -561,3 +561,38 @@ export function getStructuringGuidance(
   const q = qs.toString() ? `?${qs}` : '';
   return apiClient.get(`${BASE}/${tenantSlug}/tax/structuring${q}`);
 }
+
+// ---- VAT bad-debt relief (s.31) ----
+
+export interface BadDebtReliefCandidate {
+  invoice_id: string;
+  invoice_number: string;
+  customer_name: string;
+  invoice_date: string;
+  total_amount: string;
+  output_vat: string;
+  recoverable_vat: string;
+  payment_status: string;
+  waiting_years: number;
+  eligible_from: string;
+  claim_deadline: string;
+  days_until_eligible: number;
+  status: 'eligible' | 'upcoming' | 'expired';
+}
+
+export interface BadDebtReliefSummary {
+  tenant_id: string;
+  currency: string;
+  as_of: string;
+  total_unpaid_with_vat: string;
+  output_vat_at_risk: string;
+  reclaimable_now: string;
+  reclaimable_upcoming: string;
+  expired_vat: string;
+  candidates: BadDebtReliefCandidate[];
+  notes: string[];
+}
+
+export function getBadDebtRelief(tenantSlug: string): Promise<BadDebtReliefSummary> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/bad-debt-relief`);
+}
