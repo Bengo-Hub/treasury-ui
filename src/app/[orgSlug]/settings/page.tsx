@@ -7,9 +7,11 @@ import { useSettings, useUpdateSetting, getSettingValue } from '@/hooks/use-sett
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { PaymentsTab } from './_components/payments-tab';
 import { PaymentDetailsTab } from './_components/payment-details-tab';
+import { FinancialYearTab } from './_components/financial-year-tab';
 import {
   Banknote,
   Bell,
+  CalendarRange,
   CreditCard,
   FileDigit,
   Globe,
@@ -115,6 +117,9 @@ export default function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="payment-details">
             <span className="flex items-center gap-1.5"><Banknote className="h-3.5 w-3.5" /> Payment Details</span>
+          </TabsTrigger>
+          <TabsTrigger value="financial-year">
+            <span className="flex items-center gap-1.5"><CalendarRange className="h-3.5 w-3.5" /> Financial Year</span>
           </TabsTrigger>
           <TabsTrigger value="notifications">
             <span className="flex items-center gap-1.5"><Bell className="h-3.5 w-3.5" /> Notifications</span>
@@ -287,6 +292,11 @@ export default function SettingsPage() {
         {/* Payment Details — issuer block (business identity + bank + paybill/till) */}
         <TabsContent value="payment-details">
           <PaymentDetailsTab orgSlug={orgSlug} tenantSlug={tenantSlug} />
+        </TabsContent>
+
+        {/* Financial Year — per-tenant fiscal-year start month/day */}
+        <TabsContent value="financial-year">
+          <FinancialYearTab tenantSlug={tenantSlug} />
         </TabsContent>
 
         {/* Notifications */}
