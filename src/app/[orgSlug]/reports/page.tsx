@@ -238,13 +238,27 @@ function ProfitLossTab({
             </ChartCard>
           </div>
 
-          <ReportDocument title="Profit & Loss Statement" periodLabel={rangeLabel(from, to)} kpis={kpis}>
-            <ReportTable
-              columns={LEDGER_COLUMNS}
-              sections={sectionsToTable(data.sections)}
-              grandTotal={{ cells: ['', 'Net Income', money(net)] }}
-            />
-          </ReportDocument>
+          {(() => {
+            const sections = sectionsToTable(data.sections);
+            const grandTotal = { cells: ['', 'Net Income', money(net)] };
+            return (
+              <ReportDocument
+                title="Profit & Loss Statement"
+                periodLabel={rangeLabel(from, to)}
+                kpis={kpis}
+                csv={{
+                  filename: `profit-and-loss_${from}_${to}.csv`,
+                  title: 'Profit & Loss Statement',
+                  periodLabel: rangeLabel(from, to),
+                  columns: LEDGER_COLUMNS,
+                  sections,
+                  grandTotal,
+                }}
+              >
+                <ReportTable columns={LEDGER_COLUMNS} sections={sections} grandTotal={grandTotal} />
+              </ReportDocument>
+            );
+          })()}
         </>
       )}
       {!isLoading && !isError && !data?.sections?.length && <EmptyCard message="No data for selected period." />}
@@ -346,18 +360,50 @@ function ProfitLossSummaryTab({
                   </ChartCard>
                 </div>
 
-                <ReportDocument title="Profit & Loss Summary" periodLabel={rangeLabel(from, to)} kpis={kpis}>
-                  <BreakdownReportTable
-                    title="Expenses by Category"
-                    rows={data.by_category ?? []}
-                    currency={cur}
-                  />
-                  <BreakdownReportTable
-                    title="Expenses by Cost Center"
-                    rows={data.by_cost_center ?? []}
-                    currency={cur}
-                  />
-                </ReportDocument>
+                {(() => {
+                  const byCategory = breakdownTable('Expenses by Category', data.by_category ?? [], cur);
+                  const byCostCenter = breakdownTable('Expenses by Cost Center', data.by_cost_center ?? [], cur);
+                  return (
+                    <ReportDocument
+                      title="Profit & Loss Summary"
+                      periodLabel={rangeLabel(from, to)}
+                      kpis={kpis}
+                      csv={{
+                        filename: `profit-and-loss-summary_${from}_${to}.csv`,
+                        title: 'Profit & Loss Summary',
+                        periodLabel: rangeLabel(from, to),
+                        columns: [{ header: 'Item' }, { header: 'Amount', align: 'right' as const }],
+                        sections: [
+                          {
+                            title: 'Expenses by Category',
+                            rows: [
+                              ...byCategory.sections[0].rows,
+                              ...(byCategory.grandTotal ? [{ subtotal: true, ...byCategory.grandTotal }] : []),
+                            ],
+                          },
+                          {
+                            title: 'Expenses by Cost Center',
+                            rows: [
+                              ...byCostCenter.sections[0].rows,
+                              ...(byCostCenter.grandTotal ? [{ subtotal: true, ...byCostCenter.grandTotal }] : []),
+                            ],
+                          },
+                        ],
+                      }}
+                    >
+                      <BreakdownReportTable
+                        title="Expenses by Category"
+                        rows={data.by_category ?? []}
+                        currency={cur}
+                      />
+                      <BreakdownReportTable
+                        title="Expenses by Cost Center"
+                        rows={data.by_cost_center ?? []}
+                        currency={cur}
+                      />
+                    </ReportDocument>
+                  );
+                })()}
               </>
             );
           })()}
@@ -365,6 +411,27 @@ function ProfitLossSummaryTab({
       )}
     </div>
   );
+}
+
+/**
+ * Build the shared ReportTable shape for a simple name/amount breakdown. This
+ * ONE adapter is consumed by both the on-screen BreakdownReportTable and the
+ * CSV export, so there is no duplicate row-shaping.
+ */
+function breakdownTable(title: string, rows: { name: string; amount: string }[], currency: string) {
+  const total = rows.reduce((s, r) => s + num(r.amount), 0);
+  return {
+    columns: [{ header: title }, { header: 'Amount', align: 'right' as const, className: 'w-40' }],
+    sections: [
+      {
+        rows:
+          rows.length === 0
+            ? [{ cells: ['No entries for selected period.', ''] }]
+            : rows.map((r) => ({ cells: [r.name, formatCurrency(num(r.amount), currency)] })),
+      },
+    ],
+    grandTotal: rows.length ? { cells: ['Total', formatCurrency(total, currency)] } : undefined,
+  };
 }
 
 /** Reuses the shared ReportTable for a simple name/amount breakdown. */
@@ -377,21 +444,8 @@ function BreakdownReportTable({
   rows: { name: string; amount: string }[];
   currency: string;
 }) {
-  const total = rows.reduce((s, r) => s + num(r.amount), 0);
-  return (
-    <ReportTable
-      columns={[{ header: title }, { header: 'Amount', align: 'right', className: 'w-40' }]}
-      sections={[
-        {
-          rows:
-            rows.length === 0
-              ? [{ cells: ['No entries for selected period.', ''] }]
-              : rows.map((r) => ({ cells: [r.name, formatCurrency(num(r.amount), currency)] })),
-        },
-      ]}
-      grandTotal={rows.length ? { cells: ['Total', formatCurrency(total, currency)] } : undefined}
-    />
-  );
+  const t = breakdownTable(title, rows, currency);
+  return <ReportTable columns={t.columns} sections={t.sections} grandTotal={t.grandTotal} />;
 }
 
 /**
@@ -479,6 +533,8 @@ function BalanceSheetTab({
     { label: 'Total Equity', value: money(equity), tone: 'success' },
   ];
 
+  const sections = data ? sectionsToTable(data.sections) : [];
+
   return (
     <div className="space-y-6">
       <div className="flex gap-4 items-end print-hidden">
@@ -495,7 +551,18 @@ function BalanceSheetTab({
       {isLoading && <LoadingCard />}
       {!isLoading && isError && <ErrorCard message="Failed to load balance sheet. Please try again." />}
       {!isLoading && !isError && data && (
-        <ReportDocument title="Balance Sheet" periodLabel={asOfLabel(asOf)} kpis={kpis}>
+        <ReportDocument
+          title="Balance Sheet"
+          periodLabel={asOfLabel(asOf)}
+          kpis={kpis}
+          csv={{
+            filename: `balance-sheet_${asOf}.csv`,
+            title: 'Balance Sheet',
+            periodLabel: asOfLabel(asOf),
+            columns: LEDGER_COLUMNS,
+            sections,
+          }}
+        >
           {/* Accounting check: Assets = Liabilities + Equity */}
           <div
             className={cn(
@@ -523,7 +590,7 @@ function BalanceSheetTab({
             </div>
           </div>
 
-          <ReportTable columns={LEDGER_COLUMNS} sections={sectionsToTable(data.sections)} />
+          <ReportTable columns={LEDGER_COLUMNS} sections={sections} />
         </ReportDocument>
       )}
       {!isLoading && !isError && !data?.sections?.length && <EmptyCard message="No balance sheet data." />}
@@ -591,13 +658,27 @@ function CashFlowTab({
             </ChartCard>
           </div>
 
-          <ReportDocument title="Cash Flow Statement" periodLabel={rangeLabel(from, to)} kpis={kpis}>
-            <ReportTable
-              columns={LEDGER_COLUMNS}
-              sections={sectionsToTable(data.sections)}
-              grandTotal={data.total ? { cells: ['', 'Net Cash Flow', money(net)] } : undefined}
-            />
-          </ReportDocument>
+          {(() => {
+            const sections = sectionsToTable(data.sections);
+            const grandTotal = data.total ? { cells: ['', 'Net Cash Flow', money(net)] } : undefined;
+            return (
+              <ReportDocument
+                title="Cash Flow Statement"
+                periodLabel={rangeLabel(from, to)}
+                kpis={kpis}
+                csv={{
+                  filename: `cash-flow_${from}_${to}.csv`,
+                  title: 'Cash Flow Statement',
+                  periodLabel: rangeLabel(from, to),
+                  columns: LEDGER_COLUMNS,
+                  sections,
+                  grandTotal,
+                }}
+              >
+                <ReportTable columns={LEDGER_COLUMNS} sections={sections} grandTotal={grandTotal} />
+              </ReportDocument>
+            );
+          })()}
         </>
       )}
       {!isLoading && !isError && !data?.sections?.length && <EmptyCard message="No cash flow data for selected period." />}
@@ -628,6 +709,8 @@ function TaxSummaryTab({
     tone: 'primary' as const,
   }));
 
+  const sections = data ? sectionsToTable(data.sections) : [];
+
   return (
     <div className="space-y-6">
       <DateRangeFilter from={from} to={to} setFrom={setFrom} setTo={setTo} />
@@ -639,8 +722,15 @@ function TaxSummaryTab({
           title="Tax Summary"
           periodLabel={rangeLabel(from, to)}
           kpis={kpis.length ? kpis : undefined}
+          csv={{
+            filename: `tax-summary_${from}_${to}.csv`,
+            title: 'Tax Summary',
+            periodLabel: rangeLabel(from, to),
+            columns: LEDGER_COLUMNS,
+            sections,
+          }}
         >
-          <ReportTable columns={LEDGER_COLUMNS} sections={sectionsToTable(data.sections)} />
+          <ReportTable columns={LEDGER_COLUMNS} sections={sections} />
         </ReportDocument>
       )}
       {!isLoading && !isError && !data?.sections?.length && <EmptyCard message="No tax data for selected period." />}
