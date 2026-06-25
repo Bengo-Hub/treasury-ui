@@ -71,7 +71,12 @@ export interface TrialBalance {
   rows: TrialBalanceRow[];
   total_debit: string | number;
   total_credit: string | number;
+  /** Double-entry integrity: ΣDebit == ΣCredit. */
   is_balanced: boolean;
+  /** Accounting equation: Assets == Liabilities + Equity + (Revenue − Expense). Independent guard. */
+  equation_balanced?: boolean;
+  /** Net income not yet closed to Retained Earnings (used to hint a pending year-end close). */
+  current_year_earnings?: string | number;
 }
 
 export interface AccountingPeriod {
