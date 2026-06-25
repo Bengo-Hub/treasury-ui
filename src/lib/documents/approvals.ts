@@ -19,9 +19,11 @@ export const MODULE_LABEL: Record<string, string> = {
   quotation: 'Quotation',
 };
 
+// Role codes MUST match the treasury-api seeded roles (rbac seed): a rule step's approver_role is
+// checked against the acting user's roles at approval time.
 export const ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: 'treasury_admin', label: 'Treasury Admin' },
-  { value: 'finance_manager', label: 'Finance Manager' },
+  { value: 'finance_admin', label: 'Finance Admin' },
   { value: 'accountant', label: 'Accountant' },
   { value: 'approver', label: 'Approver' },
   { value: 'viewer', label: 'Viewer' },
