@@ -3,7 +3,7 @@
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CapsuleTabs, CapsuleTabsContent, CapsuleTabsList, CapsuleTabsTrigger } from '@/components/ui/capsule-tabs';
 import {
   useTaxCodes,
   useCreateTaxCode,
@@ -21,19 +21,29 @@ import { StructuringTab } from './structuring-tab';
 import { WHTPaymentRefTab } from './wht-prn-tab';
 import { TaxReturnsTab } from './tax-returns-tab';
 import { TransmissionHistoryTab } from './transmission-history-tab';
+import { BadDebtReliefTab } from './bad-debt-relief-tab';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSubscription } from '@/hooks/use-subscription';
 import type { TaxCode, TaxPeriod, EtimsDevice } from '@/lib/api/tax';
 import { cn } from '@/lib/utils';
 import {
   Calculator,
+  CalendarDays,
+  Coins,
   Cpu,
   FileText,
+  HandCoins,
+  Landmark,
   Loader2,
   Lock,
+  PiggyBank,
   Plus,
   Receipt,
+  Scale,
+  Send,
   Shield,
+  ShieldCheck,
+  Tag,
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -90,9 +100,14 @@ export default function TaxPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Tax & Compliance</h1>
-        <p className="text-muted-foreground mt-1">Manage tax codes, filing periods, and KRA eTIMS devices.</p>
+      <div className="flex items-start gap-3">
+        <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+          <Shield className="h-6 w-6" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Tax &amp; Compliance</h1>
+          <p className="mt-1 text-sm text-muted-foreground">KRA-aware compliance — eligibility, deductions, capital allowances, VAT bad-debt relief, eTIMS &amp; returns.</p>
+        </div>
       </div>
 
       {isPlatformOwner && !tenantQueryParam ? (
@@ -100,54 +115,55 @@ export default function TaxPage() {
           Select a tenant from the filter above to view their tax & compliance data.
         </div>
       ) : (
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
-            <TabsTrigger value="profile">Compliance</TabsTrigger>
-            <TabsTrigger value="deductions">Deductions</TabsTrigger>
-            <TabsTrigger value="capital-allowances">Capital Allowances</TabsTrigger>
-            <TabsTrigger value="structuring">Structuring</TabsTrigger>
-            <TabsTrigger value="codes">Tax Codes</TabsTrigger>
-            <TabsTrigger value="periods">Tax Periods</TabsTrigger>
-            <TabsTrigger value="etims" className="flex items-center gap-1.5">
-              eTIMS Devices
-              {!subLoading && !canUseEtims && <Lock className="size-3 text-muted-foreground" />}
-            </TabsTrigger>
-            <TabsTrigger value="wht-prn">WHT PRN</TabsTrigger>
-            <TabsTrigger value="tax-returns">Tax Returns</TabsTrigger>
-            <TabsTrigger value="transmissions">Transmissions</TabsTrigger>
-          </TabsList>
+        <CapsuleTabs value={tab} onValueChange={setTab}>
+          <CapsuleTabsList>
+            <CapsuleTabsTrigger value="profile"><ShieldCheck className="h-4 w-4" />Compliance</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="deductions"><PiggyBank className="h-4 w-4" />Deductions</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="capital-allowances"><Landmark className="h-4 w-4" />Capital Allowances</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="structuring"><Scale className="h-4 w-4" />Structuring</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="bad-debt" badge={<span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-green-600">New</span>}><HandCoins className="h-4 w-4" />Bad-Debt Relief</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="codes"><Tag className="h-4 w-4" />Tax Codes</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="periods"><CalendarDays className="h-4 w-4" />Tax Periods</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="etims" badge={!subLoading && !canUseEtims ? <Lock className="size-3 text-muted-foreground" /> : undefined}><Cpu className="h-4 w-4" />eTIMS Devices</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="wht-prn"><Coins className="h-4 w-4" />WHT PRN</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="tax-returns"><FileText className="h-4 w-4" />Tax Returns</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="transmissions"><Send className="h-4 w-4" />Transmissions</CapsuleTabsTrigger>
+          </CapsuleTabsList>
 
-          <TabsContent value="profile" className="mt-6">
+          <CapsuleTabsContent value="profile" className="mt-6">
             <TaxProfileTab tenantSlug={effectiveTenant} />
-          </TabsContent>
-          <TabsContent value="deductions" className="mt-6">
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="deductions" className="mt-6">
             <DeductionsTab tenantSlug={effectiveTenant} />
-          </TabsContent>
-          <TabsContent value="capital-allowances" className="mt-6">
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="capital-allowances" className="mt-6">
             <CapitalAllowancesTab tenantSlug={effectiveTenant} />
-          </TabsContent>
-          <TabsContent value="structuring" className="mt-6">
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="structuring" className="mt-6">
             <StructuringTab tenantSlug={effectiveTenant} />
-          </TabsContent>
-          <TabsContent value="codes" className="mt-6">
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="bad-debt" className="mt-6">
+            <BadDebtReliefTab tenantSlug={effectiveTenant} />
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="codes" className="mt-6">
             <TaxCodesTab tenantSlug={effectiveTenant} />
-          </TabsContent>
-          <TabsContent value="periods" className="mt-6">
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="periods" className="mt-6">
             <TaxPeriodsTab tenantSlug={effectiveTenant} />
-          </TabsContent>
-          <TabsContent value="etims" className="mt-6">
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="etims" className="mt-6">
             {canUseEtims ? <EtimsTab tenantSlug={effectiveTenant} /> : <EtimsUpgradePrompt />}
-          </TabsContent>
-          <TabsContent value="wht-prn" className="mt-6">
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="wht-prn" className="mt-6">
             <WHTPaymentRefTab tenantSlug={effectiveTenant} />
-          </TabsContent>
-          <TabsContent value="tax-returns" className="mt-6">
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="tax-returns" className="mt-6">
             <TaxReturnsTab tenantSlug={effectiveTenant} />
-          </TabsContent>
-          <TabsContent value="transmissions" className="mt-6">
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="transmissions" className="mt-6">
             <TransmissionHistoryTab tenantSlug={effectiveTenant} />
-          </TabsContent>
-        </Tabs>
+          </CapsuleTabsContent>
+        </CapsuleTabs>
       )}
     </div>
   );
