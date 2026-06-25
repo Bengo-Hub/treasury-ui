@@ -340,3 +340,17 @@ export function useEtimsReconciliation(tenantSlug: string, lastReqDt?: string) {
     staleTime: 5 * 60 * 1000,
   });
 }
+
+export function useClaimVATRelief() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, invoiceID }: { tenantSlug: string; invoiceID: string }) =>
+      taxApi.claimVATRelief(tenantSlug, invoiceID),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['tax-bad-debt-relief', vars.tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['tax-vat-return', vars.tenantSlug] });
+      toast.success('VAT bad-debt relief claimed');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to claim VAT relief'),
+  });
+}
