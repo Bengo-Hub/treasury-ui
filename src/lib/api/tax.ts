@@ -751,6 +751,8 @@ export interface EtimsImportResult {
 export interface VAAReconciliation {
   imported_sales: number;
   imported_purchases: number;
+  matched_purchases: number;
+  unmatched_purchases: number;
   kra_input_vat: string;
   treasury_input_vat: string;
   input_vat_variance: string;

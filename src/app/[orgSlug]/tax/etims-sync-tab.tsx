@@ -53,6 +53,12 @@ export function EtimsSyncTab({ tenantSlug }: Props) {
                 <StatCard label="Input VAT — your books" value={money(vaa.treasury_input_vat)} tone="default" hint="Trailing 12 months" />
                 <StatCard label="Variance (books − KRA)" value={money(vaa.input_vat_variance)} tone={vaa.overclaim_risk ? 'warning' : 'success'} />
               </div>
+              {vaa.imported_purchases > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-600">{vaa.matched_purchases} matched to bills</span>
+                  {vaa.unmatched_purchases > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600">{vaa.unmatched_purchases} unrecorded (possible missed input VAT)</span>}
+                </div>
+              )}
               {vaa.notes.map((n, i) => <p key={i} className="text-muted-foreground">{n}</p>)}
             </div>
           </div>
