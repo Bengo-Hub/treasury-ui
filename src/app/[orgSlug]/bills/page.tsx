@@ -7,6 +7,7 @@ import { FormField } from '@/components/ui/form-field';
 import { Pagination } from '@/components/ui/pagination';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useBills, useAPAging, usePayBill } from '@/hooks/use-bills';
+import { useTransmitVendorBill } from '@/hooks/use-tax';
 import type { Bill, AgingRow } from '@/lib/api/bills';
 import { listPaymentIntents } from '@/lib/api/payments';
 import { useQuery } from '@tanstack/react-query';
@@ -83,6 +84,7 @@ export default function BillsPage() {
   ];
 
   const payMutation = usePayBill(effectiveTenant);
+  const transmit = useTransmitVendorBill();
 
   // Payment intents to settle a bill with — fetched only while the Pay dialog is open.
   const { data: intentsData, isLoading: loadingIntents } = useQuery({
@@ -309,16 +311,32 @@ export default function BillsPage() {
                         {new Date(bill.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {(bill.status === 'pending' || bill.status === 'overdue') && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 text-xs"
-                            onClick={() => setPayOpen(bill.id)}
-                          >
-                            <CreditCard className="h-3 w-3" /> Pay
-                          </Button>
-                        )}
+                        <div className="flex items-center justify-center gap-1">
+                          {(bill.status === 'pending' || bill.status === 'overdue') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1 text-xs"
+                              onClick={() => setPayOpen(bill.id)}
+                            >
+                              <CreditCard className="h-3 w-3" /> Pay
+                            </Button>
+                          )}
+                          {bill.status !== 'draft' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1 text-xs"
+                              title="Transmit this purchase to KRA eTIMS (buyer-initiated / self-billed for non-eTIMS suppliers)"
+                              disabled={transmit.isPending}
+                              onClick={() => transmit.mutate({ tenantSlug: effectiveTenant, billId: bill.id })}
+                            >
+                              {transmit.isPending && transmit.variables?.billId === bill.id
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : <Upload className="h-3 w-3" />} eTIMS
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
