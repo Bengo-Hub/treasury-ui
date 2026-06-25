@@ -27,6 +27,8 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadPublicInvoicePdf } from '@/lib/api/documents';
+import { DocumentApprovalCard } from '@/components/documents/DocumentApprovalCard';
+import { moduleForDocType } from '@/lib/documents/approvals';
 
 function StatusBadge({ status }: { status: string }) {
   const variants: Record<string, string> = {
@@ -355,6 +357,16 @@ export default function InvoiceDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Approval status + Submit / Approve / Reject */}
+        {moduleForDocType(invoice.invoice_type as DocType) && (
+          <DocumentApprovalCard
+            tenant={effectiveTenant}
+            module={moduleForDocType(invoice.invoice_type as DocType)!}
+            documentId={invoiceId}
+            documentReference={invoice.invoice_number}
+          />
+        )}
 
         {/* Line Items */}
         {invoice.lines && invoice.lines.length > 0 && (

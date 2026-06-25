@@ -74,6 +74,12 @@ export type Permission =
   // Configuration permissions
   | "treasury.config.view"
   | "treasury.config.manage"
+  // Approvals permissions (centralized approval rules + requests)
+  | "treasury.approvals.add"
+  | "treasury.approvals.view"
+  | "treasury.approvals.change"
+  | "treasury.approvals.delete"
+  | "treasury.approvals.manage"
   // User management
   | "treasury.users.manage";
 
