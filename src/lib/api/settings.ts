@@ -33,3 +33,31 @@ export async function updateSetting(
 export async function deleteSetting(tenantSlug: string, key: string): Promise<{ message: string }> {
   return apiClient.delete<{ message: string }>(`${BASE}/${tenantSlug}/settings/${key}`);
 }
+
+// ── Fiscal Year ───────────────────────────────────────────────────────────────
+
+export interface FiscalYearConfig {
+  /** 1-12 (1 = January). */
+  start_month: number;
+  /** 1-28 (day of the start month). */
+  start_day: number;
+  /** Derived label of the current fiscal year, e.g. "FY2026" or "FY2025-2026". */
+  fy_label: string;
+  /** Inclusive start date of the current fiscal year (YYYY-MM-DD). */
+  fy_start: string;
+  /** Inclusive last date of the current fiscal year (YYYY-MM-DD). */
+  fy_end: string;
+}
+
+/** Read the tenant's fiscal-year config + the derived current FY window. */
+export async function getFiscalYear(tenantSlug: string): Promise<FiscalYearConfig> {
+  return apiClient.get<FiscalYearConfig>(`${BASE}/${tenantSlug}/settings/fiscal-year`);
+}
+
+/** Upsert the tenant's fiscal-year config (start month/day). */
+export async function updateFiscalYear(
+  tenantSlug: string,
+  body: { start_month: number; start_day: number },
+): Promise<FiscalYearConfig> {
+  return apiClient.put<FiscalYearConfig>(`${BASE}/${tenantSlug}/settings/fiscal-year`, body);
+}

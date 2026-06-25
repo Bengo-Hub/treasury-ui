@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { listSettings, updateSetting } from '@/lib/api/settings';
+import { listSettings, updateSetting, getFiscalYear, updateFiscalYear } from '@/lib/api/settings';
 import type { ServiceConfig } from '@/lib/api/settings';
 
 export function useSettings(tenantSlug: string) {
@@ -16,6 +16,25 @@ export function useUpdateSetting(tenantSlug: string) {
     mutationFn: ({ key, value, configType }: { key: string; value: any; configType?: string }) =>
       updateSetting(tenantSlug, key, value, configType),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings', tenantSlug] }),
+  });
+}
+
+/** Read the tenant's fiscal-year config + the derived current FY window. */
+export function useFiscalYear(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['fiscal-year', tenantSlug],
+    queryFn: () => getFiscalYear(tenantSlug),
+    enabled: !!tenantSlug,
+  });
+}
+
+/** Upsert the tenant's fiscal-year config (start month/day). */
+export function useUpdateFiscalYear(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { start_month: number; start_day: number }) =>
+      updateFiscalYear(tenantSlug, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal-year', tenantSlug] }),
   });
 }
 
