@@ -735,3 +735,34 @@ export function listEtimsItems(tenantSlug: string): Promise<{ items: EtimsItem[]
 export function registerEtimsItem(tenantSlug: string, body: RegisterEtimsItemRequest): Promise<EtimsItem> {
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/items`, body);
 }
+
+// ---- eTIMS historical import + VAA reconciliation ----
+
+export interface EtimsImportResult {
+  sales_pulled: number;
+  sales_new: number;
+  purchases_pulled: number;
+  purchases_new: number;
+  from_cursor: string;
+  to_cursor: string;
+  notes: string[];
+}
+
+export interface VAAReconciliation {
+  imported_sales: number;
+  imported_purchases: number;
+  kra_input_vat: string;
+  treasury_input_vat: string;
+  input_vat_variance: string;
+  overclaim_risk: boolean;
+  last_import_cursor: string;
+  notes: string[];
+}
+
+export function importEtimsTransactions(tenantSlug: string): Promise<EtimsImportResult> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/import`);
+}
+
+export function getVAAReconciliation(tenantSlug: string): Promise<VAAReconciliation> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/vaa`);
+}
