@@ -416,3 +416,39 @@ export function useImportEtimsTransactions() {
     onError: (err: any) => toast.error(err?.response?.data?.error || 'eTIMS import failed'),
   });
 }
+
+export function useWHVATCertificates(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['tax-whvat', tenantSlug],
+    queryFn: () => taxApi.listWHVATCertificates(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCreateWHVATCertificate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, data }: { tenantSlug: string; data: taxApi.CreateWHVATRequest }) =>
+      taxApi.createWHVATCertificate(tenantSlug, data),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['tax-whvat', vars.tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['tax-vat-return', vars.tenantSlug] });
+      toast.success('WHVAT certificate recorded');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to record certificate'),
+  });
+}
+
+export function useDeleteWHVATCertificate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, certID }: { tenantSlug: string; certID: string }) =>
+      taxApi.deleteWHVATCertificate(tenantSlug, certID),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['tax-whvat', vars.tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['tax-vat-return', vars.tenantSlug] });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to delete'),
+  });
+}

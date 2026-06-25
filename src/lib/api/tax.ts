@@ -606,6 +606,7 @@ export interface VATReturnSummary {
   period_end: string;
   output_vat: string;
   input_vat: string;
+  whvat_withheld: string;
   net_vat_payable: string;
   gl_output_vat: string;
   gl_input_vat: string;
@@ -767,4 +768,41 @@ export function importEtimsTransactions(tenantSlug: string): Promise<EtimsImport
 
 export function getVAAReconciliation(tenantSlug: string): Promise<VAAReconciliation> {
   return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/vaa`);
+}
+
+// ---- WHVAT certificates received (withholding-VAT credit) ----
+
+export interface WHVATCertificate {
+  id: string;
+  certificate_no: string;
+  withholder_pin?: string;
+  withholder_name?: string;
+  invoice_number?: string;
+  taxable_amount?: number | string;
+  withheld_amount: number | string;
+  cert_date?: string;
+  status: string;
+}
+
+export interface CreateWHVATRequest {
+  certificate_no: string;
+  withholder_pin?: string;
+  withholder_name?: string;
+  invoice_number?: string;
+  taxable_amount?: number;
+  withheld_amount?: number;
+  cert_date?: string;
+  notes?: string;
+}
+
+export function listWHVATCertificates(tenantSlug: string): Promise<{ certificates: WHVATCertificate[]; total: number }> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/whvat`);
+}
+
+export function createWHVATCertificate(tenantSlug: string, body: CreateWHVATRequest): Promise<WHVATCertificate> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/whvat`, body);
+}
+
+export function deleteWHVATCertificate(tenantSlug: string, certID: string): Promise<{ deleted: boolean }> {
+  return apiClient.delete(`${BASE}/${tenantSlug}/tax/whvat/${certID}`);
 }
