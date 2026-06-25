@@ -6,6 +6,7 @@ import { useFiscalYear, useUpdateFiscalYear } from '@/hooks/use-settings';
 import { CalendarRange, Loader2, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { YearEndClosePanel } from './year-end-close-panel';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -54,6 +55,7 @@ export function FinancialYearTab({ tenantSlug }: { tenantSlug: string }) {
   }
 
   return (
+    <div className="space-y-6">
     <Card>
       <CardHeader className="border-b border-border/50 py-4">
         <div className="flex items-center gap-2">
@@ -118,5 +120,9 @@ export function FinancialYearTab({ tenantSlug }: { tenantSlug: string }) {
         </div>
       </CardContent>
     </Card>
+
+      {/* Year-End Close — only renders for users with the close permission. */}
+      <YearEndClosePanel tenantSlug={tenantSlug} />
+    </div>
   );
 }

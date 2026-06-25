@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { listSettings, updateSetting, getFiscalYear, updateFiscalYear } from '@/lib/api/settings';
+import {
+  listSettings,
+  updateSetting,
+  getFiscalYear,
+  updateFiscalYear,
+  getFYClosePreview,
+  postFYClose,
+} from '@/lib/api/settings';
 import type { ServiceConfig } from '@/lib/api/settings';
 
 export function useSettings(tenantSlug: string) {
@@ -35,6 +42,32 @@ export function useUpdateFiscalYear(tenantSlug: string) {
     mutationFn: (body: { start_month: number; start_day: number }) =>
       updateFiscalYear(tenantSlug, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal-year', tenantSlug] }),
+  });
+}
+
+/**
+ * Fetch the write-free fiscal-year close preview. Disabled until `enabled` so the
+ * (read-only but compute-heavy) endpoint is only hit when the user opens the panel.
+ */
+export function useFYClosePreview(tenantSlug: string, fiscalYear: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ['fy-close-preview', tenantSlug, fiscalYear],
+    queryFn: () => getFYClosePreview(tenantSlug, fiscalYear),
+    enabled: !!tenantSlug && !!fiscalYear && enabled,
+    retry: false,
+  });
+}
+
+/** Post the fiscal-year close (confirm:true posts to the GL). Idempotent server-side. */
+export function useFYClose(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { fiscal_year: number; confirm: boolean; post_opening_balances?: boolean }) =>
+      postFYClose(tenantSlug, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['fy-close-preview', tenantSlug, vars.fiscal_year] });
+      qc.invalidateQueries({ queryKey: ['fiscal-year', tenantSlug] });
+    },
   });
 }
 

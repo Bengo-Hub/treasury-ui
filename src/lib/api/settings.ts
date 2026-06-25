@@ -61,3 +61,74 @@ export async function updateFiscalYear(
 ): Promise<FiscalYearConfig> {
   return apiClient.put<FiscalYearConfig>(`${BASE}/${tenantSlug}/settings/fiscal-year`, body);
 }
+
+// ── Fiscal Year-End Close ───────────────────────────────────────────────────────
+
+/** One proposed (or posted) journal line of the close. Amounts are pre-formatted strings. */
+export interface FYProposedLine {
+  account_id: string;
+  account_code: string;
+  account_name: string;
+  account_type: string;
+  debit: string;
+  credit: string;
+}
+
+export interface FYPeriodRef {
+  id: string;
+  name: string;
+  status: string;
+  start_date: string;
+  end_date: string;
+}
+
+/** Write-free preview of a fiscal-year close. */
+export interface FYClosePreview {
+  fiscal_year: number;
+  fiscal_year_label: string;
+  fy_start: string;
+  fy_end: string;
+  next_fy_start: string;
+  closing_lines: FYProposedLine[];
+  total_revenue: string;
+  total_expense: string;
+  net_income: string;
+  closing_total_debit: string;
+  closing_total_credit: string;
+  opening_lines: FYProposedLine[];
+  opening_total_debit: string;
+  opening_total_credit: string;
+  periods_to_close: FYPeriodRef[];
+  already_closed: boolean;
+  warning?: string;
+}
+
+export interface FYCloseResult {
+  fiscal_year: number;
+  fiscal_year_label: string;
+  closing_entry_id?: string;
+  closing_entry_number?: string;
+  opening_entry_id?: string;
+  net_income: string;
+  periods_closed: number;
+  reference: string;
+  already_closed: boolean;
+}
+
+/** GET the write-free close preview for a fiscal year (YYYY = year the FY ends). */
+export async function getFYClosePreview(
+  tenantSlug: string,
+  fiscalYear: number,
+): Promise<FYClosePreview> {
+  return apiClient.get<FYClosePreview>(
+    `${BASE}/${tenantSlug}/fiscal-year/close-preview?fiscal_year=${fiscalYear}`,
+  );
+}
+
+/** POST the close. confirm:true actually posts; otherwise it is a dry-run (returns preview). */
+export async function postFYClose(
+  tenantSlug: string,
+  body: { fiscal_year: number; confirm: boolean; post_opening_balances?: boolean },
+): Promise<FYCloseResult> {
+  return apiClient.post<FYCloseResult>(`${BASE}/${tenantSlug}/fiscal-year/close`, body);
+}
