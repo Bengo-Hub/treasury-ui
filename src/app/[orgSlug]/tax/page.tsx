@@ -22,6 +22,7 @@ import { WHTPaymentRefTab } from './wht-prn-tab';
 import { TaxReturnsTab } from './tax-returns-tab';
 import { TransmissionHistoryTab } from './transmission-history-tab';
 import { BadDebtReliefTab } from './bad-debt-relief-tab';
+import { VATReturnTab } from './vat-return-tab';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSubscription } from '@/hooks/use-subscription';
 import type { TaxCode, TaxPeriod, EtimsDevice } from '@/lib/api/tax';
@@ -31,6 +32,7 @@ import {
   CalendarDays,
   Coins,
   Cpu,
+  FileSpreadsheet,
   FileText,
   HandCoins,
   Landmark,
@@ -123,6 +125,7 @@ export default function TaxPage() {
             <CapsuleTabsTrigger value="structuring"><Scale className="h-4 w-4" />Structuring</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="bad-debt" badge={<span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-green-600">New</span>}><HandCoins className="h-4 w-4" />Bad-Debt Relief</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="codes"><Tag className="h-4 w-4" />Tax Codes</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="vat-return" badge={<span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-green-600">New</span>}><FileSpreadsheet className="h-4 w-4" />VAT Return</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="periods"><CalendarDays className="h-4 w-4" />Tax Periods</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="etims" badge={!subLoading && !canUseEtims ? <Lock className="size-3 text-muted-foreground" /> : undefined}><Cpu className="h-4 w-4" />eTIMS Devices</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="wht-prn"><Coins className="h-4 w-4" />WHT PRN</CapsuleTabsTrigger>
@@ -147,6 +150,9 @@ export default function TaxPage() {
           </CapsuleTabsContent>
           <CapsuleTabsContent value="codes" className="mt-6">
             <TaxCodesTab tenantSlug={effectiveTenant} />
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="vat-return" className="mt-6">
+            <VATReturnTab tenantSlug={effectiveTenant} />
           </CapsuleTabsContent>
           <CapsuleTabsContent value="periods" className="mt-6">
             <TaxPeriodsTab tenantSlug={effectiveTenant} />
