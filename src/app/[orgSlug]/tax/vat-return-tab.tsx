@@ -103,6 +103,13 @@ export function VATReturnTab({ tenantSlug }: Props) {
                 <td className="px-2 py-2 text-right">{money(data?.input_vat)}</td>
                 <td className="px-2 py-2 text-right">{money(data?.gl_input_vat)}</td>
               </tr>
+              {Number(data?.whvat_withheld ?? 0) > 0 && (
+                <tr className="border-b border-border/50">
+                  <td className="px-2 py-2">Less: WHVAT withheld</td>
+                  <td className="px-2 py-2 text-right text-green-600">−{money(data?.whvat_withheld)}</td>
+                  <td className="px-2 py-2 text-right text-muted-foreground">credit</td>
+                </tr>
+              )}
               <tr className="font-medium">
                 <td className="px-2 py-2">Net VAT</td>
                 <td className="px-2 py-2 text-right">{money(data?.net_vat_payable)}</td>

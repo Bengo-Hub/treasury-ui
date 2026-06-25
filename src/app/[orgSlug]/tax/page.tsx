@@ -26,6 +26,7 @@ import { VATReturnTab } from './vat-return-tab';
 import { EtimsSyncTab } from './etims-sync-tab';
 import { RatesCalendarTab } from './rates-calendar-tab';
 import { EtimsItemsTab } from './etims-items-tab';
+import { WHVATTab } from './whvat-tab';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSubscription } from '@/hooks/use-subscription';
 import type { TaxCode, TaxPeriod, EtimsDevice } from '@/lib/api/tax';
@@ -137,6 +138,7 @@ export default function TaxPage() {
             <CapsuleTabsTrigger value="etims-sync" badge={<span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-green-600">New</span>}><RefreshCw className="h-4 w-4" />eTIMS Sync</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="etims-items"><Package className="h-4 w-4" />eTIMS Items</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="wht-prn"><Coins className="h-4 w-4" />WHT PRN</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="whvat"><ShieldCheck className="h-4 w-4" />WHVAT</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="tax-returns"><FileText className="h-4 w-4" />Tax Returns</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="transmissions"><Send className="h-4 w-4" />Transmissions</CapsuleTabsTrigger>
           </CapsuleTabsList>
@@ -179,6 +181,9 @@ export default function TaxPage() {
           </CapsuleTabsContent>
           <CapsuleTabsContent value="wht-prn" className="mt-6">
             <WHTPaymentRefTab tenantSlug={effectiveTenant} />
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="whvat" className="mt-6">
+            <WHVATTab tenantSlug={effectiveTenant} />
           </CapsuleTabsContent>
           <CapsuleTabsContent value="tax-returns" className="mt-6">
             <TaxReturnsTab tenantSlug={effectiveTenant} />
