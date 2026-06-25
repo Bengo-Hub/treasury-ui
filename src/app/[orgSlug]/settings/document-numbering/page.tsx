@@ -42,7 +42,8 @@ const RESET_FREQ_OPTIONS = [
   { value: 'never', label: 'Never' },
   { value: 'daily', label: 'Daily' },
   { value: 'monthly', label: 'Monthly' },
-  { value: 'yearly', label: 'Yearly' },
+  { value: 'yearly', label: 'Yearly (calendar)' },
+  { value: 'fiscal_yearly', label: 'Yearly (fiscal year)' },
 ];
 
 const DATE_FORMAT_OPTIONS = [
