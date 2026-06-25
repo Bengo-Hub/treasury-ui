@@ -596,3 +596,33 @@ export interface BadDebtReliefSummary {
 export function getBadDebtRelief(tenantSlug: string): Promise<BadDebtReliefSummary> {
   return apiClient.get(`${BASE}/${tenantSlug}/tax/bad-debt-relief`);
 }
+
+// ---- VAT-3 return prep (reconcile-before-file) ----
+
+export interface VATReturnSummary {
+  tenant_id: string;
+  currency: string;
+  period_start: string;
+  period_end: string;
+  output_vat: string;
+  input_vat: string;
+  net_vat_payable: string;
+  gl_output_vat: string;
+  gl_input_vat: string;
+  gl_net_vat: string;
+  reconciliation_variance: string;
+  reconciled: boolean;
+  due_date: string;
+  notes: string[];
+}
+
+export function getVATReturnSummary(
+  tenantSlug: string,
+  params?: { from?: string; to?: string },
+): Promise<VATReturnSummary> {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  const query = qs.toString() ? `?${qs}` : '';
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/vat-return${query}`);
+}

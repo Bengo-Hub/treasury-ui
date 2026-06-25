@@ -322,3 +322,12 @@ export function useBadDebtRelief(tenantSlug: string) {
     staleTime: 10 * 60 * 1000,
   });
 }
+
+export function useVATReturnSummary(tenantSlug: string, params?: { from?: string; to?: string }) {
+  return useQuery({
+    queryKey: ['tax-vat-return', tenantSlug, params?.from, params?.to],
+    queryFn: () => taxApi.getVATReturnSummary(tenantSlug, params),
+    enabled: !!tenantSlug,
+    staleTime: 5 * 60 * 1000,
+  });
+}
