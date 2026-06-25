@@ -8,6 +8,7 @@ import {
   useSyncTaxObligations,
   useValidateKRAPIN,
   useCheckTaxCompliance,
+  useLookupKRAPINByID,
   useTaxPositionEstimate,
 } from '@/hooks/use-tax';
 
@@ -35,11 +36,15 @@ export function TaxProfileTab({ tenantSlug }: Props) {
   const sync = useSyncTaxObligations(tenantSlug);
   const validatePIN = useValidateKRAPIN();
   const checkTCC = useCheckTaxCompliance();
+  const lookupPIN = useLookupKRAPINByID();
 
   const [pin, setPin] = useState('');
   const [tccNumber, setTccNumber] = useState('');
   const [pinResult, setPinResult] = useState<any>(null);
   const [tccResult, setTccResult] = useState<any>(null);
+  const [lookupId, setLookupId] = useState('');
+  const [lookupType, setLookupType] = useState('Individual');
+  const [lookupResult, setLookupResult] = useState<any>(null);
   useEffect(() => { if (profile?.kra_pin) setPin(profile.kra_pin); }, [profile?.kra_pin]);
 
   const sev = position?.severity ?? 'ok';
@@ -190,6 +195,33 @@ export function TaxProfileTab({ tenantSlug }: Props) {
               <span className={tccResult.TCCData.TCCStatus === 'Approved' ? 'text-primary' : 'text-destructive'}>{tccResult.TCCData.TCCStatus}</span>
             </p>
             <p><span className="font-medium">Issued:</span> {tccResult.TCCData.TCCIssueDate} &middot; <span className="font-medium">Expires:</span> {tccResult.TCCData.TCCExpiryDate}</p>
+          </div>
+        )}
+      </div>
+
+      {/* KRA PIN lookup by ID — find a customer/supplier PIN for B2B invoicing/onboarding */}
+      <div className="rounded-lg border p-4 space-y-3">
+        <h3 className="font-semibold text-sm">KRA PIN lookup</h3>
+        <p className={label}>Find a customer or supplier&apos;s KRA PIN from their ID number — useful for B2B invoices and onboarding.</p>
+        <div className="flex flex-wrap gap-2">
+          <input className="flex-1 rounded border px-3 py-2 text-sm min-w-40" placeholder="ID / Reg. number" value={lookupId} onChange={(e) => setLookupId(e.target.value)} />
+          <select className="rounded border px-3 py-2 text-sm" value={lookupType} onChange={(e) => setLookupType(e.target.value)}>
+            <option value="Individual">Individual</option>
+            <option value="Company">Company</option>
+          </select>
+          <button
+            className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
+            disabled={!lookupId || lookupPIN.isPending}
+            onClick={() => lookupPIN.mutate({ tenantSlug, idNumber: lookupId, taxpayerType: lookupType }, { onSuccess: setLookupResult })}
+          >{lookupPIN.isPending ? 'Looking up…' : 'Look up PIN'}</button>
+        </div>
+        {lookupResult?.PINDATA && (
+          <div className="rounded bg-muted p-3 text-sm space-y-1">
+            <p><span className="font-medium">KRA PIN:</span> {lookupResult.PINDATA.KRAPIN}</p>
+            <p><span className="font-medium">Name:</span> {lookupResult.PINDATA.Name}</p>
+            <p><span className="font-medium">Type:</span> {lookupResult.PINDATA.TypeOfTaxpayer} &middot; <span className="font-medium">Status:</span>{' '}
+              <span className={lookupResult.PINDATA.StatusOfPIN === 'Active' ? 'text-primary' : 'text-destructive'}>{lookupResult.PINDATA.StatusOfPIN}</span>
+            </p>
           </div>
         )}
       </div>
