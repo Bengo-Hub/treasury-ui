@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 import { ReportHeader } from './ReportHeader';
 import { ReportFooter } from './ReportFooter';
 import { PrintButton } from './PrintButton';
+import { ExportCsvButton } from './ExportCsvButton';
+import type { ReportCsvData } from '@/lib/reports/export-csv';
 
 export interface ReportKpi {
   label: string;
@@ -24,6 +26,13 @@ interface ReportDocumentProps {
   children: ReactNode;
   /** Optional disclaimer override for the footer. */
   disclaimer?: string;
+  /**
+   * Optional CSV export. When provided, an "Export CSV" button appears in the
+   * same header bar as Print, serialising the SAME columns/sections this
+   * report's ReportTable renders (no duplicate row-shaping). Backwards-
+   * compatible: reports without this prop simply omit the button.
+   */
+  csv?: ReportCsvData;
   className?: string;
 }
 
@@ -41,11 +50,13 @@ export function ReportDocument({
   kpis,
   children,
   disclaimer,
+  csv,
   className,
 }: ReportDocumentProps) {
   return (
     <Card className={cn('report-document p-6 sm:p-8 print:shadow-none print:border-0', className)}>
-      <div className="mb-4 flex justify-end print-hidden">
+      <div className="mb-4 flex justify-end gap-2 print-hidden">
+        {csv && <ExportCsvButton csv={csv} />}
         <PrintButton />
       </div>
 
