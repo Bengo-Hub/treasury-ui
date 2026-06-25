@@ -23,6 +23,7 @@ import { TaxReturnsTab } from './tax-returns-tab';
 import { TransmissionHistoryTab } from './transmission-history-tab';
 import { BadDebtReliefTab } from './bad-debt-relief-tab';
 import { VATReturnTab } from './vat-return-tab';
+import { EtimsSyncTab } from './etims-sync-tab';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSubscription } from '@/hooks/use-subscription';
 import type { TaxCode, TaxPeriod, EtimsDevice } from '@/lib/api/tax';
@@ -41,6 +42,7 @@ import {
   PiggyBank,
   Plus,
   Receipt,
+  RefreshCw,
   Scale,
   Send,
   Shield,
@@ -128,6 +130,7 @@ export default function TaxPage() {
             <CapsuleTabsTrigger value="vat-return" badge={<span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-green-600">New</span>}><FileSpreadsheet className="h-4 w-4" />VAT Return</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="periods"><CalendarDays className="h-4 w-4" />Tax Periods</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="etims" badge={!subLoading && !canUseEtims ? <Lock className="size-3 text-muted-foreground" /> : undefined}><Cpu className="h-4 w-4" />eTIMS Devices</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="etims-sync" badge={<span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-green-600">New</span>}><RefreshCw className="h-4 w-4" />eTIMS Sync</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="wht-prn"><Coins className="h-4 w-4" />WHT PRN</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="tax-returns"><FileText className="h-4 w-4" />Tax Returns</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="transmissions"><Send className="h-4 w-4" />Transmissions</CapsuleTabsTrigger>
@@ -159,6 +162,9 @@ export default function TaxPage() {
           </CapsuleTabsContent>
           <CapsuleTabsContent value="etims" className="mt-6">
             {canUseEtims ? <EtimsTab tenantSlug={effectiveTenant} /> : <EtimsUpgradePrompt />}
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="etims-sync" className="mt-6">
+            {canUseEtims ? <EtimsSyncTab tenantSlug={effectiveTenant} /> : <EtimsUpgradePrompt />}
           </CapsuleTabsContent>
           <CapsuleTabsContent value="wht-prn" className="mt-6">
             <WHTPaymentRefTab tenantSlug={effectiveTenant} />

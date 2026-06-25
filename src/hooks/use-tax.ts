@@ -331,3 +331,12 @@ export function useVATReturnSummary(tenantSlug: string, params?: { from?: string
     staleTime: 5 * 60 * 1000,
   });
 }
+
+export function useEtimsReconciliation(tenantSlug: string, lastReqDt?: string) {
+  return useQuery({
+    queryKey: ['tax-etims-reconcile', tenantSlug, lastReqDt],
+    queryFn: () => taxApi.getEtimsReconciliation(tenantSlug, lastReqDt),
+    enabled: !!tenantSlug,
+    staleTime: 5 * 60 * 1000,
+  });
+}

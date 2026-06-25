@@ -626,3 +626,34 @@ export function getVATReturnSummary(
   const query = qs.toString() ? `?${qs}` : '';
   return apiClient.get(`${BASE}/${tenantSlug}/tax/vat-return${query}`);
 }
+
+// ---- eTIMS ↔ treasury reconciliation ----
+
+export interface EtimsReconItem {
+  receipt_no: string;
+  invoice_no?: number;
+  customer?: string;
+  amount?: number;
+  date?: string;
+  source?: string;
+}
+
+export interface EtimsReconciliation {
+  tenant_id: string;
+  as_of: string;
+  last_req_dt: string;
+  configured: boolean;
+  kra_sales_count: number;
+  kra_sales_total: number;
+  treasury_transmitted_count: number;
+  matched_count: number;
+  only_in_kra: EtimsReconItem[];
+  only_in_treasury: EtimsReconItem[];
+  in_sync: boolean;
+  notes: string[];
+}
+
+export function getEtimsReconciliation(tenantSlug: string, lastReqDt?: string): Promise<EtimsReconciliation> {
+  const q = lastReqDt ? `?lastReqDt=${encodeURIComponent(lastReqDt)}` : '';
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/reconcile${q}`);
+}
