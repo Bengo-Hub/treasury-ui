@@ -23,6 +23,7 @@ import {
   Receipt,
   Settings,
   Shield,
+  ShieldCheck,
   ShoppingCart,
   Target,
   TrendingUp,
@@ -259,6 +260,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       icon: DatabaseBackup,
       href: `/${orgSlug}/backups`,
       active: pathname.startsWith(`/${orgSlug}/backups`),
+    },
+    {
+      label: 'Approvals',
+      icon: ShieldCheck,
+      href: `/${orgSlug}/approvals`,
+      active: pathname.startsWith(`/${orgSlug}/approvals`),
     },
     {
       label: 'Settings',
