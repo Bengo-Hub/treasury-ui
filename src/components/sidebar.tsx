@@ -206,6 +206,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             (pathname.startsWith(`/${orgSlug}/ledger/accounts`) && pathname !== `/${orgSlug}/ledger/accounts`),
         },
         {
+          label: 'Vouchers',
+          icon: Receipt,
+          href: `/${orgSlug}/ledger/vouchers`,
+          active: pathname.startsWith(`/${orgSlug}/ledger/vouchers`),
+        },
+        {
           label: 'Trial Balance',
           icon: Calculator,
           href: `/${orgSlug}/ledger/journals?view=trial-balance`,
@@ -228,6 +234,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: ClipboardCheck,
           href: `/${orgSlug}/banking/reconciliation`,
           active: pathname.startsWith(`/${orgSlug}/banking`),
+        },
+        {
+          label: 'Audit History',
+          icon: ShieldCheck,
+          href: `/${orgSlug}/accounting/audit-history`,
+          active: pathname.startsWith(`/${orgSlug}/accounting/audit-history`),
         },
       ],
     },
