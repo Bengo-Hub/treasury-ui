@@ -10,8 +10,8 @@ import {
   Calculator,
   CalendarRange,
   ChevronDown,
-  DatabaseBackup,
   ClipboardCheck,
+  DatabaseBackup,
   FileCheck,
   FileMinus,
   FilePlus,
@@ -86,7 +86,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       active: pathname === `/${orgSlug}`,
     },
     {
-      label: 'Money',
+      label: 'Transactions',
       icon: Banknote,
       children: [
         {
@@ -168,13 +168,13 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       icon: Briefcase,
       children: [
         {
-          label: 'Bills',
+          label: 'Purchases & Bills',
           icon: Briefcase,
           href: `/${orgSlug}/bills`,
           active: pathname.startsWith(`/${orgSlug}/bills`),
         },
         {
-          label: 'Vendors',
+          label: 'Suppliers & Vendors',
           icon: Users,
           href: `/${orgSlug}/vendors`,
           active: pathname.startsWith(`/${orgSlug}/vendors`),
