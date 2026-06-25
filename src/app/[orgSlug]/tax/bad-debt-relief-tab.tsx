@@ -3,8 +3,8 @@
 import { Card } from '@/components/ui/base';
 import { StatCard } from '@/components/charts/StatCard';
 import { money } from '@/components/charts/chart-theme';
-import { useBadDebtRelief } from '@/hooks/use-tax';
-import { AlertTriangle, CheckCircle2, Clock, Info } from 'lucide-react';
+import { useBadDebtRelief, useClaimVATRelief } from '@/hooks/use-tax';
+import { AlertTriangle, CheckCircle2, Clock, Info, Loader2 } from 'lucide-react';
 
 interface Props { tenantSlug: string }
 
@@ -27,6 +27,7 @@ function StatusPill({ status, days }: { status: string; days: number }) {
  */
 export function BadDebtReliefTab({ tenantSlug }: Props) {
   const { data, isLoading } = useBadDebtRelief(tenantSlug);
+  const claim = useClaimVATRelief();
 
   return (
     <div className="space-y-6">
@@ -75,6 +76,7 @@ export function BadDebtReliefTab({ tenantSlug }: Props) {
                   <th className="px-2 py-2 font-medium text-right">Recoverable VAT</th>
                   <th className="px-2 py-2 font-medium">Eligible from</th>
                   <th className="px-2 py-2 font-medium">Status</th>
+                  <th className="px-2 py-2 font-medium text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -86,6 +88,17 @@ export function BadDebtReliefTab({ tenantSlug }: Props) {
                     <td className="px-2 py-2 text-right tabular-nums font-medium">{money(c.recoverable_vat)}</td>
                     <td className="px-2 py-2 whitespace-nowrap text-muted-foreground">{c.eligible_from}</td>
                     <td className="px-2 py-2"><StatusPill status={c.status} days={c.days_until_eligible} /></td>
+                    <td className="px-2 py-2 text-right">
+                      {c.status === 'eligible' && (
+                        <button
+                          onClick={() => claim.mutate({ tenantSlug, invoiceID: c.invoice_id })}
+                          disabled={claim.isPending}
+                          className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                          {claim.isPending && claim.variables?.invoiceID === c.invoice_id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                          Claim relief
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

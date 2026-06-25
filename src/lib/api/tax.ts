@@ -657,3 +657,9 @@ export function getEtimsReconciliation(tenantSlug: string, lastReqDt?: string): 
   const q = lastReqDt ? `?lastReqDt=${encodeURIComponent(lastReqDt)}` : '';
   return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/reconcile${q}`);
 }
+
+// ---- VAT bad-debt relief claim (write-off) ----
+
+export function claimVATRelief(tenantSlug: string, invoiceID: string): Promise<unknown> {
+  return apiClient.post(`${BASE}/${tenantSlug}/invoices/${invoiceID}/write-off-vat`);
+}
