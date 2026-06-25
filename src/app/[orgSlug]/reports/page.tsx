@@ -294,20 +294,21 @@ function ProfitLossSummaryTab({
         <>
           {(() => {
             const cur = data.currency || 'KES';
+            // Headline figures are GL-sourced (complete — includes POS sales that post to the
+            // ledger without an invoice). Source-doc COGS is kept for context; the source-doc net
+            // profit + variance are shown on the reconciliation card below.
             const kpis: ReportKpi[] = [
-              { label: 'Revenue', value: money(data.total_revenue, cur), tone: 'success' },
+              { label: 'Revenue (GL)', value: money(data.gl_revenue, cur), tone: 'success' },
               { label: 'COGS', value: money(data.cost_of_goods, cur), tone: 'warning' },
-              { label: 'Gross Profit', value: money(data.gross_profit, cur), tone: num(data.gross_profit) >= 0 ? 'success' : 'destructive' },
-              { label: 'Operating Expenses', value: money(data.total_expenses, cur), tone: 'warning' },
-              { label: 'Net Profit', value: money(data.net_profit, cur), tone: num(data.net_profit) >= 0 ? 'success' : 'destructive' },
+              { label: 'Expenses (GL)', value: money(data.gl_expenses, cur), tone: 'warning' },
+              { label: 'Net Profit (GL)', value: money(data.gl_net_profit, cur), tone: num(data.gl_net_profit) >= 0 ? 'success' : 'destructive' },
             ];
 
             const categories = (data.by_category ?? []).slice(0, 8);
             const summaryChart = [
-              { name: 'Revenue', value: num(data.total_revenue), fill: SERIES.revenue },
-              { name: 'COGS', value: num(data.cost_of_goods), fill: SERIES.outstanding },
-              { name: 'Expenses', value: num(data.total_expenses), fill: SERIES.expenses },
-              { name: 'Net', value: num(data.net_profit), fill: SERIES.net },
+              { name: 'Revenue', value: num(data.gl_revenue), fill: SERIES.revenue },
+              { name: 'Expenses', value: num(data.gl_expenses), fill: SERIES.expenses },
+              { name: 'Net', value: num(data.gl_net_profit), fill: SERIES.net },
             ];
 
             return (
