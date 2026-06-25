@@ -13,7 +13,7 @@ interface Props { tenant: string; from: string; to: string }
  * sourced from the P&L summary + tax position. A self-contained widget reusing StatCard.
  */
 export function KpiCards({ tenant, from, to }: Props) {
-  const pl = useProfitLossSummary(tenant, from, to);
+  const pl = useProfitLossSummary(tenant, { from, to });
   const pos = useTaxPositionEstimate(tenant);
   const d = pl.data;
   // Headline P&L is GL-sourced (complete — includes POS sales that post to the ledger without an

@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, CardContent } from '@/components/ui/base';
+import { Badge, Card, CardContent } from '@/components/ui/base';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -9,11 +9,17 @@ import {
   useCashFlow,
   useTaxSummaryReport,
   useProfitLossSummary,
+  type ReportWindow,
 } from '@/hooks/use-reports';
+import { useAccountingPeriods } from '@/hooks/use-ledger';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
-import type { FinancialReport, ReportSection } from '@/lib/api/reports';
+import type {
+  FinancialReport,
+  ReportFiscalContext,
+  ReportSection,
+} from '@/lib/api/reports';
 import { ReportDocument, type ReportKpi } from '@/components/reports/ReportDocument';
 import { ReportTable, type ReportTableSection } from '@/components/reports/ReportTable';
 import { ChartCard } from '@/components/charts/ChartCard';
@@ -49,6 +55,9 @@ function asOfLabel(asOf: string) {
   return `As at ${asOf}`;
 }
 
+const inputClasses =
+  'rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
+
 /**
  * Map a backend ReportSection[] (account-code / name / amount rows with a
  * section total) onto the shared ReportTable section shape. This is the ONE
@@ -76,20 +85,184 @@ const LEDGER_COLUMNS = [
   { header: 'Amount', align: 'right' as const, className: 'w-40' },
 ];
 
+// ---- Reporting basis (date range / fiscal year / accounting period) ----
+
+type Basis = 'range' | 'fy' | 'period';
+type FyMode = 'current' | 'previous' | 'specific';
+
+interface BasisState {
+  basis: Basis;
+  from: string;
+  to: string;
+  fyMode: FyMode;
+  fyYear: string;
+  periodId: string;
+}
+
+/**
+ * Translate the basis selector state into the API window. Exactly one basis is
+ * active: a fiscal basis (period / fiscal year) sends only its selector and the
+ * backend resolves the window; the date-range basis sends from/to. Returns `{}`
+ * for an incomplete fiscal selection so the hook stays disabled.
+ */
+function basisToWindow(s: BasisState): ReportWindow {
+  if (s.basis === 'period') return s.periodId ? { period: s.periodId } : {};
+  if (s.basis === 'fy') {
+    if (s.fyMode === 'specific') return s.fyYear ? { fiscal_year: s.fyYear } : {};
+    return { fy: s.fyMode };
+  }
+  return { from: s.from, to: s.to };
+}
+
+/** Balance sheet variant: as-of for the date basis, fiscal selectors otherwise. */
+function basisToBalanceParams(s: BasisState): { as_of?: string } & Pick<ReportWindow, 'period' | 'fiscal_year' | 'fy'> {
+  if (s.basis === 'period') return s.periodId ? { period: s.periodId } : {};
+  if (s.basis === 'fy') {
+    if (s.fyMode === 'specific') return s.fyYear ? { fiscal_year: s.fyYear } : {};
+    return { fy: s.fyMode };
+  }
+  return { as_of: s.to };
+}
+
+function ReportingBasis({
+  tenantSlug,
+  state,
+  setState,
+}: {
+  tenantSlug: string;
+  state: BasisState;
+  setState: (s: BasisState) => void;
+}) {
+  const { data: periodData } = useAccountingPeriods(tenantSlug);
+  const periods = periodData?.periods ?? [];
+  const patch = (p: Partial<BasisState>) => setState({ ...state, ...p });
+
+  return (
+    <div className="flex flex-wrap items-end gap-4 print-hidden">
+      <FormField label="Reporting basis">
+        <select
+          value={state.basis}
+          onChange={(e) => patch({ basis: e.target.value as Basis })}
+          className={inputClasses}
+        >
+          <option value="range">Date range</option>
+          <option value="fy">Fiscal year</option>
+          <option value="period">Accounting period</option>
+        </select>
+      </FormField>
+
+      {state.basis === 'range' && (
+        <>
+          <FormField label="From">
+            <input
+              type="date"
+              value={state.from}
+              onChange={(e) => patch({ from: e.target.value })}
+              className={inputClasses}
+            />
+          </FormField>
+          <FormField label="To">
+            <input
+              type="date"
+              value={state.to}
+              onChange={(e) => patch({ to: e.target.value })}
+              className={inputClasses}
+            />
+          </FormField>
+        </>
+      )}
+
+      {state.basis === 'fy' && (
+        <>
+          <FormField label="Fiscal year">
+            <select
+              value={state.fyMode}
+              onChange={(e) => patch({ fyMode: e.target.value as FyMode })}
+              className={inputClasses}
+            >
+              <option value="current">Current FY</option>
+              <option value="previous">Previous FY</option>
+              <option value="specific">Specific year…</option>
+            </select>
+          </FormField>
+          {state.fyMode === 'specific' && (
+            <FormField label="Year">
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="2025"
+                value={state.fyYear}
+                onChange={(e) => patch({ fyYear: e.target.value })}
+                className={cn(inputClasses, 'w-28')}
+              />
+            </FormField>
+          )}
+        </>
+      )}
+
+      {state.basis === 'period' && (
+        <FormField label="Accounting period">
+          <select
+            value={state.periodId}
+            onChange={(e) => patch({ periodId: e.target.value })}
+            className={cn(inputClasses, 'min-w-56')}
+          >
+            <option value="">Select a period…</option>
+            {periods.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({p.status === 'closed' ? 'closed' : 'open'})
+              </option>
+            ))}
+          </select>
+        </FormField>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Fiscal context strip: shown only when a report was resolved via a fiscal
+ * basis (fiscal year or period). Surfaces the resolved label plus an
+ * open/closed badge so the user knows whether the figures are final (closed
+ * period) or provisional (open period). Reuses the shared Badge primitive.
+ */
+function FiscalContext({ ctx }: { ctx: ReportFiscalContext | undefined }) {
+  if (!ctx || ctx.window_source === 'date_range' || !ctx.window_source) return null;
+  const label = ctx.period ?? ctx.fiscal_year;
+  if (!label && !ctx.period_status) return null;
+  const closed = ctx.period_status === 'closed';
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm print-hidden">
+      <span className="text-muted-foreground">
+        {ctx.window_source === 'period' ? 'Accounting period:' : 'Fiscal year:'}
+      </span>
+      {label && <span className="font-semibold">{label}</span>}
+      {ctx.period_status && (
+        <Badge variant={closed ? 'secondary' : 'success'}>
+          {closed ? 'Closed · Final' : 'Open · Provisional'}
+        </Badge>
+      )}
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [tab, setTab] = useState('pl');
   const defaults = getDefaultRange();
-  const [plFrom, setPlFrom] = useState(defaults.from);
-  const [plTo, setPlTo] = useState(defaults.to);
-  const [bsAsOf, setBsAsOf] = useState(defaults.to);
-  const [cfFrom, setCfFrom] = useState(defaults.from);
-  const [cfTo, setCfTo] = useState(defaults.to);
-  const [taxFrom, setTaxFrom] = useState(defaults.from);
-  const [taxTo, setTaxTo] = useState(defaults.to);
-  const [plsFrom, setPlsFrom] = useState(defaults.from);
-  const [plsTo, setPlsTo] = useState(defaults.to);
+  const [basis, setBasis] = useState<BasisState>({
+    basis: 'range',
+    from: defaults.from,
+    to: defaults.to,
+    fyMode: 'current',
+    fyYear: String(new Date().getFullYear()),
+    periodId: '',
+  });
+
+  const window = basisToWindow(basis);
+  const balanceParams = basisToBalanceParams(basis);
 
   return (
     <div className="p-6 space-y-6">
@@ -103,69 +276,59 @@ export default function ReportsPage() {
           Select a tenant from the filter above to view their financial reports.
         </div>
       ) : (
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="print-hidden">
-            <TabsTrigger value="pl">Profit & Loss</TabsTrigger>
-            <TabsTrigger value="pls">P&L Summary</TabsTrigger>
-            <TabsTrigger value="bs">Balance Sheet</TabsTrigger>
-            <TabsTrigger value="cf">Cash Flow</TabsTrigger>
-            <TabsTrigger value="tax">Tax Summary</TabsTrigger>
-          </TabsList>
+        <>
+          <ReportingBasis tenantSlug={effectiveTenant} state={basis} setState={setBasis} />
 
-          <TabsContent value="pl" className="mt-6">
-            <ProfitLossTab tenantSlug={effectiveTenant} from={plFrom} to={plTo} setFrom={setPlFrom} setTo={setPlTo} />
-          </TabsContent>
-          <TabsContent value="pls" className="mt-6">
-            <ProfitLossSummaryTab tenantSlug={effectiveTenant} from={plsFrom} to={plsTo} setFrom={setPlsFrom} setTo={setPlsTo} />
-          </TabsContent>
-          <TabsContent value="bs" className="mt-6">
-            <BalanceSheetTab tenantSlug={effectiveTenant} asOf={bsAsOf} setAsOf={setBsAsOf} />
-          </TabsContent>
-          <TabsContent value="cf" className="mt-6">
-            <CashFlowTab tenantSlug={effectiveTenant} from={cfFrom} to={cfTo} setFrom={setCfFrom} setTo={setCfTo} />
-          </TabsContent>
-          <TabsContent value="tax" className="mt-6">
-            <TaxSummaryTab tenantSlug={effectiveTenant} from={taxFrom} to={taxTo} setFrom={setTaxFrom} setTo={setTaxTo} />
-          </TabsContent>
-        </Tabs>
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList className="print-hidden">
+              <TabsTrigger value="pl">Profit & Loss</TabsTrigger>
+              <TabsTrigger value="pls">P&L Summary</TabsTrigger>
+              <TabsTrigger value="bs">Balance Sheet</TabsTrigger>
+              <TabsTrigger value="cf">Cash Flow</TabsTrigger>
+              <TabsTrigger value="tax">Tax Summary</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="pl" className="mt-6">
+              <ProfitLossTab tenantSlug={effectiveTenant} window={window} />
+            </TabsContent>
+            <TabsContent value="pls" className="mt-6">
+              <ProfitLossSummaryTab tenantSlug={effectiveTenant} window={window} />
+            </TabsContent>
+            <TabsContent value="bs" className="mt-6">
+              <BalanceSheetTab tenantSlug={effectiveTenant} params={balanceParams} />
+            </TabsContent>
+            <TabsContent value="cf" className="mt-6">
+              <CashFlowTab tenantSlug={effectiveTenant} window={window} />
+            </TabsContent>
+            <TabsContent value="tax" className="mt-6">
+              <TaxSummaryTab tenantSlug={effectiveTenant} window={window} />
+            </TabsContent>
+          </Tabs>
+        </>
       )}
     </div>
   );
 }
 
-// ---- Date Range Filter ----
+// ---- Period-label helpers ----
 
-function DateRangeFilter({
-  from,
-  to,
-  setFrom,
-  setTo,
-}: {
-  from: string;
-  to: string;
-  setFrom: (v: string) => void;
-  setTo: (v: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-4 items-end print-hidden">
-      <FormField label="From">
-        <input
-          type="date"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-          className="rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
-        />
-      </FormField>
-      <FormField label="To">
-        <input
-          type="date"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          className="rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
-        />
-      </FormField>
-    </div>
-  );
+/**
+ * Human period label for a report document/CSV. Prefers the backend-resolved
+ * fiscal context (so a fiscal-year/period report reads "Fiscal year 2025"
+ * rather than raw dates); falls back to the report's own from/to window.
+ */
+function reportPeriodLabel(report: (FinancialReport & ReportFiscalContext) | undefined): string {
+  if (report?.window_source === 'period' && report.period) return `Accounting period: ${report.period}`;
+  if (report?.window_source === 'fiscal_year' && report.fiscal_year) return `Fiscal year ${report.fiscal_year}`;
+  if (report?.from && report?.to) return rangeLabel(report.from, report.to);
+  return '';
+}
+
+/** Stable CSV filename suffix for the active window. */
+function windowSuffix(ctx: ReportFiscalContext | undefined, from?: string, to?: string): string {
+  if (ctx?.window_source === 'period' && ctx.period) return ctx.period.replace(/\s+/g, '-');
+  if (ctx?.window_source === 'fiscal_year' && ctx.fiscal_year) return `FY${ctx.fiscal_year}`;
+  return [from, to].filter(Boolean).join('_');
 }
 
 // ---- Helper: find a section total by name (case-insensitive contains) ----
@@ -180,20 +343,8 @@ function findSectionTotal(report: FinancialReport | undefined, ...needles: strin
 
 // ---- Profit & Loss ----
 
-function ProfitLossTab({
-  tenantSlug,
-  from,
-  to,
-  setFrom,
-  setTo,
-}: {
-  tenantSlug: string;
-  from: string;
-  to: string;
-  setFrom: (v: string) => void;
-  setTo: (v: string) => void;
-}) {
-  const { data, isLoading, isError } = useProfitLoss(tenantSlug, from, to);
+function ProfitLossTab({ tenantSlug, window }: { tenantSlug: string; window: ReportWindow }) {
+  const { data, isLoading, isError } = useProfitLoss(tenantSlug, window);
 
   const revenue = findSectionTotal(data, 'revenue', 'income', 'sales');
   const cogs = findSectionTotal(data, 'cost of goods', 'cogs', 'cost of sales');
@@ -214,9 +365,12 @@ function ProfitLossTab({
     { name: 'Net', value: net, fill: SERIES.net },
   ];
 
+  const periodLabel = reportPeriodLabel(data);
+  const suffix = windowSuffix(data, data?.from, data?.to);
+
   return (
     <div className="space-y-6">
-      <DateRangeFilter from={from} to={to} setFrom={setFrom} setTo={setTo} />
+      <FiscalContext ctx={data} />
 
       {isLoading && <LoadingCard />}
       {!isLoading && isError && <ErrorCard message="Failed to load profit & loss statement. Please try again." />}
@@ -244,12 +398,12 @@ function ProfitLossTab({
             return (
               <ReportDocument
                 title="Profit & Loss Statement"
-                periodLabel={rangeLabel(from, to)}
+                periodLabel={periodLabel}
                 kpis={kpis}
                 csv={{
-                  filename: `profit-and-loss_${from}_${to}.csv`,
+                  filename: `profit-and-loss_${suffix}.csv`,
                   title: 'Profit & Loss Statement',
-                  periodLabel: rangeLabel(from, to),
+                  periodLabel,
                   columns: LEDGER_COLUMNS,
                   sections,
                   grandTotal,
@@ -268,24 +422,12 @@ function ProfitLossTab({
 
 // ---- P&L Summary (source-document aggregation) ----
 
-function ProfitLossSummaryTab({
-  tenantSlug,
-  from,
-  to,
-  setFrom,
-  setTo,
-}: {
-  tenantSlug: string;
-  from: string;
-  to: string;
-  setFrom: (v: string) => void;
-  setTo: (v: string) => void;
-}) {
-  const { data, isLoading, isError } = useProfitLossSummary(tenantSlug, from, to);
+function ProfitLossSummaryTab({ tenantSlug, window }: { tenantSlug: string; window: ReportWindow }) {
+  const { data, isLoading, isError } = useProfitLossSummary(tenantSlug, window);
 
   return (
     <div className="space-y-6">
-      <DateRangeFilter from={from} to={to} setFrom={setFrom} setTo={setTo} />
+      <FiscalContext ctx={data} />
 
       {isLoading && <LoadingCard />}
       {!isLoading && isError && <ErrorCard message="Failed to load P&L summary. Please try again." />}
@@ -294,6 +436,8 @@ function ProfitLossSummaryTab({
         <>
           {(() => {
             const cur = data.currency || 'KES';
+            const periodLabel = reportPeriodLabel(data as unknown as FinancialReport & ReportFiscalContext);
+            const suffix = windowSuffix(data, data.from, data.to);
             // Headline figures are GL-sourced (complete — includes POS sales that post to the
             // ledger without an invoice). Source-doc COGS is kept for context; the source-doc net
             // profit + variance are shown on the reconciliation card below.
@@ -367,12 +511,12 @@ function ProfitLossSummaryTab({
                   return (
                     <ReportDocument
                       title="Profit & Loss Summary"
-                      periodLabel={rangeLabel(from, to)}
+                      periodLabel={periodLabel}
                       kpis={kpis}
                       csv={{
-                        filename: `profit-and-loss-summary_${from}_${to}.csv`,
+                        filename: `profit-and-loss-summary_${suffix}.csv`,
                         title: 'Profit & Loss Summary',
-                        periodLabel: rangeLabel(from, to),
+                        periodLabel,
                         columns: [{ header: 'Item' }, { header: 'Amount', align: 'right' as const }],
                         sections: [
                           {
@@ -512,14 +656,12 @@ function GLReconciliationCard({
 
 function BalanceSheetTab({
   tenantSlug,
-  asOf,
-  setAsOf,
+  params,
 }: {
   tenantSlug: string;
-  asOf: string;
-  setAsOf: (v: string) => void;
+  params: { as_of?: string } & Pick<ReportWindow, 'period' | 'fiscal_year' | 'fy'>;
 }) {
-  const { data, isLoading, isError } = useBalanceSheet(tenantSlug, asOf);
+  const { data, isLoading, isError } = useBalanceSheet(tenantSlug, params);
 
   const assets = findSectionTotal(data, 'asset');
   const liabilities = findSectionTotal(data, 'liabilit');
@@ -535,31 +677,29 @@ function BalanceSheetTab({
   ];
 
   const sections = data ? sectionsToTable(data.sections) : [];
+  const asOf = data?.as_of ?? params.as_of ?? '';
+  const periodLabel = data?.period
+    ? `Accounting period: ${data.period}${asOf ? ` (as at ${asOf})` : ''}`
+    : data?.fiscal_year
+      ? `Fiscal year ${data.fiscal_year}${asOf ? ` (as at ${asOf})` : ''}`
+      : asOfLabel(asOf);
+  const suffix = windowSuffix(data, asOf, undefined) || asOf;
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-4 items-end print-hidden">
-        <FormField label="As Of">
-          <input
-            type="date"
-            value={asOf}
-            onChange={(e) => setAsOf(e.target.value)}
-            className="rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
-          />
-        </FormField>
-      </div>
+      <FiscalContext ctx={data} />
 
       {isLoading && <LoadingCard />}
       {!isLoading && isError && <ErrorCard message="Failed to load balance sheet. Please try again." />}
       {!isLoading && !isError && data && (
         <ReportDocument
           title="Balance Sheet"
-          periodLabel={asOfLabel(asOf)}
+          periodLabel={periodLabel}
           kpis={kpis}
           csv={{
-            filename: `balance-sheet_${asOf}.csv`,
+            filename: `balance-sheet_${suffix}.csv`,
             title: 'Balance Sheet',
-            periodLabel: asOfLabel(asOf),
+            periodLabel,
             columns: LEDGER_COLUMNS,
             sections,
           }}
@@ -601,20 +741,8 @@ function BalanceSheetTab({
 
 // ---- Cash Flow ----
 
-function CashFlowTab({
-  tenantSlug,
-  from,
-  to,
-  setFrom,
-  setTo,
-}: {
-  tenantSlug: string;
-  from: string;
-  to: string;
-  setFrom: (v: string) => void;
-  setTo: (v: string) => void;
-}) {
-  const { data, isLoading, isError } = useCashFlow(tenantSlug, from, to);
+function CashFlowTab({ tenantSlug, window }: { tenantSlug: string; window: ReportWindow }) {
+  const { data, isLoading, isError } = useCashFlow(tenantSlug, window);
 
   const operating = findSectionTotal(data, 'operating');
   const investing = findSectionTotal(data, 'investing');
@@ -635,9 +763,12 @@ function CashFlowTab({
     { name: 'Net', value: net },
   ];
 
+  const periodLabel = reportPeriodLabel(data);
+  const suffix = windowSuffix(data, data?.from, data?.to);
+
   return (
     <div className="space-y-6">
-      <DateRangeFilter from={from} to={to} setFrom={setFrom} setTo={setTo} />
+      <FiscalContext ctx={data} />
 
       {isLoading && <LoadingCard />}
       {!isLoading && isError && <ErrorCard message="Failed to load cash flow statement. Please try again." />}
@@ -665,12 +796,12 @@ function CashFlowTab({
             return (
               <ReportDocument
                 title="Cash Flow Statement"
-                periodLabel={rangeLabel(from, to)}
+                periodLabel={periodLabel}
                 kpis={kpis}
                 csv={{
-                  filename: `cash-flow_${from}_${to}.csv`,
+                  filename: `cash-flow_${suffix}.csv`,
                   title: 'Cash Flow Statement',
-                  periodLabel: rangeLabel(from, to),
+                  periodLabel,
                   columns: LEDGER_COLUMNS,
                   sections,
                   grandTotal,
@@ -689,20 +820,8 @@ function CashFlowTab({
 
 // ---- Tax Summary ----
 
-function TaxSummaryTab({
-  tenantSlug,
-  from,
-  to,
-  setFrom,
-  setTo,
-}: {
-  tenantSlug: string;
-  from: string;
-  to: string;
-  setFrom: (v: string) => void;
-  setTo: (v: string) => void;
-}) {
-  const { data, isLoading, isError } = useTaxSummaryReport(tenantSlug, from, to);
+function TaxSummaryTab({ tenantSlug, window }: { tenantSlug: string; window: ReportWindow }) {
+  const { data, isLoading, isError } = useTaxSummaryReport(tenantSlug, window);
 
   const kpis: ReportKpi[] = (data?.sections ?? []).slice(0, 4).map((s) => ({
     label: s.name,
@@ -711,22 +830,24 @@ function TaxSummaryTab({
   }));
 
   const sections = data ? sectionsToTable(data.sections) : [];
+  const periodLabel = reportPeriodLabel(data);
+  const suffix = windowSuffix(data, data?.from, data?.to);
 
   return (
     <div className="space-y-6">
-      <DateRangeFilter from={from} to={to} setFrom={setFrom} setTo={setTo} />
+      <FiscalContext ctx={data} />
 
       {isLoading && <LoadingCard />}
       {!isLoading && isError && <ErrorCard message="Failed to load tax summary. Please try again." />}
       {!isLoading && !isError && data && (
         <ReportDocument
           title="Tax Summary"
-          periodLabel={rangeLabel(from, to)}
+          periodLabel={periodLabel}
           kpis={kpis.length ? kpis : undefined}
           csv={{
-            filename: `tax-summary_${from}_${to}.csv`,
+            filename: `tax-summary_${suffix}.csv`,
             title: 'Tax Summary',
-            periodLabel: rangeLabel(from, to),
+            periodLabel,
             columns: LEDGER_COLUMNS,
             sections,
           }}

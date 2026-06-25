@@ -9,6 +9,37 @@ const BASE = '/api/v1';
 
 // ---- Types ----
 
+/**
+ * Fiscal-period selectors shared by the period-aware reports. Mirrors the
+ * treasury-api contract (precedence: period > fiscal_year/fy > from/to). A
+ * report request may carry any one basis; the backend resolves the window and
+ * echoes the chosen context back on the response (see ReportFiscalContext).
+ */
+export interface ReportFiscalParams {
+  /** accounting_period_id — highest precedence. */
+  period?: string;
+  /** explicit fiscal year, e.g. "2025". */
+  fiscal_year?: string;
+  /** relative fiscal year. */
+  fy?: 'current' | 'previous';
+}
+
+/**
+ * Fiscal context echoed back by every period-aware report so the UI can show
+ * which window was actually used and whether it is final (closed) or
+ * provisional (open).
+ */
+export interface ReportFiscalContext {
+  /** fiscal-year label, present when resolved via fiscal_year/fy. */
+  fiscal_year?: string;
+  /** accounting-period name, present when resolved via a period id. */
+  period?: string;
+  /** "open" (provisional) | "closed" (final). */
+  period_status?: 'open' | 'closed';
+  /** how the window was resolved by the backend. */
+  window_source?: 'period' | 'fiscal_year' | 'date_range';
+}
+
 export interface ReportRow {
   account_code: string;
   account_name: string;
@@ -21,7 +52,7 @@ export interface ReportSection {
   total: string;
 }
 
-export interface FinancialReport {
+export interface FinancialReport extends ReportFiscalContext {
   title: string;
   tenant_id: string;
   as_of: string;
@@ -46,7 +77,7 @@ export interface ProfitLossBreakdown {
  * bills, and expenses from approved Expense rows. All amounts are fixed-2
  * decimal strings — parse with Number() at the display site.
  */
-export interface ProfitLossSummaryReport {
+export interface ProfitLossSummaryReport extends ReportFiscalContext {
   currency: string;
   from: string;
   to: string;
@@ -73,37 +104,45 @@ export interface ProfitLossSummaryReport {
 
 // ---- API Functions ----
 
+/**
+ * Window params for the date-range reports. The fiscal selectors
+ * (period/fiscal_year/fy) are optional and take precedence over from/to on the
+ * backend; when a fiscal basis is used, from/to may be omitted. All keys are
+ * forwarded verbatim as query params.
+ */
+export type ReportRangeParams = ReportFiscalParams & { from?: string; to?: string };
+
 export function getProfitLoss(
   tenantSlug: string,
-  params: { from: string; to: string },
+  params: ReportRangeParams,
 ): Promise<FinancialReport> {
   return apiClient.get(`${BASE}/${tenantSlug}/reports/profit-loss`, params);
 }
 
 export function getBalanceSheet(
   tenantSlug: string,
-  params?: { as_of?: string },
+  params?: ReportFiscalParams & { as_of?: string },
 ): Promise<FinancialReport> {
   return apiClient.get(`${BASE}/${tenantSlug}/reports/balance-sheet`, params);
 }
 
 export function getCashFlow(
   tenantSlug: string,
-  params: { from: string; to: string },
+  params: ReportRangeParams,
 ): Promise<FinancialReport> {
   return apiClient.get(`${BASE}/${tenantSlug}/reports/cash-flow`, params);
 }
 
 export function getTaxSummary(
   tenantSlug: string,
-  params: { from: string; to: string },
+  params: ReportRangeParams,
 ): Promise<FinancialReport> {
   return apiClient.get(`${BASE}/${tenantSlug}/reports/tax-summary`, params);
 }
 
 export function getProfitLossSummary(
   tenantSlug: string,
-  params: { from: string; to: string; currency?: string },
+  params: ReportRangeParams & { currency?: string },
 ): Promise<ProfitLossSummaryReport> {
   return apiClient.get(`${BASE}/${tenantSlug}/reports/profit-loss-summary`, params);
 }

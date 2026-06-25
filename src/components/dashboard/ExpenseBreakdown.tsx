@@ -9,7 +9,7 @@ interface Props { tenant: string; from: string; to: string }
 
 /** ExpenseBreakdown — operating expenses by category as a donut, from the P&L summary. */
 export function ExpenseBreakdown({ tenant, from, to }: Props) {
-  const { data, isLoading } = useProfitLossSummary(tenant, from, to);
+  const { data, isLoading } = useProfitLossSummary(tenant, { from, to });
   const rows = (data?.by_category ?? [])
     .map((b) => ({ name: (b as any).category ?? (b as any).cost_center ?? 'Other', value: Number(b.amount) }))
     .filter((r) => r.value > 0)
