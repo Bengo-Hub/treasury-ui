@@ -663,3 +663,40 @@ export function getEtimsReconciliation(tenantSlug: string, lastReqDt?: string): 
 export function claimVATRelief(tenantSlug: string, invoiceID: string): Promise<unknown> {
   return apiClient.post(`${BASE}/${tenantSlug}/invoices/${invoiceID}/write-off-vat`);
 }
+
+// ---- Statutory rate reference + compliance calendar ----
+
+export interface StatutoryRate {
+  category: string;
+  code: string;
+  name: string;
+  jurisdiction: string;
+  rate: number | string;
+  rate_type: string;
+  filing_frequency?: string;
+  obligation_code?: string;
+  notes?: string;
+  source?: string;
+  effective_from?: string;
+  threshold_min?: number | string;
+  threshold_max?: number | string;
+  due_day?: number;
+}
+
+export interface ComplianceCalendarItem {
+  obligation: string;
+  frequency: string;
+  due_day?: number;
+  next_due_date: string;
+  categories: string[];
+  note?: string;
+}
+
+export function listStatutoryRates(tenantSlug: string, category?: string): Promise<{ rates: StatutoryRate[]; total: number }> {
+  const q = category ? `?category=${encodeURIComponent(category)}` : '';
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/statutory-rates${q}`);
+}
+
+export function getComplianceCalendar(tenantSlug: string): Promise<{ items: ComplianceCalendarItem[]; total: number }> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/compliance-calendar`);
+}
