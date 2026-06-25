@@ -3,8 +3,8 @@
 import { Card } from '@/components/ui/base';
 import { StatCard } from '@/components/charts/StatCard';
 import { money } from '@/components/charts/chart-theme';
-import { useEtimsReconciliation } from '@/hooks/use-tax';
-import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { useEtimsReconciliation, useImportEtimsTransactions, useVAAReconciliation } from '@/hooks/use-tax';
+import { AlertTriangle, CheckCircle2, DownloadCloud, Loader2, RefreshCw } from 'lucide-react';
 
 interface Props { tenantSlug: string }
 
@@ -16,6 +16,8 @@ interface Props { tenantSlug: string }
  */
 export function EtimsSyncTab({ tenantSlug }: Props) {
   const { data, isLoading, isFetching, refetch } = useEtimsReconciliation(tenantSlug);
+  const { data: vaa } = useVAAReconciliation(tenantSlug);
+  const importTxns = useImportEtimsTransactions();
   const inSync = data?.in_sync;
 
   return (
@@ -23,13 +25,39 @@ export function EtimsSyncTab({ tenantSlug }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold">eTIMS reconciliation</h3>
-          <p className="text-xs text-muted-foreground">Compare treasury records against KRA eTIMS.</p>
+          <p className="text-xs text-muted-foreground">Pull your history from KRA and reconcile your books against it.</p>
         </div>
-        <button onClick={() => refetch()} disabled={isFetching}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent/10 disabled:opacity-50">
-          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />Re-check
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => importTxns.mutate({ tenantSlug })} disabled={importTxns.isPending}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+            {importTxns.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DownloadCloud className="h-3.5 w-3.5" />}Import from KRA
+          </button>
+          <button onClick={() => refetch()} disabled={isFetching}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent/10 disabled:opacity-50">
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />Re-check
+          </button>
+        </div>
       </div>
+
+      {/* VAA (buyer-side input-VAT) reconciliation */}
+      {vaa && (vaa.imported_purchases > 0 || vaa.imported_sales > 0) && (
+        <Card className={`p-4 ${vaa.overclaim_risk ? 'border-amber-500/40 bg-amber-500/5' : 'border-green-500/30 bg-green-500/5'}`}>
+          <div className="flex items-start gap-3">
+            <div className={`rounded-lg p-2 ${vaa.overclaim_risk ? 'bg-amber-500/15 text-amber-600' : 'bg-green-500/15 text-green-600'}`}>
+              {vaa.overclaim_risk ? <AlertTriangle className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+            </div>
+            <div className="flex-1 space-y-2 text-sm">
+              <p className="font-semibold">VAA input-VAT check {vaa.overclaim_risk ? '— over-claim risk' : '— within tolerance'}</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <StatCard label="Input VAT — KRA (suppliers)" value={money(vaa.kra_input_vat)} tone="default" hint={`${vaa.imported_purchases} purchases imported`} />
+                <StatCard label="Input VAT — your books" value={money(vaa.treasury_input_vat)} tone="default" hint="Trailing 12 months" />
+                <StatCard label="Variance (books − KRA)" value={money(vaa.input_vat_variance)} tone={vaa.overclaim_risk ? 'warning' : 'success'} />
+              </div>
+              {vaa.notes.map((n, i) => <p key={i} className="text-muted-foreground">{n}</p>)}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {!isLoading && data && !data.configured ? (
         <Card className="p-4 text-sm text-muted-foreground">

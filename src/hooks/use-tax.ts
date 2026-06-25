@@ -394,3 +394,25 @@ export function useRegisterEtimsItem() {
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to register item'),
   });
 }
+
+export function useVAAReconciliation(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['tax-vaa', tenantSlug],
+    queryFn: () => taxApi.getVAAReconciliation(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useImportEtimsTransactions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug }: { tenantSlug: string }) => taxApi.importEtimsTransactions(tenantSlug),
+    onSuccess: (res, vars) => {
+      qc.invalidateQueries({ queryKey: ['tax-vaa', vars.tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['tax-etims-reconcile', vars.tenantSlug] });
+      toast.success(`Imported ${res.sales_new} sales, ${res.purchases_new} purchases from KRA`);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'eTIMS import failed'),
+  });
+}
