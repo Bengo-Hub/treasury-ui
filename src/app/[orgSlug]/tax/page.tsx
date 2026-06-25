@@ -24,6 +24,7 @@ import { TransmissionHistoryTab } from './transmission-history-tab';
 import { BadDebtReliefTab } from './bad-debt-relief-tab';
 import { VATReturnTab } from './vat-return-tab';
 import { EtimsSyncTab } from './etims-sync-tab';
+import { RatesCalendarTab } from './rates-calendar-tab';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSubscription } from '@/hooks/use-subscription';
 import type { TaxCode, TaxPeriod, EtimsDevice } from '@/lib/api/tax';
@@ -125,6 +126,7 @@ export default function TaxPage() {
             <CapsuleTabsTrigger value="deductions"><PiggyBank className="h-4 w-4" />Deductions</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="capital-allowances"><Landmark className="h-4 w-4" />Capital Allowances</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="structuring"><Scale className="h-4 w-4" />Structuring</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="rates-calendar"><CalendarDays className="h-4 w-4" />Rates &amp; Calendar</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="bad-debt" badge={<span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-green-600">New</span>}><HandCoins className="h-4 w-4" />Bad-Debt Relief</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="codes"><Tag className="h-4 w-4" />Tax Codes</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="vat-return" badge={<span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-green-600">New</span>}><FileSpreadsheet className="h-4 w-4" />VAT Return</CapsuleTabsTrigger>
@@ -147,6 +149,9 @@ export default function TaxPage() {
           </CapsuleTabsContent>
           <CapsuleTabsContent value="structuring" className="mt-6">
             <StructuringTab tenantSlug={effectiveTenant} />
+          </CapsuleTabsContent>
+          <CapsuleTabsContent value="rates-calendar" className="mt-6">
+            <RatesCalendarTab tenantSlug={effectiveTenant} />
           </CapsuleTabsContent>
           <CapsuleTabsContent value="bad-debt" className="mt-6">
             <BadDebtReliefTab tenantSlug={effectiveTenant} />

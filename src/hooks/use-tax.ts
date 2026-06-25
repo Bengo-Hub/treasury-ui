@@ -354,3 +354,21 @@ export function useClaimVATRelief() {
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to claim VAT relief'),
   });
 }
+
+export function useStatutoryRates(tenantSlug: string, category?: string) {
+  return useQuery({
+    queryKey: ['tax-statutory-rates', tenantSlug, category],
+    queryFn: () => taxApi.listStatutoryRates(tenantSlug, category),
+    enabled: !!tenantSlug,
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+export function useComplianceCalendar(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['tax-compliance-calendar', tenantSlug],
+    queryFn: () => taxApi.getComplianceCalendar(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: 30 * 60 * 1000,
+  });
+}
