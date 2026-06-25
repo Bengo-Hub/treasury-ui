@@ -10,14 +10,13 @@ import type { DocType } from '@/lib/documents/actions';
 export const MODULE_LABEL: Record<string, string> = {
   invoice: 'Invoice',
   expense: 'Expense',
-  bill: 'Bill (Payable)',
+  payout: 'Payout',
+  journal_entry: 'Journal Entry',
+  budget: 'Budget',
+  vendor_bill: 'Vendor Bill',
   credit_note: 'Credit Note',
   debit_note: 'Debit Note',
-  payment: 'Payment',
   quotation: 'Quotation',
-  proforma_invoice: 'Proforma Invoice',
-  sales_order: 'Sales Order',
-  journal_entry: 'Journal Entry',
 };
 
 export const ROLE_OPTIONS: { value: string; label: string }[] = [
@@ -46,20 +45,26 @@ export function moduleForDocType(docType: DocType | string): ApprovalModule | un
     case 'expense':
       return 'expense';
     case 'bill':
-      return 'bill';
+    case 'vendor_bill':
+      return 'vendor_bill';
     case 'credit_note':
       return 'credit_note';
     case 'debit_note':
       return 'debit_note';
     case 'payment':
-      return 'payment';
+    case 'payout':
+      return 'payout';
     case 'quotation':
       return 'quotation';
+    case 'budget':
+      return 'budget';
+    case 'journal':
+    case 'journal_entry':
+      return 'journal_entry';
+    // proforma invoices are an invoice variant; sales orders have no treasury approval module.
     case 'proforma':
     case 'proforma_invoice':
-      return 'proforma_invoice';
-    case 'sales_order':
-      return 'sales_order';
+      return 'invoice';
     default:
       return undefined;
   }

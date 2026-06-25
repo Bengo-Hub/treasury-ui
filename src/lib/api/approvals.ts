@@ -15,17 +15,18 @@ import { apiClient } from './client';
 const BASE = '/api/v1';
 
 // Treasury document families that can require approval.
+// Canonical treasury approval modules — MUST match the treasury-api ApprovalRule.module enum
+// (treasuryApprovalModules) or rule creation fails enum validation.
 export type ApprovalModule =
   | 'invoice'
   | 'expense'
-  | 'bill'
+  | 'payout'
+  | 'journal_entry'
+  | 'budget'
+  | 'vendor_bill'
   | 'credit_note'
   | 'debit_note'
-  | 'payment'
-  | 'quotation'
-  | 'proforma_invoice'
-  | 'sales_order'
-  | 'journal_entry';
+  | 'quotation';
 
 export type ApprovalRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type ApprovalActionStatus = 'pending' | 'approved' | 'rejected' | 'skipped';
@@ -120,9 +121,12 @@ export const approvalsApi = {
     apiClient.post<ApprovalRequest>(`${base(tenant)}/approval-requests/${id}/reject`, { comment }),
 
   // Submit any document for approval (creates a request if a matching active rule exists).
+  // NB: the per-document submit lives on the document's OWN route family (e.g. /{tenant}/invoices/
+  // {id}/submit-for-approval), NOT under the /treasury/ approvals namespace which only carries the
+  // central approval-rules / approval-requests endpoints.
   submitForApproval: (tenant: string, module: ApprovalModule, objectId: string) =>
     apiClient.post<SubmitForApprovalResult>(
-      `${base(tenant)}/${MODULE_PATH[module]}/${objectId}/submit-for-approval`,
+      `${BASE}/${tenant}/${MODULE_PATH[module]}/${objectId}/submit-for-approval`,
       {},
     ),
 };
@@ -134,12 +138,11 @@ export const approvalsApi = {
 const MODULE_PATH: Record<ApprovalModule, string> = {
   invoice: 'invoices',
   expense: 'expenses',
-  bill: 'ap/bills',
+  payout: 'payouts',
+  journal_entry: 'ledger/journals',
+  budget: 'budgets',
+  vendor_bill: 'ap/bills',
   credit_note: 'credit-notes',
   debit_note: 'debit-notes',
-  payment: 'payments',
   quotation: 'quotations',
-  proforma_invoice: 'proforma-invoices',
-  sales_order: 'sales-orders',
-  journal_entry: 'ledger/journals',
 };
