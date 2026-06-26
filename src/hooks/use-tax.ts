@@ -306,6 +306,18 @@ export function useDeleteCAAsset(tenantSlug: string) {
   });
 }
 
+export function useUpdateCAAsset(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { ca_class_code?: string; method?: string; name?: string } }) =>
+      taxApi.updateCAAsset(tenantSlug, id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ca-assets', tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['ca-schedule', tenantSlug] });
+    },
+  });
+}
+
 export function useStructuringGuidance(tenantSlug: string, params?: { ebitda?: number; gross_interest?: number }) {
   return useQuery({
     queryKey: ['tax-structuring', tenantSlug, params?.ebitda, params?.gross_interest],

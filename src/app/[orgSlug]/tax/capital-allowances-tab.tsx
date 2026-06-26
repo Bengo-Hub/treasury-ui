@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useCapitalAllowanceSchedule, useCAAssets, useCreateCAAsset, useDeleteCAAsset } from '@/hooks/use-tax';
+import { useCapitalAllowanceSchedule, useCAAssets, useCreateCAAsset, useDeleteCAAsset, useUpdateCAAsset } from '@/hooks/use-tax';
 
 interface Props { tenantSlug: string }
 
@@ -22,6 +22,7 @@ export function CapitalAllowancesTab({ tenantSlug }: Props) {
   const { data: assetsData } = useCAAssets(tenantSlug);
   const createAsset = useCreateCAAsset(tenantSlug);
   const deleteAsset = useDeleteCAAsset(tenantSlug);
+  const updateAsset = useUpdateCAAsset(tenantSlug);
 
   const [name, setName] = useState('');
   const [cls, setCls] = useState('');
@@ -126,10 +127,37 @@ export function CapitalAllowancesTab({ tenantSlug }: Props) {
               </tr>
             </thead>
             <tbody>
-              {assetsData.assets.map((a) => (
+              {assetsData.assets.map((a) => {
+                const unclassified = a.ca_class_code === 'UNCLASSIFIED' || !a.ca_class_code;
+                return (
                 <tr key={a.id} className={`border-t ${a.disposed ? 'opacity-50' : ''}`}>
-                  <td className="px-3 py-2">{a.name}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{a.ca_class_code}</td>
+                  <td className="px-3 py-2">
+                    {a.name}
+                    {a.source_asset_id && (
+                      <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">from inventory</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground">
+                    {/* Auto-synced inventory assets land UNCLASSIFIED — let the user assign a KRA class inline. */}
+                    {unclassified ? (
+                      <select
+                        className={`${field} py-1 ${unclassified ? 'border-yellow-500/60' : ''}`}
+                        defaultValue=""
+                        disabled={updateAsset.isPending}
+                        onChange={(e) => {
+                          const code = e.target.value;
+                          if (!code) return;
+                          const isBuilding = code === 'CA_IBA' || code === 'CA_COMMERCIAL_BLDG';
+                          updateAsset.mutate({ id: a.id, body: { ca_class_code: code, method: isBuilding ? 'straight_line' : 'reducing_balance' } });
+                        }}
+                      >
+                        <option value="">Classify…</option>
+                        {classes.map((c) => <option key={c.code} value={c.code}>{c.name} ({Number(c.rate)}%)</option>)}
+                      </select>
+                    ) : (
+                      a.ca_class_code
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right">{money(a.cost)}</td>
                   <td className="px-3 py-2 text-right">{money(a.written_down_value)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{a.purchase_date?.slice(0, 10)}</td>
@@ -137,7 +165,8 @@ export function CapitalAllowancesTab({ tenantSlug }: Props) {
                     <button className="text-destructive hover:underline" onClick={() => deleteAsset.mutate(a.id)}>Remove</button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -494,6 +494,8 @@ export interface CAAsset {
   written_down_value: string;
   purchase_date: string;
   disposed: boolean;
+  /** Set when this row was auto-synced from the inventory asset register. */
+  source_asset_id?: string | null;
 }
 
 export interface CAClassOption {
@@ -519,6 +521,15 @@ export function createCAAsset(
 
 export function deleteCAAsset(tenantSlug: string, assetID: string): Promise<{ status: string }> {
   return apiClient.delete(`${BASE}/${tenantSlug}/tax/capital-allowances/assets/${assetID}`);
+}
+
+/** Reclassify an asset's KRA class/method — used to classify UNCLASSIFIED auto-synced rows. */
+export function updateCAAsset(
+  tenantSlug: string,
+  assetID: string,
+  body: { ca_class_code?: string; method?: string; name?: string },
+): Promise<CAAsset> {
+  return apiClient.patch(`${BASE}/${tenantSlug}/tax/capital-allowances/assets/${assetID}`, body);
 }
 
 // ---- Structuring guidance ----
