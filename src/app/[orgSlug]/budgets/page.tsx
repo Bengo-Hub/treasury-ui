@@ -8,6 +8,7 @@ import {
   useBudget,
   useCreateBudget,
   useApproveBudget,
+  useRecomputeBudgetActuals,
 } from '@/hooks/use-budgets';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { apiClient } from '@/lib/api/client';
@@ -19,6 +20,7 @@ import {
   ChevronRight,
   Loader2,
   Plus,
+  RefreshCw,
   Target,
   Trash2,
   TrendingUp,
@@ -47,6 +49,7 @@ export default function BudgetsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const approveMutation = useApproveBudget();
+  const recomputeMutation = useRecomputeBudgetActuals();
 
   return (
     <div className="p-6 space-y-6">
@@ -118,6 +121,15 @@ export default function BudgetsPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => recomputeMutation.mutate({ tenantSlug: effectiveTenant, budgetID: budget.id })}
+                            disabled={recomputeMutation.isPending}
+                            title="Recompute actuals from the ledger"
+                          >
+                            <RefreshCw className={`h-3.5 w-3.5 ${recomputeMutation.isPending ? 'animate-spin' : ''}`} />
+                          </Button>
                           {budget.status === 'draft' && (
                             <Button
                               size="sm"

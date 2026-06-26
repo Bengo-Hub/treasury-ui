@@ -31,6 +31,20 @@ export function useCreateBudget() {
   });
 }
 
+export function useRecomputeBudgetActuals() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, budgetID }: { tenantSlug: string; budgetID: string }) =>
+      budgetsApi.recomputeBudgetActuals(tenantSlug, budgetID),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['budgets', vars.tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['budget', vars.tenantSlug, vars.budgetID] });
+      toast.success('Budget actuals recomputed from the ledger');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to recompute actuals'),
+  });
+}
+
 export function useApproveBudget() {
   const qc = useQueryClient();
   return useMutation({

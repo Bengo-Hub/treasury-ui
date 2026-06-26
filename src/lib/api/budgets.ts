@@ -73,3 +73,11 @@ export function approveBudget(
 ): Promise<{ status: string }> {
   return apiClient.post(`${BASE}/${tenantSlug}/budgets/${budgetID}/approve`);
 }
+
+/** Recomputes each line's actual_amount from the posted ledger and returns the refreshed budget. */
+export function recomputeBudgetActuals(
+  tenantSlug: string,
+  budgetID: string,
+): Promise<Budget> {
+  return apiClient.post(`${BASE}/${tenantSlug}/budgets/${budgetID}/recompute-actuals`);
+}
