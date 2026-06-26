@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { BankAccountVerify } from '@/components/payments/bank-account-verify';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
@@ -77,6 +78,7 @@ function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
   const [form, setForm] = useState({
     account_name: '',
     bank_name: '',
+    bank_code: '',
     account_number: '',
     currency: 'KES',
   });
@@ -87,7 +89,7 @@ function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
     createMutation.mutate(form, {
       onSuccess: () => {
         setDialogOpen(false);
-        setForm({ account_name: '', bank_name: '', account_number: '', currency: 'KES' });
+        setForm({ account_name: '', bank_name: '', bank_code: '', account_number: '', currency: 'KES' });
       },
     });
   }
@@ -149,30 +151,17 @@ function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
           onClose={() => setDialogOpen(false)}
         >
           <div className="space-y-4">
-            <FormField label="Account Name" required>
-              <input
-                className={inputClasses}
-                placeholder="e.g. Operating Account"
-                value={form.account_name}
-                onChange={(e) => setForm((p) => ({ ...p, account_name: e.target.value }))}
-              />
-            </FormField>
-            <FormField label="Bank Name" required>
-              <input
-                className={inputClasses}
-                placeholder="e.g. KCB Bank"
-                value={form.bank_name}
-                onChange={(e) => setForm((p) => ({ ...p, bank_name: e.target.value }))}
-              />
-            </FormField>
-            <FormField label="Account Number" required>
-              <input
-                className={inputClasses}
-                placeholder="e.g. 1234567890"
-                value={form.account_number}
-                onChange={(e) => setForm((p) => ({ ...p, account_number: e.target.value }))}
-              />
-            </FormField>
+            {/* Verify the account against Paystack to auto-fill the account holder name. */}
+            <BankAccountVerify
+              tenantSlug={tenantSlug}
+              value={{
+                bank_name: form.bank_name,
+                bank_code: form.bank_code,
+                account_number: form.account_number,
+                account_name: form.account_name,
+              }}
+              onChange={(patch) => setForm((p) => ({ ...p, ...patch }))}
+            />
             <FormField label="Currency">
               <select
                 className={inputClasses}
