@@ -3,7 +3,7 @@
 import { Card } from '@/components/ui/base';
 import { StatCard } from '@/components/charts/StatCard';
 import { money } from '@/components/charts/chart-theme';
-import { useEtimsReconciliation, useImportEtimsTransactions, useVAAReconciliation } from '@/hooks/use-tax';
+import { useEtimsReconciliation, useImportEtimsTransactions, useVAAReconciliation, useImportedEtimsTxns } from '@/hooks/use-tax';
 import { AlertTriangle, CheckCircle2, DownloadCloud, Loader2, RefreshCw } from 'lucide-react';
 
 interface Props { tenantSlug: string }
@@ -17,8 +17,10 @@ interface Props { tenantSlug: string }
 export function EtimsSyncTab({ tenantSlug }: Props) {
   const { data, isLoading, isFetching, refetch } = useEtimsReconciliation(tenantSlug);
   const { data: vaa } = useVAAReconciliation(tenantSlug);
+  const { data: imported } = useImportedEtimsTxns(tenantSlug);
   const importTxns = useImportEtimsTransactions();
   const inSync = data?.in_sync;
+  const importedRows = imported?.items ?? [];
 
   return (
     <div className="space-y-6">
@@ -128,6 +130,47 @@ export function EtimsSyncTab({ tenantSlug }: Props) {
                     {r.source && <span className="text-muted-foreground">· {r.source}</span>}
                   </span>
                 ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Imported transactions from KRA */}
+          {importedRows.length > 0 && (
+            <Card className="p-4 space-y-3">
+              <h4 className="text-sm font-semibold">Imported from KRA ({importedRows.length})</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-muted-foreground">
+                    <tr className="border-b border-border">
+                      <th className="px-2 py-2 font-medium">Type</th>
+                      <th className="px-2 py-2 font-medium">Invoice</th>
+                      <th className="px-2 py-2 font-medium">Counterparty</th>
+                      <th className="px-2 py-2 font-medium">Date</th>
+                      <th className="px-2 py-2 font-medium text-right">Amount</th>
+                      <th className="px-2 py-2 font-medium text-right">VAT</th>
+                      <th className="px-2 py-2 font-medium">Matched</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importedRows.slice(0, 100).map((t) => (
+                      <tr key={t.id} className="border-b border-border/50 hover:bg-accent/5">
+                        <td className="px-2 py-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${t.direction === 'sale' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{t.direction}</span>
+                        </td>
+                        <td className="px-2 py-2 font-mono text-xs">{t.invc_no || t.rcpt_no || '—'}</td>
+                        <td className="px-2 py-2">{t.party_name || t.party_tin || '—'}</td>
+                        <td className="px-2 py-2 whitespace-nowrap text-muted-foreground">{t.doc_date || '—'}</td>
+                        <td className="px-2 py-2 text-right tabular-nums">{money(t.tot_amt)}</td>
+                        <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{money(t.tot_tax_amt)}</td>
+                        <td className="px-2 py-2">
+                          {t.matched
+                            ? <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-600"><CheckCircle2 className="h-3 w-3" />Matched</span>
+                            : <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </Card>
           )}
