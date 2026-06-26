@@ -47,6 +47,8 @@ export interface FiscalYearConfig {
   fy_start: string;
   /** Inclusive last date of the current fiscal year (YYYY-MM-DD). */
   fy_end: string;
+  /** Selectable presets (Calendar Jan-Dec, Government Jul-Jun) for quick-select. */
+  presets?: { key: string; label: string; start_month: number; start_day: number; description?: string }[];
 }
 
 /** Read the tenant's fiscal-year config + the derived current FY window. */

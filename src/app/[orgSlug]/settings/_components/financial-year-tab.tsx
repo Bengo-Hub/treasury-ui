@@ -70,6 +70,31 @@ export function FinancialYearTab({ tenantSlug }: { tenantSlug: string }) {
           reporting — it does not change existing reports yet.
         </p>
 
+        {data?.presets && data.presets.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <span className="text-xs font-semibold text-muted-foreground self-center">Quick select:</span>
+            {data.presets.map((p) => {
+              const active = startMonth === p.start_month && startDay === p.start_day;
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  title={p.description}
+                  onClick={() => {
+                    setStartMonth(p.start_month);
+                    setStartDay(p.start_day);
+                  }}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    active ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-accent/30'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <FormField label="Fiscal Year Starts In">
             <select
