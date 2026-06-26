@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { userHasPermission } from '@/lib/auth/permissions';
 import { useBranding } from '@/providers/branding-provider';
 import { useAuthStore } from '@/store/auth';
 import {
@@ -69,6 +70,14 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const logout = useAuthStore((s) => s.logout);
   const { tenant, getServiceTitle } = useBranding();
   const isPlatformOwner = user?.isPlatformOwner || user?.isSuperUser || orgSlug === 'codevertex';
+  // Audit History shows the ledger audit trail — gate on ledger view/manage (matches the backend
+  // route gate). Platform owners always see it.
+  const canViewAudit =
+    isPlatformOwner ||
+    userHasPermission(user as Parameters<typeof userHasPermission>[0], [
+      'treasury.ledger.view',
+      'treasury.ledger.manage',
+    ], 'or');
 
   const userName = (() => {
     if (!user) return 'Account';
@@ -235,12 +244,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           href: `/${orgSlug}/banking/reconciliation`,
           active: pathname.startsWith(`/${orgSlug}/banking`),
         },
-        {
-          label: 'Audit History',
-          icon: ShieldCheck,
-          href: `/${orgSlug}/accounting/audit-history`,
-          active: pathname.startsWith(`/${orgSlug}/accounting/audit-history`),
-        },
+        ...(canViewAudit
+          ? [
+              {
+                label: 'Audit History',
+                icon: ShieldCheck,
+                href: `/${orgSlug}/accounting/audit-history`,
+                active: pathname.startsWith(`/${orgSlug}/accounting/audit-history`),
+              },
+            ]
+          : []),
       ],
     },
     {

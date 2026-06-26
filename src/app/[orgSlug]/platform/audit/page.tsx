@@ -47,7 +47,8 @@ export default function AuditLogPage() {
     ...(resourceFilter !== 'all' ? { resource_type: resourceFilter } : {}),
   }), [dateRange, actionFilter, resourceFilter]);
 
-  const { data, isLoading, error } = useAuditLogs(queryParams);
+  // Platform-owner cross-tenant audit log: no tenant scoping (empty tenant + platform flag).
+  const { data, isLoading, error } = useAuditLogs('', true, queryParams);
   const list: AuditLogEntry[] = data?.audit_logs ?? [];
 
   const filtered = useMemo(() => {

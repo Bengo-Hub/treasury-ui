@@ -17,10 +17,13 @@ const actionColors: Record<string, string> = {
 
 export default function AuditHistoryPage() {
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  // Platform owner: optionally narrow to a selected tenant. Tenant user: always their own tenant.
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [search, setSearch] = useState('');
 
   const { data, isLoading, error } = useAuditLogs(
+    effectiveTenant,
+    isPlatformOwner,
     {
       resource_type: 'ledger',
       limit: 100,
