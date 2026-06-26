@@ -9,6 +9,9 @@ import {
   useValidateKRAPIN,
   useCheckTaxCompliance,
   useLookupKRAPINByID,
+  useCheckVATExemption,
+  useCheckITExemption,
+  useTaxServiceOffice,
   useTaxPositionEstimate,
 } from '@/hooks/use-tax';
 
@@ -37,8 +40,17 @@ export function TaxProfileTab({ tenantSlug }: Props) {
   const validatePIN = useValidateKRAPIN();
   const checkTCC = useCheckTaxCompliance();
   const lookupPIN = useLookupKRAPINByID();
+  const vatExm = useCheckVATExemption();
+  const itExm = useCheckITExemption();
+  const office = useTaxServiceOffice();
 
   const [pin, setPin] = useState('');
+  const [vatCert, setVatCert] = useState('');
+  const [itPin, setItPin] = useState('');
+  const [officePin, setOfficePin] = useState('');
+  const [vatRes, setVatRes] = useState<any>(null);
+  const [itRes, setItRes] = useState<any>(null);
+  const [officeRes, setOfficeRes] = useState<any>(null);
   const [tccNumber, setTccNumber] = useState('');
   const [pinResult, setPinResult] = useState<any>(null);
   const [tccResult, setTccResult] = useState<any>(null);
@@ -224,6 +236,63 @@ export function TaxProfileTab({ tenantSlug }: Props) {
             </p>
           </div>
         )}
+      </div>
+
+      {/* KRA verification tools — exemption & tax-office checks (GavaConnect) */}
+      <div className="rounded-lg border p-4 space-y-4">
+        <div>
+          <h3 className="font-semibold text-sm">KRA verification</h3>
+          <p className={label}>Verify a counterparty&apos;s exemption status or locate a taxpayer&apos;s KRA service office.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {/* VAT exemption */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium">VAT exemption</p>
+            <input className={field} placeholder="VAT exemption cert no." value={vatCert} onChange={(e) => setVatCert(e.target.value)} />
+            <button className="w-full rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
+              disabled={!vatCert || vatExm.isPending}
+              onClick={() => vatExm.mutate({ tenantSlug, value: vatCert }, { onSuccess: setVatRes })}>
+              {vatExm.isPending ? 'Checking…' : 'Check'}
+            </button>
+            {vatRes && (
+              <div className="rounded bg-muted p-2 text-xs">
+                {vatRes.response_status || vatRes.response_message || vatRes.errorMessage || 'No result'}
+                {vatRes.vatExemptionCertificateDetails?.cert_expiry_date && <div>Expires: {vatRes.vatExemptionCertificateDetails.cert_expiry_date}</div>}
+              </div>
+            )}
+          </div>
+          {/* IT exemption */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium">Income-tax exemption</p>
+            <input className={field} placeholder="KRA PIN" value={itPin} onChange={(e) => setItPin(e.target.value)} />
+            <button className="w-full rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
+              disabled={!itPin || itExm.isPending}
+              onClick={() => itExm.mutate({ tenantSlug, pin: itPin }, { onSuccess: setItRes })}>
+              {itExm.isPending ? 'Checking…' : 'Check'}
+            </button>
+            {itRes && (
+              <div className="rounded bg-muted p-2 text-xs">
+                {itRes.response_message || itRes.errorMessage || 'No result'}
+                {itRes.cert_no && <div>Cert: {itRes.cert_no} {itRes.cert_expiry_date ? `· exp ${itRes.cert_expiry_date}` : ''}</div>}
+              </div>
+            )}
+          </div>
+          {/* Tax service office */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium">Tax service office</p>
+            <input className={field} placeholder="KRA PIN" value={officePin} onChange={(e) => setOfficePin(e.target.value)} />
+            <button className="w-full rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
+              disabled={!officePin || office.isPending}
+              onClick={() => office.mutate({ tenantSlug, pin: officePin }, { onSuccess: setOfficeRes })}>
+              {office.isPending ? 'Looking up…' : 'Look up'}
+            </button>
+            {officeRes && (
+              <div className="rounded bg-muted p-2 text-xs">
+                {officeRes.STATIONDATA?.StationName || officeRes.Message || officeRes.errorMessage || 'No result'}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
