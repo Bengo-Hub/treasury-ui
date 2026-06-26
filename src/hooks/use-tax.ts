@@ -461,3 +461,24 @@ export function useImportedEtimsTxns(tenantSlug: string, direction?: string) {
     staleTime: 2 * 60 * 1000,
   });
 }
+
+export function useCheckVATExemption() {
+  return useMutation({
+    mutationFn: ({ tenantSlug, value }: { tenantSlug: string; value: string }) => taxApi.checkVATExemption(tenantSlug, value),
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'VAT exemption check failed'),
+  });
+}
+
+export function useCheckITExemption() {
+  return useMutation({
+    mutationFn: ({ tenantSlug, pin }: { tenantSlug: string; pin: string }) => taxApi.checkITExemption(tenantSlug, pin),
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'IT exemption check failed'),
+  });
+}
+
+export function useTaxServiceOffice() {
+  return useMutation({
+    mutationFn: ({ tenantSlug, pin }: { tenantSlug: string; pin: string }) => taxApi.getTaxServiceOffice(tenantSlug, pin),
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Office lookup failed'),
+  });
+}

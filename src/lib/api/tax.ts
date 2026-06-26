@@ -828,3 +828,17 @@ export function listImportedEtimsTxns(tenantSlug: string, direction?: string): P
   const q = direction ? `?direction=${encodeURIComponent(direction)}` : '';
   return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/imported${q}`);
 }
+
+// ---- KRA verification checkers (GavaConnect) ----
+
+export function checkVATExemption(tenantSlug: string, value: string): Promise<any> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/kra/exemption/vat`, { pin: value });
+}
+
+export function checkITExemption(tenantSlug: string, pin: string): Promise<any> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/kra/exemption/it`, { pin });
+}
+
+export function getTaxServiceOffice(tenantSlug: string, pin: string): Promise<any> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/kra/office/${encodeURIComponent(pin)}`);
+}
