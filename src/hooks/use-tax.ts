@@ -452,3 +452,12 @@ export function useDeleteWHVATCertificate() {
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to delete'),
   });
 }
+
+export function useImportedEtimsTxns(tenantSlug: string, direction?: string) {
+  return useQuery({
+    queryKey: ['tax-etims-imported', tenantSlug, direction],
+    queryFn: () => taxApi.listImportedEtimsTxns(tenantSlug, direction),
+    enabled: !!tenantSlug,
+    staleTime: 2 * 60 * 1000,
+  });
+}

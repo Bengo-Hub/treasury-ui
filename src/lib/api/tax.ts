@@ -806,3 +806,25 @@ export function createWHVATCertificate(tenantSlug: string, body: CreateWHVATRequ
 export function deleteWHVATCertificate(tenantSlug: string, certID: string): Promise<{ deleted: boolean }> {
   return apiClient.delete(`${BASE}/${tenantSlug}/tax/whvat/${certID}`);
 }
+
+// ---- imported eTIMS transactions list ----
+
+export interface EtimsImportedTxn {
+  id: string;
+  direction: 'sale' | 'purchase';
+  invc_no: number;
+  rcpt_no?: string;
+  party_tin?: string;
+  party_name?: string;
+  doc_date?: string;
+  tot_amt?: number | string;
+  tot_tax_amt?: number | string;
+  rcpt_ty_cd?: string;
+  matched: boolean;
+  imported_at: string;
+}
+
+export function listImportedEtimsTxns(tenantSlug: string, direction?: string): Promise<{ items: EtimsImportedTxn[]; total: number }> {
+  const q = direction ? `?direction=${encodeURIComponent(direction)}` : '';
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/imported${q}`);
+}
