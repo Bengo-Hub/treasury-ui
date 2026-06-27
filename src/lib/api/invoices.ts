@@ -571,6 +571,21 @@ export function getARAging(tenant: string): Promise<ARAgingReport> {
   return apiClient.get<ARAgingReport>(`${BASE}/${tenant}/ar/aging`);
 }
 
+export interface SyncCustomerToCRMResult {
+  crm_customer_id: string;
+  invoices_updated: number;
+  quotations_updated: number;
+}
+
+/** Upsert a doc-derived customer into the MarketFlow CRM (customer SoT) and back-link the
+ *  tenant's invoices/quotations to the resolved contact. Requires email or phone. */
+export function syncCustomerToCRM(
+  tenant: string,
+  body: { customer_name: string; email?: string; phone?: string },
+): Promise<SyncCustomerToCRMResult> {
+  return apiClient.post<SyncCustomerToCRMResult>(`${BASE}/${tenant}/ar/customers/sync-crm`, body);
+}
+
 // Per-customer running AR balances (the operational AR ledger — includes POS credit sales,
 // which create no invoice). The `id`/`crm_contact_id` is used to receive a repayment.
 export interface CustomerBalance {
