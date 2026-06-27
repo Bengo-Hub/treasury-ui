@@ -14,6 +14,7 @@ import {
   useTaxServiceOffice,
   useTaxPositionEstimate,
 } from '@/hooks/use-tax';
+import { formatDateRange } from '@/lib/utils/date';
 
 interface Props { tenantSlug: string }
 
@@ -88,7 +89,7 @@ export function TaxProfileTab({ tenantSlug }: Props) {
       {estimate && (estimate.vat_registered || estimate.tot_registered || estimate.obligations.length > 0) && (
         <div className="rounded-lg border p-4 space-y-3">
           <h3 className="font-semibold text-sm">
-            This period’s estimate <span className="font-normal text-muted-foreground">({estimate.period_start} → {estimate.period_end})</span>
+            This period’s estimate <span className="font-normal text-muted-foreground">({formatDateRange(estimate.period_start, estimate.period_end)})</span>
           </h3>
           {estimate.vat_registered && (
             <div className="grid grid-cols-3 gap-3 text-sm">

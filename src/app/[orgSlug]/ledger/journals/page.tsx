@@ -87,7 +87,9 @@ export default function JournalsPage() {
         </div>
       )}
 
-      {(!isPlatformOwner || tenantQueryParam) && (view === 'entries' ? (
+      {/* Always render the table (with its own empty state) using the resolved own-tenant
+          query by default — never a hint-only blank screen for the platform owner. */}
+      {view === 'entries' ? (
         <JournalEntriesList
           entries={filtered}
           isLoading={isLoading}
@@ -99,7 +101,7 @@ export default function JournalsPage() {
         />
       ) : (
         <TrialBalanceView tenantSlug={effectiveTenant} />
-      ))}
+      )}
 
       <CreateJournalDialog
         open={createOpen}

@@ -21,6 +21,7 @@ import { useSyncCustomerToCRM } from '@/hooks/use-invoices';
 import { useClients, type ClientRecord } from './use-clients';
 import { ClientDetail } from './ClientDetail';
 import { ReceivePaymentModal } from './ReceivePaymentModal';
+import { SyncToCrmDialog } from './SyncToCrmDialog';
 
 interface ClientsManagerProps {
   /** Tenant identifier (orgSlug or UUID) whose clients to manage. */
@@ -44,23 +45,33 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [statementClient, setStatementClient] = useState<{ id: string; name: string } | null>(null);
   const [payTarget, setPayTarget] = useState<CustomerBalance | null>(null);
   const [syncingKey, setSyncingKey] = useState<string | null>(null);
+  const [syncDialogClient, setSyncDialogClient] = useState<ClientRecord | null>(null);
   const syncCrm = useSyncCustomerToCRM(tenant);
 
-  // Sync a doc-only client (not yet in the CRM) into MarketFlow (customer SoT) + back-link docs.
-  const handleSyncToCRM = (c: ClientRecord) => {
-    if (!c.email && !c.phone) {
-      toast.error('Add an email or phone on the customer before syncing to the CRM.');
-      return;
-    }
+  // Run the actual sync mutation with the resolved contact details.
+  const performSync = (c: ClientRecord, email?: string, phone?: string) => {
     setSyncingKey(c.key);
     syncCrm.mutate(
-      { customer_name: c.name, email: c.email || undefined, phone: c.phone || undefined },
+      { customer_name: c.name, email: email || undefined, phone: phone || undefined },
       {
-        onSuccess: (r) => toast.success(`${c.name} synced to CRM · linked ${r.invoices_updated} invoice(s)`),
+        onSuccess: (r) => {
+          toast.success(`${c.name} synced to CRM · linked ${r.invoices_updated} invoice(s)`);
+          setSyncDialogClient(null);
+        },
         onError: () => toast.error('Failed to sync to CRM.'),
         onSettled: () => setSyncingKey(null),
       },
     );
+  };
+
+  // Sync a doc-only client (not yet in the CRM) into MarketFlow (customer SoT) + back-link docs.
+  // With email/phone already on file, sync directly; otherwise prompt for contact details.
+  const handleSyncToCRM = (c: ClientRecord) => {
+    if (!c.email && !c.phone) {
+      setSyncDialogClient(c);
+      return;
+    }
+    performSync(c, c.email, c.phone);
   };
 
   const outstanding = useMemo(
@@ -216,7 +227,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                         variant="outline"
                         size="sm"
                         disabled={syncingKey === c.key}
-                        title={!c.email && !c.phone ? 'Add an email or phone to sync to CRM' : 'Sync this client to the CRM'}
+                        title="Sync this client to the CRM"
                         onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           handleSyncToCRM(c);
@@ -263,6 +274,17 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
           tenant={tenant}
           entityId={statementClient.id}
           name={statementClient.name}
+        />
+      )}
+
+      {syncDialogClient && (
+        <SyncToCrmDialog
+          name={syncDialogClient.name}
+          defaultEmail={syncDialogClient.email}
+          defaultPhone={syncDialogClient.phone}
+          pending={syncingKey === syncDialogClient.key}
+          onConfirm={({ email, phone }) => performSync(syncDialogClient, email, phone)}
+          onClose={() => setSyncDialogClient(null)}
         />
       )}
     </div>

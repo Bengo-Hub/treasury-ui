@@ -1,6 +1,7 @@
 'use client';
 
 import { useDeductionsSummary } from '@/hooks/use-tax';
+import { formatDateRange } from '@/lib/utils/date';
 
 interface Props { tenantSlug: string }
 
@@ -25,7 +26,7 @@ export function DeductionsTab({ tenantSlug }: Props) {
     <div className="space-y-6">
       <div className="rounded-lg border p-4 space-y-3">
         <h3 className="font-semibold text-sm">
-          Deductible expenses <span className="font-normal text-muted-foreground">({data.period_start} → {data.period_end})</span>
+          Deductible expenses <span className="font-normal text-muted-foreground">({formatDateRange(data.period_start, data.period_end)})</span>
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
           <div><span className={label}>Deductible (eTIMS-validated)</span><div className="font-medium text-primary">{money(data.deductible_amount)}</div></div>

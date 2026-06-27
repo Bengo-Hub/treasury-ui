@@ -35,6 +35,17 @@ export interface ClientRecord {
   fromCRM: boolean;
 }
 
+/**
+ * Canonical AR invoice types — ONLY these count toward a client's Total Invoiced /
+ * Outstanding. Mirrors treasury-api `arpa.ARInvoiceTypes`. The Invoice table holds many
+ * other document types (delivery_challan/delivery_note, proforma(_invoice), sales_order,
+ * quotation, payment_receipt, pos_receipt, credit_note, debit_note, subscription, …) which
+ * must NOT be summed as receivables — otherwise a client whose invoice also has a delivery
+ * note shows a doubled figure.
+ */
+const AR_INVOICE_TYPES = new Set(['standard', 'tax', 'recurring', 'invoice']);
+const isARInvoice = (inv: Invoice) => AR_INVOICE_TYPES.has((inv.invoice_type || 'standard').toLowerCase());
+
 /** Normalize a name for cross-source matching (case/whitespace-insensitive). */
 const normName = (s?: string | null) => (s ?? '').trim().toLowerCase();
 const crmName = (c: CRMContact) =>
@@ -79,11 +90,15 @@ export function useClients(tenant: string) {
       const name = inv.customer_name || 'Unknown Customer';
       const crmId = inv.crm_customer_id || inv.customer_id;
       const key = crmId || normName(name) || name;
-      const amount = parseFloat(inv.total_amount ?? '0') || 0;
-      const paid = inv.status === 'paid' ? amount : 0;
+      // Only TRUE invoices contribute to the AR/Outstanding figures. Other doc types
+      // (delivery notes, proforma, quotations, …) may still surface the client but are
+      // never summed into Total Invoiced / Outstanding (avoids the doubling bug).
+      const isAR = isARInvoice(inv);
+      const amount = isAR ? parseFloat(inv.total_amount ?? '0') || 0 : 0;
+      const paid = isAR && inv.status === 'paid' ? amount : 0;
       const existing = map.get(key);
       if (existing) {
-        existing.invoiceCount += 1;
+        if (isAR) existing.invoiceCount += 1;
         existing.totalAmount += amount;
         existing.paidAmount += paid;
         if (!existing.customerId && crmId) existing.customerId = crmId;
@@ -99,7 +114,7 @@ export function useClients(tenant: string) {
           totalAmount: amount,
           paidAmount: paid,
           outstanding: 0,
-          invoiceCount: 1,
+          invoiceCount: isAR ? 1 : 0,
           currency: inv.currency || 'KES',
           lastInvoiceDate: inv.created_at,
           customerId: crmId,
