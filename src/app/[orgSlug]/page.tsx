@@ -22,15 +22,22 @@ import { Banknote, CheckCircle2, Activity, Users, Loader2 } from 'lucide-react';
  * dashboard; platform owners get the cross-tenant overview.
  */
 export default function DashboardPage() {
-  const { tenantPathId, tenantIdsParam, isPlatformOwner } = useResolvedTenant();
+  const { tenantPathId, tenantQueryParam, tenantIdsParam, isPlatformOwner, isAllTenants, orgSlug } =
+    useResolvedTenant();
   const [rangeKey, setRangeKey] = useState<RangeKey>('30d');
   const { from, to } = rangeFor(rangeKey);
 
-  if (isPlatformOwner) {
+  // Platform owner: only the explicit "All Tenants" selection shows the cross-tenant
+  // aggregate. By default the owner sees their OWN treasury dashboard, like any tenant.
+  if (isPlatformOwner && isAllTenants) {
     return <PlatformDashboard from={from} to={to} tenantIds={tenantIdsParam || undefined} rangeKey={rangeKey} onRange={setRangeKey} />;
   }
 
-  if (!tenantPathId) {
+  // Own-tenant view: for a platform owner this is the selected tenant (drill-down) or
+  // their own org (codevertex) by default; for a regular tenant it's their URL slug.
+  const dashTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
+
+  if (!dashTenant) {
     return (
       <div className="flex items-center gap-2 p-8 text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading…
@@ -43,22 +50,22 @@ export default function DashboardPage() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <BooksBalancedBadge tenant={tenantPathId} />
+          <BooksBalancedBadge tenant={dashTenant} />
         </div>
         <RangePicker value={rangeKey} onChange={setRangeKey} />
       </header>
 
-      <KpiCards tenant={tenantPathId} from={from} to={to} />
-      <FinancialPerformanceChart tenant={tenantPathId} from={from} to={to} />
-      <ReceivablesPayables tenant={tenantPathId} />
-      <MoneyFlow tenant={tenantPathId} from={from} to={to} />
+      <KpiCards tenant={dashTenant} from={from} to={to} />
+      <FinancialPerformanceChart tenant={dashTenant} from={from} to={to} />
+      <ReceivablesPayables tenant={dashTenant} />
+      <MoneyFlow tenant={dashTenant} from={from} to={to} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <ExpenseBreakdown tenant={tenantPathId} from={from} to={to} />
+          <ExpenseBreakdown tenant={dashTenant} from={from} to={to} />
         </div>
         <div className="space-y-4">
-          <ComplianceSnapshot tenant={tenantPathId} />
-          <TopCustomers tenant={tenantPathId} />
+          <ComplianceSnapshot tenant={dashTenant} />
+          <TopCustomers tenant={dashTenant} />
         </div>
       </div>
     </div>

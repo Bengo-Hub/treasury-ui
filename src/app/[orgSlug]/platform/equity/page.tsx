@@ -49,10 +49,10 @@ import {
     Shield,
     TrendingUp,
     Users,
-    Wallet,
     X,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
+import { PaystackBalanceCard } from '@/components/platform/PaystackBalanceCard';
 import { type ReactNode, useEffect, useState } from 'react';
 
 const SERVICE_OPTIONS = [
@@ -128,8 +128,6 @@ export default function EquityManagementPage() {
 
     const holders = holdersData?.holders ?? [];
     const summary = summaryData;
-    const paystackBalance = balanceData ? Number(balanceData.balance) : null;
-    const paystackCurrency = balanceData?.currency ?? 'KES';
 
     const isSuperAdmin = user?.isPlatformOwner || user?.isSuperUser;
 
@@ -350,34 +348,11 @@ export default function EquityManagementPage() {
 
                 {/* Sidebar — Paystack balance (the payout-schedule projection lives in the Payout Schedule tab) */}
                 <div className="space-y-6">
-                    <Card className="border-none shadow-xl shadow-black/5">
-                        <CardHeader className="bg-transparent border-none">
-                            <h3 className="font-bold flex items-center gap-2">
-                                <Wallet className="h-4 w-4 text-primary" />
-                                Paystack Balance
-                            </h3>
-                        </CardHeader>
-                        <CardContent className="space-y-4 pt-0">
-                            <div className="p-4 rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/20">
-                                <p className="text-xs opacity-70 mb-1">Available for Payouts</p>
-                                {loadingBalance ? (
-                                    <div className="h-9 w-40 bg-primary-foreground/10 animate-pulse rounded-md" />
-                                ) : paystackBalance !== null ? (
-                                    <p className="text-3xl font-black">{paystackCurrency} {paystackBalance.toLocaleString()}</p>
-                                ) : (
-                                    <p className="text-sm opacity-70">Unable to fetch balance</p>
-                                )}
-                                {!loadingBalance && Number((balanceData as { pending_balance?: number } | undefined)?.pending_balance ?? 0) > 0 && (
-                                    <p className="text-xs opacity-80 mt-2">
-                                        + {paystackCurrency} {Number((balanceData as { pending_balance?: number }).pending_balance).toLocaleString()} pending settlement
-                                    </p>
-                                )}
-                            </div>
-                            <Button variant="ghost" className="w-full text-xs text-muted-foreground h-8" onClick={() => window.open('https://dashboard.paystack.com', '_blank')}>
-                                View on Paystack <ExternalLink className="h-3 w-3 ml-2" />
-                            </Button>
-                        </CardContent>
-                    </Card>
+                    <PaystackBalanceCard
+                        balance={balanceData}
+                        loading={loadingBalance}
+                        className="border-none shadow-xl shadow-black/5"
+                    />
                 </div>
             </div>
                 </TabsContent>
@@ -1571,14 +1546,6 @@ function FrequencyConfigModal({
                 </form>
             </DialogContent>
         </Dialog>
-    );
-}
-
-function ExternalLink({ className }: { className?: string }) {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-        </svg>
     );
 }
 

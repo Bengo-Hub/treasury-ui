@@ -38,11 +38,13 @@ interface Options {
  * Returns normalized rows + the per-row tenant resolver used to target row actions.
  */
 export function useDocumentListSource(opts: Options) {
-  const { tenantPathId, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  const { tenantPathId, isPlatformOwner, isAllTenants, tenantQueryParam, orgSlug } = useResolvedTenant();
+  // Default (no selection) resolves to the platform owner's OWN tenant — NOT the aggregate.
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
   // Never-empty tenant for create/edit/sub-features (defaults to the platform owner's org).
   const docTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
-  const isAggregate = isPlatformOwner && !tenantQueryParam;
+  // Aggregate only when the platform owner explicitly picks "All Tenants".
+  const isAggregate = isPlatformOwner && isAllTenants;
   const [scope, setScope] = useState<PlatformInvoiceScope>('all');
 
   const status = opts.status !== 'all' ? opts.status : undefined;

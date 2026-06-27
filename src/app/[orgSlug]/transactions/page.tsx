@@ -58,9 +58,14 @@ function defaultDateRange(): { from: string; to: string } {
 
 export default function TransactionsPage() {
   const user = useAuthStore((s) => s.user);
-  const { tenantPathId, tenantIdsParam, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
-  // Receipt generation uses the resolved tenant: platform admins need a tenant selected.
-  const receiptTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  const { tenantPathId, tenantIdsParam, isPlatformOwner, isAllTenants, tenantQueryParam, orgSlug } = useResolvedTenant();
+  // Aggregate only when the platform owner explicitly picks "All Tenants".
+  const isAggregate = isPlatformOwner && isAllTenants;
+  // Own-tenant scope: selected tenant (drill-down) or the owner's org by default.
+  const txnTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
+  // Receipt generation uses the resolved tenant: own org by default, or the drilled-in tenant.
+  // (Empty in the explicit All-Tenants aggregate, where a tenant must be picked first.)
+  const receiptTenant = isAggregate ? (tenantQueryParam ?? '') : txnTenant;
   // Tenant UUID for the ?tenantId= query param on generate-receipt.
   // Platform owners pass the selected tenant UUID so the backend resolves cross-tenant correctly.
   // Regular tenants pass their own UUID (from JWT) to bypass slug→UUID lookup.
@@ -96,12 +101,12 @@ export default function TransactionsPage() {
     ...(serviceFilter !== 'all' ? { source_service: serviceFilter } : {}),
   }), [dateRange, statusFilter, typeFilter, serviceFilter]);
 
-  const platformResult = usePlatformTransactions(isPlatformOwner ? platformParams : undefined);
-  const tenantResult = useTransactions(tenantPathId, tenantParams, !isPlatformOwner && !!tenantPathId);
+  const platformResult = usePlatformTransactions(isAggregate ? platformParams : undefined);
+  const tenantResult = useTransactions(txnTenant, tenantParams, !isAggregate && !!txnTenant);
 
-  const isLoading = isPlatformOwner ? platformResult.isLoading : tenantResult.isLoading;
-  const error = isPlatformOwner ? platformResult.error : tenantResult.error;
-  const list: TransactionItem[] = isPlatformOwner
+  const isLoading = isAggregate ? platformResult.isLoading : tenantResult.isLoading;
+  const error = isAggregate ? platformResult.error : tenantResult.error;
+  const list: TransactionItem[] = isAggregate
     ? (platformResult.data?.data ?? [])
     : (tenantResult.data?.transactions ?? []);
 
@@ -130,7 +135,7 @@ export default function TransactionsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
           <p className="text-muted-foreground mt-1">
-            {isPlatformOwner
+            {isAggregate
               ? 'All payment transactions across all tenants and gateways.'
               : 'View and filter all payment transactions across gateways.'}
           </p>
@@ -139,7 +144,7 @@ export default function TransactionsPage() {
           variant="outline"
           className="gap-2"
           onClick={() => {
-            if (isPlatformOwner) {
+            if (isAggregate) {
               const url = getTransactionsExportURL(
                 dateRange.from, dateRange.to,
                 statusFilter !== 'all' ? statusFilter : undefined,
@@ -147,8 +152,8 @@ export default function TransactionsPage() {
                 tenantIdsParam || undefined,
               );
               window.open(url, '_blank');
-            } else if (tenantPathId) {
-              exportTransactionsCSV(tenantPathId, tenantParams);
+            } else if (txnTenant) {
+              exportTransactionsCSV(txnTenant, tenantParams);
             }
           }}
         >

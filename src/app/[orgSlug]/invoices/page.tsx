@@ -75,13 +75,14 @@ export default function InvoicesPage() {
   const router = useRouter();
   const params = useParams();
   const orgSlug = params.orgSlug as string;
-  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  const { tenantPathId, isPlatformOwner, isAllTenants, tenantQueryParam } = useResolvedTenant();
+  // Default (no selection) resolves to the platform owner's OWN tenant — NOT the aggregate.
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
-  // Aggregate (all-tenants) mode: a platform owner who has NOT narrowed to a single
-  // tenant sees invoices across every tenant — including platform-level subscription
-  // invoices — via the dedicated /platform/invoices endpoint.
-  const isAggregate = isPlatformOwner && !tenantQueryParam;
+  // Aggregate (all-tenants) mode: only when the platform owner EXPLICITLY selects
+  // "All Tenants" — invoices across every tenant (incl. platform-level subscription
+  // invoices) via the dedicated /platform/invoices endpoint.
+  const isAggregate = isPlatformOwner && isAllTenants;
 
   // The tenant-specific tabs (suggested, clients, scanned, payments, reports) and the
   // create/bulk flows always need a single tenant. For a platform owner with no tenant
