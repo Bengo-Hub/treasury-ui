@@ -45,7 +45,8 @@ export function TenantFilter({ className }: { className?: string }) {
   const session = useAuthStore((s) => s.session);
   const isPlatformOwner = orgSlug === 'codevertex' || user?.isPlatformOwner;
 
-  const { selectedTenants, toggleTenant, clearTenants } = useTenantFilterStore();
+  const { selectedTenants, toggleTenant, clearTenants, selectAllTenants, allTenants } =
+    useTenantFilterStore();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
@@ -69,9 +70,12 @@ export function TenantFilter({ className }: { className?: string }) {
 
   const count = selectedTenants.length;
   const isSelected = (id: string) => selectedTenants.some((t) => t.id === id);
+  // Default (no specific selection + not aggregate) = the platform owner's OWN tenant.
+  const isOwnDefault = count === 0 && !allTenants;
 
   let label: string;
-  if (count === 0) label = 'All Tenants';
+  if (allTenants) label = 'All Tenants';
+  else if (isOwnDefault) label = 'My Treasury';
   else if (count === 1) label = selectedTenants[0].name;
   else label = `${count} tenants`;
 
@@ -86,12 +90,12 @@ export function TenantFilter({ className }: { className?: string }) {
       >
         <Building2 className="size-4 text-muted-foreground shrink-0" />
         <span className="truncate flex-1 text-left">{label}</span>
-        {count > 0 && (
+        {!isOwnDefault && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); clearTenants(); }}
             className="p-0.5 rounded hover:bg-muted-foreground/20"
-            aria-label="Clear filter"
+            aria-label="Reset to my treasury"
           >
             <X className="size-3" />
           </button>
@@ -114,16 +118,29 @@ export function TenantFilter({ className }: { className?: string }) {
               />
             </div>
 
-            {/* "All Tenants" option */}
+            {/* Default: the platform owner's OWN treasury (codevertex) */}
             <button
               type="button"
               onClick={() => { clearTenants(); setOpen(false); setSearch(''); }}
               className={cn(
                 'flex items-center gap-2 w-full text-left px-3 py-2.5 text-sm font-medium hover:bg-muted transition-colors',
-                count === 0 && 'bg-primary/10 text-primary',
+                isOwnDefault && 'bg-primary/10 text-primary',
               )}
             >
-              {count === 0 ? <Check className="size-3.5 shrink-0" /> : <span className="size-3.5 shrink-0" />}
+              {isOwnDefault ? <Check className="size-3.5 shrink-0" /> : <span className="size-3.5 shrink-0" />}
+              My Treasury
+            </button>
+
+            {/* Explicit cross-tenant aggregate */}
+            <button
+              type="button"
+              onClick={() => { selectAllTenants(); setOpen(false); setSearch(''); }}
+              className={cn(
+                'flex items-center gap-2 w-full text-left px-3 py-2.5 text-sm font-medium hover:bg-muted transition-colors border-b border-border',
+                allTenants && 'bg-primary/10 text-primary',
+              )}
+            >
+              {allTenants ? <Check className="size-3.5 shrink-0" /> : <span className="size-3.5 shrink-0" />}
               All Tenants
             </button>
 

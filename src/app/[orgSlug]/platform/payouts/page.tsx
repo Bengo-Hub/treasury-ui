@@ -103,9 +103,12 @@ export default function PlatformPayoutsPage() {
     }
   };
 
-  const netBalance = Number(balanceData?.balance ?? 0);
-  const pendingBalance = Number(balanceData?.pending_balance ?? 0);
+  const netBalance = Number(balanceData?.available ?? balanceData?.balance ?? 0);
+  const pendingBalance = Number(balanceData?.pending ?? balanceData?.pending_balance ?? 0);
   const currency = balanceData?.currency ?? 'KES';
+  // Per-tenant payable the platform collected on behalf — shown only when the API returns it.
+  const hasOwed = balanceData?.owed_to_tenants !== undefined && balanceData?.owed_to_tenants !== null;
+  const owedToTenants = Number(balanceData?.owed_to_tenants ?? 0);
 
   return (
     <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -138,10 +141,20 @@ export default function PlatformPayoutsPage() {
               </div>
             )}
             <p className="text-slate-400 text-sm font-medium">Available for tenant settlements</p>
-            {!loadingBalance && pendingBalance > 0 && (
-              <div className="mt-4 pt-4 border-t border-slate-700/60 flex items-center justify-between">
-                <span className="text-slate-400 text-sm">Pending settlement</span>
-                <span className="text-amber-300 font-semibold">{formatCurrency(pendingBalance, currency)}</span>
+            {!loadingBalance && (pendingBalance > 0 || hasOwed) && (
+              <div className="mt-4 pt-4 border-t border-slate-700/60 space-y-2">
+                {pendingBalance > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-sm">Pending settlement</span>
+                    <span className="text-amber-300 font-semibold">{formatCurrency(pendingBalance, currency)}</span>
+                  </div>
+                )}
+                {hasOwed && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-sm">Owed to tenants</span>
+                    <span className="text-rose-300 font-semibold">{formatCurrency(owedToTenants, currency)}</span>
+                  </div>
+                )}
               </div>
             )}
             <p className="text-slate-500 text-xs mt-2">

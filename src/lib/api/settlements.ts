@@ -162,6 +162,12 @@ export interface PlatformBalance {
     balance: number;
     ledger_balance?: number;
     pending_balance?: number; // collected but not yet settled (Paystack T+1)
+    /** Available for payouts (alias for balance; present once the API splits the figures). */
+    available?: number;
+    /** In-settlement funds not yet available (alias for pending_balance). */
+    pending?: number;
+    /** Per-tenant payable the platform collected on behalf of tenants (settlements owed). */
+    owed_to_tenants?: number;
 }
 
 /** Get current Paystack platform balance. (superuser) */

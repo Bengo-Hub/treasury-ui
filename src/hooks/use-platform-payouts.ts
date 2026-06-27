@@ -26,6 +26,12 @@ export interface PlatformBalance {
   ledger_balance?: number | string;
   /** Collected but not yet settled into the available balance (Paystack T+1). */
   pending_balance?: number | string;
+  /** Available for payouts (alias for balance; present once the API splits the figures). */
+  available?: number | string;
+  /** In-settlement funds not yet available (alias for pending_balance). */
+  pending?: number | string;
+  /** Per-tenant payable the platform collected on behalf of tenants (settlements owed). */
+  owed_to_tenants?: number | string;
 }
 
 export function usePlatformBanks(country = 'kenya') {
