@@ -13,7 +13,7 @@ export function TopCustomers({ tenant }: Props) {
     .map((r) => ({ name: r.entity_name || 'Unknown', total: Number(r.total) }))
     .filter((r) => r.total > 0)
     .sort((a, b) => b.total - a.total)
-    .slice(0, 6);
+    .slice(0, 20);
   const max = rows[0]?.total ?? 1;
 
   return (
@@ -24,7 +24,7 @@ export function TopCustomers({ tenant }: Props) {
       ) : rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">No outstanding customer balances.</p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
           {rows.map((r, i) => (
             <div key={i} className="space-y-1">
               <div className="flex items-center justify-between text-sm">
