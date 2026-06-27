@@ -18,6 +18,7 @@ import {
   getARAging,
   getCustomerBalances,
   recordCustomerPayment,
+  syncCustomerToCRM,
   getQuotation,
   getQuotationGraph,
   getQuotationStats,
@@ -214,6 +215,22 @@ export function useRecordCustomerPayment(tenant: string) {
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+    },
+  });
+}
+
+// Sync a doc-derived customer into the CRM (marketflow SoT) + back-link their docs.
+// Refreshes invoices (now crm-linked), AR balances/aging, and the CRM contact list.
+export function useSyncCustomerToCRM(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { customer_name: string; email?: string; phone?: string }) =>
+      syncCustomerToCRM(tenant, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['crm-contacts'] });
     },
   });
 }
