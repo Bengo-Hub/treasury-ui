@@ -33,6 +33,40 @@ function parseGateways(param: string | null): GatewayType[] {
   return allowed;
 }
 
+// Reference types that represent a NON-PHYSICAL / online-only purchase where
+// Cash-on-Delivery makes no sense (there is nothing to deliver). cod is excluded
+// for these both client-side here AND at the API (which is told the reference
+// type via the `?reference_type=` query param below). hotspot/ISP captive
+// purchases are the motivating case (Issue: cod offered + perpetual spinner).
+const NON_PHYSICAL_REF_TYPES = new Set([
+  'subscription',
+  'card_setup',
+  'renewal',
+  'addon_purchase',
+  'hotspot',
+  'hotspot_package',
+  'isp',
+  'isp_package',
+  'pppoe',
+  'voucher',
+  'data_bundle',
+  'airtime',
+  'wallet_topup',
+  'payment',
+]);
+
+function isNonPhysicalRefType(refType: string): boolean {
+  return NON_PHYSICAL_REF_TYPES.has(refType.trim().toLowerCase());
+}
+
+// Append the reference_type to a gateways URL so treasury-api can exclude cod at
+// the source for non-physical contexts. Safe to call on any gateways URL.
+function withRefType(url: string, refType: string): string {
+  if (!refType) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}reference_type=${encodeURIComponent(refType)}`;
+}
+
 function gatewaysUrlFromInitiateUrl(initiateUrl: string): string | null {
   // initiate_url: https://treasury.example.com/api/v1/pay/{tenantUUID}/intents/{intentID}/initiate
   // gateways URL: https://treasury.example.com/api/v1/pay/{tenantUUID}/gateways
@@ -190,14 +224,29 @@ function PayPageContent() {
         return;
       }
 
+      const refType = d.reference_type ?? '';
       try {
-        const r = await fetch(gwUrl);
+        // Forward the reference_type so treasury-api can exclude cod at the source
+        // for non-physical purchases (hotspot/ISP/subscription/etc.).
+        // Bound the request so a hung/unreachable endpoint can never leave the
+        // page stuck on the "Loading payment options…" spinner forever — on
+        // timeout we fall into the catch below and render a clear error state.
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 12000);
+        let r: Response;
+        try {
+          r = await fetch(withRefType(gwUrl, refType), { signal: ctrl.signal });
+        } finally {
+          clearTimeout(to);
+        }
         if (!r.ok) throw new Error(`gateways ${r.status}`);
         const data = await r.json();
         let list = parseGateways((data.gateways as string[])?.join(',') ?? '');
-        // COD is not applicable for subscription or card-setup contexts — filter it out.
-        const refType = d.reference_type ?? '';
-        if (refType === 'subscription' || refType === 'card_setup' || refType === 'renewal' || refType === 'addon_purchase') {
+        // COD is not applicable for non-physical contexts (subscription, card
+        // setup, hotspot/ISP packages, vouchers, top-ups, …) — there is nothing
+        // to deliver. Filter it out client-side too as defense-in-depth in case
+        // an older API still returns it.
+        if (isNonPhysicalRefType(refType)) {
           list = list.filter((g) => g !== 'cod');
         }
         // Apply explicit allowlist from URL param (allowedMethods prop on TreasuryPaymentModal).
