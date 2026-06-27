@@ -27,8 +27,9 @@ const voucherLabels: Record<string, string> = {
 };
 
 export default function VouchersPage() {
-  const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  const { tenantPathId, tenantQueryParam, isPlatformOwner, orgSlug } = useResolvedTenant();
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter] = useState('all');
@@ -90,12 +91,12 @@ export default function VouchersPage() {
         </div>
       </div>
 
-      {isPlatformOwner && !tenantQueryParam ? (
-        <div className="rounded-2xl border border-dashed border-border bg-accent/10 px-6 py-10 text-center text-sm text-muted-foreground">
-          Select a tenant to view their voucher book and posting workflow.
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-2xl border border-dashed border-border bg-accent/10 px-6 py-2.5 text-center text-xs text-muted-foreground">
+          Showing your own organization&apos;s voucher book. Drill into a tenant via the filter above to view theirs.
         </div>
-      ) : (
-        <>
+      )}
+      <>
           <div className="grid gap-4 md:grid-cols-3">
             <Card className="border-primary/10 bg-primary/5">
               <CardContent className="p-4">
@@ -194,7 +195,6 @@ export default function VouchersPage() {
             </CardContent>
           </Card>
         </>
-      )}
 
       <CreateVoucherDialog open={createOpen} onOpenChange={setCreateOpen} tenantSlug={effectiveTenant} />
     </div>

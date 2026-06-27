@@ -29,8 +29,9 @@ import { toast } from 'sonner';
 export default function SettingsPage() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
-  const { tenantPathId } = useResolvedTenant();
-  const tenantSlug = tenantPathId || orgSlug;
+  const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const tenantSlug = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : (tenantPathId || orgSlug);
 
   const { data: settingsData, isLoading } = useSettings(tenantSlug);
   const updateSetting = useUpdateSetting(tenantSlug);

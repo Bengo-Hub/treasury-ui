@@ -248,8 +248,9 @@ function FiscalContext({ ctx }: { ctx: ReportFiscalContext | undefined }) {
 }
 
 export default function ReportsPage() {
-  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  const { tenantPathId, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
   const [tab, setTab] = useState('pl');
   const defaults = getDefaultRange();
   const [basis, setBasis] = useState<BasisState>({
@@ -271,11 +272,12 @@ export default function ReportsPage() {
         <p className="text-muted-foreground mt-1">View financial statements and summaries.</p>
       </div>
 
-      {isPlatformOwner && !tenantQueryParam ? (
-        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
-          Select a tenant from the filter above to view their financial reports.
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-2.5 text-center text-xs text-muted-foreground print-hidden">
+          Showing your own organization&apos;s financial reports. Drill into a tenant via the filter above to view theirs.
         </div>
-      ) : (
+      )}
+      {(
         <>
           <ReportingBasis tenantSlug={effectiveTenant} state={basis} setState={setBasis} />
 
@@ -309,7 +311,6 @@ export default function ReportsPage() {
     </div>
   );
 }
-
 // ---- Period-label helpers ----
 
 /**

@@ -275,8 +275,9 @@ function DocTypeCard({ tenant, docType }: { tenant: string; docType: DocType }) 
 export default function DocumentNumberingPage() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
-  const { tenantPathId } = useResolvedTenant();
-  const tenant = tenantPathId || orgSlug;
+  const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const tenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : (tenantPathId || orgSlug);
 
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-6">

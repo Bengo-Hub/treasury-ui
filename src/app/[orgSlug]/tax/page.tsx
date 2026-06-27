@@ -98,8 +98,9 @@ function EtimsUpgradePrompt() {
 }
 
 export default function TaxPage() {
-  const { tenantPathId, isPlatformOwner, tenantQueryParam } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  const { tenantPathId, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
   const [tab, setTab] = useState('codes');
   const { hasFeature, isLoading: subLoading } = useSubscription();
 
@@ -118,11 +119,12 @@ export default function TaxPage() {
         </div>
       </div>
 
-      {isPlatformOwner && !tenantQueryParam ? (
-        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
-          Select a tenant from the filter above to view their tax & compliance data.
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-2.5 text-center text-xs text-muted-foreground">
+          Showing your own organization&apos;s tax &amp; compliance data. Drill into a tenant via the filter above to view theirs.
         </div>
-      ) : (
+      )}
+      {(
         <CapsuleTabs value={tab} onValueChange={setTab}>
           <CapsuleTabsList>
             <CapsuleTabsTrigger value="profile"><ShieldCheck className="h-4 w-4" />Compliance</CapsuleTabsTrigger>

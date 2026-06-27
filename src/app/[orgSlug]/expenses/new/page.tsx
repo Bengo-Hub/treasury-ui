@@ -66,7 +66,8 @@ export default function NewExpenditurePage() {
   const router = useRouter();
   const orgSlug = (params?.orgSlug as string) ?? '';
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
   const createExpense = useCreateExpense(effectiveTenant);
   const { data: vendorData } = useVendors(effectiveTenant, undefined, !!effectiveTenant);
@@ -113,8 +114,6 @@ export default function NewExpenditurePage() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [errors, setErrors] = useState<{ vendor?: string; amount?: string }>({});
 
-  const noTenant = isPlatformOwner && !tenantQueryParam;
-
   const onSelectVendor = (value: string) => {
     if (value === ADD_NEW) {
       router.push(`/${orgSlug}/vendors/new`);
@@ -140,10 +139,6 @@ export default function NewExpenditurePage() {
     if (!amount.trim() || !(parseFloat(amount) > 0)) nextErrors.amount = 'Enter the amount spent';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return null;
-    if (noTenant) {
-      toast.error('Select a tenant before creating an expenditure.');
-      return null;
-    }
 
     const amt = parseFloat(amount) || 0;
     const rate = TAX_TYPES.find((t) => t.value === taxType)?.rate ?? 0;
@@ -211,9 +206,9 @@ export default function NewExpenditurePage() {
 
       <Stepper />
 
-      {noTenant && (
-        <div className="rounded-lg border border-border bg-accent/5 px-4 py-4 text-center text-sm text-muted-foreground">
-          Select a tenant from the filter above before creating an expenditure.
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-2.5 text-center text-xs text-muted-foreground">
+          Creating for your own organization. Drill into a tenant via the filter above to create for theirs.
         </div>
       )}
 
@@ -326,14 +321,14 @@ export default function NewExpenditurePage() {
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <Button variant="primary" onClick={() => save('list')} disabled={createExpense.isPending || noTenant}>
+            <Button variant="primary" onClick={() => save('list')} disabled={createExpense.isPending}>
               {createExpense.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save &amp; Continue
             </Button>
-            <Button variant="outline" onClick={() => save('new')} disabled={createExpense.isPending || noTenant}>
+            <Button variant="outline" onClick={() => save('new')} disabled={createExpense.isPending}>
               Save &amp; Create New
             </Button>
-            <Button variant="outline" onClick={() => save('payment')} disabled={createExpense.isPending || noTenant}>
+            <Button variant="outline" onClick={() => save('payment')} disabled={createExpense.isPending}>
               Save &amp; Mark Payment
             </Button>
           </div>

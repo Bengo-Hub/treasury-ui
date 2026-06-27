@@ -32,8 +32,9 @@ const emptyForm: CostCenterFormData = {
 export default function CostCentersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeOnly, setActiveOnly] = useState(false);
-  const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  const { tenantPathId, tenantQueryParam, isPlatformOwner, orgSlug } = useResolvedTenant();
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
   // Dialogs
   const [createOpen, setCreateOpen] = useState(false);
@@ -127,8 +128,8 @@ export default function CostCentersPage() {
       </div>
 
       {isPlatformOwner && !tenantQueryParam && (
-        <div className="rounded-lg border border-border bg-accent/5 px-4 py-10 text-center text-sm text-muted-foreground">
-          Select a tenant from the filter above to view their cost centers.
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-2.5 text-center text-xs text-muted-foreground">
+          Showing your own organization&apos;s cost centers. Drill into a tenant via the filter above to view theirs.
         </div>
       )}
 
