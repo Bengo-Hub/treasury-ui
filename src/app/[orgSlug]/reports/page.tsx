@@ -15,6 +15,7 @@ import { useAccountingPeriods } from '@/hooks/use-ledger';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
+import { formatDate, formatDateRange } from '@/lib/utils/date';
 import type {
   FinancialReport,
   ReportFiscalContext,
@@ -49,10 +50,10 @@ function getDefaultRange() {
 const num = (v: string | number | undefined) => Number(v ?? 0);
 
 function rangeLabel(from: string, to: string) {
-  return `For the period ${from} to ${to}`;
+  return `For the period ${formatDateRange(from, to)}`;
 }
 function asOfLabel(asOf: string) {
-  return `As at ${asOf}`;
+  return `As at ${formatDate(asOf)}`;
 }
 
 const inputClasses =
@@ -680,9 +681,9 @@ function BalanceSheetTab({
   const sections = data ? sectionsToTable(data.sections) : [];
   const asOf = data?.as_of ?? params.as_of ?? '';
   const periodLabel = data?.period
-    ? `Accounting period: ${data.period}${asOf ? ` (as at ${asOf})` : ''}`
+    ? `Accounting period: ${data.period}${asOf ? ` (as at ${formatDate(asOf)})` : ''}`
     : data?.fiscal_year
-      ? `Fiscal year ${data.fiscal_year}${asOf ? ` (as at ${asOf})` : ''}`
+      ? `Fiscal year ${data.fiscal_year}${asOf ? ` (as at ${formatDate(asOf)})` : ''}`
       : asOfLabel(asOf);
   const suffix = windowSuffix(data, asOf, undefined) || asOf;
 
