@@ -45,6 +45,14 @@ export function MpesaPaymentModal({
   const [loading, setLoading] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
   const [error, setError] = useState('');
+  // After the STK push is sent we DON'T silently close (which dropped the user
+  // back to the bare gateway list with no feedback — it looked like nothing
+  // happened until the outer 10-min countdown). Instead we show a "check your
+  // phone / waiting for confirmation" state. The actual confirmation for the
+  // captive buy flow is owned by the embedder's own same-origin status poll
+  // (treasury-ui has no public GET-intent endpoint to poll itself), so this
+  // state is purely the user-facing "in progress" feedback.
+  const [stkSent, setStkSent] = useState(false);
 
   const formatAmount = () =>
     details.amount > 0
@@ -85,7 +93,10 @@ export function MpesaPaymentModal({
           onSuccess?.(data);
           setError('');
           setLoading(false);
-          onClose();
+          // Keep the modal open in a "waiting for confirmation" state instead of
+          // closing back to the gateway list. The embedder's same-origin poll
+          // flips the parent page to success once the M-Pesa webhook lands.
+          setStkSent(true);
           return;
         }
         onSuccess?.(data);
@@ -136,6 +147,47 @@ export function MpesaPaymentModal({
       setManualLoading(false);
     }
   };
+
+  if (stkSent) {
+    return (
+      <PaymentModal title="Pay with M-Pesa" onClose={onClose} embed={embed}>
+        <div className="space-y-4 text-center py-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">Check your phone</p>
+            <p className="text-xs text-muted-foreground">
+              We sent an M-Pesa prompt to {normalizePhone(phone)}. Enter your PIN to
+              complete the payment — this page updates automatically once it&apos;s confirmed.
+            </p>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { setStkSent(false); setError(''); }}
+              disabled={loading}
+            >
+              Resend / change number
+            </Button>
+            {details.initiate_url && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                onClick={handlePaidAtTill}
+                disabled={manualLoading}
+              >
+                {manualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
+                I already paid at till / agent
+              </Button>
+            )}
+          </div>
+        </div>
+      </PaymentModal>
+    );
+  }
 
   return (
     <PaymentModal title="Pay with M-Pesa" onClose={onClose} embed={embed}>
