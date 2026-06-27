@@ -35,7 +35,9 @@ const inputClasses =
 
 export default function ReconciliationPage() {
   const [activeTab, setActiveTab] = useState('bank-accounts');
-  const { tenantPathId } = useResolvedTenant();
+  const { tenantPathId, tenantQueryParam, isPlatformOwner, orgSlug } = useResolvedTenant();
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const tenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
   return (
     <div className="p-6 space-y-6">
@@ -54,13 +56,13 @@ export default function ReconciliationPage() {
         </TabsList>
 
         <TabsContent value="bank-accounts" className="mt-6">
-          <BankAccountsTab tenantSlug={tenantPathId} />
+          <BankAccountsTab tenantSlug={tenant} />
         </TabsContent>
         <TabsContent value="statements" className="mt-6">
-          <StatementsTab tenantSlug={tenantPathId} />
+          <StatementsTab tenantSlug={tenant} />
         </TabsContent>
         <TabsContent value="reconcile" className="mt-6">
-          <ReconcileTab tenantSlug={tenantPathId} />
+          <ReconcileTab tenantSlug={tenant} />
         </TabsContent>
       </Tabs>
     </div>

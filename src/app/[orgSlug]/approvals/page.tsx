@@ -24,8 +24,9 @@ const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'error'
 type Tab = 'inbox' | 'pending' | 'all';
 
 export default function ApprovalsInboxPage() {
-  const { orgSlug, tenantPathId } = useResolvedTenant();
-  const tenant = tenantPathId ?? orgSlug;
+  const { orgSlug, tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const tenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : (tenantPathId ?? orgSlug);
   const [tab, setTab] = useState<Tab>('inbox');
   const [selected, setSelected] = useState<ApprovalRequest | null>(null);
   const [comment, setComment] = useState('');

@@ -17,7 +17,8 @@ const actionColors: Record<string, string> = {
 
 export default function AuditHistoryPage() {
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
-  // Platform owner: optionally narrow to a selected tenant. Tenant user: always their own tenant.
+  // Platform owner: load the cross-tenant (platform) audit trail by default; narrow to the
+  // selected tenant on drill-down. Tenant user: always their own tenant.
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
   const [search, setSearch] = useState('');
 
@@ -28,7 +29,7 @@ export default function AuditHistoryPage() {
       resource_type: 'ledger',
       limit: 100,
     },
-    !!effectiveTenant,
+    isPlatformOwner || !!effectiveTenant,
   );
 
   const logs = data?.audit_logs ?? [];

@@ -25,8 +25,9 @@ interface StepDraft {
 const DEFAULT_STEP: StepDraft = { name: 'Manager sign-off', approver_role: 'finance_manager' };
 
 export default function ApprovalRulesPage() {
-  const { orgSlug, tenantPathId } = useResolvedTenant();
-  const tenant = tenantPathId ?? orgSlug;
+  const { orgSlug, tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const tenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : (tenantPathId ?? orgSlug);
 
   const { data: rules, isLoading, isError, refetch } = useApprovalRules(tenant);
   const createRule = useCreateApprovalRule(tenant);

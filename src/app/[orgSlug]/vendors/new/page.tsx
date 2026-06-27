@@ -74,7 +74,8 @@ export default function AddVendorPage() {
   const router = useRouter();
   const orgSlug = (params?.orgSlug as string) ?? '';
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
   const createVendor = useCreateVendor(effectiveTenant);
   const { data: currencyData } = useSupportedCurrencies();
@@ -138,18 +139,12 @@ export default function AddVendorPage() {
     setLogoPreview(URL.createObjectURL(file));
   };
 
-  const noTenant = isPlatformOwner && !tenantQueryParam;
-
   const handleSave = () => {
     const nextErrors: typeof errors = {};
     if (!businessName.trim()) nextErrors.businessName = 'Business name is required';
     if (!country.trim()) nextErrors.country = 'Country is required';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
-    if (noTenant) {
-      toast.error('Select a tenant before adding a vendor.');
-      return;
-    }
 
     const clean = <T extends Record<string, unknown>>(obj: T): T | undefined => {
       const entries = Object.entries(obj).filter(([, v]) => v !== '' && v !== undefined && v !== null);
@@ -218,9 +213,9 @@ export default function AddVendorPage() {
         </div>
       </div>
 
-      {noTenant && (
-        <div className="rounded-lg border border-border bg-accent/5 px-4 py-4 text-center text-sm text-muted-foreground">
-          Select a tenant from the filter above before adding a vendor.
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-2.5 text-center text-xs text-muted-foreground">
+          Adding to your own organization. Drill into a tenant via the filter above to add to theirs.
         </div>
       )}
 
@@ -421,7 +416,7 @@ export default function AddVendorPage() {
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <Button variant="primary" onClick={handleSave} disabled={createVendor.isPending || noTenant}>
+            <Button variant="primary" onClick={handleSave} disabled={createVendor.isPending}>
               {createVendor.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save
             </Button>

@@ -57,7 +57,8 @@ export default function NewPurchasePage() {
   const router = useRouter();
   const orgSlug = (params?.orgSlug as string) ?? '';
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? '') : tenantPathId;
+  // Default to the platform owner's own tenant (codevertex); drill-down overrides.
+  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
   const { data: brand } = useOrgBranding(orgSlug);
   const orgName = brand?.orgName || brand?.name || 'Your Business';
@@ -124,8 +125,6 @@ export default function NewPurchasePage() {
     if (file) setLogoPreview(URL.createObjectURL(file));
   };
 
-  const noTenant = isPlatformOwner && !tenantQueryParam;
-
   const buildPayload = (): CreateBillRequest | null => {
     const nextErrors: typeof errors = {};
     if (!vendorId) nextErrors.vendor = 'Select a vendor';
@@ -133,10 +132,6 @@ export default function NewPurchasePage() {
     if (validLines.length === 0) nextErrors.lines = 'Add at least one item with a description and quantity';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return null;
-    if (noTenant) {
-      toast.error('Select a tenant before creating a purchase.');
-      return null;
-    }
 
     return {
       vendor_id: vendorId || undefined,
@@ -213,9 +208,9 @@ export default function NewPurchasePage() {
         </span>
       </div>
 
-      {noTenant && (
-        <div className="rounded-lg border border-border bg-accent/5 px-4 py-4 text-center text-sm text-muted-foreground">
-          Select a tenant from the filter above before creating a purchase.
+      {isPlatformOwner && !tenantQueryParam && (
+        <div className="rounded-lg border border-border bg-accent/5 px-4 py-2.5 text-center text-xs text-muted-foreground">
+          Creating for your own organization. Drill into a tenant via the filter above to create for theirs.
         </div>
       )}
 
@@ -472,11 +467,11 @@ export default function NewPurchasePage() {
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <Button variant="primary" onClick={() => save('list')} disabled={createBill.isPending || noTenant}>
+            <Button variant="primary" onClick={() => save('list')} disabled={createBill.isPending}>
               {createBill.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save &amp; Continue
             </Button>
-            <Button variant="outline" onClick={() => save('new')} disabled={createBill.isPending || noTenant}>
+            <Button variant="outline" onClick={() => save('new')} disabled={createBill.isPending}>
               Save &amp; Create New
             </Button>
             <Button variant="ghost" onClick={() => router.push(`/${orgSlug}/bills`)} disabled={createBill.isPending}>
