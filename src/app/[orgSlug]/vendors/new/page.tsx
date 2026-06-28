@@ -65,7 +65,7 @@ export default function AddVendorPage() {
   const [country, setCountry] = useState('Kenya');
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => router.push(`/${orgSlug}/vendors`)}>
           <ArrowLeft className="h-5 w-5" />
@@ -84,7 +84,12 @@ export default function AddVendorPage() {
 
       <Card>
         <CardContent className="pt-6 space-y-6">
-          <FormField label="Country" required>
+          <div className="space-y-0.5">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Vendor Details</h3>
+            <p className="text-xs text-muted-foreground/70">Where the vendor is based and how to reach them.</p>
+          </div>
+
+          <FormField label="Country" required className="max-w-md">
             <Combobox
               options={COUNTRIES.map((c) => ({ value: c, label: c }))}
               value={country}
