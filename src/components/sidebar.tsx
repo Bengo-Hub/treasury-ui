@@ -259,6 +259,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           active: false,
         },
         {
+          label: 'General Ledger',
+          icon: BookOpen,
+          href: `/${orgSlug}/reports/general-ledger`,
+          active: pathname.startsWith(`/${orgSlug}/reports/general-ledger`),
+        },
+        {
           label: 'Accounting Periods',
           icon: CalendarRange,
           href: `/${orgSlug}/ledger/periods`,
@@ -298,6 +304,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: PieChart,
           href: `/${orgSlug}/reports`,
           active: pathname === `/${orgSlug}/reports`,
+        },
+        {
+          label: 'Receivables & Payables',
+          icon: Landmark,
+          href: `/${orgSlug}/reports/receivables-payables`,
+          active: pathname.startsWith(`/${orgSlug}/reports/receivables-payables`),
         },
         {
           label: 'Tax & Compliance',
