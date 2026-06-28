@@ -2,6 +2,7 @@
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { StatementDialog } from '@/components/statement-dialog';
+import { OpeningBalanceDialog } from '@/components/opening-balance-dialog';
 import type { CustomerBalance } from '@/lib/api/invoices';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
@@ -14,6 +15,7 @@ import {
   Mail,
   Search,
   User,
+  Wallet,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -43,6 +45,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [statementClient, setStatementClient] = useState<{ id: string; name: string } | null>(null);
+  const [openingClient, setOpeningClient] = useState<ClientRecord | null>(null);
   const [payTarget, setPayTarget] = useState<CustomerBalance | null>(null);
   const [syncingKey, setSyncingKey] = useState<string | null>(null);
   const [syncDialogClient, setSyncDialogClient] = useState<ClientRecord | null>(null);
@@ -241,6 +244,18 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                         Sync to CRM
                       </Button>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      title="Set this client's carried-in AR opening balance"
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        setOpeningClient(c);
+                      }}
+                    >
+                      <Wallet className="h-3.5 w-3.5 mr-1" />
+                      Opening Balance
+                    </Button>
                     {c.customerId && (
                       <Button
                         variant="outline"
@@ -274,6 +289,18 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
           tenant={tenant}
           entityId={statementClient.id}
           name={statementClient.name}
+        />
+      )}
+
+      {openingClient && (
+        <OpeningBalanceDialog
+          kind="customer"
+          open={!!openingClient}
+          onClose={() => setOpeningClient(null)}
+          tenant={tenant}
+          name={openingClient.name}
+          crmContactId={openingClient.customerId}
+          customerIdentifier={openingClient.name}
         />
       )}
 

@@ -3,10 +3,12 @@
  * Base path: /api/v1/{tenantIdOrSlug}
  *
  * Backed by internal/http/handlers/arpa.go:
- *   GET /{tenant}/ap/summary                      -> APSummary
- *   GET /{tenant}/ap/vendors                      -> pagination envelope of VendorBalance
- *   GET /{tenant}/ap/vendors/{vendorID}/statement -> VendorStatement
- *   GET /{tenant}/ar/customers/{contactID}/statement -> CustomerStatement
+ *   GET  /{tenant}/ap/summary                      -> APSummary
+ *   GET  /{tenant}/ap/vendors                      -> pagination envelope of VendorBalance
+ *   POST /{tenant}/ap/vendors                      -> upsert a vendor opening/advance balance
+ *   GET  /{tenant}/ap/vendors/{vendorID}/statement -> VendorStatement
+ *   POST /{tenant}/ar/customers/opening-balance    -> set a customer's carried-in AR balance
+ *   GET  /{tenant}/ar/customers/{contactID}/statement -> CustomerStatement
  */
 
 import { apiClient } from './client';
@@ -86,6 +88,34 @@ export interface StatementRange {
   to?: string;
 }
 
+/**
+ * Set a customer's carried-in AR opening balance (POST /ar/customers/opening-balance).
+ * Posts DR 1400 (Accounts Receivable) / CR 3200 (Opening Balance Equity). Identify the
+ * customer by `crm_contact_id` (preferred) or a free-form `customer_identifier`.
+ */
+export interface SetCustomerOpeningBalanceRequest {
+  crm_contact_id?: string;
+  customer_identifier?: string;
+  customer_name?: string;
+  opening_balance: string | number;
+  currency?: string;
+}
+
+/**
+ * Upsert a vendor's opening / advance balance (POST /ap/vendors). Posts DR 3200
+ * (Opening Balance Equity) / CR 2050 (Accounts Payable). Identify the vendor by
+ * `vendor_id` (UUID) or a free-form `vendor_identifier`.
+ */
+export interface UpsertVendorBalanceRequest {
+  vendor_id?: string;
+  vendor_identifier?: string;
+  vendor_name?: string;
+  opening_balance?: string | number;
+  advance_balance?: string | number;
+  payment_terms?: string;
+  currency?: string;
+}
+
 /** treasury-api list endpoints return a pagination envelope `{ data, total, page, limit }`. */
 interface Paginated<T> {
   data: T[];
@@ -127,4 +157,35 @@ export function getCustomerStatement(
     `${BASE}/${tenant}/ar/customers/${contactId}/statement`,
     range,
   );
+}
+
+/** Set a customer's carried-in AR opening balance (posts DR 1400 / CR 3200). */
+export function setCustomerOpeningBalance(
+  tenant: string,
+  body: SetCustomerOpeningBalanceRequest,
+): Promise<CustomerBalanceRow> {
+  return apiClient.post<CustomerBalanceRow>(
+    `${BASE}/${tenant}/ar/customers/opening-balance`,
+    body,
+  );
+}
+
+/** Upsert a vendor's opening / advance balance (posts DR 3200 / CR 2050). */
+export function upsertVendorBalance(
+  tenant: string,
+  body: UpsertVendorBalanceRequest,
+): Promise<VendorBalance> {
+  return apiClient.post<VendorBalance>(`${BASE}/${tenant}/ap/vendors`, body);
+}
+
+/** Minimal AR balance row returned by the opening-balance endpoint. */
+export interface CustomerBalanceRow {
+  id: string;
+  tenant_id: string;
+  crm_contact_id?: string;
+  customer_identifier?: string;
+  customer_name?: string;
+  balance_due: string;
+  currency: string;
+  updated_at: string;
 }
