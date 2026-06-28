@@ -54,6 +54,7 @@ export interface ListJournalEntriesParams {
   from?: string;
   to?: string;
   reference_type?: string;
+  reference_id?: string;
 }
 
 export interface TrialBalanceRow {
