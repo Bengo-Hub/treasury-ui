@@ -28,6 +28,7 @@ export interface PaymentAccount {
   bank_name: string;
   account_name: string;
   account_number: string;
+  bank_branch: string;
   branch_code: string;
   // Mobile money. Paybill takes BOTH a shortcode (paybill no.) and the account no.
   // payers quote as the reference; Till is a single buy-goods number.
@@ -41,7 +42,7 @@ export const EMPTY_PAYMENT_ACCOUNT: PaymentAccount = {
   business_name: '', tagline: '', building: '', street: '', city: '', po_box: '',
   postal_code: '', country: '', address: '', tax_pin: '', vat_registered: false,
   vat_registered_on: '', bank_name: '', account_name: '', account_number: '',
-  branch_code: '', mpesa_paybill: '', mpesa_paybill_account: '', mpesa_till: '',
+  bank_branch: '', branch_code: '', mpesa_paybill: '', mpesa_paybill_account: '', mpesa_till: '',
   instructions: '',
 };
 
@@ -134,7 +135,8 @@ export function PaymentAccountFields({ acct, onChange, showVat = false }: Paymen
         <p className={sectionLabel}>Bank Account</p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {field('Bank Name', 'bank_name', 'Equity Bank')}
-          {field('Branch / IBAN / Swift', 'branch_code')}
+          {field('Bank Branch', 'bank_branch', 'e.g. Westlands')}
+          {field('IBAN / Swift', 'branch_code')}
           {field('Account Name', 'account_name')}
           {field('Account Number', 'account_number')}
         </div>
