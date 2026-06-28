@@ -75,6 +75,30 @@ export function useUpdateEquitySchedule() {
     });
 }
 
+export function useEquityPolicy() {
+    return useQuery({
+        queryKey: ['equity-policy'],
+        queryFn: equityApi.getEquityPolicy,
+    });
+}
+
+export function useUpdateEquityPolicy() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (data: equityApi.UpdateEquityPolicyRequest) => equityApi.updateEquityPolicy(data),
+        onSuccess: () => {
+            // Refresh the policy plus everything whose projected payouts depend on it.
+            queryClient.invalidateQueries({ queryKey: ['equity-policy'] });
+            queryClient.invalidateQueries({ queryKey: ['equity-summary'] });
+            queryClient.invalidateQueries({ queryKey: ['equity-schedule'] });
+            toast.success('Platform retention updated');
+        },
+        onError: (error: any) => {
+            toast.error(error.message || 'Failed to update platform retention');
+        },
+    });
+}
+
 export function useRunEquityPayout() {
     const queryClient = useQueryClient();
     return useMutation({
