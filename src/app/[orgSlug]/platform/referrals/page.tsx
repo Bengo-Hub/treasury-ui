@@ -5,6 +5,7 @@ import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { RowActionMenu, type RowAction } from '@/components/ui/action-menu';
 import { HolderFormModal } from '@/components/platform/equity-holder-form';
 import { useEquityHolders, useCreateEquityHolder } from '@/hooks/use-equity';
 import { usePlatformTenants } from '@/hooks/use-platform-tenants';
@@ -36,7 +37,6 @@ import {
   ChevronDown,
   Gift,
   Loader2,
-  MoreVertical,
   Plus,
   Search,
   Users,
@@ -83,7 +83,6 @@ export default function ReferralsPage() {
   const [showCreateReferral, setShowCreateReferral] = useState(false);
   const [selectedReferralId, setSelectedReferralId] = useState<string | null>(null);
   const [showIssueReward, setShowIssueReward] = useState<string | null>(null);
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   const isPlatformOwner = user?.isPlatformOwner || user?.isSuperUser || orgSlug === 'codevertex';
 
@@ -185,43 +184,24 @@ export default function ReferralsPage() {
                             {formatDate(program.created_at)}
                           </td>
                           <td className="px-6 py-4">
-                            <div className="relative">
-                              <button
-                                type="button"
-                                onClick={() => setOpenMenu(openMenu === program.id ? null : program.id)}
-                                className="p-1 rounded hover:bg-accent"
-                              >
-                                <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                              </button>
-                              {openMenu === program.id && (
-                                <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-lg z-10 py-1 min-w-[140px]">
-                                  <button
-                                    type="button"
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-accent"
-                                    onClick={() => { setEditingProgram(program); setOpenMenu(null); }}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-accent"
-                                    onClick={() => {
-                                      updateProgram.mutate({ id: program.id, data: { is_active: !program.is_active } });
-                                      setOpenMenu(null);
-                                    }}
-                                  >
-                                    {program.is_active ? 'Deactivate' : 'Activate'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="w-full px-4 py-2 text-left text-sm text-destructive hover:bg-accent"
-                                    onClick={() => { deleteProgram.mutate(program.id); setOpenMenu(null); }}
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                            <RowActionMenu
+                              row={program}
+                              actions={[
+                                {
+                                  label: 'Edit',
+                                  onClick: (p) => setEditingProgram(p),
+                                },
+                                {
+                                  label: program.is_active ? 'Deactivate' : 'Activate',
+                                  onClick: (p) => updateProgram.mutate({ id: p.id, data: { is_active: !p.is_active } }),
+                                },
+                                {
+                                  label: 'Delete',
+                                  destructive: true,
+                                  onClick: (p) => deleteProgram.mutate(p.id),
+                                },
+                              ]}
+                            />
                           </td>
                         </tr>
                       ))}
@@ -292,89 +272,55 @@ export default function ReferralsPage() {
                             </td>
                             <td className="px-6 py-4 text-muted-foreground text-xs">{formatDate(referral.created_at)}</td>
                             <td className="px-6 py-4">
-                              <div className="relative">
-                                <button
-                                  type="button"
-                                  onClick={() => setOpenMenu(openMenu === referral.id ? null : referral.id)}
-                                  className="p-1 rounded hover:bg-accent"
-                                >
-                                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                                </button>
-                                {openMenu === referral.id && (
-                                  <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-lg z-10 py-1 min-w-[140px]">
-                                    <button
-                                      type="button"
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-accent"
-                                      onClick={() => {
-                                        updateReferral.mutate({ id: referral.id, data: { status: 'active' } });
-                                        setOpenMenu(null);
-                                      }}
-                                    >
-                                      Activate
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-accent"
-                                      onClick={() => {
-                                        updateReferral.mutate({ id: referral.id, data: { status: 'expired' } });
-                                        setOpenMenu(null);
-                                      }}
-                                    >
-                                      Expire
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="w-full px-4 py-2 text-left text-sm text-destructive hover:bg-accent"
-                                      onClick={() => {
-                                        updateReferral.mutate({ id: referral.id, data: { status: 'revoked' } });
-                                        setOpenMenu(null);
-                                      }}
-                                    >
-                                      Revoke
-                                    </button>
-                                    <div className="border-t border-border my-1" />
-                                    <button
-                                      type="button"
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-accent"
-                                      onClick={() => { setShowIssueReward(referral.id); setOpenMenu(null); }}
-                                    >
-                                      Issue Reward
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-accent"
-                                      onClick={() => { setSelectedReferralId(referral.id); setOpenMenu(null); }}
-                                    >
-                                      View Rewards
-                                    </button>
-                                    {(() => {
-                                      const prog = programs.find((p) => p.id === referral.program_id);
-                                      const canConvert = prog?.referral_type === 'type_b' && referral.status === 'active' && !referral.equity_holder_id;
-                                      if (referral.equity_holder_id) {
-                                        return (
-                                          <div className="px-4 py-2 text-xs text-muted-foreground border-t border-border mt-1">
-                                            ✓ Converted to equity holder
-                                          </div>
-                                        );
-                                      }
-                                      if (!canConvert) return null;
-                                      return (
-                                        <>
-                                          <div className="border-t border-border my-1" />
-                                          <button
-                                            type="button"
-                                            className="w-full px-4 py-2 text-left text-sm font-medium text-primary hover:bg-accent disabled:opacity-50"
-                                            disabled={convertToEquity.isPending}
-                                            onClick={() => { convertToEquity.mutate({ referralId: referral.id, data: {} }); setOpenMenu(null); }}
-                                          >
-                                            Convert to Equity →
-                                          </button>
-                                        </>
-                                      );
-                                    })()}
-                                  </div>
-                                )}
-                              </div>
+                              {(() => {
+                                // An equity referral (type_b, or already linked to an equity holder) is
+                                // paid its revenue share via the equity-holder allocation (its percentage
+                                // share against the referred tenant's revenue), shown on the Equity tab /
+                                // Preview Payouts. Issuing an issue-reward here too would double-pay, so we
+                                // hide "Issue Reward" for equity referrals. Type-A (compensation) referrals
+                                // keep the full Issue Reward action. This mirrors the backend 400 guard.
+                                const isEquityReferral =
+                                  program?.referral_type === 'type_b' || !!referral.equity_holder_id;
+                                const canConvert =
+                                  program?.referral_type === 'type_b' &&
+                                  referral.status === 'active' &&
+                                  !referral.equity_holder_id;
+
+                                const actions: RowAction<Referral>[] = [
+                                  {
+                                    label: 'Activate',
+                                    onClick: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'active' } }),
+                                  },
+                                  {
+                                    label: 'Expire',
+                                    onClick: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'expired' } }),
+                                  },
+                                  {
+                                    label: 'Revoke',
+                                    destructive: true,
+                                    onClick: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'revoked' } }),
+                                  },
+                                ];
+                                // Issue Reward only for non-equity (type_a compensation) referrals.
+                                if (!isEquityReferral) {
+                                  actions.push({
+                                    label: 'Issue Reward',
+                                    onClick: (rf) => setShowIssueReward(rf.id),
+                                  });
+                                }
+                                actions.push({
+                                  label: 'View Rewards',
+                                  onClick: (rf) => setSelectedReferralId(rf.id),
+                                });
+                                if (canConvert) {
+                                  actions.push({
+                                    label: 'Convert to Equity →',
+                                    disabled: () => convertToEquity.isPending,
+                                    onClick: (rf) => convertToEquity.mutate({ referralId: rf.id, data: {} }),
+                                  });
+                                }
+                                return <RowActionMenu row={referral} actions={actions} />;
+                              })()}
                             </td>
                           </tr>
                         );
