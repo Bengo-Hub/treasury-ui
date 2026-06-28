@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { userHasPermission } from '@/lib/auth/permissions';
 import { useBranding } from '@/providers/branding-provider';
 import { useAuthStore } from '@/store/auth';
+import { useSubscription } from '@/hooks/use-subscription';
 import {
   Banknote,
   BookOpen,
@@ -42,6 +43,8 @@ interface NavItem {
   icon: React.ElementType;
   href: string;
   active: boolean;
+  /** Subscription feature code required to see this item (exempt tenants always pass). */
+  feature?: string;
 }
 
 interface NavGroup {
@@ -49,12 +52,35 @@ interface NavGroup {
   icon: React.ElementType;
   children: NavItem[];
   defaultOpen?: boolean;
+  /** Subscription feature code required to see this whole group. */
+  feature?: string;
 }
 
 type NavEntry = NavItem | NavGroup;
 
 function isNavGroup(entry: NavEntry): entry is NavGroup {
   return 'children' in entry;
+}
+
+/**
+ * filterNavByFeature drops nav entries the tenant's plan doesn't include, mirroring the
+ * treasury-api feature gates (invoice_generation, ledger_posting, ar/ap_tracking,
+ * reconciliation, tax_codes). Exempt tenants pass everything (hasFeature handles that). A
+ * group is hidden once all its children are filtered out.
+ */
+function filterNavByFeature(entries: NavEntry[], hasFeature: (code: string) => boolean): NavEntry[] {
+  const out: NavEntry[] = [];
+  for (const e of entries) {
+    if (isNavGroup(e)) {
+      if (e.feature && !hasFeature(e.feature)) continue;
+      const children = e.children.filter((c) => !c.feature || hasFeature(c.feature));
+      if (children.length === 0) continue;
+      out.push({ ...e, children });
+    } else if (!e.feature || hasFeature(e.feature)) {
+      out.push(e);
+    }
+  }
+  return out;
 }
 
 interface SidebarProps {
@@ -69,6 +95,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const { tenant, getServiceTitle } = useBranding();
+  const { hasFeature } = useSubscription();
   const isPlatformOwner = user?.isPlatformOwner || user?.isSuperUser || orgSlug === 'codevertex';
   // Audit History shows the ledger audit trail — gate on ledger view/manage (matches the backend
   // route gate). Platform owners always see it.
@@ -121,6 +148,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     {
       label: 'Sales & Invoicing',
       icon: FileText,
+      feature: 'invoice_generation',
       children: [
         {
           label: 'Invoices',
@@ -169,12 +197,14 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: Users,
           href: `/${orgSlug}/customers`,
           active: pathname.startsWith(`/${orgSlug}/customers`),
+          feature: 'customer_management',
         },
       ],
     },
     {
       label: 'Purchases & Payables',
       icon: Briefcase,
+      feature: 'ap_tracking',
       children: [
         {
           label: 'Purchases & Bills',
@@ -187,6 +217,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: Users,
           href: `/${orgSlug}/vendors`,
           active: pathname.startsWith(`/${orgSlug}/vendors`),
+          feature: 'vendor_management',
         },
         {
           label: 'Debit Notes',
@@ -199,6 +230,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     {
       label: 'Accounting',
       icon: BookOpen,
+      feature: 'ledger_posting',
       children: [
         {
           label: 'Chart of Accounts',
@@ -243,6 +275,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: ClipboardCheck,
           href: `/${orgSlug}/banking/reconciliation`,
           active: pathname.startsWith(`/${orgSlug}/banking`),
+          feature: 'reconciliation',
         },
         ...(canViewAudit
           ? [
@@ -271,6 +304,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: Calculator,
           href: `/${orgSlug}/tax`,
           active: pathname.startsWith(`/${orgSlug}/tax`),
+          feature: 'tax_codes',
         },
         {
           label: 'Budgets',
@@ -379,7 +413,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-sidebar-foreground/25">
             Treasury
           </p>
-          <NavList items={tenantNav} onItemClick={onClose} pathname={pathname} />
+          <NavList items={filterNavByFeature(tenantNav, hasFeature)} onItemClick={onClose} pathname={pathname} />
         </div>
 
         {isPlatformOwner && (
