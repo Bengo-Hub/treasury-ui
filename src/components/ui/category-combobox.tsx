@@ -5,7 +5,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { useCreateCategory, useExpenseCategories } from '@/hooks/use-expenses';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, Loader2, Plus, Search } from 'lucide-react';
+import { Check, ChevronDown, Globe, Loader2, Plus, Search } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -64,7 +64,7 @@ export function CategoryCombobox({
     () =>
       (data?.categories ?? [])
         .filter((c) => c.is_active)
-        .map((c) => ({ value: c.id, label: c.name, hint: c.code })),
+        .map((c) => ({ value: c.id, label: c.name, hint: c.code, isGlobal: !!c.is_global })),
     [data],
   );
 
@@ -203,6 +203,14 @@ export function CategoryCombobox({
                         className={cn('h-3.5 w-3.5 shrink-0', isSelected ? 'opacity-100 text-primary' : 'opacity-0')}
                       />
                       <span className="flex-1 min-w-0 truncate">{opt.label}</span>
+                      {opt.isGlobal && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground shrink-0"
+                          title="Shared platform category"
+                        >
+                          <Globe className="h-2.5 w-2.5" /> Shared
+                        </span>
+                      )}
                       {opt.hint && (
                         <span className="text-muted-foreground font-mono text-xs shrink-0">{opt.hint}</span>
                       )}
