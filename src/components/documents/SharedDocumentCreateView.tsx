@@ -11,6 +11,7 @@ import type {
   CreateQuotationRequest, UpdateQuotationRequest,
 } from '@/lib/api/invoices';
 import { createCRMContact, crmContactDisplayName, type CRMContact } from '@/lib/api/crm';
+import { useOutletFilterStore } from '@/store/outlet-filter';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, Loader2, Search, UserPlus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -156,6 +157,11 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   const existingLoading = isQuotation ? qtLoading         : invLoading;
 
   const { data: brand, isLoading: brandLoading } = useOrgBranding(effectiveTenant);
+
+  // Originating outlet/branch (from the header OutletFilter). The selected branch flows to the
+  // backend as outlet_id so procure-to-order receives stock at the branch that made the sale.
+  // null = "All Outlets" (tenant-wide / HQ); regular staff are scoped automatically by the backend.
+  const selectedOutlet = useOutletFilterStore((s) => s.selectedOutlet);
 
   const [initialized, setInitialized] = useState(false);
   const [customerId, setCustomerId]   = useState<string | null>(null);
@@ -322,6 +328,13 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     };
     const metadata = Object.keys(mergedMeta).length ? mergedMeta : undefined;
 
+    // Originating outlet: prefer the header-selected branch; on edit fall back to the
+    // document's existing outlet so leaving the filter on "All Outlets" doesn't blank it.
+    const outletId =
+      selectedOutlet?.id ??
+      (isEdit ? (existing as { outlet_id?: string } | undefined)?.outlet_id : undefined) ??
+      undefined;
+
     if (isQuotation) {
       const base: CreateQuotationRequest = {
         customer_id:     customerId ?? undefined,
@@ -333,6 +346,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         currency:       form.currency,
         terms:          form.terms,
         notes:          form.notes,
+        outlet_id:      outletId,
         metadata,
         lines:          linePayload,
       };
@@ -352,6 +366,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         currency:       form.currency,
         terms:          form.terms,
         notes:          form.notes,
+        outlet_id:      outletId,
         metadata,
         lines:          linePayload,
         shipping_amount: addShipping && shippingAmount > 0 ? shippingAmount : undefined,
@@ -366,7 +381,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         );
       }
     }
-  }, [form, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, addShipping, shippingAmount, transport]);
+  }, [form, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, addShipping, shippingAmount, transport, selectedOutlet]);
 
   if (isEdit && existingLoading) {
     return (
