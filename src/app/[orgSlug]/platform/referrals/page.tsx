@@ -5,6 +5,8 @@ import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { HolderFormModal } from '@/components/platform/equity-holder-form';
+import { useEquityHolders, useCreateEquityHolder } from '@/hooks/use-equity';
 import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import {
   useReferralPrograms,
@@ -30,16 +32,18 @@ import type {
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
+  Award,
+  ChevronDown,
   Gift,
   Loader2,
   MoreVertical,
   Plus,
+  Search,
   Users,
-  Award,
   X,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const REWARD_TYPES = [
   { value: 'revenue_share', label: 'Revenue Share' },
@@ -692,6 +696,153 @@ function ProgramFormDialog({
 /* Referral Form Dialog                                                */
 /* ------------------------------------------------------------------ */
 
+/**
+ * HolderCombobox is a searchable single-select over existing equity holders with a sticky
+ * "+ Add Holder" footer that opens the shared Add/Edit Holder form inline. Creating a holder
+ * selects it immediately — mirroring the supplier-form "+Add vendor" UX. It links the referral
+ * to the holder at creation (the parent submits equity_holder_id).
+ */
+function HolderCombobox({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (holderId: string) => void;
+}) {
+  const { data: holdersData, isLoading } = useEquityHolders();
+  const createHolder = useCreateEquityHolder();
+  const holders = holdersData?.holders ?? [];
+
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [showAddHolder, setShowAddHolder] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      setQuery('');
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [open]);
+
+  const selected = holders.find((h) => h.id === value) ?? null;
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? holders.filter((h) => h.name.toLowerCase().includes(q) || (h.email ?? '').toLowerCase().includes(q))
+    : holders;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          'w-full flex items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 py-2 text-sm text-left min-h-[38px]',
+          open && 'ring-1 ring-ring',
+        )}
+      >
+        {selected ? (
+          <span className="flex-1 min-w-0 truncate">
+            {selected.name}
+            {selected.email && <span className="text-muted-foreground ml-2 text-xs">{selected.email}</span>}
+          </span>
+        ) : (
+          <span className="text-muted-foreground flex-1">Select an equity holder…</span>
+        )}
+        <span className="flex items-center gap-1 shrink-0">
+          {selected && (
+            <span
+              role="button"
+              tabIndex={-1}
+              aria-label="Clear"
+              onClick={(e) => { e.stopPropagation(); onChange(''); }}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-card shadow-lg">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search holders by name or email…"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto py-1">
+            {isLoading ? (
+              <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading holders…
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="px-3 py-3 text-sm text-muted-foreground">No equity holders match.</div>
+            ) : (
+              filtered.map((h) => {
+                const isSelected = h.id === value;
+                return (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => { onChange(h.id); setOpen(false); }}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-accent/50 transition-colors',
+                      isSelected && 'bg-accent/30',
+                    )}
+                  >
+                    <span className="flex-1 min-w-0 truncate">{h.name}</span>
+                    <span className="text-muted-foreground text-xs shrink-0">{h.percentage_share}%</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          {/* Sticky add-holder footer — opens the shared Add Holder form inline. */}
+          <div className="sticky bottom-0 border-t border-border bg-card p-1">
+            <button
+              type="button"
+              onClick={() => { setOpen(false); setShowAddHolder(true); }}
+              className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-primary hover:bg-accent/50 transition-colors"
+            >
+              <Plus className="h-4 w-4" /> Add Holder
+            </button>
+          </div>
+        </div>
+      )}
+
+      <HolderFormModal
+        title="Add holder"
+        open={showAddHolder}
+        initial={null}
+        onClose={() => setShowAddHolder(false)}
+        onSubmit={async (data) => {
+          const holder = await createHolder.mutateAsync(data);
+          // Select the newly created holder so the referral links to it at creation.
+          if (holder?.id) onChange(holder.id);
+          setShowAddHolder(false);
+        }}
+        isSubmitting={createHolder.isPending}
+      />
+    </div>
+  );
+}
+
 function ReferralFormDialog({
   programs,
   onClose,
@@ -706,8 +857,7 @@ function ReferralFormDialog({
   const activePrograms = programs.filter((p) => p.is_active);
   const [programId, setProgramId] = useState(activePrograms[0]?.id ?? '');
   const [referrerTenantId, setReferrerTenantId] = useState('');
-  const [referrerName, setReferrerName] = useState('');
-  const [referrerEmail, setReferrerEmail] = useState('');
+  const [equityHolderId, setEquityHolderId] = useState('');
   const [referredTenantId, setReferredTenantId] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -721,8 +871,8 @@ function ReferralFormDialog({
     hint: t.slug,
   }));
 
-  // Type-A needs a referrer tenant; Type-B needs an external referrer name.
-  const referrerReady = isTypeB ? !!referrerName.trim() : !!referrerTenantId;
+  // Type-B (equity) links to an equity holder; Type-A (compensation) needs a referring tenant.
+  const referrerReady = isTypeB ? !!equityHolderId : !!referrerTenantId;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -730,7 +880,7 @@ function ReferralFormDialog({
       program_id: programId,
       referred_tenant_id: referredTenantId,
       ...(isTypeB
-        ? { referrer_name: referrerName.trim(), referrer_email: referrerEmail.trim() || undefined }
+        ? { equity_holder_id: equityHolderId }
         : { referrer_tenant_id: referrerTenantId }),
       notes: notes || undefined,
     });
@@ -754,35 +904,22 @@ function ReferralFormDialog({
           {selectedProgram && (
             <p className="text-xs text-muted-foreground mt-1">
               {isTypeB
-                ? 'Type B — external referrer (becomes a revenue-share equity holder on conversion).'
-                : 'Type A — existing tenant referrer (rewarded with subscription credit).'}
+                ? 'Type B — Referral Equity: the referrer is an equity holder, linked and equity-active on create.'
+                : 'Type A — Referral Compensation: an existing tenant earns the reward (subscription credit).'}
             </p>
           )}
         </FormField>
 
         {isTypeB ? (
-          <>
-            <FormField label="Referrer Name" required description="External referrer (not a tenant) who earns equity.">
-              <input
-                type="text"
-                value={referrerName}
-                onChange={(e) => setReferrerName(e.target.value)}
-                placeholder="e.g. Jane Doe / Acme Partners Ltd"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              />
-            </FormField>
-            <FormField label="Referrer Email" description="Used for the equity holder & payout notifications.">
-              <input
-                type="email"
-                value={referrerEmail}
-                onChange={(e) => setReferrerEmail(e.target.value)}
-                placeholder="referrer@example.com"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              />
-            </FormField>
-          </>
+          <FormField
+            label="Equity Holder"
+            required
+            description="Search existing equity holders, or add a new one. The referral links to this holder on create — no separate conversion step."
+          >
+            <HolderCombobox value={equityHolderId} onChange={setEquityHolderId} />
+          </FormField>
         ) : (
-          <FormField label="Referrer Tenant" required description="The tenant making the referral.">
+          <FormField label="Referrer Tenant" required description="The tenant making the referral (earns the reward).">
             <Combobox
               options={tenantOptions}
               value={referrerTenantId}

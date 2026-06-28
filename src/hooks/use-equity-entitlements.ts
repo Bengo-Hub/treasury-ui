@@ -17,6 +17,7 @@ export function useCreateEntitlement(holderId: string) {
             equityApi.createEntitlement(holderId, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['equity-entitlements', holderId] });
+            queryClient.invalidateQueries({ queryKey: ['equity-summary'] });
             toast.success('Entitlement created');
         },
         onError: (error: any) => {
@@ -47,6 +48,7 @@ export function useDeactivateEntitlement(holderId: string) {
             equityApi.deactivateEntitlement(holderId, entitlementId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['equity-entitlements', holderId] });
+            queryClient.invalidateQueries({ queryKey: ['equity-summary'] });
             toast.success('Entitlement deactivated');
         },
         onError: (error: any) => {
