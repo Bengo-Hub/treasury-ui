@@ -15,13 +15,16 @@ import {
   useSubmitInvoiceForApproval,
   useApproveInvoice,
   useRejectInvoice,
+  useDispatchDeliveryNote,
+  useDeliverDeliveryNote,
+  useCancelDeliveryNote,
 } from '@/hooks/use-invoices';
 import { useAuthStore } from '@/store/auth';
 import { useOutletFilterStore } from '@/store/outlet-filter';
 import { userHasPermission } from '@/lib/auth/permissions';
 import { cn } from '@/lib/utils';
 import {
-  ArrowLeft, Ban, Check, CheckCircle, Copy, DollarSign, Download,
+  ArrowLeft, Ban, Check, CheckCircle, CheckCircle2, Copy, DollarSign, Download,
   ExternalLink, FileMinus, FilePlus, Loader2, Send, ThumbsUp, Truck, X,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -64,6 +67,22 @@ function PaymentBadge({ status }: { status: string }) {
   );
 }
 
+// Goods-dispatch lifecycle badge (delivery_challan / delivery_note docs only).
+function DeliveryBadge({ status }: { status: string }) {
+  const variants: Record<string, string> = {
+    delivered:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    dispatched: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    draft:      'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
+    cancelled:  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  };
+  const s = status || 'draft';
+  return (
+    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide', variants[s] ?? 'bg-zinc-100 text-zinc-600')}>
+      {s.replace(/_/g, ' ')}
+    </span>
+  );
+}
+
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between py-2 border-b border-border last:border-0 gap-4">
@@ -93,6 +112,9 @@ export default function InvoiceDetailPage() {
   const submitMut       = useSubmitInvoiceForApproval(effectiveTenant);
   const approveMut      = useApproveInvoice(effectiveTenant);
   const rejectMut       = useRejectInvoice(effectiveTenant);
+  const dispatchMut     = useDispatchDeliveryNote(effectiveTenant);
+  const deliverMut      = useDeliverDeliveryNote(effectiveTenant);
+  const cancelDelivMut  = useCancelDeliveryNote(effectiveTenant);
 
   // Approve/reject/submit are privileged — gate on the backend's treasury.invoices.change|manage.
   const user = useAuthStore((s) => s.user);
@@ -110,6 +132,9 @@ export default function InvoiceDetailPage() {
   const [showPayModal, setShowPayModal]   = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason]   = useState('');
+  const [showDeliverModal, setShowDeliverModal] = useState(false);
+  const [receivedBy, setReceivedBy]       = useState('');
+  const [deliverNote, setDeliverNote]     = useState('');
 
   const handleRecordPayment = useCallback(() => {
     if (!paymentAmount) return;
@@ -128,6 +153,32 @@ export default function InvoiceDetailPage() {
       },
     );
   }, [invoiceId, rejectReason, rejectMut]);
+
+  const handleDispatch = useCallback(() => {
+    if (!window.confirm('Mark this delivery note as dispatched? This deducts stock (emits a goods-issue) for the delivered items.')) return;
+    dispatchMut.mutate(invoiceId, {
+      onSuccess: () => toast.success('Delivery note dispatched'),
+      onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to mark dispatched'),
+    });
+  }, [invoiceId, dispatchMut]);
+
+  const handleDeliver = useCallback(() => {
+    deliverMut.mutate(
+      { invoiceId, received_by: receivedBy.trim() || undefined, note: deliverNote.trim() || undefined },
+      {
+        onSuccess: () => { toast.success('Delivery note delivered'); setShowDeliverModal(false); setReceivedBy(''); setDeliverNote(''); },
+        onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to mark delivered'),
+      },
+    );
+  }, [invoiceId, receivedBy, deliverNote, deliverMut]);
+
+  const handleCancelDelivery = useCallback(() => {
+    if (!window.confirm('Cancel this delivery note? It will be marked cancelled.')) return;
+    cancelDelivMut.mutate(invoiceId, {
+      onSuccess: () => toast.success('Delivery cancelled'),
+      onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to cancel delivery'),
+    });
+  }, [invoiceId, cancelDelivMut]);
 
   // Preview-first PDF: open the shared modal (Download / Print / Open-in-tab)
   // instead of force-downloading the file.
@@ -178,6 +229,16 @@ export default function InvoiceDetailPage() {
   const canApproveNow     = canApprove && acts.includes('approve');
   const canRejectNow      = canApprove && acts.includes('reject');
 
+  // Delivery-note goods-dispatch lifecycle — a separate axis from invoice.status, only
+  // meaningful for delivery_challan / delivery_note documents. Buttons are gated to the
+  // valid current delivery_status: dispatch (draft/empty), deliver (dispatched), cancel
+  // (draft|dispatched).
+  const isDeliveryDoc   = invoice.invoice_type === 'delivery_challan' || invoice.invoice_type === 'delivery_note';
+  const deliveryState   = invoice.delivery_status || 'draft';
+  const canDispatch     = isDeliveryDoc && deliveryState === 'draft';
+  const canDeliver      = isDeliveryDoc && deliveryState === 'dispatched';
+  const canCancelDeliv  = isDeliveryDoc && (deliveryState === 'draft' || deliveryState === 'dispatched');
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -194,7 +255,9 @@ export default function InvoiceDetailPage() {
             <h1 className="text-sm font-black text-foreground">{invoice.invoice_number}</h1>
             <div className="flex items-center gap-2 mt-0.5">
               <StatusBadge status={invoice.status} />
-              <PaymentBadge status={invoice.payment_status} />
+              {isDeliveryDoc
+                ? <DeliveryBadge status={deliveryState} />
+                : <PaymentBadge status={invoice.payment_status} />}
             </div>
           </div>
         </div>
@@ -306,6 +369,34 @@ export default function InvoiceDetailPage() {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
             >
               {deliveryNoteMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />} Delivery Note
+            </button>
+          )}
+          {canDispatch && (
+            <button
+              onClick={handleDispatch}
+              disabled={dispatchMut.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {dispatchMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
+              Mark Dispatched
+            </button>
+          )}
+          {canDeliver && (
+            <button
+              onClick={() => setShowDeliverModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" /> Mark Delivered
+            </button>
+          )}
+          {canCancelDeliv && (
+            <button
+              onClick={handleCancelDelivery}
+              disabled={cancelDelivMut.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+            >
+              {cancelDelivMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+              Cancel
             </button>
           )}
           {canVoid && (
@@ -461,7 +552,9 @@ export default function InvoiceDetailPage() {
           <div className="space-y-0">
             <DetailRow label="Invoice Type" value={invoice.invoice_type} />
             <DetailRow label="Status" value={<StatusBadge status={invoice.status} />} />
-            <DetailRow label="Payment Status" value={<PaymentBadge status={invoice.payment_status} />} />
+            {isDeliveryDoc
+              ? <DetailRow label="Delivery Status" value={<DeliveryBadge status={deliveryState} />} />
+              : <DetailRow label="Payment Status" value={<PaymentBadge status={invoice.payment_status} />} />}
             <DetailRow label="Created" value={new Date(invoice.created_at).toLocaleDateString()} />
             <DetailRow label="Last Updated" value={new Date(invoice.updated_at).toLocaleDateString()} />
             {invoice.reference_type && (
@@ -601,6 +694,61 @@ export default function InvoiceDetailPage() {
               >
                 {rejectMut.isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
                 Reject Invoice
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mark Delivered Modal — optional received-by + note (dispatched → delivered). */}
+      {showDeliverModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/75"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowDeliverModal(false); }}
+        >
+          <div className="relative w-full max-w-sm rounded-2xl border border-border p-6 space-y-4 bg-card shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-foreground">Mark Delivered</h2>
+              <button onClick={() => setShowDeliverModal(false)}>
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">{invoice.invoice_number} will be marked as delivered.</p>
+            <div>
+              <label className="text-xs font-bold block mb-1 text-foreground">Received by</label>
+              <input
+                className="w-full rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-ring bg-background border border-input text-foreground"
+                placeholder="Name of receiver (optional)"
+                value={receivedBy}
+                onChange={(e) => setReceivedBy(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold block mb-1 text-foreground">Note</label>
+              <textarea
+                className="w-full rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-ring bg-background border border-input text-foreground min-h-20"
+                placeholder="Delivery note (optional)..."
+                value={deliverNote}
+                onChange={(e) => setDeliverNote(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowDeliverModal(false)}
+                className="px-4 py-2 rounded-lg text-xs font-medium hover:bg-accent transition-colors text-muted-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeliver}
+                disabled={deliverMut.isPending}
+                className={cn(
+                  'px-5 py-2 rounded-lg text-xs font-bold transition-all bg-emerald-600 text-white hover:bg-emerald-700',
+                  deliverMut.isPending && 'opacity-50 cursor-not-allowed',
+                )}
+              >
+                {deliverMut.isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
+                Mark Delivered
               </button>
             </div>
           </div>
