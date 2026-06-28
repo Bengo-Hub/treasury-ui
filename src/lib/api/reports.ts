@@ -60,6 +60,15 @@ export interface FinancialReport extends ReportFiscalContext {
   to?: string;
   sections: ReportSection[];
   total?: string;
+  /**
+   * GL-based Cost of Sales / COGS for the P&L statement, surfaced separately from
+   * Operating Expenses so Gross Profit (= Revenue − COGS) can be shown. Optional —
+   * present only on the profit-loss endpoint once the backend reports it; the UI
+   * falls back to a "Cost of Sales" section (or 0) when absent. Fixed-2 decimal string.
+   */
+  cost_of_goods?: string;
+  /** GL-based Gross Profit (= Revenue − Cost of Sales). Optional; computed UI-side if absent. */
+  gross_profit?: string;
 }
 
 /**
