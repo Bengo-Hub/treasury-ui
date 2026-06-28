@@ -100,6 +100,15 @@ export interface ProfitLossSummaryReport extends ReportFiscalContext {
   gl_expenses: string;
   gl_net_profit: string;
   reconciliation_variance: string;
+
+  /**
+   * Cash-basis view (collected income only) + the accrual→cash timing gap. `cash_revenue`
+   * / `cash_net_profit` recognise only paid invoices; `outstanding_ar` is accrued-but-
+   * uncollected revenue (shown as "Outstanding", NOT as a variance). All fixed-2 strings.
+   */
+  cash_revenue: string;
+  cash_net_profit: string;
+  outstanding_ar: string;
 }
 
 // ---- API Functions ----
