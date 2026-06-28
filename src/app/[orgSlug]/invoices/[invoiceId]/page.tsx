@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadPublicInvoicePdf } from '@/lib/api/documents';
 import { DocumentApprovalCard } from '@/components/documents/DocumentApprovalCard';
+import { DocumentJournalPanel } from '@/components/documents/DocumentJournalPanel';
 import { moduleForDocType } from '@/lib/documents/approvals';
 
 function StatusBadge({ status }: { status: string }) {
@@ -448,6 +449,42 @@ export default function InvoiceDetailPage() {
               <DetailRow label="Reference" value={`${invoice.reference_type}: ${invoice.reference_id ?? '—'}`} />
             )}
           </div>
+        </div>
+
+        {/* Shipping & Transport (captured on the document — own fleet or third-party courier) */}
+        {invoice.transport && Object.keys(invoice.transport).length > 0 && (
+          <div className="rounded-xl border border-border bg-card shadow-sm p-5">
+            <h3 className="text-xs font-bold text-foreground mb-3">Shipping & Transport</h3>
+            <div className="space-y-0">
+              {invoice.transport.transporter_name != null && (
+                <DetailRow label="Transporter" value={String(invoice.transport.transporter_name)} />
+              )}
+              {invoice.transport.transporter_type != null && (
+                <DetailRow label="Fleet" value={invoice.transport.transporter_type === 'own_fleet' ? 'Own fleet' : 'Third-party courier'} />
+              )}
+              {invoice.transport.transport_mode != null && (
+                <DetailRow label="Mode" value={String(invoice.transport.transport_mode)} />
+              )}
+              {invoice.transport.distance != null && (
+                <DetailRow label="Distance" value={String(invoice.transport.distance)} />
+              )}
+              {invoice.transport.vehicle_number != null && (
+                <DetailRow label="Vehicle" value={`${invoice.transport.vehicle_type ?? ''} ${invoice.transport.vehicle_number ?? ''}`.trim()} />
+              )}
+              {invoice.transport.transport_doc_number != null && (
+                <DetailRow label="Transport doc #" value={String(invoice.transport.transport_doc_number)} />
+              )}
+              {invoice.shipping_amount != null && Number(invoice.shipping_amount) > 0 && (
+                <DetailRow label="Shipping charged" value={fmtAmount(invoice.shipping_amount)} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* View Journal — the GL postings for this document (Refrens-style). */}
+        <div className="rounded-xl border border-border bg-card shadow-sm p-5">
+          <h3 className="text-xs font-bold text-foreground mb-3">View Journal</h3>
+          <DocumentJournalPanel tenant={effectiveTenant} referenceID={invoice.id} currency={invoice.currency} />
         </div>
       </div>
 

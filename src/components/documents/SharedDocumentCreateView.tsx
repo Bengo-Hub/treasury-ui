@@ -16,6 +16,7 @@ import { ArrowLeft, Loader2, Search, UserPlus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LineItemsSection, newLineRow, type LineRow } from './sections/LineItemsSection';
 import { TotalsSection, type AdditionalCharge } from './sections/TotalsSection';
+import { ShippingTransportSection, type TransportDetails } from './sections/ShippingTransportSection';
 import { CurrencySection } from './sections/CurrencySection';
 import { TermsNotesSection } from './sections/TermsNotesSection';
 import { CreateItemModal } from './CreateItemModal';
@@ -186,6 +187,10 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   const [globalDiscount, setGlobalDiscount]       = useState(0);
   const [globalDiscountMode, setGlobalDiscountMode] = useState<'flat' | 'percent'>('flat');
   const [additionalCharges, setAdditionalCharges] = useState<AdditionalCharge[]>([]);
+  // Shipping & transport capture (own fleet or third-party courier) + customer shipping charge.
+  const [addShipping, setAddShipping]   = useState(false);
+  const [shippingAmount, setShippingAmount] = useState(0);
+  const [transport, setTransport]       = useState<TransportDetails>({ transporter_type: 'own_fleet' });
   const [createItemTarget, setCreateItemTarget]   = useState<number | null>(null);
 
   useEffect(() => {
@@ -227,6 +232,15 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       tax_rate:       Number(l.tax_rate),
       discount_amount: Number(l.discount_amount) || 0,
     })) || [newLineRow()]);
+
+    // Rehydrate shipping/transport on edit.
+    const existingTransport = (existing as { transport?: TransportDetails }).transport;
+    const existingShipping = Number((existing as { shipping_amount?: string }).shipping_amount ?? 0);
+    if ((existingTransport && Object.keys(existingTransport).length > 0) || existingShipping > 0) {
+      setAddShipping(true);
+      if (existingTransport) setTransport({ transporter_type: 'own_fleet', ...existingTransport });
+      if (existingShipping > 0) setShippingAmount(existingShipping);
+    }
 
     setInitialized(true);
   }, [isEdit, existing, initialized, isQuotation, existingInvoice, existingQuotation, today, defaultSecondary]);
@@ -338,6 +352,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         notes:          form.notes,
         metadata,
         lines:          linePayload,
+        shipping_amount: addShipping && shippingAmount > 0 ? shippingAmount : undefined,
+        transport:       addShipping && Object.keys(transport).length > 0 ? transport : undefined,
       };
       if (isEdit && editId) {
         (updateMutation as ReturnType<typeof useUpdateInvoice>).mutate(base as UpdateInvoiceRequest, { onSuccess: onClose });
@@ -348,7 +364,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         );
       }
     }
-  }, [form, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose]);
+  }, [form, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, addShipping, shippingAmount, transport]);
 
   if (isEdit && existingLoading) {
     return (
@@ -520,6 +536,19 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
             currency={form.currency}
             onRequestCreateItem={(_, idx) => setCreateItemTarget(idx)}
           />
+
+          {/* Shipping & Transport capture (invoices/delivery docs) */}
+          {!isQuotation && (
+            <ShippingTransportSection
+              enabled={addShipping}
+              onToggle={setAddShipping}
+              shippingAmount={shippingAmount}
+              onShippingAmountChange={setShippingAmount}
+              transport={transport}
+              onTransportChange={setTransport}
+              currency={form.currency}
+            />
+          )}
 
           {/* Totals + Terms */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">

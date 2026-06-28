@@ -10,6 +10,18 @@ export function useJournalEntries(tenantSlug: string, params?: ledgerApi.ListJou
   });
 }
 
+/**
+ * useDocumentJournal — the GL entries posted FOR a source document (invoice/bill/etc.), keyed by
+ * its id via reference_id. Powers the Refrens-style "View Journal" panel on a document page.
+ */
+export function useDocumentJournal(tenantSlug: string, referenceID?: string, enabled = true) {
+  return useQuery({
+    queryKey: ['document-journal', tenantSlug, referenceID],
+    queryFn: () => ledgerApi.listJournalEntries(tenantSlug, { reference_id: referenceID }),
+    enabled: !!tenantSlug && !!referenceID && enabled,
+  });
+}
+
 export function useJournalEntry(tenantSlug: string, entryID: string) {
   return useQuery({
     queryKey: ['journal-entry', tenantSlug, entryID],

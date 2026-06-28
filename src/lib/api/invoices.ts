@@ -64,6 +64,9 @@ export interface Invoice {
   tax_amount: string;
   discount_amount?: string;
   discount_mode?: string;
+  shipping_amount?: string;
+  /** Captured shipping/transport block (shipped-from/to, transporter own/third-party, mode, vehicle, doc). */
+  transport?: Record<string, any>;
   total_amount: string;
   currency: string;
   transaction_currency?: string;
@@ -93,6 +96,8 @@ export interface CreateInvoiceRequest {
   notes?: string;
   terms?: string;
   discount_mode?: string;
+  shipping_amount?: number | string;
+  transport?: Record<string, any>;
   reference_id?: string;
   reference_type?: string;
   lines: LineRequest[];
@@ -110,6 +115,8 @@ export interface UpdateInvoiceRequest {
   currency?: string;
   notes?: string;
   terms?: string;
+  shipping_amount?: number | string;
+  transport?: Record<string, any>;
   lines?: LineRequest[];
   metadata?: Record<string, unknown>;
 }
