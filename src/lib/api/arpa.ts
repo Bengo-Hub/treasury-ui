@@ -116,6 +116,24 @@ export interface UpsertVendorBalanceRequest {
   currency?: string;
 }
 
+/**
+ * Record cash received back from a supplier on a purchase return
+ * (POST /ap/vendors/refund-received). Posts DR Cash / CR Accounts Payable.
+ * Identify the vendor by `vendor_id` (UUID) or a free-form `vendor_identifier`.
+ */
+export interface RecordVendorRefundRequest {
+  vendor_id?: string;
+  vendor_identifier?: string;
+  amount: string | number;
+  currency?: string;
+  reference?: string;
+}
+
+/** Result of recording a vendor refund. */
+export interface RecordVendorRefundResult {
+  status: string;
+}
+
 /** treasury-api list endpoints return a pagination envelope `{ data, total, page, limit }`. */
 interface Paginated<T> {
   data: T[];
@@ -176,6 +194,17 @@ export function upsertVendorBalance(
   body: UpsertVendorBalanceRequest,
 ): Promise<VendorBalance> {
   return apiClient.post<VendorBalance>(`${BASE}/${tenant}/ap/vendors`, body);
+}
+
+/** Record cash received back from a supplier on a purchase return (posts DR Cash / CR AP). */
+export function recordVendorRefund(
+  tenant: string,
+  body: RecordVendorRefundRequest,
+): Promise<RecordVendorRefundResult> {
+  return apiClient.post<RecordVendorRefundResult>(
+    `${BASE}/${tenant}/ap/vendors/refund-received`,
+    body,
+  );
 }
 
 /** Minimal AR balance row returned by the opening-balance endpoint. */
