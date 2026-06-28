@@ -295,6 +295,34 @@ export function deactivateEntitlement(
     );
 }
 
+// ─── Platform Equity Policy ─────────────────────────────────────────────────────
+
+/**
+ * Platform equity policy — the share the platform retains before distributing the
+ * remainder to equity holders. `equity_distributable_pct` is derived (1 − retention)
+ * and ignored on input. Values are fractions in [0, 1) (e.g. 0.30 = 30%).
+ */
+export interface EquityPolicy {
+    platform_retention_pct: number;
+    equity_distributable_pct: number;
+}
+
+export interface UpdateEquityPolicyRequest {
+    platform_retention_pct: number; // 0 ≤ x < 1
+}
+
+/** Get the platform equity policy (platform-owner only). */
+export function getEquityPolicy(): Promise<{ policy: EquityPolicy }> {
+    return apiClient.get<{ policy: EquityPolicy }>(`${BASE}/platform/equity-policy`);
+}
+
+/** Update the platform retention %. The distributable share is derived server-side. */
+export function updateEquityPolicy(
+    body: UpdateEquityPolicyRequest,
+): Promise<{ policy: EquityPolicy }> {
+    return apiClient.put<{ policy: EquityPolicy }>(`${BASE}/platform/equity-policy`, body);
+}
+
 // ─── Portal Link ──────────────────────────────────────────────────────────────
 
 export interface PortalLinkResponse {
