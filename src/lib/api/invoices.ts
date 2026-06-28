@@ -80,6 +80,8 @@ export interface Invoice {
   payment_status: string;
   reference_id?: string;
   reference_type?: string;
+  /** Originating outlet/branch that made the sale (null = tenant-wide / HQ). */
+  outlet_id?: string;
   lines?: InvoiceLine[];
   metadata?: Record<string, unknown>;
   created_at: string;
@@ -104,6 +106,8 @@ export interface CreateInvoiceRequest {
   transport?: Record<string, any>;
   reference_id?: string;
   reference_type?: string;
+  /** Originating outlet/branch that made the sale (optional; null/omit = tenant-wide / HQ). */
+  outlet_id?: string;
   lines: LineRequest[];
   metadata?: Record<string, unknown>;
 }
@@ -121,6 +125,8 @@ export interface UpdateInvoiceRequest {
   terms?: string;
   shipping_amount?: number | string;
   transport?: Record<string, any>;
+  /** Originating outlet/branch that made the sale (optional; null/omit = tenant-wide / HQ). */
+  outlet_id?: string;
   lines?: LineRequest[];
   metadata?: Record<string, unknown>;
 }
@@ -213,6 +219,8 @@ export interface Quotation {
   created_by: string;
   reference_type?: string;
   reference_id?: string;
+  /** Originating outlet/branch that made the sale (null = tenant-wide / HQ). */
+  outlet_id?: string;
   lines?: QuotationLine[];
   metadata?: Record<string, unknown>;
   created_at: string;
@@ -231,6 +239,8 @@ export interface CreateQuotationRequest {
   terms?: string;
   reference_type?: string;
   reference_id?: string;
+  /** Originating outlet/branch that made the sale (optional; null/omit = tenant-wide / HQ). */
+  outlet_id?: string;
   lines: LineRequest[];
   metadata?: Record<string, unknown>;
 }
@@ -244,6 +254,8 @@ export interface UpdateQuotationRequest {
   currency?: string;
   notes?: string;
   terms?: string;
+  /** Originating outlet/branch that made the sale (optional; null/omit = tenant-wide / HQ). */
+  outlet_id?: string;
   lines?: LineRequest[];
   metadata?: Record<string, unknown>;
 }

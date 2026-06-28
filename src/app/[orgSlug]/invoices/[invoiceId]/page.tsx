@@ -17,6 +17,7 @@ import {
   useRejectInvoice,
 } from '@/hooks/use-invoices';
 import { useAuthStore } from '@/store/auth';
+import { useOutletFilterStore } from '@/store/outlet-filter';
 import { userHasPermission } from '@/lib/auth/permissions';
 import { cn } from '@/lib/utils';
 import {
@@ -100,6 +101,10 @@ export default function InvoiceDetailPage() {
     ['treasury.invoices.change', 'treasury.invoices.manage'],
     'or',
   );
+
+  // Resolve the originating outlet's display name from the loaded outlet list (set by the
+  // header OutletFilter). Falls back to the raw id when the list isn't populated.
+  const outlets = useOutletFilterStore((s) => s.outlets);
 
   const [paymentAmount, setPaymentAmount] = useState('');
   const [showPayModal, setShowPayModal]   = useState(false);
@@ -461,6 +466,12 @@ export default function InvoiceDetailPage() {
             <DetailRow label="Last Updated" value={new Date(invoice.updated_at).toLocaleDateString()} />
             {invoice.reference_type && (
               <DetailRow label="Reference" value={`${invoice.reference_type}: ${invoice.reference_id ?? '—'}`} />
+            )}
+            {invoice.outlet_id && (
+              <DetailRow
+                label="Branch"
+                value={outlets.find((o) => o.id === invoice.outlet_id)?.name ?? invoice.outlet_id}
+              />
             )}
           </div>
         </div>
