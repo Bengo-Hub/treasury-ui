@@ -198,7 +198,23 @@ export default function ExpensesPage() {
                     <tr key={exp.id} className="hover:bg-accent/5 transition-colors">
                       <td className="px-6 py-4 font-mono text-xs font-bold">{exp.expense_number}</td>
                       <td className="px-6 py-4 text-xs">{exp.category_name || '---'}</td>
-                      <td className="px-6 py-4 text-xs max-w-[200px] truncate">{exp.description}</td>
+                      <td className="px-6 py-4 text-xs max-w-60">
+                        <span className="block truncate">{exp.description}</span>
+                        {(exp.invoice_id || exp.billable) && (
+                          <span className="mt-1 inline-flex items-center gap-1.5">
+                            {exp.invoice_id && (
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                                Linked to invoice
+                              </span>
+                            )}
+                            {exp.billable && (
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                {exp.billed ? 'Billed' : 'Billable'}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-right font-bold text-xs tabular-nums">{formatCurrency(Number(exp.total_amount), exp.currency)}</td>
                       <td className="px-6 py-4 text-center">
                         <Badge variant={statusVariant[exp.status] ?? 'outline'}>
