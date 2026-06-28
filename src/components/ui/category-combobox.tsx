@@ -114,12 +114,11 @@ export function CategoryCombobox({
       setNameError('Enter a category name');
       return;
     }
-    // NOTE: the backend CreateCategoryRequest has no description field, so the optional
-    // description below is captured for UX parity but not yet persisted (see PR notes).
     createCategory.mutate(
       {
         code: deriveCode(name),
         name,
+        description: newDescription.trim() || undefined,
       },
       {
         onSuccess: (cat) => {

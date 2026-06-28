@@ -51,10 +51,12 @@ export interface ExpenseCategory {
   tenant_id: string;
   code: string;
   name: string;
+  description?: string;
   parent_id?: string;
   default_account_id?: string;
   is_active: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface ExpensesResponse {
@@ -101,14 +103,33 @@ export interface CreateExpenseRequest {
 export interface CreateCategoryRequest {
   code: string;
   name: string;
+  description?: string;
+  parent_id?: string;
+  default_account_id?: string;
+}
+
+// Fields are optional: omit a field to leave it unchanged.
+export interface UpdateCategoryRequest {
+  name?: string;
+  description?: string;
+  is_active?: boolean;
   parent_id?: string;
   default_account_id?: string;
 }
 
 // ---- API functions ----
 
-export function getExpenses(tenantIdOrSlug: string, params?: ExpensesParams): Promise<ExpensesResponse> {
-  return apiClient.get<ExpensesResponse>(`${BASE}/${tenantIdOrSlug}/expenses`, params);
+export async function getExpenses(tenantIdOrSlug: string, params?: ExpensesParams): Promise<ExpensesResponse> {
+  // The list endpoint returns a pagination envelope { data, total, limit, page, hasMore }.
+  // Normalize into the typed { expenses, total, ... } shape (mirrors getInvoices) — the page reads
+  // `data.expenses`, so without this the table always rendered "No expenses match your filters".
+  const raw = await apiClient.get<any>(`${BASE}/${tenantIdOrSlug}/expenses`, params);
+  return {
+    expenses: (raw?.expenses ?? raw?.data ?? []) as Expense[],
+    total: raw?.total ?? 0,
+    limit: raw?.limit ?? 0,
+    offset: raw?.offset ?? raw?.page ?? 0,
+  };
 }
 
 export function getExpense(tenantIdOrSlug: string, id: string): Promise<Expense> {
@@ -141,4 +162,19 @@ export function getExpenseCategories(tenantIdOrSlug: string): Promise<Categories
 
 export function createExpenseCategory(tenantIdOrSlug: string, data: CreateCategoryRequest): Promise<ExpenseCategory> {
   return apiClient.post<ExpenseCategory>(`${BASE}/${tenantIdOrSlug}/expense-categories`, data);
+}
+
+export function updateExpenseCategory(
+  tenantIdOrSlug: string,
+  id: string,
+  data: UpdateCategoryRequest,
+): Promise<ExpenseCategory> {
+  return apiClient.put<ExpenseCategory>(`${BASE}/${tenantIdOrSlug}/expense-categories/${id}`, data);
+}
+
+// Returns { status: 'deleted' } on hard delete. When the category is referenced by
+// existing expenses the backend responds 409 and soft-deactivates it instead — the
+// caller should surface that via the rejected promise (err.response.status === 409).
+export function deleteExpenseCategory(tenantIdOrSlug: string, id: string): Promise<{ status: string }> {
+  return apiClient.delete<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expense-categories/${id}`);
 }
