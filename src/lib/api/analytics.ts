@@ -132,9 +132,18 @@ export function exportTransactionsCSV(
     });
 }
 
-/** Get payout/settlement history for the tenant. */
-export function getPayoutHistory(tenantIdOrSlug: string): Promise<PayoutHistoryResponse> {
-  return apiClient.get<PayoutHistoryResponse>(`${BASE}/${tenantIdOrSlug}/payout/history`);
+/**
+ * Get payout/settlement history for the tenant.
+ *
+ * The API returns a pagination envelope ({ data, total, ... }), not { payouts }.
+ * Normalise here (data → payouts, tolerating the legacy/`payouts` shape) so the
+ * caller always receives a consistent { payouts: [] } even when there are none.
+ */
+export async function getPayoutHistory(tenantIdOrSlug: string): Promise<PayoutHistoryResponse> {
+  const raw = await apiClient.get<{ payouts?: PayoutRecord[]; data?: PayoutRecord[] }>(
+    `${BASE}/${tenantIdOrSlug}/payout/history`,
+  );
+  return { payouts: raw.payouts ?? raw.data ?? [] };
 }
 
 // ---- Dashboard analytics (timeseries + money flow) ----
