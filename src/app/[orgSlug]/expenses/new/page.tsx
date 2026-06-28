@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, Card, CardContent } from '@/components/ui/base';
+import { CategoryCombobox } from '@/components/ui/category-combobox';
 import { Combobox } from '@/components/ui/combobox';
 import { FormField } from '@/components/ui/form-field';
 import { useAccounts } from '@/hooks/use-accounts';
@@ -31,32 +32,60 @@ const inputClass =
 const today = () => new Date().toISOString().slice(0, 10);
 
 const STEPS = [
-  { n: 1, label: 'Add Expenditure Details' },
+  { n: 1, label: 'Add Details' },
   { n: 2, label: 'Mark Payments' },
   { n: 3, label: 'Customise & Share' },
 ];
 
-function Stepper() {
+function Stepper({ current = 1 }: { current?: number }) {
   return (
-    <div className="flex items-center justify-center">
-      {STEPS.map((s, i) => (
-        <div key={s.n} className="flex items-center">
-          <div className="flex flex-col items-center gap-1.5">
-            <span
-              className={cn(
-                'h-8 w-8 rounded-full border-2 flex items-center justify-center text-sm font-bold',
-                s.n === 1 ? 'border-primary text-primary' : 'border-border text-muted-foreground',
-              )}
-            >
-              {s.n}
-            </span>
-            <span className={cn('text-xs font-medium', s.n === 1 ? 'text-foreground' : 'text-muted-foreground')}>
-              {s.label}
-            </span>
+    <div className="flex items-center justify-center overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {STEPS.map((s, i) => {
+        const done = s.n < current;
+        const active = s.n === current;
+        return (
+          <div key={s.n} className="flex items-center shrink-0">
+            <div className="flex flex-col items-center gap-1.5">
+              <span
+                className={cn(
+                  'h-9 w-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-colors',
+                  active && 'border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/30',
+                  done && 'border-primary bg-primary/10 text-primary',
+                  !active && !done && 'border-border text-muted-foreground',
+                )}
+              >
+                {s.n}
+              </span>
+              <span
+                className={cn(
+                  'text-xs font-medium whitespace-nowrap',
+                  active || done ? 'text-foreground' : 'text-muted-foreground',
+                )}
+              >
+                {s.label}
+              </span>
+            </div>
+            {i < STEPS.length - 1 && (
+              <span
+                className={cn(
+                  'mx-2 sm:mx-4 mb-5 h-0.5 w-10 sm:w-20 rounded-full',
+                  done ? 'bg-primary' : 'bg-border',
+                )}
+              />
+            )}
           </div>
-          {i < STEPS.length - 1 && <span className="mx-3 mb-5 h-0.5 w-16 sm:w-28 bg-border" />}
-        </div>
-      ))}
+        );
+      })}
+    </div>
+  );
+}
+
+/** Section header used to break the long form into scannable, card-internal groups. */
+function SectionTitle({ children, hint }: { children: React.ReactNode; hint?: string }) {
+  return (
+    <div className="space-y-0.5">
+      <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{children}</h3>
+      {hint && <p className="text-xs text-muted-foreground/70">{hint}</p>}
     </div>
   );
 }
@@ -105,6 +134,7 @@ export default function NewExpenditurePage() {
   const [vendorId, setVendorId] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [vendorEmail, setVendorEmail] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const [expenseNo, setExpenseNo] = useState('');
   const [invoiceNo, setInvoiceNo] = useState('');
   const [currency, setCurrency] = useState('KES');
@@ -152,6 +182,7 @@ export default function NewExpenditurePage() {
       tax_amount: tax || undefined,
       currency,
       expense_date: expenseDate,
+      category_id: categoryId || undefined,
       // Self / internal expense → omit vendor_id entirely (backend treats it as optional).
       vendor_id: selfExpense ? undefined : (vendorId || undefined),
       account_id: ledgerId || undefined,
@@ -174,6 +205,7 @@ export default function NewExpenditurePage() {
     setVendorId('');
     setVendorName('');
     setVendorEmail('');
+    setCategoryId('');
     setExpenseNo('');
     setInvoiceNo('');
     setTaxType('none');
@@ -201,15 +233,23 @@ export default function NewExpenditurePage() {
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => router.push(`/${orgSlug}/expenses`)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Create Expenditure</h1>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Create Expenditure</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Record a new expense and route it for payment.</p>
+        </div>
       </div>
 
-      <Stepper />
+      {/* Step indicator in its own card so it reads as a clear progress band. */}
+      <Card>
+        <CardContent className="py-5">
+          <Stepper current={1} />
+        </CardContent>
+      </Card>
 
       {isPlatformOwner && !tenantQueryParam && (
         <div className="rounded-lg border border-border bg-accent/5 px-4 py-2.5 text-center text-xs text-muted-foreground">
@@ -218,144 +258,174 @@ export default function NewExpenditurePage() {
       )}
 
       <Card>
-        <CardContent className="pt-6 space-y-5">
-          <h2 className="text-center text-2xl font-black text-primary">Expenditures</h2>
+        <CardContent className="pt-6 space-y-8">
+          {/* ---- Section: Details ---- */}
+          <section className="space-y-5">
+            <SectionTitle hint="When the spend happened and how to classify it.">Expenditure Details</SectionTitle>
 
-          <FormField label="Expense Date" required>
-            <input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} className={inputClass} />
-          </FormField>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+              <FormField label="Expense Date" required>
+                <input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} className={inputClass} />
+              </FormField>
 
-          {/* Self / internal expense toggle — when on, no external vendor is sent. */}
-          <button
-            type="button"
-            onClick={() => {
-              setSelfExpense((s) => {
-                const next = !s;
-                if (next) {
-                  setVendorId('');
-                  setVendorName('');
-                  setVendorEmail('');
-                  setErrors((e) => ({ ...e, vendor: undefined }));
-                }
-                return next;
-              });
-            }}
-            className="flex items-start gap-3 text-left w-full rounded-lg border border-border p-4 hover:bg-accent/10 transition-colors"
-          >
-            <span className={cn('mt-0.5 h-5 w-9 rounded-full transition-colors relative shrink-0', selfExpense ? 'bg-primary' : 'bg-accent')}>
-              <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all', selfExpense ? 'left-[18px]' : 'left-0.5')} />
-            </span>
-            <span>
-              <span className="block text-sm font-semibold">Self / internal (no external vendor)</span>
-              <span className="block text-xs text-muted-foreground">For internal spend with no external supplier (e.g. petty cash, reimbursements). No vendor is recorded.</span>
-            </span>
-          </button>
+              <FormField label="Category" description="Group this spend for reporting (e.g. Travel, Utilities).">
+                <CategoryCombobox tenantIdOrSlug={effectiveTenant} value={categoryId} onChange={setCategoryId} />
+              </FormField>
 
-          {!selfExpense && (
-            <>
-              <FormField label="Select Vendor" error={errors.vendor}>
-                <Combobox
-                  options={vendorOptions}
-                  value={vendorId}
-                  onChange={onSelectVendor}
-                  placeholder="Select Vendor"
-                  searchPlaceholder="Search vendors…"
-                  emptyText="No vendors yet"
+              <FormField label="Expense Number" required>
+                <input value={expenseNo} onChange={(e) => setExpenseNo(e.target.value)} placeholder={suggestedExpenseNo} className={inputClass} />
+              </FormField>
+
+              <FormField label="Invoice Number">
+                <input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} className={inputClass} />
+              </FormField>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          {/* ---- Section: Vendor ---- */}
+          <section className="space-y-5">
+            <SectionTitle hint="Who you paid — or mark it as internal spend with no external supplier.">Vendor</SectionTitle>
+
+            {/* Self / internal expense toggle — when on, no external vendor is sent. */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelfExpense((s) => {
+                  const next = !s;
+                  if (next) {
+                    setVendorId('');
+                    setVendorName('');
+                    setVendorEmail('');
+                    setErrors((e) => ({ ...e, vendor: undefined }));
+                  }
+                  return next;
+                });
+              }}
+              className="flex items-start gap-3 text-left w-full rounded-lg border border-border p-4 hover:bg-accent/10 transition-colors"
+            >
+              <span className={cn('mt-0.5 h-5 w-9 rounded-full transition-colors relative shrink-0', selfExpense ? 'bg-primary' : 'bg-accent')}>
+                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all', selfExpense ? 'left-[18px]' : 'left-0.5')} />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold">Self / internal (no external vendor)</span>
+                <span className="block text-xs text-muted-foreground">For internal spend with no external supplier (e.g. petty cash, reimbursements). No vendor is recorded.</span>
+              </span>
+            </button>
+
+            {!selfExpense && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+                <FormField label="Select Vendor" error={errors.vendor} className="md:col-span-2">
+                  <Combobox
+                    options={vendorOptions}
+                    value={vendorId}
+                    onChange={onSelectVendor}
+                    placeholder="Select Vendor"
+                    searchPlaceholder="Search vendors…"
+                    emptyText="No vendors yet"
+                  />
+                </FormField>
+
+                <FormField label="Vendor's Name">
+                  <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} className={inputClass} />
+                </FormField>
+
+                <FormField label="Vendor's Email">
+                  <input type="email" value={vendorEmail} onChange={(e) => setVendorEmail(e.target.value)} className={inputClass} />
+                </FormField>
+              </div>
+            )}
+          </section>
+
+          <hr className="border-border" />
+
+          {/* ---- Section: Amount & Posting ---- */}
+          <section className="space-y-5">
+            <SectionTitle hint="The amount spent, applicable tax, and the ledger it posts to.">Amount &amp; Posting</SectionTitle>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+              <FormField label="Amount Spent" required error={errors.amount}>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => {
+                    setAmount(e.target.value);
+                    setErrors((er) => ({ ...er, amount: undefined }));
+                  }}
+                  className={inputClass}
                 />
               </FormField>
 
-              <FormField label="Vendor's Name">
-                <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} className={inputClass} />
+              <FormField label="Currency">
+                <Combobox options={currencyOptions} value={currency} onChange={setCurrency} clearable={false} />
               </FormField>
 
-              <FormField label="Vendor's Email">
-                <input type="email" value={vendorEmail} onChange={(e) => setVendorEmail(e.target.value)} className={inputClass} />
+              <FormField label="Select Tax Type">
+                <select value={taxType} onChange={(e) => setTaxType(e.target.value)} className={inputClass}>
+                  {TAX_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
               </FormField>
-            </>
-          )}
 
-          <FormField label="Expense Number" required>
-            <input value={expenseNo} onChange={(e) => setExpenseNo(e.target.value)} placeholder={suggestedExpenseNo} className={inputClass} />
-          </FormField>
+              <FormField label="Expense Ledger">
+                <Combobox
+                  options={ledgerOptions}
+                  value={ledgerId}
+                  onChange={setLedgerId}
+                  placeholder="Select Expense Ledger"
+                  searchPlaceholder="Search ledger accounts…"
+                  emptyText="No expense accounts found"
+                />
+              </FormField>
+            </div>
+          </section>
 
-          <FormField label="Invoice Number">
-            <input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} className={inputClass} />
-          </FormField>
+          <hr className="border-border" />
 
-          <FormField label="Currency">
-            <Combobox options={currencyOptions} value={currency} onChange={setCurrency} clearable={false} />
-          </FormField>
+          {/* ---- Section: Notes & Attachments ---- */}
+          <section className="space-y-5">
+            <SectionTitle>Notes &amp; Attachments</SectionTitle>
 
-          <FormField label="Select Tax Type">
-            <select value={taxType} onChange={(e) => setTaxType(e.target.value)} className={inputClass}>
-              {TAX_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
-          </FormField>
+            <FormField label="Notes">
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className={cn(inputClass, 'resize-y')} />
+            </FormField>
 
-          <FormField label="Amount Spent" required error={errors.amount}>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => {
-                setAmount(e.target.value);
-                setErrors((er) => ({ ...er, amount: undefined }));
-              }}
-              className={inputClass}
-            />
-          </FormField>
-
-          <FormField label="Expense Ledger">
-            <Combobox
-              options={ledgerOptions}
-              value={ledgerId}
-              onChange={setLedgerId}
-              placeholder="Select Expense Ledger"
-              searchPlaceholder="Search ledger accounts…"
-              emptyText="No expense accounts found"
-            />
-          </FormField>
-
-          <FormField label="Notes">
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className={cn(inputClass, 'resize-y')} />
-          </FormField>
-
-          {/* Attachments */}
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">Attachments</p>
-            <p className="text-[11px] text-muted-foreground/70">
-              Attachments won&apos;t appear as separate documents; instead, they&apos;ll be accessible as clickable links within the invoice.
-            </p>
-            <label className="inline-flex h-12 w-12 cursor-pointer items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors">
-              <Plus className="h-5 w-5" />
-              <input type="file" className="hidden" onChange={onAttachmentChange} />
-            </label>
-            {attachmentName && (
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Paperclip className="h-3.5 w-3.5" /> {attachmentName}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Attachments</p>
+              <p className="text-[11px] text-muted-foreground/70">
+                Attachments won&apos;t appear as separate documents; instead, they&apos;ll be accessible as clickable links within the invoice.
               </p>
-            )}
-          </div>
+              <label className="inline-flex h-12 w-12 cursor-pointer items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors">
+                <Plus className="h-5 w-5" />
+                <input type="file" className="hidden" onChange={onAttachmentChange} />
+              </label>
+              {attachmentName && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Paperclip className="h-3.5 w-3.5" /> {attachmentName}
+                </p>
+              )}
+            </div>
 
-          {/* Recurring */}
-          <button
-            type="button"
-            onClick={() => setIsRecurring((r) => !r)}
-            className="flex items-start gap-3 text-left w-full rounded-lg border border-border p-4 hover:bg-accent/10 transition-colors"
-          >
-            <span className={cn('mt-0.5 h-5 w-9 rounded-full transition-colors relative shrink-0', isRecurring ? 'bg-primary' : 'bg-accent')}>
-              <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all', isRecurring ? 'left-[18px]' : 'left-0.5')} />
-            </span>
-            <span>
-              <span className="block text-sm font-semibold">This is a Recurring expenditure</span>
-              <span className="block text-xs text-muted-foreground">A draft expenditure will be created with the same details every next period.</span>
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setIsRecurring((r) => !r)}
+              className="flex items-start gap-3 text-left w-full rounded-lg border border-border p-4 hover:bg-accent/10 transition-colors"
+            >
+              <span className={cn('mt-0.5 h-5 w-9 rounded-full transition-colors relative shrink-0', isRecurring ? 'bg-primary' : 'bg-accent')}>
+                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all', isRecurring ? 'left-[18px]' : 'left-0.5')} />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold">This is a Recurring expenditure</span>
+                <span className="block text-xs text-muted-foreground">A draft expenditure will be created with the same details every next period.</span>
+              </span>
+            </button>
+          </section>
 
           {/* Actions */}
-          <div className="flex flex-wrap items-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-3 border-t border-border pt-6">
             <Button variant="primary" onClick={() => save('list')} disabled={createExpense.isPending}>
               {createExpense.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save &amp; Continue
