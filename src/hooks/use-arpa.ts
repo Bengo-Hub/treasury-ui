@@ -7,9 +7,11 @@ import {
   getCustomerStatement,
   setCustomerOpeningBalance,
   upsertVendorBalance,
+  recordVendorRefund,
   type StatementRange,
   type SetCustomerOpeningBalanceRequest,
   type UpsertVendorBalanceRequest,
+  type RecordVendorRefundRequest,
 } from '@/lib/api/arpa';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -111,5 +113,23 @@ export function useUpsertVendorBalance(tenant: string | undefined) {
       toast.success('Vendor balance saved.');
     },
     onError: (e: unknown) => toast.error(errMessage(e, 'Failed to save vendor balance.')),
+  });
+}
+
+/**
+ * Record cash received back from a supplier on a purchase return
+ * (POST /ap/vendors/refund-received). Refreshes the AP vendor balances + AP
+ * summary so the new figure shows immediately. Toasts success/error.
+ */
+export function useRecordVendorRefund(tenant: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RecordVendorRefundRequest) => recordVendorRefund(tenant!, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenant ?? '') });
+      queryClient.invalidateQueries({ queryKey: arpaKeys.apSummary(tenant ?? '') });
+      toast.success('Vendor refund recorded.');
+    },
+    onError: (e: unknown) => toast.error(errMessage(e, 'Failed to record vendor refund.')),
   });
 }
