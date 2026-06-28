@@ -5,9 +5,14 @@ import {
   getVendorBalances,
   getVendorStatement,
   getCustomerStatement,
+  setCustomerOpeningBalance,
+  upsertVendorBalance,
   type StatementRange,
+  type SetCustomerOpeningBalanceRequest,
+  type UpsertVendorBalanceRequest,
 } from '@/lib/api/arpa';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const STALE_MS = 2 * 60 * 1000;
 
@@ -63,5 +68,48 @@ export function useCustomerStatement(
     queryFn: () => getCustomerStatement(tenant!, contactId!, range),
     enabled: !!tenant && !!contactId && enabled,
     staleTime: STALE_MS,
+  });
+}
+
+// ---- Mutations ----
+
+const errMessage = (e: unknown, fallback: string): string => {
+  const data = (e as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
+  return data?.error || data?.message || (e instanceof Error ? e.message : fallback);
+};
+
+/**
+ * Set a customer's carried-in AR opening balance (POST /ar/customers/opening-balance).
+ * Refreshes the operational AR customer balances + AR summary/aging so the new
+ * opening figure shows immediately. Toasts success/error.
+ */
+export function useSetCustomerOpeningBalance(tenant: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SetCustomerOpeningBalanceRequest) => setCustomerOpeningBalance(tenant!, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant ?? ''] });
+      queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant ?? ''] });
+      queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant ?? ''] });
+      toast.success('Customer opening balance saved.');
+    },
+    onError: (e: unknown) => toast.error(errMessage(e, 'Failed to set opening balance.')),
+  });
+}
+
+/**
+ * Upsert a vendor opening / advance balance (POST /ap/vendors).
+ * Refreshes the AP vendor balances + AP summary. Toasts success/error.
+ */
+export function useUpsertVendorBalance(tenant: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpsertVendorBalanceRequest) => upsertVendorBalance(tenant!, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenant ?? '') });
+      queryClient.invalidateQueries({ queryKey: arpaKeys.apSummary(tenant ?? '') });
+      toast.success('Vendor balance saved.');
+    },
+    onError: (e: unknown) => toast.error(errMessage(e, 'Failed to save vendor balance.')),
   });
 }

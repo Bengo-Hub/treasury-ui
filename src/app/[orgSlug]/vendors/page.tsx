@@ -8,6 +8,7 @@ import { useAPSummary, useVendorBalances } from '@/hooks/use-arpa';
 import type { Bill } from '@/lib/api/bills';
 import type { VendorBalance } from '@/lib/api/arpa';
 import { StatementDialog } from '@/components/statement-dialog';
+import { OpeningBalanceDialog } from '@/components/opening-balance-dialog';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
@@ -24,6 +25,7 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  Wallet,
   X,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
@@ -113,6 +115,7 @@ export default function VendorsPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
   const [statementVendor, setStatementVendor] = useState<{ id: string; name: string } | null>(null);
+  const [openingVendor, setOpeningVendor] = useState<{ id?: string; name: string } | null>(null);
 
   const { data, isLoading, error } = useBills(effectiveTenant, {}, !!effectiveTenant);
   const bills = useMemo(() => data?.bills ?? [], [data]);
@@ -661,19 +664,33 @@ export default function VendorsPage() {
                             case 'actions':
                               return (
                                 <td key={col.key} className="px-6 py-3 text-right whitespace-nowrap">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={!vendor.vendorId}
-                                    title={vendor.vendorId ? 'View vendor statement' : 'No AP ledger balance for this vendor yet'}
-                                    onClick={(e: React.MouseEvent) => {
-                                      e.stopPropagation();
-                                      if (vendor.vendorId) setStatementVendor({ id: vendor.vendorId, name: vendor.name });
-                                    }}
-                                  >
-                                    <FileText className="h-3.5 w-3.5 mr-1" />
-                                    Statement
-                                  </Button>
+                                  <div className="inline-flex items-center justify-end gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      title="Set this vendor's opening / advance balance"
+                                      onClick={(e: React.MouseEvent) => {
+                                        e.stopPropagation();
+                                        setOpeningVendor({ id: vendor.vendorId, name: vendor.name });
+                                      }}
+                                    >
+                                      <Wallet className="h-3.5 w-3.5 mr-1" />
+                                      Opening Balance
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={!vendor.vendorId}
+                                      title={vendor.vendorId ? 'View vendor statement' : 'No AP ledger balance for this vendor yet'}
+                                      onClick={(e: React.MouseEvent) => {
+                                        e.stopPropagation();
+                                        if (vendor.vendorId) setStatementVendor({ id: vendor.vendorId, name: vendor.name });
+                                      }}
+                                    >
+                                      <FileText className="h-3.5 w-3.5 mr-1" />
+                                      Statement
+                                    </Button>
+                                  </div>
                                 </td>
                               );
                             default:
@@ -717,6 +734,18 @@ export default function VendorsPage() {
           tenant={effectiveTenant}
           entityId={statementVendor.id}
           name={statementVendor.name}
+        />
+      )}
+
+      {openingVendor && (
+        <OpeningBalanceDialog
+          kind="vendor"
+          open={!!openingVendor}
+          onClose={() => setOpeningVendor(null)}
+          tenant={effectiveTenant}
+          name={openingVendor.name}
+          vendorId={openingVendor.id}
+          vendorIdentifier={openingVendor.name}
         />
       )}
     </div>
