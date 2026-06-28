@@ -1,21 +1,12 @@
 ﻿'use client';
 
+import { CreateLedgerEntryDialog } from '@/components/ledger/CreateLedgerEntryDialog';
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { FormField } from '@/components/ui/form-field';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { useCreateJournalEntry, useJournalEntries } from '@/hooks/use-ledger';
-import { useAccounts } from '@/hooks/use-accounts';
+import { useJournalEntries } from '@/hooks/use-ledger';
 import { cn } from '@/lib/utils';
 import { BookOpen, Loader2, Plus, Receipt, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-
-interface LineInput {
-  account_id: string;
-  debit_amount: string;
-  credit_amount: string;
-  description: string;
-}
 
 const voucherTypes = ['payment', 'receipt', 'journal', 'sales', 'purchase'] as const;
 const voucherLabels: Record<string, string> = {
@@ -196,141 +187,7 @@ export default function VouchersPage() {
           </Card>
         </>
 
-      <CreateVoucherDialog open={createOpen} onOpenChange={setCreateOpen} tenantSlug={effectiveTenant} />
+      <CreateLedgerEntryDialog variant="voucher" open={createOpen} onOpenChange={setCreateOpen} tenantSlug={effectiveTenant} />
     </div>
-  );
-}
-
-function CreateVoucherDialog({
-  open,
-  onOpenChange,
-  tenantSlug,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  tenantSlug: string;
-}) {
-  const createMutation = useCreateJournalEntry();
-  const [voucherType, setVoucherType] = useState('payment');
-  const [referenceNumber, setReferenceNumber] = useState('');
-  const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
-  const [description, setDescription] = useState('');
-  const [lines, setLines] = useState<LineInput[]>([
-    { account_id: '', debit_amount: '', credit_amount: '', description: '' },
-    { account_id: '', debit_amount: '', credit_amount: '', description: '' },
-  ]);
-
-  // Use the chart-of-accounts hook (returns account_code/account_name) — the raw /ledger/accounts
-  // shape was code/name, which rendered "undefined - undefined" in the picker.
-  const { data: accountsData } = useAccounts(tenantSlug);
-  const accounts = accountsData?.accounts ?? [];
-
-  function updateLine(index: number, field: keyof LineInput, value: string) {
-    setLines((prev) => prev.map((line, lineIndex) => (lineIndex === index ? { ...line, [field]: value } : line)));
-  }
-
-  function addLine() {
-    setLines((prev) => [...prev, { account_id: '', debit_amount: '', credit_amount: '', description: '' }]);
-  }
-
-  function handleSubmit() {
-    createMutation.mutate(
-      {
-        tenantSlug,
-        data: {
-          entry_date: entryDate,
-          description,
-          reference_type: voucherType,
-          reference_id: referenceNumber || undefined,
-          metadata: { voucher_type: voucherType, source: 'treasury-ui-voucher-book' },
-          lines: lines
-            .filter((line) => line.account_id)
-            .map((line) => ({
-              account_id: line.account_id,
-              debit_amount: parseFloat(line.debit_amount) || 0,
-              credit_amount: parseFloat(line.credit_amount) || 0,
-              description: line.description,
-            })),
-        },
-      },
-      {
-        onSuccess: () => {
-          onOpenChange(false);
-          setVoucherType('payment');
-          setReferenceNumber('');
-          setEntryDate(new Date().toISOString().slice(0, 10));
-          setDescription('');
-          setLines([
-            { account_id: '', debit_amount: '', credit_amount: '', description: '' },
-            { account_id: '', debit_amount: '', credit_amount: '', description: '' },
-          ]);
-        },
-      },
-    );
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="New Voucher" description="Create a ledger voucher using the same posting workflow as journals." onClose={() => onOpenChange(false)} className="max-w-2xl">
-        <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Voucher Type" required>
-              <select value={voucherType} onChange={(e) => setVoucherType(e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm">
-                {voucherTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {voucherLabels[type]}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Reference Number">
-              <input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm" placeholder="e.g. PV-001" />
-            </FormField>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Voucher Date" required>
-              <input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm" />
-            </FormField>
-            <FormField label="Description">
-              <input value={description} onChange={(e) => setDescription(e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm" placeholder="Purpose or narration" />
-            </FormField>
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-border/70 bg-accent/10 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">Voucher lines</p>
-              <Button variant="outline" size="sm" onClick={addLine}>
-                <Plus className="mr-2 h-3.5 w-3.5" /> Add line
-              </Button>
-            </div>
-            {lines.map((line, index) => (
-              <div key={index} className="grid gap-3 rounded-lg border border-border/60 bg-background/80 p-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_1fr]">
-                <select value={line.account_id} onChange={(e) => updateLine(index, 'account_id', e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm">
-                  <option value="">Select account</option>
-                  {accounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.account_code} - {account.account_name}
-                    </option>
-                  ))}
-                </select>
-                <input value={line.debit_amount} onChange={(e) => updateLine(index, 'debit_amount', e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm" placeholder="Debit" />
-                <input value={line.credit_amount} onChange={(e) => updateLine(index, 'credit_amount', e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm" placeholder="Credit" />
-                <input value={line.description} onChange={(e) => updateLine(index, 'description', e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm" placeholder="Narration" />
-              </div>
-            ))}
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} disabled={createMutation.isPending}>
-              {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Voucher
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
