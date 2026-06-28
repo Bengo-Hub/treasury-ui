@@ -79,6 +79,14 @@ export default function InvoicesPage() {
   // Default (no selection) resolves to the platform owner's OWN tenant — NOT the aggregate.
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
+  // The platform owner viewing their OWN "My Treasury" Invoices (no specific tenant drilled
+  // into, not the cross-tenant aggregate) should see subscription/platform invoices alongside
+  // their standard sales invoices. The treasury-api is platform-owner-aware: calling the
+  // tenant list/stats with NO `types` returns the broader set (incl. subscription) for the
+  // platform owner. Regular tenants — and the owner once they drill into a specific tenant —
+  // keep the narrow business-only ('standard') filter.
+  const isOwnerSelfView = isPlatformOwner && !tenantQueryParam;
+
   // Aggregate (all-tenants) mode: only when the platform owner EXPLICITLY selects
   // "All Tenants" — invoices across every tenant (incl. platform-level subscription
   // invoices) via the dedicated /platform/invoices endpoint.
@@ -116,14 +124,19 @@ export default function InvoicesPage() {
 
   const platformTypes = SCOPE_TYPES[scopeFilter];
 
+  // For the owner's own view, omit `types` entirely so the platform-owner-aware backend
+  // returns the broader set (standard + subscription/platform invoices). Otherwise restrict
+  // to business-only 'standard'.
+  const tenantTypes = isOwnerSelfView ? undefined : TENANT_INVOICE_TYPES;
+
   const filters = useMemo(
     () => ({
-      types: TENANT_INVOICE_TYPES,
+      ...(tenantTypes ? { types: tenantTypes } : {}),
       ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
       page,
       limit: ITEMS_PER_PAGE,
     }),
-    [statusFilter, page],
+    [tenantTypes, statusFilter, page],
   );
 
   const platformFilters = useMemo(
@@ -138,7 +151,7 @@ export default function InvoicesPage() {
 
   // Tenant-scoped queries (regular tenant, or platform owner with a tenant selected).
   const tenantQuery = useInvoices(effectiveTenant, filters, !isAggregate && !!effectiveTenant);
-  const tenantStats = useInvoiceStats(effectiveTenant, TENANT_INVOICE_TYPES, !isAggregate && !!effectiveTenant);
+  const tenantStats = useInvoiceStats(effectiveTenant, tenantTypes, !isAggregate && !!effectiveTenant);
   // Cross-tenant queries (platform owner, no tenant selected).
   const platformQuery = usePlatformInvoices(platformFilters, isAggregate);
   const platformStats = usePlatformInvoiceStats({ types: platformTypes }, isAggregate);

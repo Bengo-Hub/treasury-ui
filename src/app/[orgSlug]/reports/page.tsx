@@ -343,20 +343,38 @@ function findSectionTotal(report: FinancialReport | undefined, ...needles: strin
   return s ? num(s.total) : 0;
 }
 
+const COGS_NEEDLES = ['cost of sales', 'cost of goods', 'cogs'];
+
+/** True when a section name denotes Cost of Sales / COGS. */
+function isCogsSection(name: string): boolean {
+  const n = name.toLowerCase();
+  return COGS_NEEDLES.some((needle) => n.includes(needle));
+}
+
 // ---- Profit & Loss ----
 
 function ProfitLossTab({ tenantSlug, window }: { tenantSlug: string; window: ReportWindow }) {
   const { data, isLoading, isError } = useProfitLoss(tenantSlug, window);
 
   const revenue = findSectionTotal(data, 'revenue', 'income', 'sales');
-  const cogs = findSectionTotal(data, 'cost of goods', 'cogs', 'cost of sales');
-  const expenses = findSectionTotal(data, 'expense', 'operating');
+  // COGS / Cost of Sales is GL-based. Prefer the backend's dedicated `cost_of_goods`
+  // figure; otherwise fall back to a "Cost of Sales"/"COGS" section total (0 if neither
+  // is present). This keeps Cost of Sales OUT of Operating Expenses so Gross Profit is right.
+  const cogs = data?.cost_of_goods != null
+    ? num(data.cost_of_goods)
+    : findSectionTotal(data, ...COGS_NEEDLES);
+  // Operating expenses must EXCLUDE any Cost-of-Sales section so COGS is not double-counted.
+  const expenses = (data?.sections ?? [])
+    .filter((s) => /expense|operating/i.test(s.name) && !isCogsSection(s.name))
+    .reduce((sum, s) => sum + num(s.total), 0);
+  // Prefer the backend's Gross Profit; otherwise compute Revenue − COGS.
+  const grossProfit = data?.gross_profit != null ? num(data.gross_profit) : revenue - cogs;
   const net = num(data?.total);
 
   const kpis: ReportKpi[] = [
     { label: 'Revenue', value: money(revenue), tone: 'success' },
     { label: 'COGS', value: money(cogs), tone: 'warning' },
-    { label: 'Gross Profit', value: money(revenue - cogs), tone: revenue - cogs >= 0 ? 'success' : 'destructive' },
+    { label: 'Gross Profit', value: money(grossProfit), tone: grossProfit >= 0 ? 'success' : 'destructive' },
     { label: 'Expenses', value: money(expenses), tone: 'warning' },
     { label: 'Net Profit', value: money(net), tone: net >= 0 ? 'success' : 'destructive' },
   ];
@@ -395,7 +413,23 @@ function ProfitLossTab({ tenantSlug, window }: { tenantSlug: string; window: Rep
           </div>
 
           {(() => {
-            const sections = sectionsToTable(data.sections);
+            // Show Cost of Sales as its OWN section, distinct from Operating Expenses.
+            // If the backend already returns a dedicated COGS section, render the sections
+            // verbatim. Otherwise, when only a `cost_of_goods` figure is present, inject a
+            // synthetic Cost of Sales section so Gross Profit reads correctly on the document.
+            const hasCogsSection = (data.sections ?? []).some((s) => isCogsSection(s.name));
+            const displaySections =
+              hasCogsSection || data.cost_of_goods == null || cogs === 0
+                ? sectionsToTable(data.sections)
+                : sectionsToTable([
+                    ...(data.sections ?? []).filter((s) => /revenue|income|sales/i.test(s.name)),
+                    {
+                      name: 'Cost of Sales',
+                      rows: [{ account_code: '', account_name: 'Cost of Goods Sold', amount: String(cogs) }],
+                      total: String(cogs),
+                    },
+                    ...(data.sections ?? []).filter((s) => !/revenue|income|sales/i.test(s.name)),
+                  ]);
             const grandTotal = { cells: ['', 'Net Income', money(net)] };
             return (
               <ReportDocument
@@ -407,11 +441,11 @@ function ProfitLossTab({ tenantSlug, window }: { tenantSlug: string; window: Rep
                   title: 'Profit & Loss Statement',
                   periodLabel,
                   columns: LEDGER_COLUMNS,
-                  sections,
+                  sections: displaySections,
                   grandTotal,
                 }}
               >
-                <ReportTable columns={LEDGER_COLUMNS} sections={sections} grandTotal={grandTotal} />
+                <ReportTable columns={LEDGER_COLUMNS} sections={displaySections} grandTotal={grandTotal} />
               </ReportDocument>
             );
           })()}
@@ -446,6 +480,7 @@ function ProfitLossSummaryTab({ tenantSlug, window }: { tenantSlug: string; wind
             const kpis: ReportKpi[] = [
               { label: 'Revenue (GL)', value: money(data.gl_revenue, cur), tone: 'success' },
               { label: 'COGS', value: money(data.cost_of_goods, cur), tone: 'warning' },
+              { label: 'Gross Profit', value: money(data.gross_profit, cur), tone: num(data.gross_profit) >= 0 ? 'success' : 'destructive' },
               { label: 'Expenses (GL)', value: money(data.gl_expenses, cur), tone: 'warning' },
               { label: 'Net Profit (GL)', value: money(data.gl_net_profit, cur), tone: num(data.gl_net_profit) >= 0 ? 'success' : 'destructive' },
             ];
