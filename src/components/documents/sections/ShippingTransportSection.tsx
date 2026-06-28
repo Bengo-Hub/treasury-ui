@@ -18,6 +18,20 @@ export interface TransportDetails {
   transport_date?: string;
   shipped_from?: string;
   shipped_to?: string;
+  // Delivery COST the BUSINESS incurs to deliver (distinct from the customer shipping charge
+  // above). When the invoice is sent (or a delivery note dispatched) the backend records this as a
+  // linked freight Expense (DR Freight & Shipping 5500 / CR Accounts Payable), so the cost shows on
+  // the Expenses page and posts a single source-doc-backed GL entry — never an orphan journal.
+  delivery_cost?: number | string;
+  delivery_cost_billable?: boolean;   // true when the customer is being charged shipping (recharge)
+  delivery_cost_vendor_id?: string;   // optional carrier/courier vendor the cost is owed to
+  delivery_cost_carrier?: string;     // optional free-text carrier label (when no vendor record)
+}
+
+/** VendorOption is a minimal carrier/vendor entry for the optional delivery-cost vendor picker. */
+export interface VendorOption {
+  id: string;
+  name: string;
 }
 
 interface Props {
@@ -28,6 +42,8 @@ interface Props {
   transport: TransportDetails;
   onTransportChange: (t: TransportDetails) => void;
   currency?: string;
+  /** Optional carrier/vendor list for the delivery-cost vendor picker (e.g. from useVendors). */
+  vendors?: VendorOption[];
 }
 
 const inputCls =
@@ -35,7 +51,7 @@ const inputCls =
 const labelCls = 'text-xs font-medium text-muted-foreground mb-1 block';
 
 export function ShippingTransportSection({
-  enabled, onToggle, shippingAmount, onShippingAmountChange, transport, onTransportChange, currency = 'KES',
+  enabled, onToggle, shippingAmount, onShippingAmountChange, transport, onTransportChange, currency = 'KES', vendors = [],
 }: Props) {
   const set = (patch: Partial<TransportDetails>) => onTransportChange({ ...transport, ...patch });
 
@@ -116,6 +132,61 @@ export function ShippingTransportSection({
               placeholder="0.00"
             />
             <p className="mt-1 text-[11px] text-muted-foreground">Adds to the invoice total · posts to Shipping Recovery (4500).</p>
+          </div>
+
+          {/* Delivery COST the business incurs — distinct from the customer charge above. Recorded as a
+              linked freight Expense (5500) when the invoice is sent / delivery note dispatched. */}
+          <div className="rounded-lg border border-dashed border-border bg-background/50 p-3 space-y-3">
+            <p className="text-xs font-semibold text-foreground">Delivery cost (your cost)</p>
+            <p className="text-[11px] text-muted-foreground -mt-2">
+              What you pay to deliver. Posts a Freight &amp; Shipping (5500) expense linked to this invoice — shows on the Expenses page.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Delivery cost ({currency})</label>
+                <input
+                  type="number" min={0} step="0.01" className={inputCls}
+                  value={transport.delivery_cost ?? ''}
+                  onChange={(e) => set({ delivery_cost: e.target.value === '' ? undefined : parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Carrier / courier</label>
+                {vendors.length > 0 ? (
+                  <select
+                    className={inputCls}
+                    value={transport.delivery_cost_vendor_id ?? ''}
+                    onChange={(e) => {
+                      const id = e.target.value || undefined;
+                      const name = vendors.find((v) => v.id === id)?.name;
+                      set({ delivery_cost_vendor_id: id, delivery_cost_carrier: name ?? transport.delivery_cost_carrier });
+                    }}
+                  >
+                    <option value="">— Select carrier (optional) —</option>
+                    {vendors.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className={inputCls}
+                    value={transport.delivery_cost_carrier ?? ''}
+                    onChange={(e) => set({ delivery_cost_carrier: e.target.value })}
+                    placeholder="e.g. G4S, Wells Fargo (optional)"
+                  />
+                )}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!transport.delivery_cost_billable}
+                onChange={(e) => set({ delivery_cost_billable: e.target.checked })}
+                className="h-4 w-4 accent-primary"
+              />
+              Billable to customer (recharged via the shipping charge)
+            </label>
           </div>
         </div>
       )}

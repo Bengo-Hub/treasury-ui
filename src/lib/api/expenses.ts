@@ -34,6 +34,13 @@ export interface Expense {
   source_service?: string;
   source_reference_id?: string;
   is_recurring: boolean;
+  // Customer-cost linkage (Phase 9/11): an expense can be linked to an invoice + customer and
+  // flagged billable/billed so per-invoice cost/margin and recharge are visible.
+  invoice_id?: string;
+  customer_id?: string;
+  billable?: boolean;
+  billed?: boolean;
+  outlet_id?: string;
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
@@ -69,6 +76,9 @@ export interface ExpensesParams {
   from?: string;
   to?: string;
   source_service?: string;
+  // invoice_id + billable power the per-invoice linked-cost / margin view.
+  invoice_id?: string;
+  billable?: boolean;
   limit?: number;
   offset?: number;
   tenantId?: string;
