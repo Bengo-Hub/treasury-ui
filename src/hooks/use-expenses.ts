@@ -9,9 +9,12 @@ import {
   rejectExpense,
   reimburseExpense,
   createExpenseCategory,
+  updateExpenseCategory,
+  deleteExpenseCategory,
   type ExpensesParams,
   type CreateExpenseRequest,
   type CreateCategoryRequest,
+  type UpdateCategoryRequest,
 } from '@/lib/api/expenses';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -106,6 +109,29 @@ export function useCreateCategory(tenantIdOrSlug: string | undefined) {
   return useMutation({
     mutationFn: (data: CreateCategoryRequest) => createExpenseCategory(tenantIdOrSlug!, data),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses', 'categories', tenantIdOrSlug] });
+    },
+  });
+}
+
+export function useUpdateCategory(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateCategoryRequest }) =>
+      updateExpenseCategory(tenantIdOrSlug!, id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses', 'categories', tenantIdOrSlug] });
+    },
+  });
+}
+
+export function useDeleteCategory(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteExpenseCategory(tenantIdOrSlug!, id),
+    // Always refetch: a hard delete removes the row, while an in-use 409 leaves the
+    // category soft-deactivated (is_active=false) — both change the list.
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ['expenses', 'categories', tenantIdOrSlug] });
     },
   });

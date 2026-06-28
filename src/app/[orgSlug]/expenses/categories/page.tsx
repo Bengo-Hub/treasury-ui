@@ -3,10 +3,16 @@
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
-import { useCreateCategory, useExpenseCategories } from '@/hooks/use-expenses';
+import {
+  useCreateCategory,
+  useDeleteCategory,
+  useExpenseCategories,
+  useUpdateCategory,
+} from '@/hooks/use-expenses';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Loader2, Plus, Search, Tags } from 'lucide-react';
+import type { ExpenseCategory } from '@/lib/api/expenses';
+import { ArrowLeft, Loader2, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -32,26 +38,45 @@ export default function ExpenseCategoriesPage() {
 
   const { data, isLoading, error } = useExpenseCategories(effectiveTenant, !!effectiveTenant);
   const createCategory = useCreateCategory(effectiveTenant);
+  const updateCategory = useUpdateCategory(effectiveTenant);
+  const deleteCategory = useDeleteCategory(effectiveTenant);
 
   const [search, setSearch] = useState('');
+
+  // Create dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  const [description, setDescription] = useState('');
   const [codeTouched, setCodeTouched] = useState(false);
   const [nameError, setNameError] = useState<string | undefined>();
+
+  // Edit dialog state
+  const [editTarget, setEditTarget] = useState<ExpenseCategory | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editActive, setEditActive] = useState(true);
+  const [editNameError, setEditNameError] = useState<string | undefined>();
+
+  // Delete confirm state
+  const [deleteTarget, setDeleteTarget] = useState<ExpenseCategory | null>(null);
 
   const categories = useMemo(() => {
     const list = data?.categories ?? [];
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q),
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.code.toLowerCase().includes(q) ||
+        (c.description ?? '').toLowerCase().includes(q),
     );
   }, [data, search]);
 
   const openDialog = () => {
     setName('');
     setCode('');
+    setDescription('');
     setCodeTouched(false);
     setNameError(undefined);
     setDialogOpen(true);
@@ -64,7 +89,11 @@ export default function ExpenseCategoriesPage() {
       return;
     }
     createCategory.mutate(
-      { name: trimmed, code: (codeTouched && code.trim()) || deriveCode(trimmed) },
+      {
+        name: trimmed,
+        code: (codeTouched && code.trim()) || deriveCode(trimmed),
+        description: description.trim() || undefined,
+      },
       {
         onSuccess: (cat) => {
           toast.success(`Category "${cat.name}" created`);
@@ -75,6 +104,66 @@ export default function ExpenseCategoriesPage() {
         },
       },
     );
+  };
+
+  const openEdit = (cat: ExpenseCategory) => {
+    setEditTarget(cat);
+    setEditName(cat.name);
+    setEditDescription(cat.description ?? '');
+    setEditActive(cat.is_active);
+    setEditNameError(undefined);
+  };
+
+  const handleUpdate = () => {
+    if (!editTarget) return;
+    const trimmed = editName.trim();
+    if (!trimmed) {
+      setEditNameError('Enter a category name');
+      return;
+    }
+    updateCategory.mutate(
+      {
+        id: editTarget.id,
+        data: {
+          name: trimmed,
+          // Send empty string (not undefined) so clearing the description persists.
+          description: editDescription.trim(),
+          is_active: editActive,
+        },
+      },
+      {
+        onSuccess: (cat) => {
+          toast.success(`Category "${cat.name}" updated`);
+          setEditTarget(null);
+        },
+        onError: (err: any) => {
+          toast.error(err?.response?.data?.error ?? 'Failed to update category. Please try again.');
+        },
+      },
+    );
+  };
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    deleteCategory.mutate(target.id, {
+      onSuccess: () => {
+        toast.success(`Category "${target.name}" deleted`);
+        setDeleteTarget(null);
+      },
+      onError: (err: any) => {
+        // 409 = the category is referenced by existing expenses; the backend
+        // deactivated it (is_active=false) instead of hard-deleting.
+        if (err?.response?.status === 409) {
+          toast.info(
+            `"${target.name}" is in use by existing expenses, so it was deactivated instead of deleted.`,
+          );
+          setDeleteTarget(null);
+          return;
+        }
+        toast.error(err?.response?.data?.error ?? 'Failed to delete category. Please try again.');
+      },
+    });
   };
 
   return (
@@ -113,7 +202,7 @@ export default function ExpenseCategoriesPage() {
           <div className="relative w-full max-w-sm group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
             <input
-              placeholder="Search by name or code…"
+              placeholder="Search by name, code or description…"
               className="w-full bg-accent/30 border-none rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary transition-all"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -148,12 +237,20 @@ export default function ExpenseCategoriesPage() {
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Code</th>
                     <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
                     <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Created</th>
+                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {categories.map((c) => (
                     <tr key={c.id} className="hover:bg-accent/5 transition-colors">
-                      <td className="px-6 py-4 font-medium">{c.name}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-medium">{c.name}</div>
+                        {c.description && (
+                          <div className="text-xs text-muted-foreground mt-0.5 max-w-md truncate">
+                            {c.description}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{c.code}</td>
                       <td className="px-6 py-4 text-center">
                         <Badge variant={c.is_active ? 'success' : 'outline'}>
@@ -162,6 +259,27 @@ export default function ExpenseCategoriesPage() {
                       </td>
                       <td className="px-6 py-4 text-right text-xs text-muted-foreground">
                         {c.created_at ? new Date(c.created_at).toLocaleDateString() : '—'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Edit ${c.name}`}
+                            onClick={() => openEdit(c)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete ${c.name}`}
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(c)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -212,6 +330,16 @@ export default function ExpenseCategoriesPage() {
               />
             </FormField>
 
+            <FormField label="Description" description="Optional — a short note about what this category covers.">
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder="e.g. Pens, paper, printer ink and other office consumables"
+                className={cn(inputClass, 'resize-y')}
+              />
+            </FormField>
+
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={createCategory.isPending}>
                 Cancel
@@ -219,6 +347,99 @@ export default function ExpenseCategoriesPage() {
               <Button variant="primary" onClick={handleCreate} disabled={createCategory.isPending}>
                 {createCategory.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Create category
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent
+          title="Edit expense category"
+          description="Update the name, description or active status."
+          onClose={() => setEditTarget(null)}
+        >
+          <div className="space-y-4">
+            <FormField label="Category name" required error={editNameError}>
+              <input
+                autoFocus
+                value={editName}
+                onChange={(e) => {
+                  setEditName(e.target.value);
+                  if (editNameError) setEditNameError(undefined);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleUpdate();
+                  }
+                }}
+                placeholder="e.g. Office Supplies"
+                className={inputClass}
+              />
+            </FormField>
+
+            <FormField label="Code" description="Codes are immutable once created.">
+              <input value={editTarget?.code ?? ''} disabled className={cn(inputClass, 'font-mono opacity-60')} />
+            </FormField>
+
+            <FormField label="Description" description="Optional — a short note about what this category covers.">
+              <textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                rows={3}
+                placeholder="e.g. Pens, paper, printer ink and other office consumables"
+                className={cn(inputClass, 'resize-y')}
+              />
+            </FormField>
+
+            <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={editActive}
+                onChange={(e) => setEditActive(e.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+              />
+              <span>Active</span>
+              <span className="text-xs text-muted-foreground">
+                Inactive categories are hidden from the expense form.
+              </span>
+            </label>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setEditTarget(null)} disabled={updateCategory.isPending}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={handleUpdate} disabled={updateCategory.isPending}>
+                {updateCategory.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save changes
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent
+          title="Delete category?"
+          onClose={() => setDeleteTarget(null)}
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This will permanently delete{' '}
+              <span className="font-medium text-foreground">{deleteTarget?.name}</span>. If the
+              category is already used by one or more expenses it will be deactivated instead of
+              deleted, so existing expense history is preserved.
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteCategory.isPending}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDelete} disabled={deleteCategory.isPending}>
+                {deleteCategory.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Delete
               </Button>
             </div>
           </div>
