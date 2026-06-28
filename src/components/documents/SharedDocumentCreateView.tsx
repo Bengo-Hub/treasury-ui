@@ -12,6 +12,7 @@ import type {
 } from '@/lib/api/invoices';
 import { createCRMContact, crmContactDisplayName, type CRMContact } from '@/lib/api/crm';
 import { useOutletFilterStore } from '@/store/outlet-filter';
+import { useVendors } from '@/hooks/use-inventory';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, Loader2, Search, UserPlus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -173,6 +174,10 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   const [showSuggestions, setShowSuggestions] = useState(false);
   const clientRef = useRef<HTMLInputElement>(null);
   const { data: crmContacts = [] } = useCRMContacts(effectiveTenant, clientSearch);
+  // Carriers/couriers for the delivery-cost vendor picker (invoices only). Best-effort: an empty
+  // list just degrades the picker to a free-text carrier field in the section.
+  const { data: vendorsResp } = useVendors(effectiveTenant, undefined, !isQuotation);
+  const carrierVendors = (vendorsResp?.vendors ?? []).map((v) => ({ id: v.id, name: v.business_name }));
 
   const today = new Date().toISOString().slice(0, 10);
   const defaultSecondary = config.defaultSecondaryDays > 0
@@ -564,6 +569,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
               transport={transport}
               onTransportChange={setTransport}
               currency={form.currency}
+              vendors={carrierVendors}
             />
           )}
 
