@@ -8,12 +8,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
     useCreateEquityHolder,
     useEquityHolders,
+    useEquityPolicy,
     useEquitySchedule,
     useEquitySummary,
     useHolderPayouts,
     useRunEquityPayout,
     useTriggerEquityPayout,
     useUpdateEquityHolder,
+    useUpdateEquityPolicy,
     useUpdateEquitySchedule,
 } from '@/hooks/use-equity';
 import { useEquityApplications, useUpdateEquityApplication } from '@/hooks/use-equity-applications';
@@ -43,6 +45,7 @@ import {
     Link2,
     Loader2,
     MoreVertical,
+    Percent,
     PieChart,
     Plus,
     RefreshCcw,
@@ -361,7 +364,8 @@ export default function EquityManagementPage() {
                     <ReferralsPanel />
                 </TabsContent>
 
-                <TabsContent value="schedule" className="mt-6">
+                <TabsContent value="schedule" className="mt-6 space-y-6">
+                    <PlatformRetentionCard />
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                         <GlobalPayoutScheduleCard />
                         <NextPayoutProjectionCard
@@ -1546,6 +1550,100 @@ function FrequencyConfigModal({
                 </form>
             </DialogContent>
         </Dialog>
+    );
+}
+
+/**
+ * PlatformRetentionCard edits the platform equity policy: the % the platform retains
+ * before distributing the remainder to equity holders. The API stores fractions in
+ * [0, 1); the UI works in whole percent (0–99) and shows the derived distributable
+ * share live. Saving invalidates the equity-summary queries so projected payouts refresh.
+ */
+function PlatformRetentionCard() {
+    const { data, isLoading } = useEquityPolicy();
+    const updatePolicy = useUpdateEquityPolicy();
+    const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm';
+
+    // Retention held in whole-percent units (e.g. 30 for 0.30). Empty string = untouched.
+    const [retentionPct, setRetentionPct] = useState<string>('');
+
+    useEffect(() => {
+        if (data?.policy) {
+            setRetentionPct(String(Math.round((data.policy.platform_retention_pct ?? 0) * 1000) / 10));
+        }
+    }, [data?.policy]);
+
+    const parsed = parseFloat(retentionPct);
+    const hasValue = retentionPct.trim() !== '' && !Number.isNaN(parsed);
+    const isValid = hasValue && parsed >= 0 && parsed <= 99;
+    const distributablePct = hasValue ? Math.max(0, 100 - parsed) : null;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!isValid) return;
+        // Convert whole-percent → fraction for the API (0 ≤ x < 1).
+        updatePolicy.mutate({ platform_retention_pct: parsed / 100 });
+    };
+
+    return (
+        <Card className="border-none shadow-xl shadow-black/5 max-w-2xl">
+            <CardHeader className="bg-transparent border-none">
+                <h3 className="text-xl font-bold flex items-center gap-3">
+                    <Percent className="h-5 w-5 text-primary" />
+                    Platform Retention %
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                    The share the platform retains before distributing the remainder to equity holders.
+                    Default is 30%. The distributable share is derived automatically.
+                </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Loading policy...
+                    </div>
+                ) : (
+                    <form className="space-y-4" onSubmit={handleSubmit}>
+                        <FormField
+                            label="Platform Retention (%)"
+                            description="Percentage of net profit the platform keeps before equity distribution. Allowed range: 0–99."
+                            error={hasValue && !isValid ? 'Enter a value between 0 and 99.' : undefined}
+                        >
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={99}
+                                    step="0.1"
+                                    value={retentionPct}
+                                    onChange={(e) => setRetentionPct(e.target.value)}
+                                    className={cn(inputClass, 'pr-9')}
+                                    placeholder="30"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                            </div>
+                        </FormField>
+
+                        <div className="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/10 px-4 py-3 text-sm">
+                            <Info className="h-4 w-4 text-primary shrink-0" />
+                            <span>
+                                Distributable to holders:{' '}
+                                <span className="font-bold">
+                                    {distributablePct != null ? `${Number(distributablePct.toFixed(2))}%` : '—'}
+                                </span>
+                            </span>
+                        </div>
+
+                        <div className="pt-1">
+                            <Button type="submit" disabled={updatePolicy.isPending || !isValid}>
+                                {updatePolicy.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                Save Retention
+                            </Button>
+                        </div>
+                    </form>
+                )}
+            </CardContent>
+        </Card>
     );
 }
 
