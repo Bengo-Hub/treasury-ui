@@ -18,6 +18,8 @@ export interface LineRequest {
   unit?: string;
   quantity: number | string;
   unit_price: number | string;
+  /** Buying / cost price per unit (business-only — never rendered on the customer PDF). */
+  unit_cost?: number | string;
   tax_code?: string;
   tax_rate?: number | string;
   discount_amount?: number | string;
@@ -35,6 +37,8 @@ export interface InvoiceLine {
   unit?: string;
   quantity: string;
   unit_price: string;
+  /** Buying / cost price per unit (business-only). */
+  unit_cost?: string;
   tax_code?: string;
   tax_rate: string;
   tax_amount: string;
@@ -171,6 +175,8 @@ export interface QuotationLine {
   unit?: string;
   quantity: string;
   unit_price: string;
+  /** Buying / cost price per unit (business-only). */
+  unit_cost?: string;
   tax_code?: string;
   tax_rate: string;
   tax_amount: string;

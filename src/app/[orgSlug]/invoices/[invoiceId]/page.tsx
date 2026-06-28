@@ -29,6 +29,7 @@ import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documen
 import { downloadPublicInvoicePdf } from '@/lib/api/documents';
 import { DocumentApprovalCard } from '@/components/documents/DocumentApprovalCard';
 import { DocumentJournalPanel } from '@/components/documents/DocumentJournalPanel';
+import { MarginPanel } from '@/components/documents/MarginPanel';
 import { moduleForDocType } from '@/lib/documents/approvals';
 
 function StatusBadge({ status }: { status: string }) {
@@ -416,6 +417,19 @@ export default function InvoiceDetailPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Business-only margin analysis (internal — never on the customer PDF). */}
+        {invoice.lines && invoice.lines.length > 0 && (
+          <MarginPanel
+            currency={invoice.currency}
+            lines={invoice.lines.map((l) => ({
+              description: l.description,
+              quantity: Number(l.quantity),
+              unit_price: Number(l.unit_price),
+              unit_cost: l.unit_cost != null ? Number(l.unit_cost) : undefined,
+            }))}
+          />
         )}
 
         {/* Notes & Terms */}

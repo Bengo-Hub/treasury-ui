@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Package, Plus, Search, X } from 'lucide-react';
 import { useInventoryItems } from '@/hooks/use-inventory';
 import type { InventoryItem } from '@/lib/api/inventory';
+import { MarginPanel } from '../MarginPanel';
 
 type SearchState = 'EMPTY' | 'SEARCHING' | 'RESULTS_FOUND' | 'LINKED';
 
@@ -17,6 +18,8 @@ export interface LineRow {
   unit?: string;
   quantity: number;
   unit_price: number;
+  /** Buying / cost price per unit (business-only — drives the internal margin panel). */
+  unit_cost?: number;
   tax_code?: string;
   tax_rate: number;
   discount_amount: number;
@@ -70,6 +73,7 @@ function ItemCombobox({ tenant, line, onUpdate, onRequestCreate }: ComboboxProps
       image_url: item.image_url,
       unit: item.unit,
       unit_price: parseFloat(item.unit_price ?? '0') || 0,
+      unit_cost: item.cost_price != null ? (parseFloat(item.cost_price) || 0) : undefined,
       tax_code: item.tax_code,
       tax_rate: parseFloat(item.tax_rate ?? '0') || 0,
     });
@@ -194,6 +198,7 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
   const fmt = (n: number) => n.toFixed(2);
 
   return (
+    <div className="space-y-4">
     <div className="space-y-0 rounded-xl overflow-hidden border border-border">
       {/* Header */}
       <div className="px-4 py-2.5 grid grid-cols-12 gap-2 text-xs font-bold bg-primary text-primary-foreground">
@@ -219,7 +224,24 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
                 onUpdate={patch => updateLine(idx, patch)}
                 onRequestCreate={q => onRequestCreateItem?.(q, idx)}
               />
-              {line.unit && <div className="text-[10px] text-muted-foreground">Unit: {line.unit}</div>}
+              <div className="flex items-center gap-2 flex-wrap">
+                {line.unit && <div className="text-[10px] text-muted-foreground">Unit: {line.unit}</div>}
+                {/* Business-only buying price (cost) — drives the internal margin panel, never on the PDF. */}
+                <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <span className="font-bold">Cost</span>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={line.unit_cost ?? ''}
+                    placeholder="—"
+                    onChange={e => {
+                      const v = e.target.value;
+                      updateLine(idx, { unit_cost: v === '' ? undefined : (parseFloat(v) || 0) });
+                    }}
+                    className="w-20 rounded-md py-1 px-1.5 text-[10px] text-right font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    title="Buying price per unit (internal only)"
+                  />
+                </label>
+              </div>
             </div>
             <div className="col-span-1 pt-5">
               <input type="number" min="0.01" step="0.01" value={line.quantity}
@@ -270,6 +292,13 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
           </div>
         </div>
       </div>
+    </div>
+
+    {/* Business-only margin analysis — never rendered on the customer PDF. */}
+    <MarginPanel
+      lines={lines.map(l => ({ description: l.description, quantity: l.quantity, unit_price: l.unit_price, unit_cost: l.unit_cost }))}
+      currency={currency}
+    />
     </div>
   );
 }
