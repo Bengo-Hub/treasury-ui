@@ -76,9 +76,12 @@ export interface ConvertToEquityResponse {
 
 export interface CreateReferralRequest {
   program_id: string;
-  referrer_tenant_id?: string; // Type-A
-  referrer_name?: string;      // Type-B (external referrer)
-  referrer_email?: string;     // Type-B
+  referrer_tenant_id?: string; // Type-A: referring tenant
+  referrer_name?: string;      // Type-B: external referrer (legacy free-text path)
+  referrer_email?: string;     // Type-B: external referrer
+  // Type-B: link to an existing equity holder AT CREATION. The referral is created already
+  // linked + equity-active — no separate convert-to-equity step is required.
+  equity_holder_id?: string;
   referred_tenant_id: string;
   notes?: string;
 }

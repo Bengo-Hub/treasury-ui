@@ -30,6 +30,9 @@ export function useCreateEquityHolder() {
         mutationFn: equityApi.createEquityHolder,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['equity-holders'] });
+            // Projected payouts + Total Allocated are derived server-side from holder %/allocation,
+            // so refresh the summary too — the new holder's projection renders immediately.
+            queryClient.invalidateQueries({ queryKey: ['equity-summary'] });
             toast.success('Equity holder created successfully');
         },
         onError: (error: any) => {
@@ -45,6 +48,9 @@ export function useUpdateEquityHolder() {
             equityApi.updateEquityHolder(id, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['equity-holders'] });
+            // A %-share / allocation-affecting edit changes projected payouts (computed server-side),
+            // so invalidate the summary — per-holder "Projected Payout" + Total Allocated recompute.
+            queryClient.invalidateQueries({ queryKey: ['equity-summary'] });
             toast.success('Equity holder updated successfully');
         },
         onError: (error: any) => {
