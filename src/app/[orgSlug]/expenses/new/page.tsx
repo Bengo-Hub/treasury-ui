@@ -100,6 +100,8 @@ export default function NewExpenditurePage() {
   }, [existingExpenses]);
 
   const [expenseDate, setExpenseDate] = useState(today());
+  // Self / internal expense — no external vendor; the create payload omits vendor_id.
+  const [selfExpense, setSelfExpense] = useState(false);
   const [vendorId, setVendorId] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [vendorEmail, setVendorEmail] = useState('');
@@ -135,7 +137,7 @@ export default function NewExpenditurePage() {
 
   const buildPayload = (): CreateExpenseRequest | null => {
     const nextErrors: typeof errors = {};
-    if (!vendorId && !vendorName.trim()) nextErrors.vendor = 'Select or name a vendor';
+    if (!selfExpense && !vendorId && !vendorName.trim()) nextErrors.vendor = 'Select a vendor, name one, or mark this as a self / internal expense';
     if (!amount.trim() || !(parseFloat(amount) > 0)) nextErrors.amount = 'Enter the amount spent';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return null;
@@ -150,13 +152,15 @@ export default function NewExpenditurePage() {
       tax_amount: tax || undefined,
       currency,
       expense_date: expenseDate,
-      vendor_id: vendorId || undefined,
+      // Self / internal expense → omit vendor_id entirely (backend treats it as optional).
+      vendor_id: selfExpense ? undefined : (vendorId || undefined),
       account_id: ledgerId || undefined,
       metadata: {
         expense_number: expenseNo.trim() || suggestedExpenseNo,
         invoice_number: invoiceNo.trim() || undefined,
-        vendor_name: vendorName.trim() || undefined,
-        vendor_email: vendorEmail.trim() || undefined,
+        vendor_name: selfExpense ? undefined : (vendorName.trim() || undefined),
+        vendor_email: selfExpense ? undefined : (vendorEmail.trim() || undefined),
+        is_self_expense: selfExpense || undefined,
         tax_type: taxType,
         is_recurring: isRecurring,
         attachment_name: attachmentName || undefined,
@@ -166,6 +170,7 @@ export default function NewExpenditurePage() {
 
   const reset = () => {
     setExpenseDate(today());
+    setSelfExpense(false);
     setVendorId('');
     setVendorName('');
     setVendorEmail('');
@@ -220,24 +225,54 @@ export default function NewExpenditurePage() {
             <input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} className={inputClass} />
           </FormField>
 
-          <FormField label="Select Vendor" required error={errors.vendor}>
-            <Combobox
-              options={vendorOptions}
-              value={vendorId}
-              onChange={onSelectVendor}
-              placeholder="Select Vendor"
-              searchPlaceholder="Search vendors…"
-              emptyText="No vendors yet"
-            />
-          </FormField>
+          {/* Self / internal expense toggle — when on, no external vendor is sent. */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelfExpense((s) => {
+                const next = !s;
+                if (next) {
+                  setVendorId('');
+                  setVendorName('');
+                  setVendorEmail('');
+                  setErrors((e) => ({ ...e, vendor: undefined }));
+                }
+                return next;
+              });
+            }}
+            className="flex items-start gap-3 text-left w-full rounded-lg border border-border p-4 hover:bg-accent/10 transition-colors"
+          >
+            <span className={cn('mt-0.5 h-5 w-9 rounded-full transition-colors relative shrink-0', selfExpense ? 'bg-primary' : 'bg-accent')}>
+              <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all', selfExpense ? 'left-[18px]' : 'left-0.5')} />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold">Self / internal (no external vendor)</span>
+              <span className="block text-xs text-muted-foreground">For internal spend with no external supplier (e.g. petty cash, reimbursements). No vendor is recorded.</span>
+            </span>
+          </button>
 
-          <FormField label="Vendor's Name">
-            <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} className={inputClass} />
-          </FormField>
+          {!selfExpense && (
+            <>
+              <FormField label="Select Vendor" error={errors.vendor}>
+                <Combobox
+                  options={vendorOptions}
+                  value={vendorId}
+                  onChange={onSelectVendor}
+                  placeholder="Select Vendor"
+                  searchPlaceholder="Search vendors…"
+                  emptyText="No vendors yet"
+                />
+              </FormField>
 
-          <FormField label="Vendor's Email">
-            <input type="email" value={vendorEmail} onChange={(e) => setVendorEmail(e.target.value)} className={inputClass} />
-          </FormField>
+              <FormField label="Vendor's Name">
+                <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} className={inputClass} />
+              </FormField>
+
+              <FormField label="Vendor's Email">
+                <input type="email" value={vendorEmail} onChange={(e) => setVendorEmail(e.target.value)} className={inputClass} />
+              </FormField>
+            </>
+          )}
 
           <FormField label="Expense Number" required>
             <input value={expenseNo} onChange={(e) => setExpenseNo(e.target.value)} placeholder={suggestedExpenseNo} className={inputClass} />

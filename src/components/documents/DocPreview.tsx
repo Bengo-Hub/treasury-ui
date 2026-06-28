@@ -7,6 +7,7 @@ import { Copy, ExternalLink, FileText, Link2, Mail, Pencil, X } from 'lucide-rea
 import { toast } from 'sonner';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadInvoicePdf, downloadQuotationPdf } from '@/lib/api/documents';
+import { MarginPanel } from './MarginPanel';
 
 type DocType = 'invoice' | 'quotation' | 'proforma_invoice' | 'credit_note' | 'debit_note' | 'sales_order' | 'payment_receipt';
 
@@ -45,6 +46,8 @@ interface PreviewLine {
   description: string;
   quantity: string | number;
   unit_price: string | number;
+  /** Buying / cost price per unit (business-only). */
+  unit_cost?: string | number;
   tax_amount?: string | number;
   line_total: string | number;
 }
@@ -107,6 +110,7 @@ function usePreviewDoc(
           description: l.description,
           quantity: l.quantity,
           unit_price: l.unit_price,
+          unit_cost: l.unit_cost,
           tax_amount: l.tax_amount,
           line_total: l.line_total,
         })),
@@ -151,6 +155,7 @@ function usePreviewDoc(
         description: l.description,
         quantity: l.quantity,
         unit_price: l.unit_price,
+        unit_cost: l.unit_cost,
         tax_amount: l.tax_amount,
         line_total: l.line_total,
       })),
@@ -334,6 +339,20 @@ export function DocPreview({ docId, docType, tenant, onClose, onEdit, onDuplicat
                     </table>
                   </div>
                 </div>
+              )}
+
+              {/* Business-only margin analysis (internal — never on the customer PDF). */}
+              {doc.lines && doc.lines.length > 0 && (
+                <MarginPanel
+                  currency={doc.currency}
+                  detailed={false}
+                  lines={doc.lines.map(l => ({
+                    description: l.description,
+                    quantity: Number(l.quantity),
+                    unit_price: Number(l.unit_price),
+                    unit_cost: l.unit_cost != null ? Number(l.unit_cost) : undefined,
+                  }))}
+                />
               )}
 
               {/* Totals */}
