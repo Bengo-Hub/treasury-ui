@@ -214,6 +214,13 @@ export interface RunPayoutResponse {
     period_end: string;
     dry_run: boolean;
     results: RunPayoutResult[];
+    // Present on a dry-run preview: the platform-retention split + totals (computed, not disbursed).
+    net_profit?: string;
+    platform_retention_pct?: number; // fraction [0,1)
+    distributable_pct?: number;      // fraction (0,1]
+    platform_retained?: string;
+    distributable_pool?: string;
+    total_net_payout?: string;
 }
 
 /** Run a payout for ALL active holders over a period. dry_run computes amounts without paying. */
