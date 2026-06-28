@@ -78,6 +78,9 @@ export interface Invoice {
   terms?: string;
   status: string;
   payment_status: string;
+  /** Delivery-note goods-dispatch lifecycle: draft | dispatched | delivered | cancelled.
+   *  Only meaningful for delivery_challan / delivery_note documents. */
+  delivery_status?: string;
   reference_id?: string;
   reference_type?: string;
   /** Originating outlet/branch that made the sale (null = tenant-wide / HQ). */
@@ -477,6 +480,40 @@ export function createDebitNote(tenant: string, invoiceId: string): Promise<Invo
 /** Generate a delivery note (delivery challan, DC-prefixed) document from an invoice. */
 export function generateDeliveryNote(tenant: string, invoiceId: string): Promise<Invoice> {
   return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/delivery-note`, {});
+}
+
+// ---- Delivery-note goods-dispatch lifecycle (draft → dispatched → delivered, + cancel) ----
+// Backed by the merged delivery-note FSM. Only valid for delivery_challan/delivery_note docs;
+// each transition is gated to the valid current delivery_status by the backend.
+
+export type DeliveryStatus = 'draft' | 'dispatched' | 'delivered' | 'cancelled';
+
+/** Mark a delivery note as dispatched (draft → dispatched). Emits the goods-issue event. */
+export function dispatchDeliveryNote(tenant: string, invoiceId: string): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/dispatch`, {});
+}
+
+/** Mark a delivery note as delivered (dispatched → delivered), with optional receiver + note. */
+export function deliverDeliveryNote(
+  tenant: string,
+  invoiceId: string,
+  body?: { received_by?: string; note?: string },
+): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/deliver`, body ?? {});
+}
+
+/** Cancel a delivery note (draft | dispatched → cancelled). */
+export function cancelDeliveryNote(tenant: string, invoiceId: string): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/cancel-delivery`, {});
+}
+
+/** Set an explicit delivery status (status + optional note + received_by). */
+export function setDeliveryStatus(
+  tenant: string,
+  invoiceId: string,
+  body: { status: DeliveryStatus; note?: string; received_by?: string },
+): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/delivery-status`, body);
 }
 
 export function convertProformaToInvoice(tenant: string, invoiceId: string): Promise<{ status: string; invoice: Invoice }> {
