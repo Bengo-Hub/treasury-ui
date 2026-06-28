@@ -12,7 +12,7 @@ import {
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
 import type { ExpenseCategory } from '@/lib/api/expenses';
-import { ArrowLeft, Loader2, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
+import { ArrowLeft, Globe, Loader2, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -107,6 +107,9 @@ export default function ExpenseCategoriesPage() {
   };
 
   const openEdit = (cat: ExpenseCategory) => {
+    // Global categories are platform-managed and read-only for tenants. Guard here too
+    // so the dialog can never open for one even if a row action slipped through.
+    if (cat.is_global) return;
     setEditTarget(cat);
     setEditName(cat.name);
     setEditDescription(cat.description ?? '');
@@ -244,7 +247,16 @@ export default function ExpenseCategoriesPage() {
                   {categories.map((c) => (
                     <tr key={c.id} className="hover:bg-accent/5 transition-colors">
                       <td className="px-6 py-4">
-                        <div className="font-medium">{c.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{c.name}</span>
+                          {c.is_global && (
+                            <span title="Shared platform category — available to every organisation and managed centrally.">
+                              <Badge variant="secondary" className="inline-flex items-center gap-1">
+                                <Globe className="h-3 w-3" /> Shared
+                              </Badge>
+                            </span>
+                          )}
+                        </div>
                         {c.description && (
                           <div className="text-xs text-muted-foreground mt-0.5 max-w-md truncate">
                             {c.description}
@@ -262,23 +274,36 @@ export default function ExpenseCategoriesPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Edit ${c.name}`}
-                            onClick={() => openEdit(c)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Delete ${c.name}`}
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setDeleteTarget(c)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {c.is_global ? (
+                            // Global categories are platform-managed: tenants can use them but
+                            // cannot edit or delete them, so the row actions are disabled.
+                            <span
+                              className="text-xs text-muted-foreground italic pr-2"
+                              title="Shared categories are managed centrally and can't be edited here."
+                            >
+                              Managed centrally
+                            </span>
+                          ) : (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Edit ${c.name}`}
+                                onClick={() => openEdit(c)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Delete ${c.name}`}
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setDeleteTarget(c)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

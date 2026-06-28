@@ -48,7 +48,14 @@ export interface Expense {
 
 export interface ExpenseCategory {
   id: string;
-  tenant_id: string;
+  /** Owning tenant. Omitted for platform-global (shared) categories. */
+  tenant_id?: string;
+  /**
+   * True for platform-managed common categories shared by every tenant. Global
+   * categories appear in every tenant's list but cannot be edited or deleted by a
+   * tenant — only tenant-owned categories are editable.
+   */
+  is_global?: boolean;
   code: string;
   name: string;
   description?: string;
