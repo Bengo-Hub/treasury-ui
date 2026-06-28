@@ -43,6 +43,8 @@ export interface DocumentRow {
   total_amount: string;
   status: string;
   payment_status?: string;
+  /** Delivery-note goods-dispatch lifecycle (delivery_challan/delivery_note docs only). */
+  delivery_status?: string;
   doc_date: string;
   due_date?: string;
   secondary_date?: string;
@@ -72,6 +74,7 @@ export const SHARED_DOC_COLUMNS: ColumnDef[] = [
   { key: 'customer',       label: 'Customer',        defaultTable: true,  defaultCsv: true  },
   { key: 'amount',         label: 'Amount',          defaultTable: true,  defaultCsv: true  },
   { key: 'status',         label: 'Status',          defaultTable: true,  defaultCsv: true  },
+  { key: 'delivery_status', label: 'Delivery Status', defaultTable: true,  defaultCsv: true  },
   { key: 'payment_status', label: 'Payment Status',  defaultTable: false, defaultCsv: true  },
   { key: 'due_date',       label: 'Due Date',        defaultTable: false, defaultCsv: true  },
   { key: 'secondary_date', label: 'Secondary Date',  defaultTable: false, defaultCsv: true  },
@@ -104,6 +107,8 @@ export interface SharedDocumentListProps {
    */
   pdfKind?: 'invoice' | 'quotation';
   showPaymentStatus?: boolean;
+  /** Show a delivery-status column (delivery_challan / delivery_note surfaces). */
+  showDeliveryStatus?: boolean;
   showDueDate?: boolean;
   showExpandLineItems?: boolean;
   /** Show an owning-tenant column (platform-wide all-tenants view). */
@@ -133,6 +138,14 @@ function paymentVariant(s: string): 'success' | 'secondary' | 'warning' | 'error
   if (s === 'partial') return 'warning';
   if (s === 'unpaid') return 'error';
   return 'secondary';
+}
+
+// Delivery-note goods-dispatch lifecycle: draft → dispatched → delivered (+ cancelled).
+export function deliveryVariant(s: string): 'success' | 'secondary' | 'warning' | 'error' | 'default' {
+  if (s === 'delivered') return 'success';
+  if (s === 'dispatched') return 'warning';
+  if (s === 'cancelled') return 'error';
+  return 'secondary'; // draft / empty
 }
 
 function fmt(amount: string | number, currency: string) {
@@ -380,6 +393,7 @@ export function SharedDocumentList({
   actions = [],
   pdfKind,
   showPaymentStatus = false,
+  showDeliveryStatus = false,
   showDueDate = false,
   showExpandLineItems = false,
   showTenant = false,
@@ -443,11 +457,12 @@ export function SharedDocumentList({
       customer:       t['customer']       ?? true,
       amount:         t['amount']         ?? true,
       status:         t['status']         ?? true,
+      delivery_status: (t['delivery_status'] ?? true) && showDeliveryStatus,
       payment_status: (t['payment_status'] ?? false) && showPaymentStatus,
       due_date:       (t['due_date']      ?? false) && showDueDate,
       secondary_date: (t['secondary_date'] ?? false) && !!secondaryDateLabel,
     };
-  }, [colPrefs, showPaymentStatus, showDueDate, showExpandLineItems, showTenant, secondaryDateLabel]);
+  }, [colPrefs, showPaymentStatus, showDeliveryStatus, showDueDate, showExpandLineItems, showTenant, secondaryDateLabel]);
 
   const colCount = Object.values(visibleCols).filter(Boolean).length + 1; // +1 for actions
   const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
@@ -562,6 +577,7 @@ export function SharedDocumentList({
                     {visibleCols.customer && <th className={`${thCls} text-left`}>Customer</th>}
                     {visibleCols.amount && <th className={`${thCls} text-right`}>Amount</th>}
                     {visibleCols.status && <th className={`${thCls} text-center`}>Status</th>}
+                    {visibleCols.delivery_status && <th className={`${thCls} text-center`}>Delivery</th>}
                     {visibleCols.payment_status && <th className={`${thCls} text-center`}>Payment</th>}
                     {visibleCols.due_date && <th className={`${thCls} text-right`}>Due Date</th>}
                     {visibleCols.secondary_date && <th className={`${thCls} text-center`}>{secondaryDateLabel}</th>}
@@ -633,6 +649,13 @@ export function SharedDocumentList({
                             <td className="px-4 py-3 text-center">
                               <Badge variant={statusVariant(row.status)} className="capitalize text-[10px]">
                                 {row.status?.replace(/_/g, ' ')}
+                              </Badge>
+                            </td>
+                          )}
+                          {visibleCols.delivery_status && (
+                            <td className="px-4 py-3 text-center">
+                              <Badge variant={deliveryVariant(row.delivery_status || 'draft')} className="capitalize text-[10px]">
+                                {(row.delivery_status || 'draft').replace(/_/g, ' ')}
                               </Badge>
                             </td>
                           )}
@@ -720,6 +743,7 @@ export function invoiceToDocumentRow(inv: Invoice): DocumentRow {
     total_amount: inv.total_amount,
     status: inv.status,
     payment_status: inv.payment_status,
+    delivery_status: inv.delivery_status,
     doc_date: inv.invoice_date,
     due_date: inv.due_date,
     public_token: inv.public_token,
