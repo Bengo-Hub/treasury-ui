@@ -35,6 +35,7 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
     item_type: '',
     unit: '',
     unit_price: '',
+    cost_price: '',
     tax_code: '',
     tax_rate: '0',
     description: '',
@@ -54,6 +55,9 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
         item_type: item.item_type,
         unit: item.unit,
         unit_price: parseFloat(item.unit_price ?? '0') || 0,
+        unit_cost: item.cost_price != null
+          ? (parseFloat(item.cost_price) || 0)
+          : (form.cost_price ? (parseFloat(form.cost_price) || 0) : undefined),
         tax_code: item.tax_code,
         tax_rate: parseFloat(item.tax_rate ?? '0') || 0,
       });
@@ -124,10 +128,17 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
               )}
             </div>
             <div>
-              <label className={labelCls}>Base Price</label>
+              <label className={labelCls}>Selling Price</label>
               <input type="number" min="0" step="0.01" className={inputCls} value={form.unit_price}
                 onChange={e => field('unit_price', e.target.value)} placeholder="0.00" />
             </div>
+          </div>
+
+          {/* Cost / buying price — business-only, feeds the internal margin panel. */}
+          <div>
+            <label className={labelCls}>Cost / Buying Price <span className="font-normal normal-case text-muted-foreground/70">(internal only)</span></label>
+            <input type="number" min="0" step="0.01" className={inputCls} value={form.cost_price}
+              onChange={e => field('cost_price', e.target.value)} placeholder="0.00" />
           </div>
 
           {/* Tax */}
@@ -165,7 +176,9 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
               name: form.name.trim(),
               sku: form.sku || undefined,
               item_type: form.item_type || defaultType || undefined,
+              unit: form.unit || defaultUnit || undefined,
               unit_price: form.unit_price || undefined,
+              cost_price: form.cost_price || undefined,
               tax_code: form.tax_code || undefined,
               description: form.description || undefined,
             })}
