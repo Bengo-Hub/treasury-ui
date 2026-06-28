@@ -9,6 +9,7 @@ import type { Bill } from '@/lib/api/bills';
 import type { VendorBalance } from '@/lib/api/arpa';
 import { StatementDialog } from '@/components/statement-dialog';
 import { OpeningBalanceDialog } from '@/components/opening-balance-dialog';
+import { VendorRefundDialog } from '@/components/vendor-refund-dialog';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
@@ -25,6 +26,7 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  Undo2,
   Wallet,
   X,
 } from 'lucide-react';
@@ -116,6 +118,7 @@ export default function VendorsPage() {
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
   const [statementVendor, setStatementVendor] = useState<{ id: string; name: string } | null>(null);
   const [openingVendor, setOpeningVendor] = useState<{ id?: string; name: string } | null>(null);
+  const [refundVendor, setRefundVendor] = useState<{ id?: string; name: string } | null>(null);
 
   const { data, isLoading, error } = useBills(effectiveTenant, {}, !!effectiveTenant);
   const bills = useMemo(() => data?.bills ?? [], [data]);
@@ -680,6 +683,18 @@ export default function VendorsPage() {
                                     <Button
                                       variant="outline"
                                       size="sm"
+                                      title="Record cash received back from this vendor on a purchase return"
+                                      onClick={(e: React.MouseEvent) => {
+                                        e.stopPropagation();
+                                        setRefundVendor({ id: vendor.vendorId, name: vendor.name });
+                                      }}
+                                    >
+                                      <Undo2 className="h-3.5 w-3.5 mr-1" />
+                                      Record Refund Received
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
                                       disabled={!vendor.vendorId}
                                       title={vendor.vendorId ? 'View vendor statement' : 'No AP ledger balance for this vendor yet'}
                                       onClick={(e: React.MouseEvent) => {
@@ -746,6 +761,17 @@ export default function VendorsPage() {
           name={openingVendor.name}
           vendorId={openingVendor.id}
           vendorIdentifier={openingVendor.name}
+        />
+      )}
+
+      {refundVendor && (
+        <VendorRefundDialog
+          open={!!refundVendor}
+          onClose={() => setRefundVendor(null)}
+          tenant={effectiveTenant}
+          name={refundVendor.name}
+          vendorId={refundVendor.id}
+          vendorIdentifier={refundVendor.name}
         />
       )}
     </div>
