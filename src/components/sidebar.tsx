@@ -27,6 +27,7 @@ import {
   Shield,
   ShieldCheck,
   ShoppingCart,
+  Tags,
   Target,
   TrendingUp,
   Truck,
@@ -141,7 +142,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           label: 'Expenses',
           icon: Receipt,
           href: `/${orgSlug}/expenses`,
-          active: pathname.startsWith(`/${orgSlug}/expenses`),
+          // Exclude the categories sub-route so only one item is highlighted at a time.
+          active:
+            pathname.startsWith(`/${orgSlug}/expenses`) &&
+            !pathname.startsWith(`/${orgSlug}/expenses/categories`),
+        },
+        {
+          label: 'Expense Categories',
+          icon: Tags,
+          href: `/${orgSlug}/expenses/categories`,
+          active: pathname.startsWith(`/${orgSlug}/expenses/categories`),
         },
       ],
     },
