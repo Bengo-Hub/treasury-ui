@@ -34,6 +34,9 @@ import {
   convertProformaToInvoice,
   generateDeliveryChallan,
   generateDeliveryNote,
+  dispatchDeliveryNote,
+  deliverDeliveryNote,
+  cancelDeliveryNote,
   generateReceiptFromInvoice,
   generateReceiptFromIntent,
   listPlatformInvoices,
@@ -564,6 +567,47 @@ export function useGenerateDeliveryNote(tenant: string) {
   return useMutation({
     mutationFn: (invoiceId: string) => generateDeliveryNote(tenant, invoiceId),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: platformInvoiceKeys.all });
+    },
+  });
+}
+
+// ---- Delivery-note goods-dispatch lifecycle (draft → dispatched → delivered, + cancel) ----
+// Each transition invalidates the document detail + every invoice list family so the
+// delivery_status badge and the state-gated action buttons refresh immediately.
+
+export function useDispatchDeliveryNote(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: string) => dispatchDeliveryNote(tenant, invoiceId),
+    onSuccess: (_data, invoiceId) => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: platformInvoiceKeys.all });
+    },
+  });
+}
+
+export function useDeliverDeliveryNote(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invoiceId, received_by, note }: { invoiceId: string; received_by?: string; note?: string }) =>
+      deliverDeliveryNote(tenant, invoiceId, { received_by, note }),
+    onSuccess: (_data, { invoiceId }) => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: platformInvoiceKeys.all });
+    },
+  });
+}
+
+export function useCancelDeliveryNote(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: string) => cancelDeliveryNote(tenant, invoiceId),
+    onSuccess: (_data, invoiceId) => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
       queryClient.invalidateQueries({ queryKey: platformInvoiceKeys.all });
     },
