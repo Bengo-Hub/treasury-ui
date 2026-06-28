@@ -1,11 +1,11 @@
 'use client';
 
 import { Badge, Button, Card, CardContent } from '@/components/ui/base';
-import { StatementDialog } from '@/components/statement-dialog';
 import type { Invoice } from '@/lib/api/invoices';
 import { formatCurrency } from '@/lib/utils/currency';
 import { ArrowLeft, FileText, Mail, Phone } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import type { ClientRecord } from './use-clients';
 
 const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
@@ -25,8 +25,10 @@ interface ClientDetailProps {
 }
 
 /** Per-client drill-in: header, AR statement, totals, and this client's invoices. */
-export function ClientDetail({ tenant, client, invoices, onBack }: ClientDetailProps) {
-  const [statementOpen, setStatementOpen] = useState(false);
+export function ClientDetail({ client, invoices, onBack }: ClientDetailProps) {
+  const router = useRouter();
+  const params = useParams();
+  const orgSlug = (params?.orgSlug as string) ?? '';
 
   const clientInvoices = useMemo(
     () =>
@@ -62,23 +64,16 @@ export function ClientDetail({ tenant, client, invoices, onBack }: ClientDetailP
           </div>
         </div>
         {client.customerId && (
-          <Button variant="outline" size="sm" onClick={() => setStatementOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/${orgSlug}/customers/${client.customerId}/statement`)}
+          >
             <FileText className="h-4 w-4 mr-1.5" />
             Statement
           </Button>
         )}
       </div>
-
-      {statementOpen && client.customerId && (
-        <StatementDialog
-          kind="customer"
-          open={statementOpen}
-          onClose={() => setStatementOpen(false)}
-          tenant={tenant}
-          entityId={client.customerId}
-          name={client.name}
-        />
-      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         {[
