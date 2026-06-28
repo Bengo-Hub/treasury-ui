@@ -18,6 +18,10 @@ export interface InventoryItem {
   image_url?: string;
   unit?: string;
   unit_price?: string;
+  /** Buying / cost price snapshot (business-only — never shown to the customer). */
+  cost_price?: string;
+  /** Minimum allowed selling price, if the item defines one. */
+  min_selling_price?: string;
   tax_code?: string;
   tax_rate?: string;
   description?: string;
@@ -55,10 +59,12 @@ interface InventoryItemDTO {
   sku?: string;
   name: string;
   type?: string;
+  unit?: string;
   description?: string;
   image_url?: string;
   selling_price?: number | null;
   suggested_price?: number | null;
+  min_selling_price?: number | null;
   cost_price?: number | null;
   tax_code_id?: string;
   tax_rate?: number | null;
@@ -71,8 +77,11 @@ function dtoToInventoryItem(d: InventoryItemDTO): InventoryItem {
     name: d.name,
     sku: d.sku,
     item_type: d.type,
+    unit: d.unit,
     image_url: d.image_url,
     unit_price: price != null ? String(price) : undefined,
+    cost_price: d.cost_price != null ? String(d.cost_price) : undefined,
+    min_selling_price: d.min_selling_price != null ? String(d.min_selling_price) : undefined,
     tax_code: d.tax_code_id,
     tax_rate: d.tax_rate != null ? String(d.tax_rate) : undefined,
     description: d.description,
@@ -105,7 +114,10 @@ export interface CreateInventoryItemRequest {
   name: string;
   sku?: string;
   item_type?: string;
+  unit?: string;
   unit_price?: string;
+  /** Buying / cost price (business-only). */
+  cost_price?: string;
   tax_code?: string;
   description?: string;
 }
@@ -119,11 +131,16 @@ export async function createInventoryItem(tenant: string, data: CreateInventoryI
     type: data.item_type || 'GOODS',
   };
   if (data.sku) body.sku = data.sku;
+  if (data.unit) body.unit = data.unit;
   if (data.description) body.description = data.description;
   if (data.tax_code) body.tax_code_id = data.tax_code;
   if (data.unit_price) {
     const p = parseFloat(data.unit_price);
     if (!Number.isNaN(p)) body.selling_price = p;
+  }
+  if (data.cost_price) {
+    const c = parseFloat(data.cost_price);
+    if (!Number.isNaN(c)) body.cost_price = c;
   }
   const d = await apiClient.post<InventoryItemDTO>(`${BASE}/${tenant}/inventory/items`, body);
   return dtoToInventoryItem(d);
