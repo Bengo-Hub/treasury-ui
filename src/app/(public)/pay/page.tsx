@@ -53,6 +53,10 @@ const NON_PHYSICAL_REF_TYPES = new Set([
   'airtime',
   'wallet_topup',
   'payment',
+  // library-service digital/fee payments (no physical fulfilment → no COD/shipping).
+  'membership_fee',
+  'library_fine',
+  'ebook_sale',
 ]);
 
 function isNonPhysicalRefType(refType: string): boolean {
