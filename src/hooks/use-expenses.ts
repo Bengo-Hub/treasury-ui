@@ -2,8 +2,11 @@
 
 import {
   getExpenses,
+  getExpense,
   getExpenseCategories,
   createExpense,
+  updateExpense,
+  deleteExpense,
   submitExpense,
   approveExpense,
   rejectExpense,
@@ -13,6 +16,7 @@ import {
   deleteExpenseCategory,
   type ExpensesParams,
   type CreateExpenseRequest,
+  type UpdateExpenseRequest,
   type CreateCategoryRequest,
   type UpdateCategoryRequest,
 } from '@/lib/api/expenses';
@@ -23,9 +27,24 @@ const STALE_MS = 2 * 60 * 1000;
 export const expenseKeys = {
   list: (tenantIdOrSlug: string, params?: ExpensesParams) =>
     ['expenses', 'list', tenantIdOrSlug, params] as const,
+  detail: (tenantIdOrSlug: string, id: string) =>
+    ['expenses', 'detail', tenantIdOrSlug, id] as const,
   categories: (tenantIdOrSlug: string) =>
     ['expenses', 'categories', tenantIdOrSlug] as const,
 };
+
+export function useExpense(
+  tenantIdOrSlug: string | undefined,
+  id: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: expenseKeys.detail(tenantIdOrSlug ?? '', id ?? ''),
+    queryFn: () => getExpense(tenantIdOrSlug!, id!),
+    enabled: !!tenantIdOrSlug && !!id && enabled,
+    staleTime: STALE_MS,
+  });
+}
 
 export function useExpenses(
   tenantIdOrSlug: string | undefined,
@@ -56,6 +75,29 @@ export function useCreateExpense(tenantIdOrSlug: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateExpenseRequest) => createExpense(tenantIdOrSlug!, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
+    },
+  });
+}
+
+export function useUpdateExpense(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateExpenseRequest }) =>
+      updateExpense(tenantIdOrSlug!, id, data),
+    // Invalidate both the list and the edited row's detail.
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
+      qc.invalidateQueries({ queryKey: expenseKeys.detail(tenantIdOrSlug ?? '', id) });
+    },
+  });
+}
+
+export function useDeleteExpense(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteExpense(tenantIdOrSlug!, id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
     },

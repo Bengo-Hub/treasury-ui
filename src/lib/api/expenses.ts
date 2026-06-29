@@ -107,6 +107,25 @@ export interface CreateExpenseRequest {
   metadata?: Record<string, any>;
 }
 
+// Fields are optional: omit a field to leave it unchanged. Editing is only
+// permitted while the expense is in `draft` — the backend returns 409 otherwise.
+// total_amount is recomputed server-side from amount + tax_amount.
+export interface UpdateExpenseRequest {
+  description?: string;
+  amount?: number;
+  tax_amount?: number;
+  currency?: string;
+  expense_date?: string;
+  category_id?: string;
+  cost_center_id?: string;
+  vendor_id?: string;
+  receipt_url?: string;
+  billable?: boolean;
+  invoice_id?: string;
+  customer_id?: string;
+  metadata?: Record<string, any>;
+}
+
 export interface CreateCategoryRequest {
   code: string;
   name: string;
@@ -145,6 +164,22 @@ export function getExpense(tenantIdOrSlug: string, id: string): Promise<Expense>
 
 export function createExpense(tenantIdOrSlug: string, data: CreateExpenseRequest): Promise<Expense> {
   return apiClient.post<Expense>(`${BASE}/${tenantIdOrSlug}/expenses`, data);
+}
+
+// Edits a draft expense. The backend rejects (409) any non-draft expense — the
+// caller should surface that via the rejected promise (err.response.status === 409).
+export function updateExpense(
+  tenantIdOrSlug: string,
+  id: string,
+  data: UpdateExpenseRequest,
+): Promise<Expense> {
+  return apiClient.put<Expense>(`${BASE}/${tenantIdOrSlug}/expenses/${id}`, data);
+}
+
+// Deletes a draft expense. Returns { status: 'deleted' }. A non-draft or
+// GL-posted expense responds 409 (handle err.response.status === 409).
+export function deleteExpense(tenantIdOrSlug: string, id: string): Promise<{ status: string }> {
+  return apiClient.delete<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/${id}`);
 }
 
 export function submitExpense(tenantIdOrSlug: string, id: string): Promise<{ status: string }> {
