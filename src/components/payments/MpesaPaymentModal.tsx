@@ -2,8 +2,8 @@
 
 import { Button } from '@/components/ui/base';
 import { sendToParent } from '@/lib/embed-messages';
-import { Banknote, Loader2, Phone } from 'lucide-react';
-import { useState } from 'react';
+import { Banknote, CheckCircle2, Loader2, Phone, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PaymentModal } from './PaymentModal';
 import type { PaymentDetails } from './types';
 
@@ -24,11 +24,13 @@ function mpesaPayload(details: PaymentDetails, phoneNumber: string): Record<stri
   return body;
 }
 
-function manualPayload(details: PaymentDetails): Record<string, unknown> {
-  const body: Record<string, unknown> = { payment_method: 'manual' };
-  if (details.intent_id) body.intent_id = details.intent_id;
-  return body;
+/** Derive the intent status URL from the initiate URL (…/intents/{id}/initiate → …/intents/{id}). */
+function statusUrlFrom(initiateUrl?: string): string {
+  if (!initiateUrl) return '';
+  return initiateUrl.replace(/\/initiate(\?.*)?$/, '');
 }
+
+type Outcome = null | 'success' | 'failed';
 
 export function MpesaPaymentModal({
   details,
@@ -43,16 +45,18 @@ export function MpesaPaymentModal({
 }) {
   const [phone, setPhone] = useState(details.phone_number ?? '');
   const [loading, setLoading] = useState(false);
-  const [manualLoading, setManualLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
-  // After the STK push is sent we DON'T silently close (which dropped the user
-  // back to the bare gateway list with no feedback — it looked like nothing
-  // happened until the outer 10-min countdown). Instead we show a "check your
-  // phone / waiting for confirmation" state. The actual confirmation for the
-  // captive buy flow is owned by the embedder's own same-origin status poll
-  // (treasury-ui has no public GET-intent endpoint to poll itself), so this
-  // state is purely the user-facing "in progress" feedback.
+  // After the STK push is sent we show a "check your phone" state and actively POLL the treasury
+  // status endpoint so the modal reflects the real outcome (paid / cancelled / failed) instead of
+  // spinning forever. The old build relied on an embedder poll that never existed.
   const [stkSent, setStkSent] = useState(false);
+  const [outcome, setOutcome] = useState<Outcome>(null);
+  const [outcomeMsg, setOutcomeMsg] = useState('');
+
+  const statusUrl = statusUrlFrom(details.initiate_url);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const settledRef = useRef(false);
 
   const formatAmount = () =>
     details.amount > 0
@@ -66,6 +70,55 @@ export function MpesaPaymentModal({
     if (d.length <= 9) return '254' + d;
     return d;
   };
+
+  const markSuccess = useCallback((receipt?: string) => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    setOutcome('success');
+    if (embed) {
+      sendToParent({ type: 'treasury:payment_confirmed', intentId: details.intent_id || '', amount: details.amount, reference: receipt || details.reference_id, channel: 'mpesa' });
+    }
+    onSuccess?.({});
+  }, [embed, details.intent_id, details.amount, details.reference_id, onSuccess]);
+
+  const markFailed = useCallback((message: string) => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    setOutcome('failed');
+    setOutcomeMsg(message);
+    if (embed) {
+      sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: message });
+    }
+  }, [embed, details.intent_id]);
+
+  // Poll the intent status once; returns the terminal state (or 'pending').
+  const pollStatus = useCallback(async (): Promise<'pending' | 'success' | 'failed'> => {
+    if (!statusUrl) return 'pending';
+    try {
+      const res = await fetch(statusUrl, { method: 'GET' });
+      const data = await res.json().catch(() => ({}));
+      if (data.status === 'succeeded') { markSuccess(data.mpesa_receipt); return 'success'; }
+      if (data.status === 'failed' || data.status === 'cancelled') {
+        markFailed(data.message || 'The M-Pesa payment was not completed. Please try again.');
+        return 'failed';
+      }
+    } catch {
+      // transient — keep polling
+    }
+    return 'pending';
+  }, [statusUrl, markSuccess, markFailed]);
+
+  // Start/stop polling while waiting for the STK outcome.
+  useEffect(() => {
+    if (!stkSent || outcome !== null) {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      return;
+    }
+    // Poll every 3s.
+    pollRef.current = setInterval(() => { void pollStatus(); }, 3000);
+    void pollStatus();
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [stkSent, outcome, pollStatus]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,65 +141,88 @@ export function MpesaPaymentModal({
       });
       const data = await res.json().catch(() => ({}));
       if (data.checkout_request_id || data.status === 'processing') {
-        if (embed) {
-          sendToParent({ type: 'treasury:payment_initiated', intentId: details.intent_id || '', method: 'mpesa' });
-          onSuccess?.(data);
-          setError('');
-          setLoading(false);
-          // Keep the modal open in a "waiting for confirmation" state instead of
-          // closing back to the gateway list. The embedder's same-origin poll
-          // flips the parent page to success once the M-Pesa webhook lands.
-          setStkSent(true);
-          return;
-        }
+        if (embed) sendToParent({ type: 'treasury:payment_initiated', intentId: details.intent_id || '', method: 'mpesa' });
         onSuccess?.(data);
         setError('');
-        setLoading(false);
-        onClose();
-        if (data.redirect_url) window.location.href = data.redirect_url;
+        settledRef.current = false;
+        setOutcome(null);
+        // Show the "check your phone" state; the poll effect flips it to the real outcome.
+        setStkSent(true);
         return;
       }
-      setError(data.message || 'Could not send M-Pesa prompt. Please try again.');
-      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: data.message || 'Could not send M-Pesa prompt' });
+      setError(data.message || data.error || 'Could not send M-Pesa prompt. Please try again.');
     } catch {
       setError('Network error. Please try again.');
-      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: 'Network error' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePaidAtTill = async () => {
-    if (!details.initiate_url) return;
-    setManualLoading(true);
+  // "I already paid at till / paybill" — query treasury for a matching C2B payment and settle it.
+  // Never closes the modal automatically; the user can keep checking.
+  const handleCheckTill = async () => {
+    if (!statusUrl) return;
+    setChecking(true);
     setError('');
     try {
-      const res = await fetch(details.initiate_url, {
+      const res = await fetch(`${statusUrl}/check-till`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(manualPayload(details)),
+        body: JSON.stringify({ intent_id: details.intent_id }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success !== false) {
-        if (embed) {
-          sendToParent({ type: 'treasury:payment_confirmed', intentId: details.intent_id || '', amount: details.amount, reference: details.reference_id, channel: 'manual' });
-          onClose();
-          return;
-        }
-        onClose();
-        if (data.redirect_url) window.location.href = data.redirect_url;
-        else if (details.redirect_url) window.location.href = details.redirect_url.startsWith('http') ? details.redirect_url : `${window.location.origin}${details.redirect_url}`;
+      if (data.status === 'succeeded' || data.matched === true) {
+        markSuccess(data.mpesa_receipt);
         return;
       }
-      setError(data.message || 'Could not confirm. Try again.');
-      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: data.message || 'Could not confirm' });
+      setError(data.message || 'No matching M-Pesa payment found yet. If you have paid, wait a moment and check again.');
     } catch {
       setError('Network error. Please try again.');
-      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: 'Network error' });
     } finally {
-      setManualLoading(false);
+      setChecking(false);
     }
   };
+
+  // Terminal success card.
+  if (outcome === 'success') {
+    return (
+      <PaymentModal title="Payment received" onClose={onClose} embed={embed}>
+        <div className="space-y-4 text-center py-4">
+          <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">Payment successful</p>
+            <p className="text-xs text-muted-foreground">Your M-Pesa payment of {formatAmount()} has been received.</p>
+          </div>
+          <Button type="button" onClick={onClose} className="w-full">Done</Button>
+        </div>
+      </PaymentModal>
+    );
+  }
+
+  // Terminal failed / cancelled card — shows the exact reason and lets the user retry.
+  if (outcome === 'failed') {
+    return (
+      <PaymentModal title="Payment not completed" onClose={onClose} embed={embed}>
+        <div className="space-y-4 text-center py-4">
+          <XCircle className="h-12 w-12 text-destructive mx-auto" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">Payment not completed</p>
+            <p className="text-xs text-muted-foreground">{outcomeMsg || 'The M-Pesa payment was not completed.'}</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              onClick={() => { settledRef.current = false; setOutcome(null); setOutcomeMsg(''); setStkSent(false); setError(''); }}
+              className="w-full"
+            >
+              Try again
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onClose}>Cancel</Button>
+          </div>
+        </div>
+      </PaymentModal>
+    );
+  }
 
   if (stkSent) {
     return (
@@ -162,25 +238,13 @@ export function MpesaPaymentModal({
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex flex-col gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => { setStkSent(false); setError(''); }}
-              disabled={loading}
-            >
+            <Button type="button" variant="outline" onClick={() => { setStkSent(false); setError(''); }} disabled={loading}>
               Resend / change number
             </Button>
-            {details.initiate_url && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground"
-                onClick={handlePaidAtTill}
-                disabled={manualLoading}
-              >
-                {manualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
-                I already paid at till / agent
+            {statusUrl && (
+              <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={handleCheckTill} disabled={checking}>
+                {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
+                I already paid at till / paybill — check now
               </Button>
             )}
           </div>
@@ -231,10 +295,10 @@ export function MpesaPaymentModal({
               {loading ? 'Sending…' : `Pay ${formatAmount()} with M-Pesa`}
             </Button>
           </div>
-          {details.initiate_url && (
-            <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={handlePaidAtTill} disabled={manualLoading}>
-              {manualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
-              I paid at till / agent
+          {statusUrl && (
+            <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={handleCheckTill} disabled={checking}>
+              {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
+              I paid at till / paybill — check now
             </Button>
           )}
         </div>
