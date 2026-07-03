@@ -6,6 +6,7 @@ import { usePlatformTransactions, getTransactionsExportURL } from '@/hooks/use-p
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useAuthStore } from '@/store/auth';
 import { exportTransactionsCSV, type TransactionItem } from '@/lib/api/analytics';
+import { apiClient } from '@/lib/api/client';
 import { Pagination } from '@/components/ui/pagination';
 import { cn } from '@/lib/utils';
 import {
@@ -17,6 +18,7 @@ import {
     Filter,
     Loader2,
     Receipt,
+    RefreshCw,
     Search,
     UserRound,
     X,
@@ -75,6 +77,7 @@ export default function TransactionsPage() {
   const generateReceiptMutation = useGenerateReceiptFromIntent(receiptTenant, receiptTenantId);
   const [previewReceiptId, setPreviewReceiptId] = useState<string | null>(null);
   const [detailTxn, setDetailTxn] = useState<TransactionItem | null>(null);
+  const [checkingStatusId, setCheckingStatusId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -116,9 +119,24 @@ export default function TransactionsPage() {
     return list.filter(
       (txn: TransactionItem) =>
         txn.reference_id?.toLowerCase().includes(q) ||
-        txn.source_service?.toLowerCase().includes(q)
+        txn.source_service?.toLowerCase().includes(q) ||
+        txn.provider_reference?.toLowerCase().includes(q)
     );
   }, [list, searchQuery]);
+
+  const handleCheckStatus = async (txn: TransactionItem) => {
+    const tenantId = txn.tenant_id;
+    if (!tenantId) { toast.error('Tenant ID not available for this transaction'); return; }
+    setCheckingStatusId(txn.id);
+    try {
+      await apiClient.post(`/api/v1/pay/${tenantId}/intents/${txn.id}/check-status`, {});
+      toast.success('Status query sent to Daraja — the transaction status will update shortly via webhook');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e?.message || 'Status check failed');
+    } finally {
+      setCheckingStatusId(null);
+    }
+  };
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginatedItems = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
@@ -255,7 +273,14 @@ export default function TransactionsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-xs">{txn.source_service || '—'}</td>
-                      <td className="px-6 py-4 text-xs">{txn.payment_method}</td>
+                      <td className="px-6 py-4 text-xs">
+                        <div>{txn.payment_method}</div>
+                        {txn.provider_reference && txn.payment_method?.includes('mpesa') && (
+                          <div className="text-[10px] text-green-700 dark:text-green-400 font-mono mt-0.5" title="M-Pesa Receipt No.">
+                            {txn.provider_reference}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-right font-bold text-xs">{txn.currency} {txn.amount}</td>
                       <td className="px-6 py-4 text-right text-xs text-muted-foreground">{txn.transaction_cost && parseFloat(txn.transaction_cost) > 0 ? `${txn.currency} ${txn.transaction_cost}` : '—'}</td>
                       <td className="px-6 py-4 text-center">
@@ -276,6 +301,21 @@ export default function TransactionsPage() {
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
+                          {/* Check Status — M-Pesa processing transactions */}
+                          {txn.payment_method?.includes('mpesa') && txn.status === 'processing' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              title="Query Daraja for current transaction status"
+                              disabled={checkingStatusId === txn.id}
+                              onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleCheckStatus(txn); }}
+                            >
+                              {checkingStatusId === txn.id
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <RefreshCw className="h-3.5 w-3.5" />}
+                            </Button>
+                          )}
                           {/* CRM contact link */}
                           {txn.crm_contact_id && (
                             <a
@@ -372,6 +412,15 @@ export default function TransactionsPage() {
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Date</p>
               <p className="text-sm">{new Date(detailTxn.created_at).toLocaleString()}</p>
             </div>
+
+            {detailTxn.provider_reference && (
+              <div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  {detailTxn.payment_method?.includes('mpesa') ? 'M-Pesa Receipt No.' : 'Provider Reference'}
+                </p>
+                <p className="text-sm font-mono font-medium text-green-700 dark:text-green-400">{detailTxn.provider_reference}</p>
+              </div>
+            )}
 
             {detailTxn.crm_contact_id && (
               <div>

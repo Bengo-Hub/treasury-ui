@@ -5,6 +5,15 @@ const BASE = '/api/v1';
 
 export interface PlatformOverview {
   period: string;
+  /** GMV — gross collected across tenants (settlement liability, NOT platform revenue). */
+  gmv: string;
+  /** Alias of gmv. */
+  payment_volume: string;
+  /** Platform revenue = commission only (sum of per-intent service charge). */
+  platform_revenue: string;
+  /** Owed to tenants (gmv − platform_revenue). */
+  tenant_net: string;
+  /** @deprecated now equals platform_revenue (commission). Use platform_revenue/gmv. */
   total_revenue: string;
   total_transactions: number;
   succeeded_count: number;
@@ -14,7 +23,15 @@ export interface PlatformOverview {
 
 export interface TenantRevenue {
   tenant_id: string;
+  tenant_name?: string;
+  tenant_slug?: string;
+  /** Tenant's own gross volume (alias of gmv). */
   total_revenue: string;
+  gmv: string;
+  /** Platform commission earned from this tenant. */
+  commission: string;
+  /** Owed to this tenant at settlement (gross − commission). */
+  net_payable: string;
   transaction_count: number;
 }
 

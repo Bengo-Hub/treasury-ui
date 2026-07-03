@@ -29,6 +29,7 @@ export interface TransactionItem {
   status: string;
   transaction_cost?: string;
   crm_contact_id?: string;
+  provider_reference?: string;
   created_at: string;
 }
 

@@ -28,7 +28,7 @@ export default function PlatformAnalyticsPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="hover:shadow-md transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-tight">Total Volume</h3>
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-tight">Payment Volume (GMV)</h3>
             <TrendingUp className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
@@ -36,8 +36,25 @@ export default function PlatformAnalyticsPage() {
               <div className="animate-pulse h-8 bg-muted rounded w-32"></div>
             ) : (
               <>
-                <div className="text-2xl font-bold">{formatCurrency(parseFloat(overview?.total_revenue || '0'), overview?.currency || 'KES')}</div>
-                <p className="text-xs text-muted-foreground mt-1 text-emerald-600 font-medium">+14.2% from last month</p>
+                <div className="text-2xl font-bold">{formatCurrency(parseFloat(overview?.gmv || '0'), overview?.currency || 'KES')}</div>
+                <p className="text-xs text-muted-foreground mt-1">Collected on behalf of tenants</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-all">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-tight">Platform Revenue</h3>
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            {loadingOverview ? (
+              <div className="animate-pulse h-8 bg-muted rounded w-32"></div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{formatCurrency(parseFloat(overview?.platform_revenue || '0'), overview?.currency || 'KES')}</div>
+                <p className="text-xs text-muted-foreground mt-1">Commission only &middot; owed to tenants {formatCurrency(parseFloat(overview?.tenant_net || '0'), overview?.currency || 'KES')}</p>
               </>
             )}
           </CardContent>

@@ -140,7 +140,7 @@ export default function PlatformPayoutsPage() {
                 {formatCurrency(netBalance, currency)}
               </div>
             )}
-            <p className="text-slate-400 text-sm font-medium">Available for tenant settlements</p>
+            <p className="text-slate-400 text-sm font-medium">Paystack balance available to disburse</p>
             {!loadingBalance && (pendingBalance > 0 || hasOwed) && (
               <div className="mt-4 pt-4 border-t border-slate-700/60 space-y-2">
                 {pendingBalance > 0 && (
@@ -158,7 +158,8 @@ export default function PlatformPayoutsPage() {
               </div>
             )}
             <p className="text-slate-500 text-xs mt-2">
-              Pending funds settle to your available balance automatically (Paystack settles T+1 in Kenya).
+              This is your live Paystack balance, not gross revenue. Collected funds auto-settle to your
+              bank (Paystack settles T+1 in Kenya), so a low balance here is normal even when revenue is high.
             </p>
           </CardContent>
         </Card>
