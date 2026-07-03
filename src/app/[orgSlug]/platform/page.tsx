@@ -209,6 +209,7 @@ export default function PlatformPage() {
   const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims' | 'payments' | 'encryption' | 'backups'>('gateways');
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
+  const [registeringC2bId, setRegisteringC2bId] = useState<string | null>(null);
   const [showAddGateway, setShowAddGateway] = useState(false);
   const [editingGateway, setEditingGateway] = useState<GatewayConfig | null>(null);
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
@@ -250,6 +251,18 @@ export default function PlatformPage() {
       }));
     } finally {
       setTestingId(null);
+    }
+  };
+
+  const handleRegisterC2B = async (gw: GatewayConfig) => {
+    setRegisteringC2bId(gw.id);
+    try {
+      await apiClient.post(`/api/v1/platform/gateways/${gw.id}/register-c2b`, {});
+      toast.success('C2B URLs registered with Safaricom — validation and confirmation webhooks are now active');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e?.message || 'C2B registration failed');
+    } finally {
+      setRegisteringC2bId(null);
     }
   };
 
@@ -366,6 +379,18 @@ export default function PlatformPage() {
                             >
                               Edit credentials
                             </Button>
+                            {isMpesa(gw.gateway_type) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={registeringC2bId === gw.id}
+                                onClick={() => handleRegisterC2B(gw)}
+                                title="Register C2B validation and confirmation URLs with Safaricom Daraja"
+                              >
+                                {registeringC2bId === gw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                                Register C2B
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
