@@ -146,6 +146,8 @@ export function PaymentsTab({
     shortcode: mpesaConfig?.shortcode ?? '',
     initiator_name: mpesaConfig?.initiator_name ?? '',
     initiator_password: '',
+    // Test/Live switch: 'sandbox' (test mode, default) or 'production' (live).
+    environment: mpesaConfig?.environment ?? 'sandbox',
   });
 
   useEffect(() => {
@@ -170,7 +172,7 @@ export function PaymentsTab({
 
   useEffect(() => {
     if (mpesaConfig) {
-      setMpesaForm((f) => ({ ...f, shortcode: mpesaConfig.shortcode ?? '', initiator_name: mpesaConfig.initiator_name ?? '' }));
+      setMpesaForm((f) => ({ ...f, shortcode: mpesaConfig.shortcode ?? '', initiator_name: mpesaConfig.initiator_name ?? '', environment: mpesaConfig.environment ?? 'sandbox' }));
     }
   }, [mpesaConfig]);
 
@@ -644,9 +646,29 @@ export function PaymentsTab({
                               shortcode: mpesaForm.shortcode || undefined,
                               initiator_name: mpesaForm.initiator_name || undefined,
                               initiator_password: mpesaForm.initiator_password || undefined,
+                              environment: mpesaForm.environment,
                             });
                           }}
                         >
+                          <div className="flex items-center justify-between rounded-lg border border-input bg-background px-3 py-2">
+                            <div>
+                              <p className="text-sm font-medium">{mpesaForm.environment === 'production' ? 'Live mode' : 'Test mode (sandbox)'}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {mpesaForm.environment === 'production'
+                                  ? 'Real M-Pesa transactions. Requires a live short code + credentials.'
+                                  : 'Sandbox — safe for testing with short code 174379. No real money moves.'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={mpesaForm.environment === 'production'}
+                              onClick={() => setMpesaForm((f) => ({ ...f, environment: f.environment === 'production' ? 'sandbox' : 'production' }))}
+                              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${mpesaForm.environment === 'production' ? 'bg-primary' : 'bg-muted'}`}
+                            >
+                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${mpesaForm.environment === 'production' ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                          </div>
                           <div>
                             <label className="block text-xs font-medium text-muted-foreground mb-1">Short code</label>
                             <input value={mpesaForm.shortcode} onChange={(e) => setMpesaForm((f) => ({ ...f, shortcode: e.target.value }))} placeholder="Leave empty to keep current value" className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" />

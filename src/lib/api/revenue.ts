@@ -91,6 +91,8 @@ export interface TenantMpesaConfig {
     initiator_name?: string;
     // initiator_password is never returned to the UI (write-only)
     account_ref?: string;
+    // Test/Live switch: 'sandbox' (default) or 'production'.
+    environment?: 'sandbox' | 'production';
     qr_enabled: boolean;
     c2b_registered: boolean;
 }
@@ -100,6 +102,13 @@ export interface UpdateTenantMpesaConfigRequest {
     initiator_name?: string;
     initiator_password?: string; // write-only, sent securely
     account_ref?: string;
+    // Test/Live switch. Live mode also requires consumer_key/secret/passkey + a
+    // real (non-174379) short code; the API rejects the save otherwise.
+    environment?: 'sandbox' | 'production';
+    consumer_key?: string; // write-only
+    consumer_secret?: string; // write-only
+    passkey?: string; // write-only
+    cert_pem?: string; // write-only (Daraja public cert for SecurityCredential)
     qr_enabled?: boolean;
 }
 
