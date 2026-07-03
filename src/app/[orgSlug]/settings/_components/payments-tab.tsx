@@ -356,6 +356,18 @@ export function PaymentsTab({
                         <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                         <span className="text-sm font-medium">Transaction cost borne by you</span>
                       </div>
+                      {payoutConfig && (
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <Badge variant={payoutConfig.subaccount_provisioned ? 'default' : 'secondary'}>
+                            {payoutConfig.subaccount_provisioned ? 'Split payouts active' : 'Payouts pending setup'}
+                          </Badge>
+                          <span className="text-muted-foreground">
+                            {payoutConfig.subaccount_provisioned
+                              ? 'Your share of each payment settles directly to your bank at collection (via a Paystack subaccount).'
+                              : 'Add & verify your bank details below to start receiving payouts automatically.'}
+                          </span>
+                        </div>
+                      )}
                       {loadingPayout ? (
                         <div className="flex items-center gap-2 text-muted-foreground py-4">
                           <Loader2 className="h-4 w-4 animate-spin" /> Loading payout config…

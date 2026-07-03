@@ -122,6 +122,10 @@ export interface PayoutConfigResponse {
   mobile_number?: string;
   mpesa_paybill?: string;
   is_verified: boolean;
+  /** How the tenant is paid: paystack_subaccount (split at collection) | paystack_bank | paystack_mobile | mpesa_b2c | mpesa_b2b. */
+  payout_rail: string;
+  /** True once a Paystack subaccount exists — charges then split the tenant's share to their bank at collection. */
+  subaccount_provisioned: boolean;
   total_payouts: number;
   total_payout_amount: string;
   created_at: string;
@@ -139,6 +143,7 @@ export interface PayoutConfigRequest {
   account_name?: string;
   mobile_number?: string;
   mpesa_paybill?: string;
+  payout_rail?: string;
 }
 
 /** Tenant: get payout configuration (for Paystack payout destination). */
