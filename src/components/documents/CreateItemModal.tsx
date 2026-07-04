@@ -21,13 +21,14 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
   const { data: unitsData, isLoading: unitsLoading } = useInventoryUnits(tenant);
   const { data: typesData, isLoading: typesLoading } = useInventoryItemTypes(tenant);
 
-  const units = unitsData?.units?.length
-    ? unitsData.units.map(u => u.abbreviation ?? u.name)
-    : FALLBACK_UNITS;
+  // inventory-api occasionally returns entries with a missing name/abbreviation;
+  // drop those before rendering so a stray undefined can't crash the option map
+  // (t.charAt on undefined). Fall back to the static list when nothing valid remains.
+  const apiUnits = unitsData?.units?.map(u => u.abbreviation ?? u.name).filter(Boolean) ?? [];
+  const units = apiUnits.length ? apiUnits : FALLBACK_UNITS;
 
-  const itemTypes = typesData?.item_types?.length
-    ? typesData.item_types.map(t => t.name)
-    : FALLBACK_ITEM_TYPES;
+  const apiItemTypes = typesData?.item_types?.map(t => t.name).filter(Boolean) ?? [];
+  const itemTypes = apiItemTypes.length ? apiItemTypes : FALLBACK_ITEM_TYPES;
 
   const [form, setForm] = useState({
     name: initialName,
@@ -106,7 +107,7 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
               ) : (
                 <select className={inputCls} value={form.item_type || defaultType} onChange={e => field('item_type', e.target.value)}>
                   {itemTypes.map(t => (
-                    <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()}</option>
+                    <option key={t} value={t}>{t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : t}</option>
                   ))}
                 </select>
               )}
