@@ -44,14 +44,39 @@ export default function JournalsPage() {
     searchParams.get('view') === 'trial-balance' ? 'trial-balance' : 'entries',
   );
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [refType, setRefType] = useState('all');
+  const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data, isLoading, isError } = useJournalEntries(effectiveTenant, statusFilter !== 'all' ? { status: statusFilter } : undefined);
+  const listParams = useMemo(() => {
+    const p: Record<string, string> = {};
+    if (statusFilter !== 'all') p.status = statusFilter;
+    if (dateFrom) p.from = dateFrom;
+    if (dateTo) p.to = dateTo;
+    if (refType !== 'all') p.reference_type = refType;
+    return Object.keys(p).length ? p : undefined;
+  }, [statusFilter, dateFrom, dateTo, refType]);
+
+  const { data, isLoading, isError } = useJournalEntries(effectiveTenant, listParams);
   const entries = data?.entries ?? [];
 
-  const filtered = useMemo(() => entries, [entries]);
+  // Free-text search (entry #, description, reference id) is applied client-side over the
+  // server-filtered set (status/date/reference_type are server-side).
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return entries;
+    return entries.filter((e) =>
+      (e.entry_number ?? '').toLowerCase().includes(q) ||
+      (e.description ?? '').toLowerCase().includes(q) ||
+      (e.reference_type ?? '').toLowerCase().includes(q) ||
+      (e.reference_id ?? '').toLowerCase().includes(q));
+  }, [entries, search]);
 
   const statusOptions = ['all', 'draft', 'submitted', 'approved', 'posted', 'reversed'];
+  // Common reference types posted by the platform (POS credit sales/returns, AR receipts, openings).
+  const refTypeOptions = ['all', 'pos_credit_sale', 'pos_return', 'ar_receipt', 'customer_opening_balance', 'vendor_opening_balance', 'vendor_refund', 'invoice', 'bill'];
 
   return (
     <div className="p-6 space-y-6">
@@ -91,6 +116,15 @@ export default function JournalsPage() {
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
           statusOptions={statusOptions}
+          dateFrom={dateFrom}
+          setDateFrom={setDateFrom}
+          dateTo={dateTo}
+          setDateTo={setDateTo}
+          refType={refType}
+          setRefType={setRefType}
+          refTypeOptions={refTypeOptions}
+          search={search}
+          setSearch={setSearch}
           tenantSlug={effectiveTenant}
         />
       ) : (
@@ -116,6 +150,15 @@ function JournalEntriesList({
   statusFilter,
   setStatusFilter,
   statusOptions,
+  dateFrom,
+  setDateFrom,
+  dateTo,
+  setDateTo,
+  refType,
+  setRefType,
+  refTypeOptions,
+  search,
+  setSearch,
   tenantSlug,
 }: {
   entries: JournalEntry[];
@@ -124,6 +167,15 @@ function JournalEntriesList({
   statusFilter: string;
   setStatusFilter: (s: string) => void;
   statusOptions: string[];
+  dateFrom: string;
+  setDateFrom: (s: string) => void;
+  dateTo: string;
+  setDateTo: (s: string) => void;
+  refType: string;
+  setRefType: (s: string) => void;
+  refTypeOptions: string[];
+  search: string;
+  setSearch: (s: string) => void;
   tenantSlug: string;
 }) {
   const submitMutation = useSubmitJournalEntry();
@@ -140,26 +192,70 @@ function JournalEntriesList({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between py-4">
-        <div className="flex items-center gap-2">
-          <BookOpen className="h-4 w-4 text-primary" />
-          <h3 className="font-bold text-sm uppercase tracking-tight">Entries</h3>
+      <CardHeader className="flex flex-col gap-3 py-4">
+        <div className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-primary" />
+            <h3 className="font-bold text-sm uppercase tracking-tight">Entries</h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {statusOptions.map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={cn(
+                  'px-3 py-1 rounded-full text-xs font-bold capitalize transition-all',
+                  statusFilter === s
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-accent/30 text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-2">
-          {statusOptions.map((s) => (
+        {/* Date range + reference-type + free-text search (status/date/ref-type are server-side). */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            title="From date"
+            className="bg-accent/30 border border-border rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-primary"
+          />
+          <span className="text-muted-foreground">→</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            title="To date"
+            className="bg-accent/30 border border-border rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-primary"
+          />
+          <select
+            value={refType}
+            onChange={(e) => setRefType(e.target.value)}
+            title="Reference type"
+            className="bg-accent/30 border border-border rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-primary capitalize"
+          >
+            {refTypeOptions.map((r) => (
+              <option key={r} value={r}>{r === 'all' ? 'All references' : r.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
+          <input
+            placeholder="Search entry #, description, reference..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-[180px] bg-accent/30 border border-border rounded-lg py-1.5 px-3 focus:ring-1 focus:ring-primary"
+          />
+          {(dateFrom || dateTo || refType !== 'all' || search) && (
             <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={cn(
-                'px-3 py-1 rounded-full text-xs font-bold capitalize transition-all',
-                statusFilter === s
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-accent/30 text-muted-foreground hover:text-foreground',
-              )}
+              onClick={() => { setDateFrom(''); setDateTo(''); setRefType('all'); setSearch(''); }}
+              className="px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-accent/30"
             >
-              {s}
+              Clear
             </button>
-          ))}
+          )}
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -181,6 +277,7 @@ function JournalEntriesList({
                   <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Entry #</th>
                   <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Date</th>
                   <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Description</th>
+                  <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Reference</th>
                   <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Debit</th>
                   <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Credit</th>
                   <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
@@ -193,6 +290,18 @@ function JournalEntriesList({
                     <td className="px-6 py-4 font-mono text-xs font-bold">{entry.entry_number}</td>
                     <td className="px-6 py-4 text-xs">{new Date(entry.entry_date).toLocaleDateString()}</td>
                     <td className="px-6 py-4 text-xs max-w-[200px] truncate">{entry.description || '---'}</td>
+                    <td className="px-6 py-4 text-xs">
+                      {entry.reference_type ? (
+                        <div className="flex flex-col">
+                          <span className="capitalize font-medium">{entry.reference_type.replace(/_/g, ' ')}</span>
+                          {entry.reference_id && (
+                            <span className="font-mono text-[10px] text-muted-foreground">{entry.reference_id.slice(0, 8)}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right text-xs font-bold">{totalDebit(entry).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</td>
                     <td className="px-6 py-4 text-right text-xs font-bold">{totalCredit(entry).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</td>
                     <td className="px-6 py-4 text-center">

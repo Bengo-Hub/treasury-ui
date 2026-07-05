@@ -82,16 +82,22 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
     [clients],
   );
 
+  const [onlyDue, setOnlyDue] = useState(false);
+  const [onlyStoreCredit, setOnlyStoreCredit] = useState(false);
+
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return clients;
-    const q = searchQuery.toLowerCase();
-    return clients.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        c.phone.toLowerCase().includes(q),
-    );
-  }, [clients, searchQuery]);
+    const q = searchQuery.trim().toLowerCase();
+    return clients.filter((c) => {
+      if (q &&
+        !(c.name.toLowerCase().includes(q) ||
+          c.email.toLowerCase().includes(q) ||
+          c.phone.toLowerCase().includes(q) ||
+          (c.customerId ?? '').toLowerCase().includes(q))) return false;
+      if (onlyDue && !(c.outstanding > 0.0001)) return false;
+      if (onlyStoreCredit && !(parseFloat(c.balance?.total_credits ?? '0') > 0.0001)) return false;
+      return true;
+    });
+  }, [clients, searchQuery, onlyDue, onlyStoreCredit]);
 
   if (!tenant) return null;
 
@@ -176,15 +182,33 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
       )}
 
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between py-4">
+        <CardHeader className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between py-4">
           <div className="relative w-full max-w-sm group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
             <input
-              placeholder="Search clients..."
+              placeholder="Search name, email, phone, contact ID..."
               className="w-full bg-accent/30 border-none rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setOnlyDue((v) => !v)}
+              className={cn('px-3 py-1.5 rounded-full border transition-colors',
+                onlyDue ? 'bg-amber-500/15 border-amber-500/50 text-amber-700' : 'border-border text-muted-foreground hover:bg-accent/30')}
+            >
+              Has balance due
+            </button>
+            <button
+              type="button"
+              onClick={() => setOnlyStoreCredit((v) => !v)}
+              className={cn('px-3 py-1.5 rounded-full border transition-colors',
+                onlyStoreCredit ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-700' : 'border-border text-muted-foreground hover:bg-accent/30')}
+            >
+              Has store credit
+            </button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -194,88 +218,97 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
             </div>
           )}
           {!isLoading && (
-            <div className="divide-y divide-border">
-              {filtered.map((c) => (
-                <div
-                  key={c.key}
-                  onClick={() => setSelectedKey(c.key)}
-                  className="px-6 py-4 flex items-center justify-between hover:bg-accent/5 transition-colors cursor-pointer group"
-                >
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className="h-10 w-10 rounded-xl bg-accent/30 flex items-center justify-center border border-border shrink-0">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold group-hover:text-primary transition-colors truncate">{c.name}</h4>
-                        {c.fromCRM && <Badge variant="outline" className="capitalize">{c.contactType || 'CRM'}</Badge>}
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 flex-wrap">
-                        <span>{c.invoiceCount} invoice{c.invoiceCount !== 1 ? 's' : ''}</span>
-                        {c.email && (
-                          <span className="flex items-center gap-1">· <Mail className="h-2.5 w-2.5" />{c.email}</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 shrink-0">
-                    <div className="text-right">
-                      <p className="text-sm font-bold">{formatCurrency(c.totalAmount, c.currency)}</p>
-                      <p className={cn('text-[10px] uppercase tracking-wider', c.outstanding > 0 ? 'text-amber-500' : 'text-emerald-500')}>
-                        {c.outstanding > 0 ? `${formatCurrency(c.outstanding, c.currency)} due` : 'Fully paid'}
-                      </p>
-                    </div>
-                    {!c.fromCRM && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={syncingKey === c.key}
-                        title="Sync this client to the CRM"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          handleSyncToCRM(c);
-                        }}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="text-left font-semibold px-6 py-3">Client</th>
+                    <th className="text-left font-semibold px-3 py-3">Contact ID</th>
+                    <th className="text-right font-semibold px-3 py-3">Credit Limit</th>
+                    <th className="text-right font-semibold px-3 py-3">Opening Bal.</th>
+                    <th className="text-right font-semibold px-3 py-3">Store Credit</th>
+                    <th className="text-right font-semibold px-3 py-3">Balance Due</th>
+                    <th className="text-right font-semibold px-6 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filtered.map((c) => {
+                    const b = c.balance;
+                    const openingBal = b?.opening_balance ? parseFloat(b.opening_balance) || 0 : 0;
+                    const storeCredit = b?.total_credits ? parseFloat(b.total_credits) || 0 : 0;
+                    const creditLimit = b?.credit_limit ? parseFloat(b.credit_limit) || 0 : null;
+                    return (
+                      <tr
+                        key={c.key}
+                        onClick={() => setSelectedKey(c.key)}
+                        className="hover:bg-accent/5 transition-colors cursor-pointer group"
                       >
-                        {syncingKey === c.key ? (
-                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                        ) : (
-                          <CloudUpload className="h-3.5 w-3.5 mr-1" />
-                        )}
-                        Sync to CRM
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      title="Set this client's carried-in AR opening balance"
-                      onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        setOpeningClient(c);
-                      }}
-                    >
-                      <Wallet className="h-3.5 w-3.5 mr-1" />
-                      Opening Balance
-                    </Button>
-                    {c.customerId && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          openStatement(c);
-                        }}
-                      >
-                        <FileText className="h-3.5 w-3.5 mr-1" />
-                        Statement
-                      </Button>
-                    )}
-                    <ArrowUpRight className="h-4 w-4 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
-                  </div>
-                </div>
-              ))}
-              {filtered.length === 0 && !isLoading && (
-                <div className="p-12 text-center text-muted-foreground">No clients found.</div>
-              )}
+                        <td className="px-6 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-9 w-9 rounded-xl bg-accent/30 flex items-center justify-center border border-border shrink-0">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold group-hover:text-primary transition-colors truncate">{c.name}</span>
+                                {c.fromCRM && <Badge variant="outline" className="capitalize">{c.contactType || 'CRM'}</Badge>}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 flex-wrap">
+                                <span>{c.invoiceCount} invoice{c.invoiceCount !== 1 ? 's' : ''}</span>
+                                {c.email && <span className="flex items-center gap-1">· <Mail className="h-2.5 w-2.5" />{c.email}</span>}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 font-mono text-[11px] text-muted-foreground">
+                          {c.customerId ? c.customerId.slice(0, 8) : '—'}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
+                          {creditLimit != null ? formatCurrency(creditLimit, c.currency) : 'No limit'}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums">
+                          {openingBal ? formatCurrency(openingBal, c.currency) : '—'}
+                        </td>
+                        <td className={cn('px-3 py-3 text-right tabular-nums', storeCredit > 0 && 'text-emerald-600 font-semibold')}>
+                          {storeCredit ? formatCurrency(storeCredit, c.currency) : '—'}
+                        </td>
+                        <td className={cn('px-3 py-3 text-right tabular-nums font-bold', c.outstanding > 0 ? 'text-amber-600' : 'text-emerald-600')}>
+                          {c.outstanding > 0 ? formatCurrency(c.outstanding, c.currency) : 'Settled'}
+                        </td>
+                        <td className="px-6 py-3">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {b && c.outstanding > 0 && (
+                              <Button size="sm" onClick={(e: React.MouseEvent) => { e.stopPropagation(); setPayTarget(b); }}>
+                                Receive
+                              </Button>
+                            )}
+                            {!c.fromCRM && (
+                              <Button variant="outline" size="sm" disabled={syncingKey === c.key} title="Sync to CRM"
+                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleSyncToCRM(c); }}>
+                                {syncingKey === c.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
+                              </Button>
+                            )}
+                            <Button variant="outline" size="sm" title="Set opening balance"
+                              onClick={(e: React.MouseEvent) => { e.stopPropagation(); setOpeningClient(c); }}>
+                              <Wallet className="h-3.5 w-3.5" />
+                            </Button>
+                            {c.customerId && (
+                              <Button variant="outline" size="sm" title="AR statement"
+                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); openStatement(c); }}>
+                                <FileText className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            <ArrowUpRight className="h-4 w-4 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filtered.length === 0 && !isLoading && (
+                    <tr><td colSpan={7} className="p-12 text-center text-muted-foreground">No clients found.</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>

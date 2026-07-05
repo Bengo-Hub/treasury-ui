@@ -4,8 +4,11 @@ import { Card, CardContent, CardHeader } from '@/components/ui/base';
 import { usePlatformByService, usePlatformByTenant, usePlatformOverview } from '@/hooks/use-platform-analytics';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useTenantFilterStore } from '@/store/tenant-filter';
-import { Activity, BarChart, Building2, Download, Layers, TrendingUp } from 'lucide-react';
-import { useState } from 'react';
+import { Activity, BarChart, Building2, Download, Layers, Printer, TrendingUp } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
+import { downloadPlatformRevenueReport } from '@/lib/api/documents';
+import { toast } from 'sonner';
 
 export default function PlatformAnalyticsPage() {
   const [from, setFrom] = useState('');
@@ -16,6 +19,14 @@ export default function PlatformAnalyticsPage() {
   const { data: byTenant, isLoading: loadingTenants, isError: tenantsError } = usePlatformByTenant(from || undefined, to || undefined, tenantIds || undefined);
   const { data: byService, isLoading: loadingServices, isError: servicesError } = usePlatformByService(from || undefined, to || undefined, tenantIds || undefined);
 
+  const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
+  const previewPlatformReport = useCallback(() => {
+    openPreview(
+      () => downloadPlatformRevenueReport('pdf', from || undefined, to || undefined, tenantIds || undefined).then((r) => r.blob),
+      { fileName: 'platform-revenue-report.pdf', title: 'Platform Revenue Report' }
+    );
+  }, [openPreview, from, to, tenantIds]);
+
   return (
     <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
@@ -23,7 +34,15 @@ export default function PlatformAnalyticsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Ecosystem Analytics</h1>
           <p className="text-muted-foreground mt-1">Platform-wide overview of all payment flows and tenant performance.</p>
         </div>
+        <button
+          type="button"
+          onClick={previewPlatformReport}
+          className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent/50 transition-colors"
+        >
+          <Printer className="h-4 w-4" /> Print / Export
+        </button>
       </div>
+      <PdfPreview {...previewProps} />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="hover:shadow-md transition-all">
