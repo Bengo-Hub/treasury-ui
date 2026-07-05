@@ -5,6 +5,7 @@ import {
   useApprovalRequests,
   useApproveRequest,
   useRejectRequest,
+  useRequestApprovalOtp,
 } from '@/hooks/useApprovals';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { MODULE_LABEL, roleLabel } from '@/lib/documents/approvals';
@@ -22,6 +23,10 @@ const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'error'
 };
 
 type Tab = 'inbox' | 'pending' | 'all';
+
+// Money-movement modules whose approval requires the emailed OTP second factor (REQ-004).
+// Mirrors treasury-api approvals.OTPRequired.
+const OTP_MODULES = new Set(['payout', 'vendor_bill', 'expense']);
 
 export default function ApprovalsInboxPage() {
   const { orgSlug, tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
@@ -41,16 +46,38 @@ export default function ApprovalsInboxPage() {
 
   const approve = useApproveRequest(tenant);
   const reject = useRejectRequest(tenant);
+  const requestOtp = useRequestApprovalOtp(tenant);
   const isActing = approve.isPending || reject.isPending;
+
+  // OTP second factor for money-movement approvals (payout / vendor bill / expense).
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
 
   function closeDetail() {
     setSelected(null);
     setComment('');
+    setOtpCode('');
+    setOtpSent(false);
+  }
+
+  function handleSendOtp(req: ApprovalRequest) {
+    requestOtp.mutate(req.id, {
+      onSuccess: (res) => {
+        setOtpSent(true);
+        toast.success(`Code sent by ${res.channel} — valid for ${res.expires_minutes} minutes`);
+      },
+      onError: (e: unknown) => toast.error(errMsg(e, 'Failed to send the OTP code')),
+    });
   }
 
   function handleApprove(req: ApprovalRequest) {
+    const needsOtp = OTP_MODULES.has(req.module);
+    if (needsOtp && !otpCode.trim()) {
+      toast.error('Enter the OTP code sent to your email — approving this moves money.');
+      return;
+    }
     approve.mutate(
-      { id: req.id, comment: comment.trim() || undefined },
+      { id: req.id, comment: comment.trim() || undefined, otpCode: needsOtp ? otpCode.trim() : undefined },
       {
         onSuccess: () => {
           toast.success('Step approved');
@@ -234,6 +261,28 @@ export default function ApprovalsInboxPage() {
                       rows={2}
                       className="w-full rounded-lg border border-input bg-transparent px-4 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none resize-none"
                     />
+                    {OTP_MODULES.has(selected.module) && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+                        <p className="text-xs text-amber-800 font-medium">
+                          Approving this {MODULE_LABEL[selected.module] ?? selected.module} moves money — a one-time code is required.
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            value={otpCode}
+                            onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            placeholder="6-digit code"
+                            inputMode="numeric"
+                            className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono tracking-widest focus:ring-1 focus:ring-ring focus:outline-none"
+                          />
+                          <Button variant="outline" disabled={requestOtp.isPending} onClick={() => handleSendOtp(selected)}>
+                            {requestOtp.isPending ? 'Sending…' : otpSent ? 'Resend code' : 'Email me a code'}
+                          </Button>
+                        </div>
+                        <p className="text-[11px] text-amber-700">
+                          The code is valid for 5 minutes and locks after 3 wrong attempts.
+                        </p>
+                      </div>
+                    )}
                     <div className="flex gap-3">
                       <Button
                         variant="outline"
