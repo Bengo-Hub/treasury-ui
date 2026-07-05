@@ -30,6 +30,8 @@ export interface TransactionItem {
   transaction_cost?: string;
   crm_contact_id?: string;
   provider_reference?: string;
+  /** Customer snapshot from the intent metadata (REQ-005) — empty when the source recorded none. */
+  customer_name?: string;
   created_at: string;
 }
 

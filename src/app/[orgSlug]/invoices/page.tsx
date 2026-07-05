@@ -36,6 +36,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useRouter, useParams } from 'next/navigation';
 import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
+import { ViewPaymentsModal, type ViewPaymentsInvoiceRef } from '@/components/documents/ViewPaymentsModal';
 import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentCreateView';
 import { DocTabNav, type DocTab } from '@/components/documents/DocTabNav';
 import { SuggestedInvoice } from './_components/SuggestedInvoice';
@@ -110,6 +111,7 @@ export default function InvoicesPage() {
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [viewPaymentsFor, setViewPaymentsFor] = useState<{ tenant: string; invoice: ViewPaymentsInvoiceRef } | null>(null);
   const [rejectDialog, setRejectDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
@@ -193,7 +195,7 @@ export default function InvoicesPage() {
   const handleRecordPayment = useCallback(() => {
     if (!paymentDialog || !paymentAmount) return;
     rowAction.mutate(
-      { fn: () => recordPayment(paymentDialog.tenant, paymentDialog.invoiceId, paymentAmount), label: 'Payment recorded' },
+      { fn: () => recordPayment(paymentDialog.tenant, paymentDialog.invoiceId, { amount: paymentAmount }), label: 'Payment recorded' },
       { onSuccess: () => { invalidate(); setPaymentDialog(null); setPaymentAmount(''); } },
     );
   }, [paymentDialog, paymentAmount, rowAction, invalidate]);
@@ -285,6 +287,17 @@ export default function InvoicesPage() {
       visible: (r) =>
         (r.payment_status === 'unpaid' || r.payment_status === 'partial') &&
         r.status !== 'void' && r.status !== 'cancelled',
+    },
+    {
+      // Detailed recorded-payments history: edit/void per payment, print, send
+      // payment-received notification (backed by the InvoicePayment records).
+      label: 'View Payments',
+      icon: <Receipt className="h-3.5 w-3.5" />,
+      onClick: (r) => setViewPaymentsFor({
+        tenant: rowTenant(r),
+        invoice: { id: r.id, invoice_number: r.doc_number, total_amount: r.total_amount, currency: r.currency },
+      }),
+      visible: (r) => r.payment_status !== 'unpaid' || r.status === 'paid',
     },
     {
       label: 'Mark as Paid',
@@ -432,6 +445,15 @@ export default function InvoicesPage() {
           tenant={docTenant}
           docType="invoice"
           onClose={() => setBulkUploadOpen(false)}
+        />
+      )}
+
+      {viewPaymentsFor && (
+        <ViewPaymentsModal
+          tenant={viewPaymentsFor.tenant}
+          invoice={viewPaymentsFor.invoice}
+          onClose={() => setViewPaymentsFor(null)}
+          canManage={canApprove}
         />
       )}
 
