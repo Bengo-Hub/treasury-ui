@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { userHasPermission } from '@/lib/auth/permissions';
 import { useBranding } from '@/providers/branding-provider';
 import { useAuthStore } from '@/store/auth';
-import { useSubscription } from '@/hooks/use-subscription';
+import { FeatureLock } from '@bengo-hub/shared-ui-lib/subscription';
 import {
   Banknote,
   BookOpen,
@@ -44,7 +44,7 @@ interface NavItem {
   icon: React.ElementType;
   href: string;
   active: boolean;
-  /** Subscription feature code required to see this item (exempt tenants always pass). */
+  /** Subscription feature code that unlocks this item (exempt tenants always pass). */
   feature?: string;
 }
 
@@ -53,7 +53,7 @@ interface NavGroup {
   icon: React.ElementType;
   children: NavItem[];
   defaultOpen?: boolean;
-  /** Subscription feature code required to see this whole group. */
+  /** Subscription feature code that unlocks this whole group. */
   feature?: string;
 }
 
@@ -63,26 +63,13 @@ function isNavGroup(entry: NavEntry): entry is NavGroup {
   return 'children' in entry;
 }
 
-/**
- * filterNavByFeature drops nav entries the tenant's plan doesn't include, mirroring the
- * treasury-api feature gates (invoice_generation, ledger_posting, ar/ap_tracking,
- * reconciliation, tax_codes). Exempt tenants pass everything (hasFeature handles that). A
- * group is hidden once all its children are filtered out.
+/*
+ * Show-don't-hide subscription gating: entries with a `feature` code are ALWAYS rendered.
+ * When the tenant's plan lacks the feature, the shared <FeatureLock mode="badge"> wraps the
+ * entry with a locked chip and intercepts clicks (capture phase, so the inner Link never
+ * navigates) to open an UpgradeDialog naming the unlocking tier. Module/permission filtering
+ * (e.g. Audit History) is unchanged — only subscription-feature hiding was removed.
  */
-function filterNavByFeature(entries: NavEntry[], hasFeature: (code: string) => boolean): NavEntry[] {
-  const out: NavEntry[] = [];
-  for (const e of entries) {
-    if (isNavGroup(e)) {
-      if (e.feature && !hasFeature(e.feature)) continue;
-      const children = e.children.filter((c) => !c.feature || hasFeature(c.feature));
-      if (children.length === 0) continue;
-      out.push({ ...e, children });
-    } else if (!e.feature || hasFeature(e.feature)) {
-      out.push(e);
-    }
-  }
-  return out;
-}
 
 interface SidebarProps {
   open?: boolean;
@@ -96,7 +83,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const { tenant, getServiceTitle } = useBranding();
-  const { hasFeature } = useSubscription();
   const isPlatformOwner = user?.isPlatformOwner || user?.isSuperUser || orgSlug === 'codevertex';
   // Audit History shows the ledger audit trail — gate on ledger view/manage (matches the backend
   // route gate). Platform owners always see it.
@@ -435,7 +421,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-sidebar-foreground/25">
             Treasury
           </p>
-          <NavList items={filterNavByFeature(tenantNav, hasFeature)} onItemClick={onClose} pathname={pathname} />
+          <NavList items={tenantNav} onItemClick={onClose} pathname={pathname} />
         </div>
 
         {isPlatformOwner && (
@@ -519,10 +505,25 @@ function NavList({
   );
 }
 
+/**
+ * Wraps a nav entry in the shared FeatureLock (badge mode) when it carries a subscription
+ * feature code. Unlocked/exempt tenants get the bare children back; locked ones see a tier
+ * chip and a click-capture that opens the UpgradeDialog instead of navigating.
+ */
+function NavFeatureLock({ feature, children }: { feature?: string; children: React.ReactNode }) {
+  if (!feature) return <>{children}</>;
+  return (
+    <FeatureLock feature={feature} mode="badge">
+      {children}
+    </FeatureLock>
+  );
+}
+
 function NavLinkItem({ item, onItemClick }: { item: NavItem; onItemClick?: () => void }) {
   const Icon = item.icon;
   return (
     <li>
+      <NavFeatureLock feature={item.feature}>
       <Link
         href={item.href}
         onClick={onItemClick}
@@ -543,6 +544,7 @@ function NavLinkItem({ item, onItemClick }: { item: NavItem; onItemClick?: () =>
         </div>
         <span className="truncate">{item.label}</span>
       </Link>
+      </NavFeatureLock>
     </li>
   );
 }
@@ -570,6 +572,7 @@ function NavGroupItem({
 
   return (
     <li>
+      <NavFeatureLock feature={group.feature}>
       <button
         type="button"
         onClick={toggle}
@@ -596,6 +599,7 @@ function NavGroupItem({
           )}
         />
       </button>
+      </NavFeatureLock>
 
       <ul
         className={cn(
@@ -607,6 +611,7 @@ function NavGroupItem({
           const ChildIcon = child.icon;
           return (
             <li key={child.href}>
+              <NavFeatureLock feature={child.feature}>
               <Link
                 href={child.href}
                 onClick={onItemClick}
@@ -620,6 +625,7 @@ function NavGroupItem({
                 <ChildIcon className="size-4 shrink-0" />
                 <span className="text-sm">{child.label}</span>
               </Link>
+              </NavFeatureLock>
             </li>
           );
         })}
