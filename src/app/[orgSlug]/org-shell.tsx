@@ -4,6 +4,7 @@ import { Header } from '@/components/header';
 import { Sidebar } from '@/components/sidebar';
 import { AuthProvider } from '@/providers/auth-provider';
 import { BrandingProvider } from '@/providers/branding-provider';
+import { SubscriptionEntitlementsProvider } from '@/providers/subscription-entitlements-provider';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
@@ -58,6 +59,7 @@ export function OrgShell({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrandingProvider>
+          <SubscriptionEntitlementsProvider>
           <ManifestInjector />
           <PWAUpdateBanner />
           <div className="flex h-screen overflow-hidden bg-background">
@@ -74,6 +76,7 @@ export function OrgShell({ children }: { children: ReactNode }) {
               </main>
             </div>
           </div>
+          </SubscriptionEntitlementsProvider>
         </BrandingProvider>
       </AuthProvider>
     </QueryClientProvider>
