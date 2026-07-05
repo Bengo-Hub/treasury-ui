@@ -97,7 +97,7 @@ export default async function PublicQuotationPage({ params }: Props) {
 
           {/* Line items table */}
           <div className="mb-8 overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm no-grid">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
                   <th className="text-left px-3 py-2 rounded-tl-md">#</th>

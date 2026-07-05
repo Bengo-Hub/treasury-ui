@@ -5,9 +5,19 @@ import { Loader2, X } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { createInventoryItem, type CreateInventoryItemRequest } from '@/lib/api/inventory';
 import { useInventoryUnits, useInventoryItemTypes } from '@/hooks/use-inventory';
+import { useTaxCodes } from '@/hooks/use-tax';
 import type { LineRow } from './sections/LineItemsSection';
 
-const FALLBACK_ITEM_TYPES = ['GOODS', 'SERVICE', 'DIGITAL', 'SUBSCRIPTION', 'BUNDLE'];
+// Matches inventory-api's item `type` enum (internal/ent/schema/item.go) so the
+// fallback (used only when the API is unreachable) stays in lock-step with it.
+const FALLBACK_ITEM_TYPES = [
+  { value: 'GOODS', label: 'Goods' },
+  { value: 'SERVICE', label: 'Service' },
+  { value: 'RECIPE', label: 'Recipe' },
+  { value: 'INGREDIENT', label: 'Ingredient' },
+  { value: 'VOUCHER', label: 'Voucher' },
+  { value: 'EQUIPMENT', label: 'Equipment' },
+];
 const FALLBACK_UNITS = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'hr', 'day', 'month'];
 
 interface Props {
@@ -20,15 +30,19 @@ interface Props {
 export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }: Props) {
   const { data: unitsData, isLoading: unitsLoading } = useInventoryUnits(tenant);
   const { data: typesData, isLoading: typesLoading } = useInventoryItemTypes(tenant);
+  const { data: taxData, isLoading: taxLoading } = useTaxCodes(tenant);
 
-  // inventory-api occasionally returns entries with a missing name/abbreviation;
-  // drop those before rendering so a stray undefined can't crash the option map
-  // (t.charAt on undefined). Fall back to the static list when nothing valid remains.
-  const apiUnits = unitsData?.units?.map(u => u.abbreviation ?? u.name).filter(Boolean) ?? [];
+  // Units + item types are sourced from inventory-api (via the treasury-api proxy);
+  // fall back to the static lists only when the API returns nothing valid.
+  const apiUnits = unitsData?.units?.map(u => u.abbreviation || u.name).filter(Boolean) ?? [];
   const units = apiUnits.length ? apiUnits : FALLBACK_UNITS;
 
-  const apiItemTypes = typesData?.item_types?.map(t => t.name).filter(Boolean) ?? [];
+  const apiItemTypes = typesData?.item_types ?? [];
   const itemTypes = apiItemTypes.length ? apiItemTypes : FALLBACK_ITEM_TYPES;
+
+  // Tax codes come from treasury-api — the user picks a code rather than typing a
+  // custom one, and the rate is derived from the selected code (no free-text rate).
+  const taxCodes = taxData?.tax_codes ?? [];
 
   const [form, setForm] = useState({
     name: initialName,
@@ -43,8 +57,12 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
   });
 
   // Set defaults once data loads
-  const defaultType = form.item_type || itemTypes[0] || '';
+  const defaultType = form.item_type || itemTypes[0]?.value || '';
   const defaultUnit = form.unit || units[0] || '';
+
+  // The tax rate shown is always derived from the selected tax code.
+  const selectedTaxCode = taxCodes.find(tc => tc.code === form.tax_code);
+  const derivedTaxRate = selectedTaxCode ? Number(selectedTaxCode.rate) || 0 : 0;
 
   const mutation = useMutation({
     mutationFn: (body: CreateInventoryItemRequest) => createInventoryItem(tenant, body),
@@ -59,8 +77,10 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
         unit_cost: item.cost_price != null
           ? (parseFloat(item.cost_price) || 0)
           : (form.cost_price ? (parseFloat(form.cost_price) || 0) : undefined),
-        tax_code: item.tax_code,
-        tax_rate: parseFloat(item.tax_rate ?? '0') || 0,
+        tax_code: item.tax_code || form.tax_code || undefined,
+        // inventory persists the code, not the rate — carry the rate derived from
+        // the selected treasury tax code so the line taxes correctly.
+        tax_rate: parseFloat(item.tax_rate ?? '') || derivedTaxRate,
       });
       onClose();
     },
@@ -107,7 +127,7 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
               ) : (
                 <select className={inputCls} value={form.item_type || defaultType} onChange={e => field('item_type', e.target.value)}>
                   {itemTypes.map(t => (
-                    <option key={t} value={t}>{t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : t}</option>
+                    <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
               )}
@@ -142,16 +162,30 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
               onChange={e => field('cost_price', e.target.value)} placeholder="0.00" />
           </div>
 
-          {/* Tax */}
+          {/* Tax — code is chosen from the treasury tax register; the rate is derived. */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Tax Code</label>
-              <input className={inputCls} value={form.tax_code} onChange={e => field('tax_code', e.target.value)} placeholder="VAT" />
+              {taxLoading ? (
+                <div className={inputCls + ' flex items-center gap-2 text-muted-foreground'}>
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+                </div>
+              ) : (
+                <select className={inputCls} value={form.tax_code} onChange={e => field('tax_code', e.target.value)}>
+                  <option value="">None / Exempt</option>
+                  {taxCodes.map(tc => (
+                    <option key={tc.id} value={tc.code}>
+                      {tc.code} — {tc.name} ({Number(tc.rate) || 0}%)
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div>
               <label className={labelCls}>Tax Rate (%)</label>
-              <input type="number" min="0" max="100" step="0.1" className={inputCls} value={form.tax_rate}
-                onChange={e => field('tax_rate', e.target.value)} placeholder="16" />
+              <input type="number" readOnly value={derivedTaxRate}
+                className={inputCls + ' bg-muted/40 cursor-not-allowed'}
+                title="Derived from the selected tax code" />
             </div>
           </div>
 

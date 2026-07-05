@@ -68,7 +68,7 @@ export function ReportTable({ columns, sections, grandTotal, className }: Report
 
   return (
     <div className={cn('overflow-hidden rounded-lg border border-border', className)}>
-      <table className="w-full border-collapse">
+      <table className="w-full border-collapse no-grid">
         <thead>
           <tr className="bg-primary/10">
             {columns.map((col, i) => (
