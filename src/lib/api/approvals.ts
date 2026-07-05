@@ -115,10 +115,16 @@ export const approvalsApi = {
     apiClient.get<ApprovalRequest[]>(`${base(tenant)}/approval-requests`, params),
   getRequest: (tenant: string, id: string) =>
     apiClient.get<ApprovalRequest>(`${base(tenant)}/approval-requests/${id}`),
-  approve: (tenant: string, id: string, comment?: string) =>
-    apiClient.post<ApprovalRequest>(`${base(tenant)}/approval-requests/${id}/approve`, { comment }),
+  approve: (tenant: string, id: string, comment?: string, otpCode?: string) =>
+    apiClient.post<ApprovalRequest>(`${base(tenant)}/approval-requests/${id}/approve`, { comment, otp_code: otpCode }),
   reject: (tenant: string, id: string, comment?: string) =>
     apiClient.post<ApprovalRequest>(`${base(tenant)}/approval-requests/${id}/reject`, { comment }),
+  // OTP second factor (REQ-004): money-movement approvals (payout / vendor_bill / expense)
+  // must request a time-bound emailed code and submit it with approve().
+  requestOtp: (tenant: string, id: string) =>
+    apiClient.post<{ status: string; channel: string; expires_minutes: number }>(
+      `${base(tenant)}/approval-requests/${id}/request-otp`, {},
+    ),
 
   // Submit any document for approval (creates a request if a matching active rule exists).
   // NB: the per-document submit lives on the document's OWN route family (e.g. /{tenant}/invoices/

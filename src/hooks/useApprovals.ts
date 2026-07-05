@@ -78,9 +78,16 @@ function invalidateRequests(tenant: string | undefined, qc: ReturnType<typeof us
 export function useApproveRequest(tenant: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, comment }: { id: string; comment?: string }) =>
-      approvalsApi.approve(tenant!, id, comment),
+    mutationFn: ({ id, comment, otpCode }: { id: string; comment?: string; otpCode?: string }) =>
+      approvalsApi.approve(tenant!, id, comment, otpCode),
     onSuccess: () => invalidateRequests(tenant, qc),
+  });
+}
+
+/** Request the emailed OTP protecting a money-movement approval (REQ-004). */
+export function useRequestApprovalOtp(tenant: string | undefined) {
+  return useMutation({
+    mutationFn: (id: string) => approvalsApi.requestOtp(tenant!, id),
   });
 }
 
