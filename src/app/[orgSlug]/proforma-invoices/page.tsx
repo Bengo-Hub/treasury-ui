@@ -38,7 +38,7 @@ export default function ProformaInvoicesPage() {
 
   const handleRecordPayment = () => {
     if (!paymentDialog || !paymentAmount) return;
-    run(() => recordPayment(paymentDialog.tenant, paymentDialog.invoiceId, paymentAmount), 'Payment recorded');
+    run(() => recordPayment(paymentDialog.tenant, paymentDialog.invoiceId, { amount: paymentAmount }), 'Payment recorded');
     setPaymentDialog(null); setPaymentAmount('');
   };
 

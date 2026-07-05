@@ -78,6 +78,8 @@ export interface Invoice {
   terms?: string;
   status: string;
   payment_status: string;
+  /** Cumulative amount received (sum of active payment records) — drives paid/partial. */
+  amount_paid?: string;
   /** Delivery-note goods-dispatch lifecycle: draft | dispatched | delivered | cancelled.
    *  Only meaningful for delivery_challan / delivery_note documents. */
   delivery_status?: string;
@@ -461,8 +463,60 @@ export function rejectInvoice(tenant: string, invoiceId: string, reason?: string
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/reject`, { reason });
 }
 
-export function recordPayment(tenant: string, invoiceId: string, amount: number | string): Promise<{ status: string }> {
-  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/record-payment`, { amount: String(amount) });
+/** One recorded payment against an invoice (View Payments modal row). Soft-voided, never deleted. */
+export interface InvoicePayment {
+  id: string;
+  invoice_id: string;
+  amount: string;
+  currency: string;
+  method: string;
+  reference?: string;
+  note?: string;
+  account_id?: string;
+  paid_at: string;
+  status: 'active' | 'voided';
+  void_reason?: string;
+  created_at: string;
+}
+
+export interface RecordPaymentInput {
+  amount: number | string;
+  method?: string;
+  reference?: string;
+  note?: string;
+  account_id?: string;
+  paid_at?: string;
+}
+
+export function recordPayment(tenant: string, invoiceId: string, input: RecordPaymentInput): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/record-payment`, {
+    ...input,
+    amount: String(input.amount),
+  });
+}
+
+export function listInvoicePayments(tenant: string, invoiceId: string): Promise<{ data: InvoicePayment[] }> {
+  return apiClient.get<{ data: InvoicePayment[] }>(`${BASE}/${tenant}/invoices/${invoiceId}/payments`);
+}
+
+/** Edit a payment's descriptive fields — never the amount (void + re-record to change money). */
+export function updateInvoicePayment(
+  tenant: string,
+  invoiceId: string,
+  paymentId: string,
+  input: { method?: string; reference?: string; note?: string; paid_at?: string; account_id?: string },
+): Promise<InvoicePayment> {
+  return apiClient.patch<InvoicePayment>(`${BASE}/${tenant}/invoices/${invoiceId}/payments/${paymentId}`, input);
+}
+
+/** Soft-void a payment: reversing journal, amount_paid + payment_status recomputed. */
+export function voidInvoicePayment(tenant: string, invoiceId: string, paymentId: string, reason?: string): Promise<InvoicePayment> {
+  return apiClient.delete<InvoicePayment>(`${BASE}/${tenant}/invoices/${invoiceId}/payments/${paymentId}`, { data: { reason } });
+}
+
+/** Send the customer the payment-received notification for one payment. */
+export function notifyInvoicePayment(tenant: string, invoiceId: string, paymentId: string): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/payments/${paymentId}/notify`, {});
 }
 
 export function markPaid(tenant: string, invoiceId: string): Promise<{ status: string }> {

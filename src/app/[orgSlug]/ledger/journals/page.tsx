@@ -278,6 +278,10 @@ function JournalEntriesList({
                   <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Date</th>
                   <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Description</th>
                   <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Reference</th>
+                  {/* REQ-005 audit: journal entries record the posting USER (created_by = the
+                      cashier/accountant analog); a customer applies only via the referenced
+                      source document, so no Customer column is invented here. */}
+                  <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Recorded By</th>
                   <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Debit</th>
                   <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Credit</th>
                   <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
@@ -301,6 +305,9 @@ function JournalEntriesList({
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
+                    </td>
+                    <td className="px-6 py-4 text-xs font-mono" title={entry.created_by}>
+                      {entry.created_by ? entry.created_by.slice(0, 8) : '—'}
                     </td>
                     <td className="px-6 py-4 text-right text-xs font-bold">{totalDebit(entry).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</td>
                     <td className="px-6 py-4 text-right text-xs font-bold">{totalCredit(entry).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</td>

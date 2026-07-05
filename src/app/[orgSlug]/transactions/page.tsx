@@ -254,6 +254,10 @@ export default function TransactionsPage() {
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Reference</th>
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Type</th>
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Source</th>
+                    {/* REQ-005 audit: customer comes from the intent's metadata snapshot when
+                        the source recorded one; cashier is N/A on payment intents (it lives on
+                        the pos order / journal created_by). */}
+                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Customer</th>
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Method</th>
                     <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Amount</th>
                     <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Fee</th>
@@ -273,6 +277,7 @@ export default function TransactionsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-xs">{txn.source_service || '—'}</td>
+                      <td className="px-6 py-4 text-xs">{txn.customer_name || '—'}</td>
                       <td className="px-6 py-4 text-xs">
                         <div>{txn.payment_method}</div>
                         {txn.provider_reference && txn.payment_method?.includes('mpesa') && (

@@ -26,6 +26,11 @@ import {
   listInvoices,
   listQuotations,
   recordPayment,
+  listInvoicePayments,
+  updateInvoicePayment,
+  voidInvoicePayment,
+  notifyInvoicePayment,
+  type RecordPaymentInput,
   markPaid,
   createCreditNote,
   createDebitNote,
@@ -354,12 +359,55 @@ export function useRejectInvoice(tenant: string) {
 export function useRecordPayment(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ invoiceId, amount }: { invoiceId: string; amount: number | string }) =>
-      recordPayment(tenant, invoiceId, amount),
+    mutationFn: ({ invoiceId, ...input }: { invoiceId: string } & RecordPaymentInput) =>
+      recordPayment(tenant, invoiceId, input),
     onSuccess: (_data, { invoiceId }) => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: ['invoice-payments', tenant, invoiceId] });
     },
+  });
+}
+
+// ---- Recorded-payment history (View Payments modal) ----
+
+export function useInvoicePayments(tenant: string, invoiceId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['invoice-payments', tenant, invoiceId],
+    queryFn: () => listInvoicePayments(tenant, invoiceId),
+    enabled: !!tenant && !!invoiceId && enabled,
+  });
+}
+
+export function useUpdateInvoicePayment(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invoiceId, paymentId, ...input }: { invoiceId: string; paymentId: string; method?: string; reference?: string; note?: string; paid_at?: string }) =>
+      updateInvoicePayment(tenant, invoiceId, paymentId, input),
+    onSuccess: (_d, { invoiceId }) => {
+      queryClient.invalidateQueries({ queryKey: ['invoice-payments', tenant, invoiceId] });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
+    },
+  });
+}
+
+export function useVoidInvoicePayment(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invoiceId, paymentId, reason }: { invoiceId: string; paymentId: string; reason?: string }) =>
+      voidInvoicePayment(tenant, invoiceId, paymentId, reason),
+    onSuccess: (_d, { invoiceId }) => {
+      queryClient.invalidateQueries({ queryKey: ['invoice-payments', tenant, invoiceId] });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+    },
+  });
+}
+
+export function useNotifyInvoicePayment(tenant: string) {
+  return useMutation({
+    mutationFn: ({ invoiceId, paymentId }: { invoiceId: string; paymentId: string }) =>
+      notifyInvoicePayment(tenant, invoiceId, paymentId),
   });
 }
 

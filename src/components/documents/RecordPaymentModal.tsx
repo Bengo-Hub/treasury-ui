@@ -71,7 +71,16 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
     let pending = targetIds.length;
     if (pending === 0) return;
     targetIds.forEach(id => {
-      recordPayment.mutate({ invoiceId: id, amount: s2.amount }, {
+      // Full capture — method/reference/receipt/date used to be collected here and then
+      // silently dropped; they now persist on the InvoicePayment record.
+      recordPayment.mutate({
+        invoiceId: id,
+        amount: s2.amount,
+        method: s2.method,
+        reference: s1.reference || s1.receipt_number || undefined,
+        note: s1.receipt_number && s1.reference ? `Receipt ${s1.receipt_number}` : undefined,
+        paid_at: s1.payment_date ? new Date(`${s1.payment_date}T12:00:00Z`).toISOString() : undefined,
+      }, {
         onSuccess: () => {
           pending--;
           if (pending === 0) onClose();
