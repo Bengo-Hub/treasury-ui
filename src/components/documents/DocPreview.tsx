@@ -315,7 +315,7 @@ export function DocPreview({ docId, docType, tenant, onClose, onEdit, onDuplicat
                 <div>
                   <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Line Items</p>
                   <div className="rounded-xl border border-border overflow-hidden">
-                    <table className="w-full text-xs border-collapse">
+                    <table className="w-full text-xs border-collapse no-grid">
                       <thead>
                         <tr className="bg-accent border-b border-border text-muted-foreground font-bold uppercase tracking-wide text-[10px]">
                           <th className="p-2.5 pl-3 text-left">Item</th>

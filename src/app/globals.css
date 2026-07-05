@@ -229,6 +229,36 @@ button:focus-visible {
 }
 
 /*
+ * Modern gridlined data tables (treasury-ui).
+ * Every data table gets crisp horizontal + vertical grid lines and a row-hover
+ * highlight so the whole app reads as one consistent, modern grid. Cells inherit
+ * the semantic `--border` token so it stays tenant-branding- and dark-mode-aware.
+ * Each table keeps its own header background/text, so we only add the grid lines
+ * (never override header colours — that would break dark/primary headers).
+ *
+ * Document / preview layouts (the live PDF-mirror preview, the customer-facing
+ * quotation render, and the financial-report ReportTable) opt OUT with the
+ * `no-grid` class so their bespoke, print-oriented layout is left untouched.
+ */
+table:not(.no-grid) {
+  border-collapse: collapse;
+}
+table:not(.no-grid) > thead > tr > th,
+table:not(.no-grid) > tbody > tr > td,
+table:not(.no-grid) > tbody > tr > th,
+table:not(.no-grid) > tfoot > tr > td,
+table:not(.no-grid) > tr > td,
+table:not(.no-grid) > tr > th {
+  border: 1px solid hsl(var(--border));
+}
+table:not(.no-grid) > tbody > tr {
+  transition: background-color 0.12s ease;
+}
+table:not(.no-grid) > tbody > tr:hover {
+  background: hsl(var(--accent) / 0.35);
+}
+
+/*
  * Print scoping for financial report documents.
  * When a ReportDocument is being printed it sets `data-printing` on <html>.
  * Everything outside the active `.report-document` is hidden so the printout

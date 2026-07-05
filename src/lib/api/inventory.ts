@@ -38,12 +38,14 @@ export interface InventoryUnit {
   id: string;
   name: string;
   abbreviation?: string;
+  type?: string;
 }
 
 export interface InventoryItemType {
-  id: string;
-  name: string;
-  label?: string;
+  /** Canonical enum value stored on the item (e.g. GOODS, SERVICE). */
+  value: string;
+  /** Human label for display (e.g. "Goods"). */
+  label: string;
 }
 
 export interface SearchItemsParams {
@@ -150,12 +152,33 @@ export function listCarriers(tenant: string): Promise<{ carriers: Carrier[] }> {
   return apiClient.get<{ carriers: Carrier[] }>(`${BASE}/${tenant}/logistics/carriers`);
 }
 
-export function listInventoryUnits(tenant: string): Promise<{ units: InventoryUnit[] }> {
-  return apiClient.get<{ units: InventoryUnit[] }>(`${BASE}/${tenant}/inventory/units`);
+// inventory-api's /inventory/units returns a BARE JSON array (not a {units} envelope),
+// which treasury-api proxies verbatim. Normalize to a stable { units } shape and drop
+// any entries missing a name so the modal option map can't crash on undefined.
+export async function listInventoryUnits(tenant: string): Promise<{ units: InventoryUnit[] }> {
+  const res = await apiClient.get<InventoryUnit[] | { units?: InventoryUnit[]; data?: InventoryUnit[] }>(
+    `${BASE}/${tenant}/inventory/units`,
+  );
+  const rows = Array.isArray(res) ? res : (res.units ?? res.data ?? []);
+  return { units: rows.filter(u => u && (u.abbreviation || u.name)) };
 }
 
-export function listInventoryItemTypes(tenant: string): Promise<{ item_types: InventoryItemType[] }> {
-  return apiClient.get<{ item_types: InventoryItemType[] }>(`${BASE}/${tenant}/inventory/item-types`);
+// treasury-api serves item types as the fixed inventory enum in a {value,label} shape.
+// Normalize to InventoryItemType and tolerate a bare array / {data} envelope too.
+export async function listInventoryItemTypes(tenant: string): Promise<{ item_types: InventoryItemType[] }> {
+  const res = await apiClient.get<
+    | { item_types?: { value?: string; label?: string; name?: string }[]; data?: { value?: string; label?: string; name?: string }[] }
+    | { value?: string; label?: string; name?: string }[]
+  >(`${BASE}/${tenant}/inventory/item-types`);
+  const rows = Array.isArray(res) ? res : (res.item_types ?? res.data ?? []);
+  const item_types = rows
+    .map(t => {
+      const value = t.value ?? t.name ?? '';
+      const label = t.label ?? (value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : value);
+      return { value, label };
+    })
+    .filter(t => t.value);
+  return { item_types };
 }
 
 // ---- Vendors / Suppliers (owned by inventory-api, proxied via treasury-api) ----
