@@ -655,6 +655,8 @@ export interface CustomerBalance {
   crm_contact_id?: string;
   customer_identifier?: string;
   customer_name?: string;
+  // opening_balance is carried in at onboarding; total_credits doubles as issued store credit.
+  opening_balance?: string;
   total_invoiced: string;
   total_paid: string;
   total_credits: string;

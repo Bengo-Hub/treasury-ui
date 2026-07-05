@@ -56,3 +56,40 @@ export function downloadPublicQuotationPdf(
 ): Promise<{ blob: Blob; fileName: string }> {
   return apiClient.getBlob(`${BASE}/public/quotations/${publicToken}/pdf`, `${fallbackName}.pdf`);
 }
+
+/**
+ * Analytics report documents (PDF/CSV) — tabular, tenant-branded reports rendered by the
+ * treasury reports engine. Streamed inline (no ?download) so they preview-first in the shared
+ * PdfPreview modal, mirroring the invoice endpoints. `format` defaults to pdf.
+ */
+export function downloadRevenueReport(
+  tenant: string,
+  format: 'pdf' | 'csv' = 'pdf',
+  from?: string,
+  to?: string
+): Promise<{ blob: Blob; fileName: string }> {
+  return apiClient.getBlob(`${BASE}/${tenant}/analytics/revenue-report`, `revenue-report.${format}`, { format, from, to });
+}
+
+export function downloadMoneyFlowReport(
+  tenant: string,
+  format: 'pdf' | 'csv' = 'pdf',
+  from?: string,
+  to?: string
+): Promise<{ blob: Blob; fileName: string }> {
+  return apiClient.getBlob(`${BASE}/${tenant}/analytics/money-flow-report`, `money-flow-report.${format}`, { format, from, to });
+}
+
+export function downloadPlatformRevenueReport(
+  format: 'pdf' | 'csv' = 'pdf',
+  from?: string,
+  to?: string,
+  tenantIds?: string
+): Promise<{ blob: Blob; fileName: string }> {
+  return apiClient.getBlob(`${BASE}/platform/analytics/platform-revenue-report`, `platform-revenue-report.${format}`, {
+    format,
+    from,
+    to,
+    tenant_ids: tenantIds,
+  });
+}
