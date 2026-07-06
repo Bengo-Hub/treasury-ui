@@ -27,6 +27,9 @@ export interface JournalEntry {
   description?: string;
   status: 'draft' | 'submitted' | 'approved' | 'posted' | 'reversed';
   created_by: string;
+  /** Enriched by the API from the synced users projection — WHO recorded the entry.
+   *  Empty for system-generated entries (nil created_by). */
+  created_by_email?: string;
   approved_by?: string;
   approved_at?: string;
   posted_by?: string;

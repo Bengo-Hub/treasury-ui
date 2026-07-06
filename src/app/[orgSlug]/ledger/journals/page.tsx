@@ -306,8 +306,14 @@ function JournalEntriesList({
                         <span className="text-muted-foreground">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-xs font-mono" title={entry.created_by}>
-                      {entry.created_by ? entry.created_by.slice(0, 8) : '—'}
+                    <td className="px-6 py-4 text-xs" title={entry.created_by}>
+                      {/* Person who recorded the entry (email from the users projection).
+                          Nil-UUID creators are automated postings → "System". */}
+                      {entry.created_by_email
+                        ? entry.created_by_email
+                        : (!entry.created_by || /^0+(-0+)*$/.test(entry.created_by.replace(/-/g, '')))
+                          ? <span className="text-muted-foreground italic">System</span>
+                          : entry.created_by.slice(0, 8)}
                     </td>
                     <td className="px-6 py-4 text-right text-xs font-bold">{totalDebit(entry).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</td>
                     <td className="px-6 py-4 text-right text-xs font-bold">{totalCredit(entry).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</td>
