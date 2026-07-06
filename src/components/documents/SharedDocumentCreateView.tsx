@@ -15,6 +15,7 @@ import { useOutletFilterStore } from '@/store/outlet-filter';
 import { useVendors } from '@/hooks/use-inventory';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, Loader2, Search, UserPlus } from 'lucide-react';
+import { toast } from 'sonner';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LineItemsSection, newLineRow, type LineRow } from './sections/LineItemsSection';
 import { TotalsSection, type AdditionalCharge } from './sections/TotalsSection';
@@ -324,6 +325,17 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   const handleSave = useCallback(() => {
     const linePayload = buildLinePayload();
     const secondary = config.showDueDate ? form.secondary_date : form.primary_date;
+
+    // Quotations must be raised for a REAL customer (QA: never walk-in/anonymous) — the
+    // server (treasury CreateQuotation) rejects them too; this guard gives instant feedback.
+    if (isQuotation) {
+      const name = form.customer_name.trim();
+      const isWalkIn = /^walk[\s-]?in customer$/i.test(name);
+      if ((name === '' || isWalkIn) && !crmCustomerId && !customerId) {
+        toast.error('A customer is required for quotations — search the CRM or add a new client first.');
+        return;
+      }
+    }
 
     // Merge the contract/tender/PO reference into metadata (preserving any existing keys,
     // e.g. customer address, on edit). Rendered as the "Reference" row in the document.
