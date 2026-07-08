@@ -5,7 +5,7 @@
 
 ---
 
-## Treasury in BengoBox MVP
+## Treasury in Codevertex MVP
 
 | Item | Status |
 |------|--------|

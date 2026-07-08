@@ -2,7 +2,7 @@
 
 ## Design System Overview
 
-Treasury UI follows the **BengoBox Design System** with financial-focused patterns for clarity, trust, and efficiency in payment and financial operations.
+Treasury UI follows the **Codevertex Design System** with financial-focused patterns for clarity, trust, and efficiency in payment and financial operations.
 
 ---
 

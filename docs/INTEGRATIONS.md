@@ -1,7 +1,7 @@
 # Treasury UI - Service Integrations
 
 **Last Updated**: 2026-05-09  
-**Purpose**: Document integration points for Codevertex Books (treasury-ui) with auth-service, treasury-api, and other BengoBox services.
+**Purpose**: Document integration points for Codevertex Books (treasury-ui) with auth-service, treasury-api, and other Codevertex services.
 
 ---
 
