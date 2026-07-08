@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-**System Purpose**: The central financial management and treasury operations portal for the BengoBox ecosystem. It provides tools for managing payments, payouts, settlements, and financial reporting across all tenants and services.
+**System Purpose**: The central financial management and treasury operations portal for the Codevertex ecosystem. It provides tools for managing payments, payouts, settlements, and financial reporting across all tenants and services.
 
 **Key Capabilities**:
 - **Payment Orchestration**: Monitor and manage payment intents from Ordering, Cafe, and other services.

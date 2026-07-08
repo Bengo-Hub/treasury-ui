@@ -25,8 +25,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "BengoBox Treasury",
-  description: "Treasury and payment management for the BengoBox ecosystem",
+  title: "Codevertex Treasury",
+  description: "Treasury and payment management for the Codevertex ecosystem",
   manifest: "/manifest.json",
   icons: {
     icon: "/logo.svg",
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "BengoBox Treasury",
+    title: "Codevertex Treasury",
   },
 };
 

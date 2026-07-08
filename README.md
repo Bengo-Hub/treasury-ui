@@ -1,6 +1,6 @@
 # Treasury UI
 
-BengoBox treasury management UI. Transactions, settlements, gateways, platform admin.
+Codevertex treasury management UI. Transactions, settlements, gateways, platform admin.
 
 ## Dev
 

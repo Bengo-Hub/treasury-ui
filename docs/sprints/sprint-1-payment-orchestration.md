@@ -19,7 +19,7 @@
 - ✅ Users can log in via SSO
 - ✅ Platform admin can configure payment gateways (M-Pesa, Stripe, Paystack)
 - ✅ Dashboard displays transaction summary (volume, success rate, value)
-- ✅ Gateway management UI follows BengoBox design patterns
+- ✅ Gateway management UI follows Codevertex design patterns
 - ✅ Responsive design works on mobile/tablet/desktop
 
 ---
