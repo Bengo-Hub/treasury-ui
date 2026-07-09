@@ -10,7 +10,7 @@ import type {
   CreateInvoiceRequest, UpdateInvoiceRequest,
   CreateQuotationRequest, UpdateQuotationRequest,
 } from '@/lib/api/invoices';
-import { createCRMContact, crmContactDisplayName, type CRMContact } from '@/lib/api/crm';
+import { crmContactDisplayName, type CRMContact } from '@/lib/api/crm';
 import { useOutletFilterStore } from '@/store/outlet-filter';
 import { useVendors } from '@/hooks/use-inventory';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,7 @@ import { ShippingTransportSection, type TransportDetails } from './sections/Ship
 import { CurrencySection } from './sections/CurrencySection';
 import { TermsNotesSection } from './sections/TermsNotesSection';
 import { CreateItemModal } from './CreateItemModal';
+import { CreateClientModal } from './CreateClientModal';
 
 export interface DocTypeConfig {
   invoiceType: string;
@@ -188,12 +189,24 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   const [form, setForm] = useState({
     customer_name:  '',
     customer_email: '',
+    customer_phone: '',
     primary_date:   today,
     secondary_date: defaultSecondary,
     currency:       'KES',
     reference:      '', // contract / tender / PO number → metadata.reference (meta box "Reference")
     terms:          '',
     notes:          '',
+  });
+  // Extra Billed-To details that have no dedicated invoice/quotation column — carried into
+  // document metadata (customer_address/customer_country/customer_contact_person, matching the
+  // keys treasury-api's PDF renderer already reads) and, for invoices, the typed
+  // customer_kra_pin field. Populated either from a picked CRM contact's metadata or from the
+  // "Add New Client" modal.
+  const [customerDetails, setCustomerDetails] = useState({
+    kra_pin:        '',
+    address:        '',
+    country:        '',
+    contact_person: '',
   });
   const [lines, setLines]                         = useState<LineRow[]>([newLineRow()]);
   const [globalDiscount, setGlobalDiscount]       = useState(0);
@@ -221,12 +234,19 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     setForm({
       customer_name:  existing.customer_name ?? '',
       customer_email: existing.customer_email ?? '',
+      customer_phone: (existing as { customer_phone?: string }).customer_phone ?? '',
       primary_date:   primaryDate,
       secondary_date: secondaryDate,
       currency:       existing.currency ?? 'KES',
       reference:      (existing.metadata?.reference as string) ?? '',
       terms:          existing.terms ?? '',
       notes:          existing.notes ?? '',
+    });
+    setCustomerDetails({
+      kra_pin:        (existing as { customer_kra_pin?: string }).customer_kra_pin ?? (existing.metadata?.customer_kra_pin as string) ?? '',
+      address:        (existing.metadata?.customer_address as string) ?? '',
+      country:        (existing.metadata?.customer_country as string) ?? '',
+      contact_person: (existing.metadata?.customer_contact_person as string) ?? '',
     });
 
     const srcLines = existing.lines ?? [];
@@ -274,34 +294,24 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     setCrmCustomerId(c.id);
     const name = crmContactDisplayName(c);
     setClientSearch(name);
-    setForm(p => ({ ...p, customer_name: name, customer_email: c.email ?? '' }));
+    setForm(p => ({ ...p, customer_name: name, customer_email: c.email ?? '', customer_phone: c.phone ?? '' }));
+    // Carry over the extra details captured on the CRM contact's metadata bag (company/address/
+    // country/contact_person/kra_pin — see CreateClientModal) so a picked contact re-populates
+    // the same Billed-To details a newly-created one would.
+    const meta = (c.metadata ?? {}) as Record<string, unknown>;
+    setCustomerDetails({
+      kra_pin:        (meta.kra_pin as string) ?? '',
+      address:        (meta.address as string) ?? '',
+      country:        (meta.country as string) ?? '',
+      contact_person: (meta.contact_person as string) ?? '',
+    });
     setShowSuggestions(false);
   }, []);
 
-  // Create a new CRM contact (customer) in marketflow from the currently-typed name/email and
-  // link it to this document. marketflow is the customer source of truth.
-  const [creatingClient, setCreatingClient] = useState(false);
-  const [createClientError, setCreateClientError] = useState('');
-  const handleAddNewClient = useCallback(async () => {
-    const name = (clientSearch || form.customer_name).trim();
-    if (!name) { setCreateClientError('Enter a customer name first'); return; }
-    setCreatingClient(true);
-    setCreateClientError('');
-    try {
-      const [first, ...rest] = name.split(/\s+/);
-      const created = await createCRMContact(effectiveTenant, {
-        first_name: first,
-        last_name: rest.join(' ') || undefined,
-        email: form.customer_email || undefined,
-      });
-      if (created?.id) selectContact(created);
-      else setCreateClientError('Could not create client');
-    } catch {
-      setCreateClientError('Could not create client');
-    } finally {
-      setCreatingClient(false);
-    }
-  }, [clientSearch, form.customer_name, form.customer_email, effectiveTenant, selectContact]);
+  // "Add New Client" opens a full CreateClientModal (mirrors CreateItemModal's inline-create
+  // pattern for line items) instead of firing a bare name/email upsert — lets the user capture
+  // phone/address/tax-pin/contact-person up front and posts them all to MarketFlow CRM.
+  const [showCreateClient, setShowCreateClient] = useState(false);
 
   const buildLinePayload = useCallback(() =>
     lines
@@ -337,11 +347,18 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       }
     }
 
-    // Merge the contract/tender/PO reference into metadata (preserving any existing keys,
-    // e.g. customer address, on edit). Rendered as the "Reference" row in the document.
+    // Merge the contract/tender/PO reference plus the Billed-To details that have no
+    // dedicated column (address/country/contact person — and, for quotations, the tax PIN
+    // since only Invoice has a typed customer_kra_pin field) into metadata, preserving any
+    // existing keys on edit. treasury-api's doc renderer already reads these exact keys
+    // (customer_address/customer_country/customer_contact_person) — see drawParties.
     const mergedMeta: Record<string, unknown> = {
       ...((isEdit && existing?.metadata) ? existing.metadata : {}),
       ...(form.reference.trim() ? { reference: form.reference.trim() } : {}),
+      ...(customerDetails.address.trim() ? { customer_address: customerDetails.address.trim() } : {}),
+      ...(customerDetails.country.trim() ? { customer_country: customerDetails.country.trim() } : {}),
+      ...(customerDetails.contact_person.trim() ? { customer_contact_person: customerDetails.contact_person.trim() } : {}),
+      ...(isQuotation && customerDetails.kra_pin.trim() ? { customer_kra_pin: customerDetails.kra_pin.trim() } : {}),
     };
     const metadata = Object.keys(mergedMeta).length ? mergedMeta : undefined;
 
@@ -358,6 +375,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         crm_customer_id: crmCustomerId ?? undefined,
         customer_name:  form.customer_name,
         customer_email: form.customer_email,
+        customer_phone: form.customer_phone || undefined,
         quote_date:     form.primary_date,
         valid_until:    secondary,
         currency:       form.currency,
@@ -378,6 +396,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         crm_customer_id: crmCustomerId ?? undefined,
         customer_name:  form.customer_name,
         customer_email: form.customer_email,
+        customer_phone: form.customer_phone || undefined,
+        customer_kra_pin: customerDetails.kra_pin.trim() || undefined,
         invoice_date:   form.primary_date,
         due_date:       secondary,
         currency:       form.currency,
@@ -398,7 +418,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         );
       }
     }
-  }, [form, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, addShipping, shippingAmount, transport, selectedOutlet]);
+  }, [form, customerDetails, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, addShipping, shippingAmount, transport, selectedOutlet]);
 
   if (isEdit && existingLoading) {
     return (
@@ -503,7 +523,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
                         setClientSearch(v);
                         setCustomerId(null);
                         setCrmCustomerId(null);
-                        setForm(p => ({ ...p, customer_name: v }));
+                        setForm(p => ({ ...p, customer_name: v, customer_phone: '' }));
+                        setCustomerDetails({ kra_pin: '', address: '', country: '', contact_person: '' });
                         setShowSuggestions(v.length >= 2);
                       }}
                       onFocus={() => { if ((clientSearch || form.customer_name).length >= 2) setShowSuggestions(true); }}
@@ -530,15 +551,25 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
                     onChange={e => setForm(p => ({ ...p, customer_email: e.target.value }))}
                     className="mt-1 w-full rounded-lg py-2 px-3 text-xs border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
                 </div>
+                {/* Extra Billed-To details carried over from the picked/created CRM contact
+                    (see selectContact / CreateClientModal) — read-only here; edit them by
+                    updating the contact in MarketFlow (the customer source of truth). */}
+                {(form.customer_phone || customerDetails.kra_pin || customerDetails.address || customerDetails.country || customerDetails.contact_person) && (
+                  <div className="rounded-lg border border-border bg-background/60 px-3 py-2 space-y-0.5 text-[10px] text-muted-foreground">
+                    {form.customer_phone && <div><span className="font-bold text-foreground">Phone:</span> {form.customer_phone}</div>}
+                    {customerDetails.contact_person && <div><span className="font-bold text-foreground">Contact Person:</span> {customerDetails.contact_person}</div>}
+                    {customerDetails.kra_pin && <div><span className="font-bold text-foreground">Tax/KRA PIN:</span> {customerDetails.kra_pin}</div>}
+                    {customerDetails.address && <div><span className="font-bold text-foreground">Address:</span> {customerDetails.address}</div>}
+                    {customerDetails.country && <div><span className="font-bold text-foreground">Country:</span> {customerDetails.country}</div>}
+                  </div>
+                )}
                 <button
                   type="button"
-                  onClick={handleAddNewClient}
-                  disabled={creatingClient || !(clientSearch || form.customer_name).trim()}
+                  onClick={() => setShowCreateClient(true)}
                   className="inline-flex items-center gap-1 px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50"
                 >
-                  <UserPlus className="h-3.5 w-3.5" /> {creatingClient ? 'Adding…' : 'Add New Client'}
+                  <UserPlus className="h-3.5 w-3.5" /> Add New Client
                 </button>
-                {createClientError && <p className="text-[10px] text-destructive font-semibold">{createClientError}</p>}
               </div>
             </div>
           </div>
@@ -636,6 +667,18 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
             setCreateItemTarget(null);
           }}
           onClose={() => setCreateItemTarget(null)}
+        />
+      )}
+
+      {showCreateClient && (
+        <CreateClientModal
+          tenant={effectiveTenant}
+          initialName={(clientSearch || form.customer_name).trim()}
+          onCreated={contact => {
+            selectContact(contact);
+            setShowCreateClient(false);
+          }}
+          onClose={() => setShowCreateClient(false)}
         />
       )}
     </div>

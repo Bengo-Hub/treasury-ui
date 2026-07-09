@@ -60,6 +60,7 @@ export interface Invoice {
   customer_name?: string;
   customer_email?: string;
   customer_phone?: string;
+  customer_kra_pin?: string;
   crm_customer_id?: string;
   invoice_type: string;
   invoice_date: string;
@@ -98,6 +99,7 @@ export interface CreateInvoiceRequest {
   customer_name?: string;
   customer_email?: string;
   customer_phone?: string;
+  customer_kra_pin?: string;
   crm_customer_id?: string;
   invoice_type?: string;
   invoice_date: string;
@@ -122,6 +124,7 @@ export interface UpdateInvoiceRequest {
   customer_name?: string;
   customer_email?: string;
   customer_phone?: string;
+  customer_kra_pin?: string;
   invoice_type?: string;
   invoice_date?: string;
   due_date?: string;
@@ -209,6 +212,7 @@ export interface Quotation {
   crm_customer_id?: string;
   customer_name?: string;
   customer_email?: string;
+  customer_phone?: string;
   quote_date: string;
   valid_until: string;
   subtotal: string;
@@ -237,6 +241,7 @@ export interface CreateQuotationRequest {
   crm_customer_id?: string;
   customer_name?: string;
   customer_email?: string;
+  customer_phone?: string;
   quote_date: string;
   valid_until: string;
   currency?: string;

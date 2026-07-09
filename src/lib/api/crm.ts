@@ -37,6 +37,10 @@ export interface CRMContact {
   email?: string | null;
   phone?: string | null;
   contact_type?: string;
+  // Catch-all bag for details that have no dedicated marketflow Contact column (company,
+  // address, country, contact_person, kra_pin, notes) — see CreateClientModal. Keeping these
+  // in metadata avoids a marketflow-api schema migration.
+  metadata?: Record<string, unknown> | null;
 }
 
 /**
@@ -77,6 +81,9 @@ export interface CreateCRMContactInput {
   last_name?: string;
   email?: string;
   phone?: string;
+  // Fields marketflow's Contact schema has no dedicated column for — persisted as-is on
+  // Contact.metadata (JSON). See CreateClientModal for the field set.
+  metadata?: Record<string, unknown>;
 }
 
 /**
