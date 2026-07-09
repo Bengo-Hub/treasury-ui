@@ -10,7 +10,9 @@ export default function PlatformLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
-  const isPlatformOwner = user?.isPlatformOwner || user?.isSuperUser || orgSlug === 'codevertex';
+  // isSuperUser is a TENANT-scoped role, not platform-wide — excluded so a tenant's own
+  // admin/superuser can never reach /platform/* routes.
+  const isPlatformOwner = user?.isPlatformOwner || orgSlug === 'codevertex';
 
   useEffect(() => {
     if (user && !isPlatformOwner) {

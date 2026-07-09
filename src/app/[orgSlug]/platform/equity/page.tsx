@@ -111,7 +111,9 @@ export default function EquityManagementPage() {
         currentHolderPage * HOLDERS_PER_PAGE,
     );
 
-    const isSuperAdmin = user?.isPlatformOwner || user?.isSuperUser;
+    // isSuperUser is a TENANT-scoped role, not platform-wide — excluded so a tenant's own
+    // admin/superuser can never reach the platform equity/referrals section.
+    const isSuperAdmin = user?.isPlatformOwner;
 
     if (!isSuperAdmin) {
         return (
