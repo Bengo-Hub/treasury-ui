@@ -53,6 +53,15 @@ export function resetSequenceCounter(tenant: string, docType: DocType): Promise<
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/document-sequences/${docType}/reset`, {});
 }
 
+// setSequenceCounter sets the current counter to an explicit value so a tenant migrating in
+// mid-series can continue their existing numbering: the next document issued will be
+// current_val + 1. Returns the updated config.
+export function setSequenceCounter(tenant: string, docType: DocType, currentVal: number): Promise<SequenceConfig> {
+  return apiClient.post<SequenceConfig>(`${BASE}/${tenant}/document-sequences/${docType}/set-counter`, {
+    current_val: currentVal,
+  });
+}
+
 export function previewNextNumber(tenant: string, docType: DocType): Promise<{ next_number: string; doc_type: string }> {
   return apiClient.get<{ next_number: string; doc_type: string }>(`${BASE}/${tenant}/document-sequences/${docType}/preview`);
 }

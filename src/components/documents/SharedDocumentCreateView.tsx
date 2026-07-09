@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { ArrowLeft, Loader2, Search, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LineItemsSection, newLineRow, type LineRow } from './sections/LineItemsSection';
+import { LineItemsSection, newLineRow, lineCompletionFactor, type LineRow } from './sections/LineItemsSection';
 import { TotalsSection, type AdditionalCharge } from './sections/TotalsSection';
 import { ShippingTransportSection, type TransportDetails } from './sections/ShippingTransportSection';
 import { CurrencySection } from './sections/CurrencySection';
@@ -279,7 +279,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   }, [isEdit, existing, initialized, isQuotation, existingInvoice, existingQuotation, today, defaultSecondary]);
 
   const computedLines = lines.map(l => {
-    const net  = l.quantity * l.unit_price;
+    // Fold progress/milestone completion into the billable net (qty × rate × completion%).
+    const net  = l.quantity * l.unit_price * lineCompletionFactor(l.completion_percent);
     const disc = l.discount_amount || 0;
     return { net, disc, tax: (net - disc) * (l.tax_rate / 100) };
   });
@@ -329,6 +330,12 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         tax_code:        l.tax_code,
         tax_rate:        l.tax_rate,
         discount_amount: l.discount_amount || undefined,
+        // Only send completion when it's a real partial bill (0 < pct < 100); the backend
+        // folds it into the billed line total (transient — not persisted as its own column).
+        completion_percent:
+          l.completion_percent != null && l.completion_percent > 0 && l.completion_percent < 100
+            ? l.completion_percent
+            : undefined,
       })),
   [lines]);
 

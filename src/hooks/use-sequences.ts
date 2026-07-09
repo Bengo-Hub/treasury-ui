@@ -6,6 +6,7 @@ import {
   listSequenceConfigs,
   previewNextNumber,
   resetSequenceCounter,
+  setSequenceCounter,
   updateSequenceConfig,
   type DocType,
   type UpdateSequenceConfigRequest,
@@ -61,6 +62,16 @@ export function useResetSequenceCounter(tenant: string, docType: DocType) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => resetSequenceCounter(tenant, docType),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: sequenceKeys.all(tenant) });
+    },
+  });
+}
+
+export function useSetSequenceCounter(tenant: string, docType: DocType) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (currentVal: number) => setSequenceCounter(tenant, docType, currentVal),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: sequenceKeys.all(tenant) });
     },

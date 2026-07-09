@@ -23,6 +23,9 @@ export interface LineRequest {
   tax_code?: string;
   tax_rate?: number | string;
   discount_amount?: number | string;
+  /** Progress/milestone billing: bill this % of qty×rate (0<pct<100). Transient — the backend
+   *  folds it into the billed line total; not stored as its own field. */
+  completion_percent?: number;
 }
 
 // ---- Invoice Types ----
