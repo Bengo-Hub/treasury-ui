@@ -23,6 +23,23 @@ export interface LineRow {
   tax_code?: string;
   tax_rate: number;
   discount_amount: number;
+  /** Progress/milestone billing: bill this % of the line (qty×rate). undefined/100 = full line.
+   *  Especially useful for SERVICE items (e.g. "40% of the contract amount"). Sent to the
+   *  backend as completion_percent (transient) which folds it into the billed line total. */
+  completion_percent?: number;
+}
+
+// effectiveCompletion clamps a line's completion % to a billing multiplier in (0,1].
+// undefined / >=100 / <=0 all mean "bill the full line" (multiplier 1).
+export function lineCompletionFactor(completion?: number): number {
+  if (completion == null) return 1;
+  if (completion <= 0 || completion >= 100) return 1;
+  return completion / 100;
+}
+
+// lineNet returns the billable net for a line (qty × rate × completion − discount).
+export function lineNet(l: LineRow): number {
+  return l.quantity * l.unit_price * lineCompletionFactor(l.completion_percent) - (l.discount_amount || 0);
 }
 
 export function newLineRow(): LineRow {
@@ -66,7 +83,9 @@ function ItemCombobox({ tenant, line, onUpdate, onRequestCreate }: ComboboxProps
 
   const selectItem = (item: InventoryItem) => {
     onUpdate({
-      description: item.name,
+      // Title on the first line, the item's own description (if any) beneath it — the document
+      // renderer splits on the first newline to style the detail small & wrapped under the title.
+      description: item.description?.trim() ? `${item.name}\n${item.description.trim()}` : item.name,
       item_id: item.id,
       item_sku: item.sku,
       item_type: item.item_type,
@@ -89,14 +108,21 @@ function ItemCombobox({ tenant, line, onUpdate, onRequestCreate }: ComboboxProps
   };
 
   if (state === 'LINKED') {
+    // description may carry a "title\ndetail" block — show the title in the chip and the detail
+    // as a small muted note beneath, mirroring how the document renders it.
+    const [title, ...rest] = line.description.split('\n');
+    const detail = rest.join(' ').trim();
     return (
-      <div className="flex items-center gap-1.5 rounded-lg border border-border bg-accent/30 px-2 py-1.5">
-        <Package className="h-3.5 w-3.5 shrink-0 text-primary" />
-        <span className="text-xs font-semibold text-foreground flex-1 truncate">{line.description}</span>
-        {line.item_sku && <span className="text-[10px] font-mono text-muted-foreground">{line.item_sku}</span>}
-        <button type="button" onClick={unlink} className="p-0.5 rounded text-muted-foreground hover:text-destructive transition-colors">
-          <X className="h-3 w-3" />
-        </button>
+      <div className="rounded-lg border border-border bg-accent/30 px-2 py-1.5">
+        <div className="flex items-center gap-1.5">
+          <Package className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <span className="text-xs font-semibold text-foreground flex-1 truncate">{title}</span>
+          {line.item_sku && <span className="text-[10px] font-mono text-muted-foreground">{line.item_sku}</span>}
+          <button type="button" onClick={unlink} className="p-0.5 rounded text-muted-foreground hover:text-destructive transition-colors">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+        {detail && <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2 pl-5">{detail}</p>}
       </div>
     );
   }
@@ -183,11 +209,12 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
   };
 
   const computed = lines.map(l => {
-    const net = l.quantity * l.unit_price;
+    // Billable net folds in progress/milestone completion (qty × rate × completion%).
+    const gross = l.quantity * l.unit_price * lineCompletionFactor(l.completion_percent);
     const discount = l.discount_amount || 0;
-    const taxable = net - discount;
+    const taxable = gross - discount;
     const tax = taxable * (l.tax_rate / 100);
-    return { net, discount, tax, total: taxable + tax };
+    return { net: gross, discount, tax, total: taxable + tax };
   });
 
   const subtotal = computed.reduce((s, c) => s + c.net, 0);
@@ -241,6 +268,29 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
                     title="Buying price per unit (internal only)"
                   />
                 </label>
+                {/* Progress/milestone billing — bill a % of qty×rate. Highlighted when < 100. */}
+                <label className="flex items-center gap-1 text-[10px] text-muted-foreground" title="Bill only this % of the line (progress / milestone billing). Blank or 100 = full line.">
+                  <span className="font-bold">% Complete</span>
+                  <input
+                    type="number" min="0" max="100" step="0.01"
+                    value={line.completion_percent ?? ''}
+                    placeholder="100"
+                    onChange={e => {
+                      const v = e.target.value;
+                      updateLine(idx, { completion_percent: v === '' ? undefined : (parseFloat(v) || 0) });
+                    }}
+                    className={`w-16 rounded-md py-1 px-1.5 text-[10px] text-right font-mono border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring ${
+                      line.completion_percent != null && line.completion_percent < 100
+                        ? 'border-primary/60 text-primary font-bold'
+                        : 'border-input'
+                    }`}
+                  />
+                </label>
+                {line.completion_percent != null && line.completion_percent < 100 && (
+                  <span className="text-[10px] text-primary font-semibold">
+                    Billing {line.completion_percent}% of {currency} {fmt(line.quantity * line.unit_price)}
+                  </span>
+                )}
               </div>
             </div>
             <div className="col-span-1 pt-5">

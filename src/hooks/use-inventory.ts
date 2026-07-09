@@ -2,14 +2,19 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  createInventoryCategory,
+  createInventoryUnit,
   createVendor,
   getInventoryItem,
   getVendor,
   listCarriers,
+  listInventoryCategories,
   listInventoryItemTypes,
   listInventoryUnits,
   listVendors,
   searchInventoryItems,
+  type CreateInventoryCategoryRequest,
+  type CreateInventoryUnitRequest,
   type CreateVendorRequest,
   type ListVendorsParams,
   type SearchItemsParams,
@@ -24,6 +29,7 @@ export const inventoryKeys = {
   item: (tenant: string, itemId: string) => ['inventory', tenant, 'item', itemId] as const,
   carriers: (tenant: string) => ['inventory', tenant, 'carriers'] as const,
   units: (tenant: string) => ['inventory', tenant, 'units'] as const,
+  categories: (tenant: string) => ['inventory', tenant, 'categories'] as const,
   itemTypes: (tenant: string) => ['inventory', tenant, 'item-types'] as const,
   vendors: (tenant: string, params?: ListVendorsParams) => ['inventory', tenant, 'vendors', params] as const,
   vendor: (tenant: string, vendorId: string) => ['inventory', tenant, 'vendor', vendorId] as const,
@@ -71,6 +77,35 @@ export function useInventoryItemTypes(tenant: string, enabled = true) {
     queryFn: () => listInventoryItemTypes(tenant),
     enabled: !!tenant && enabled,
     staleTime: STALE_12H,
+  });
+}
+
+export function useInventoryCategories(tenant: string, enabled = true) {
+  return useQuery({
+    queryKey: inventoryKeys.categories(tenant),
+    queryFn: () => listInventoryCategories(tenant),
+    enabled: !!tenant && enabled,
+    staleTime: STALE_12H,
+  });
+}
+
+export function useCreateInventoryUnit(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateInventoryUnitRequest) => createInventoryUnit(tenant, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.units(tenant) });
+    },
+  });
+}
+
+export function useCreateInventoryCategory(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateInventoryCategoryRequest) => createInventoryCategory(tenant, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.categories(tenant) });
+    },
   });
 }
 

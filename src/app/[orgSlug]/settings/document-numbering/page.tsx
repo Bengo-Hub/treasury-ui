@@ -7,11 +7,12 @@ import {
   useSequenceConfig,
   useUpdateSequenceConfig,
   useResetSequenceCounter,
+  useSetSequenceCounter,
   usePreviewNextNumber,
 } from '@/hooks/use-sequences';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { DOC_TYPES, type DocType } from '@/lib/api/sequences';
-import { AlertTriangle, FileText, Loader2, RefreshCw, Save } from 'lucide-react';
+import { AlertTriangle, FileText, Hash, Loader2, RefreshCw, Save } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -107,6 +108,9 @@ function DocTypeCard({ tenant, docType }: { tenant: string; docType: DocType }) 
     reset_freq: 'never',
   });
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // "Set current number" lets a tenant continuing an existing series pin the last-issued
+  // number so the next document picks up at value+1. Empty until the user types one.
+  const [counterInput, setCounterInput] = useState('');
 
   useEffect(() => {
     if (cfg) {
@@ -122,6 +126,22 @@ function DocTypeCard({ tenant, docType }: { tenant: string; docType: DocType }) 
 
   const update = useUpdateSequenceConfig(tenant, docType);
   const reset = useResetSequenceCounter(tenant, docType);
+  const setCounter = useSetSequenceCounter(tenant, docType);
+
+  const handleSetCounter = () => {
+    const val = Number(counterInput);
+    if (!Number.isInteger(val) || val < 0) {
+      toast.error('Enter a whole number of 0 or more');
+      return;
+    }
+    setCounter.mutate(val, {
+      onSuccess: () => {
+        toast.success(`${DOC_TYPE_LABELS[docType]} will continue from ${val + 1}`);
+        setCounterInput('');
+      },
+      onError: () => toast.error('Failed to set the current number'),
+    });
+  };
 
   const handleSave = () => {
     update.mutate(
@@ -246,6 +266,37 @@ function DocTypeCard({ tenant, docType }: { tenant: string; docType: DocType }) 
               )}
             </p>
           )}
+
+          {/* Set the current number — for continuing an existing series (e.g. migrating in at
+              invoice #042, so the next issued is #043). */}
+          <FormField
+            label="Set Current Number"
+            description="Continue an existing series: enter the last number you already issued; the next document will be that + 1."
+          >
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Hash className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  className="w-full rounded border pl-7 pr-2 py-1.5 text-sm bg-background font-mono"
+                  value={counterInput}
+                  placeholder={cfg ? String(cfg.current_val) : '0'}
+                  onChange={(e) => setCounterInput(e.target.value)}
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSetCounter}
+                disabled={setCounter.isPending || counterInput.trim() === ''}
+              >
+                {setCounter.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Hash className="h-3.5 w-3.5" />}
+                Set
+              </Button>
+            </div>
+          </FormField>
 
           <div className="flex gap-2 pt-1">
             <Button size="sm" onClick={handleSave} disabled={update.isPending}>

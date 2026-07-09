@@ -48,6 +48,58 @@ export interface InventoryItemType {
   label: string;
 }
 
+export interface InventoryCategory {
+  id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  is_global?: boolean;
+  is_active?: boolean;
+}
+
+// ── Goods vs Service classification (migration-free convention) ───────────────
+// inventory-api has no first-class "kind" on Unit/ItemCategory, so the document item
+// form separates service from goods via convention: Unit.type for units, and the seeded
+// global category codes (mirrors inventory-api cmd/seed/seed_global_categories.go) for
+// categories. Anything unrecognised is treated as "both" so it's never hidden.
+
+const GOODS_UNIT_TYPES = new Set(['weight', 'volume', 'count', 'length', 'area']);
+const SERVICE_UNIT_TYPES = new Set(['time', 'service']);
+
+const SERVICE_CATEGORY_CODES = new Set(['CON', 'PRO', 'FEA', 'DSN', 'INS', 'MNT', 'TRN', 'SFT', 'SUP', 'SUB']);
+const GOODS_CATEGORY_CODES = new Set(['GEN', 'ELG', 'FRN', 'STN', 'HWT', 'SPR', 'RAW']);
+
+export type ItemKind = 'goods' | 'service' | 'both';
+
+/** Which kind of units/categories an item type should offer. SERVICE/VOUCHER are service-like. */
+export function itemTypeKind(itemType?: string): 'goods' | 'service' {
+  const t = (itemType ?? '').toUpperCase();
+  return t === 'SERVICE' || t === 'VOUCHER' ? 'service' : 'goods';
+}
+
+export function unitKind(u: Pick<InventoryUnit, 'type'>): ItemKind {
+  const t = (u.type ?? '').toLowerCase();
+  if (GOODS_UNIT_TYPES.has(t)) return 'goods';
+  if (SERVICE_UNIT_TYPES.has(t)) return 'service';
+  return 'both';
+}
+
+export function categoryKind(c: Pick<InventoryCategory, 'code' | 'name'>): ItemKind {
+  const code = (c.code ?? '').toUpperCase();
+  if (SERVICE_CATEGORY_CODES.has(code)) return 'service';
+  if (GOODS_CATEGORY_CODES.has(code)) return 'goods';
+  const n = (c.name ?? '').toLowerCase();
+  if (/service|consult|training|installation|maintenance|\bdesign\b|feasib|software|supervis|subscription|professional/.test(n)) {
+    return 'service';
+  }
+  return 'both';
+}
+
+/** Filter helper: keep entries matching the item kind or classified as "both". */
+export function matchesItemKind(kind: ItemKind, want: 'goods' | 'service'): boolean {
+  return kind === want || kind === 'both';
+}
+
 export interface SearchItemsParams {
   q?: string;
   limit?: number;
@@ -122,6 +174,8 @@ export interface CreateInventoryItemRequest {
   cost_price?: string;
   tax_code?: string;
   description?: string;
+  /** inventory-api item category UUID (optional). */
+  category_id?: string;
 }
 
 // createInventoryItem maps the treasury form fields onto inventory-api's ItemDTO field names
@@ -135,6 +189,7 @@ export async function createInventoryItem(tenant: string, data: CreateInventoryI
   if (data.sku) body.sku = data.sku;
   if (data.unit) body.unit = data.unit;
   if (data.description) body.description = data.description;
+  if (data.category_id) body.category_id = data.category_id;
   if (data.tax_code) body.tax_code_id = data.tax_code;
   if (data.unit_price) {
     const p = parseFloat(data.unit_price);
@@ -161,6 +216,46 @@ export async function listInventoryUnits(tenant: string): Promise<{ units: Inven
   );
   const rows = Array.isArray(res) ? res : (res.units ?? res.data ?? []);
   return { units: rows.filter(u => u && (u.abbreviation || u.name)) };
+}
+
+export interface CreateInventoryUnitRequest {
+  name: string;
+  abbreviation?: string;
+  /** weight | volume | count | length | area (goods) or time | service (service). */
+  type?: string;
+}
+
+// createInventoryUnit creates a unit of measure in inventory-api (the owner) via the
+// treasury-api proxy, forwarding the user's JWT. Units are a global reference table.
+export async function createInventoryUnit(tenant: string, data: CreateInventoryUnitRequest): Promise<InventoryUnit> {
+  const body: Record<string, unknown> = { name: data.name };
+  if (data.abbreviation) body.abbreviation = data.abbreviation;
+  if (data.type) body.type = data.type;
+  return apiClient.post<InventoryUnit>(`${BASE}/${tenant}/inventory/units`, body);
+}
+
+// listInventoryCategories returns the tenant's item categories (+ platform globals), proxied
+// from inventory-api. inventory returns a { data, total } envelope; normalize to { categories }.
+export async function listInventoryCategories(tenant: string): Promise<{ categories: InventoryCategory[] }> {
+  const res = await apiClient.get<{ data?: InventoryCategory[] } | InventoryCategory[]>(
+    `${BASE}/${tenant}/inventory/categories`,
+  );
+  const rows = Array.isArray(res) ? res : (res.data ?? []);
+  return { categories: rows.filter(c => c && c.name) };
+}
+
+export interface CreateInventoryCategoryRequest {
+  name: string;
+  code?: string;
+  description?: string;
+}
+
+// createInventoryCategory creates an item category in inventory-api via the treasury-api proxy.
+export async function createInventoryCategory(tenant: string, data: CreateInventoryCategoryRequest): Promise<InventoryCategory> {
+  const body: Record<string, unknown> = { name: data.name };
+  if (data.code) body.code = data.code;
+  if (data.description) body.description = data.description;
+  return apiClient.post<InventoryCategory>(`${BASE}/${tenant}/inventory/categories`, body);
 }
 
 // treasury-api serves item types as the fixed inventory enum in a {value,label} shape.
