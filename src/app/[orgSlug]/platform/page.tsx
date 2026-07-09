@@ -217,7 +217,9 @@ export default function PlatformPage() {
   const [editingFeeRule, setEditingFeeRule] = useState<FeeRule | null>(null);
   const [feeMenuOpen, setFeeMenuOpen] = useState<string | null>(null);
 
-  const isPlatformOwner = user?.isPlatformOwner || user?.isSuperUser || orgSlug === 'codevertex';
+  // isSuperUser is a TENANT-scoped role, not platform-wide — excluded so a tenant's own
+  // admin/superuser can never reach platform gateway/fee-rule config.
+  const isPlatformOwner = user?.isPlatformOwner || orgSlug === 'codevertex';
   const { data: gatewaysData, isLoading: loading, error: queryError, refetch: fetchGateways } = usePlatformGateways(!!isPlatformOwner);
   const gateways = gatewaysData?.gateways ?? [];
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load gateways') : null;

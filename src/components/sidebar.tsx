@@ -83,7 +83,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const { tenant, getServiceTitle } = useBranding();
-  const isPlatformOwner = user?.isPlatformOwner || user?.isSuperUser || orgSlug === 'codevertex';
+  // isSuperUser is a TENANT-scoped role ("superuser within my own tenant"), not platform-wide
+  // — must not unlock the Platform nav section for a tenant's own admin/superuser.
+  const isPlatformOwner = user?.isPlatformOwner || orgSlug === 'codevertex';
   // Audit History shows the ledger audit trail — gate on ledger view/manage (matches the backend
   // route gate). Platform owners always see it.
   const canViewAudit =

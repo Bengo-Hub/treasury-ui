@@ -21,7 +21,9 @@ export default function EquityHolderDetailPage() {
     const { data: holdersData, isLoading } = useEquityHolders();
     const holder = holdersData?.holders.find((h) => h.id === holderId);
 
-    const isSuperAdmin = user?.isPlatformOwner || user?.isSuperUser;
+    // isSuperUser is a TENANT-scoped role, not platform-wide — excluded so a tenant's own
+    // admin/superuser can never reach platform equity holder detail.
+    const isSuperAdmin = user?.isPlatformOwner;
     if (!isSuperAdmin) {
         return (
             <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">

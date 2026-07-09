@@ -76,7 +76,7 @@ export default function InvoicesPage() {
   const router = useRouter();
   const params = useParams();
   const orgSlug = params.orgSlug as string;
-  const { tenantPathId, isPlatformOwner, isAllTenants, tenantQueryParam } = useResolvedTenant();
+  const { tenantPathId, isPlatformOwner, isAllTenants, tenantQueryParam, routingSlug } = useResolvedTenant();
   // Default (no selection) resolves to the platform owner's OWN tenant — NOT the aggregate.
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
@@ -210,9 +210,13 @@ export default function InvoicesPage() {
 
   // Build a tenant-scoped detail route. In the all-tenants view a platform owner can
   // open any tenant's invoice because the API resolves the tenant from the URL slug.
+  // Non-aggregate MUST route through routingSlug (not the raw orgSlug) — on the owner's own
+  // shell with a specific tenant drilled into via the TenantFilter dropdown, orgSlug is still
+  // "codevertex" while the invoice actually belongs to the drilled-into tenant; using orgSlug
+  // here would 404 the detail page (see [[treasury-tenant-resolution-consistency]]).
   const detailHref = useCallback(
-    (r: DocumentRow & { tenant_slug?: string }) => `/${isAggregate ? (r.tenant_slug ?? orgSlug) : orgSlug}/invoices/${r.id}`,
-    [isAggregate, orgSlug],
+    (r: DocumentRow & { tenant_slug?: string }) => `/${isAggregate ? (r.tenant_slug ?? orgSlug) : routingSlug}/invoices/${r.id}`,
+    [isAggregate, orgSlug, routingSlug],
   );
 
   const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);

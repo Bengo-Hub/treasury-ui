@@ -99,7 +99,9 @@ export function PaymentsTab({
   const hasMpesa = selected.some((g) => g.gateway_type?.startsWith('mpesa'));
 
   const { data: user } = useMe();
-  const isSuperAdmin = user?.isPlatformOwner || user?.isSuperUser;
+  // isSuperUser is a TENANT-scoped role, not platform-wide — excluded so the "Platform
+  // config" shortcut only shows for a genuine platform owner.
+  const isSuperAdmin = user?.isPlatformOwner;
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load gateways') : null;
 
   const selectMutation = useSelectTenantGateway(tenantSlug);

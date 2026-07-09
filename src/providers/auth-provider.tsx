@@ -68,7 +68,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const isPlatform = pathname?.includes('/platform');
-    const hasAccess = me?.isPlatformOwner || me?.isSuperUser || me?.roles?.includes('superuser');
+    // isSuperUser / roles.includes('superuser') is a TENANT-scoped RBAC role ("full access
+    // within my own tenant"), NOT a platform-wide flag — a tenant admin must never gain
+    // /platform/* access through it. Only a genuine platform owner may pass.
+    const hasAccess = me?.isPlatformOwner;
     if (status === 'authenticated' && me && isPlatform && !hasAccess) {
       router.replace(orgSlug ? `/${orgSlug}/unauthorized` : '/');
     }

@@ -84,7 +84,8 @@ export default function ReferralsPage() {
   const [selectedReferralId, setSelectedReferralId] = useState<string | null>(null);
   const [showIssueReward, setShowIssueReward] = useState<string | null>(null);
 
-  const isPlatformOwner = user?.isPlatformOwner || user?.isSuperUser || orgSlug === 'codevertex';
+  // isSuperUser is a TENANT-scoped role, not platform-wide — excluded here too.
+  const isPlatformOwner = user?.isPlatformOwner || orgSlug === 'codevertex';
 
   const { data: programsData, isLoading: loadingPrograms, isError: programsError } = useReferralPrograms();
   const { data: referralsData, isLoading: loadingReferrals, isError: referralsError } = useReferrals();
