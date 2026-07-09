@@ -40,7 +40,13 @@ export interface DocTypeConfig {
 
 export const DOC_CONFIGS: Record<string, DocTypeConfig> = {
   invoice: {
-    invoiceType: 'invoice',
+    // Must be "standard" — the canonical invoice_type treasury-api's list filters + defaults
+    // use for a plain sales invoice (invoicing/service.go coalesce(...,"standard"),
+    // TENANT_INVOICE_TYPES/SCOPE_TYPES in invoices/page.tsx). "invoice" was a stray value that
+    // matched no list filter anywhere, so every invoice created through this form (any tenant)
+    // silently vanished from the Invoices Overview and the platform aggregate — see
+    // [[treasury-tenant-resolution-consistency]].
+    invoiceType: 'standard',
     apiFamily: 'invoice',
     title: 'Invoice',
     fromLabel: 'Billed By',
@@ -339,6 +345,18 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       })),
   [lines]);
 
+  // Save/update mutations previously had NO onError handler anywhere in this component (and no
+  // global MutationCache error handler exists either — see org-shell.tsx) — a failed create just
+  // silently stopped the "Saving…" spinner with zero feedback, which reads to the user as "I
+  // created the document and it disappeared" when really it never saved. Surface the real error.
+  const handleSaveError = useCallback((err: unknown) => {
+    const message = (err as { response?: { data?: { error?: string; message?: string } } })
+      ?.response?.data?.error
+      ?? (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data?.message
+      ?? `Failed to save ${config.title.toLowerCase()}. Please check the form and try again.`;
+    toast.error(message);
+  }, [config.title]);
+
   const handleSave = useCallback(() => {
     const linePayload = buildLinePayload();
     const secondary = config.showDueDate ? form.secondary_date : form.primary_date;
@@ -393,9 +411,9 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         lines:          linePayload,
       };
       if (isEdit && editId) {
-        (updateMutation as ReturnType<typeof useUpdateQuotation>).mutate(base as UpdateQuotationRequest, { onSuccess: onClose });
+        (updateMutation as ReturnType<typeof useUpdateQuotation>).mutate(base as UpdateQuotationRequest, { onSuccess: onClose, onError: handleSaveError });
       } else {
-        (createMutation as ReturnType<typeof useCreateQuotation>).mutate(base, { onSuccess: onClose });
+        (createMutation as ReturnType<typeof useCreateQuotation>).mutate(base, { onSuccess: onClose, onError: handleSaveError });
       }
     } else {
       const base = {
@@ -417,15 +435,15 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         transport:       addShipping && Object.keys(transport).length > 0 ? transport : undefined,
       };
       if (isEdit && editId) {
-        (updateMutation as ReturnType<typeof useUpdateInvoice>).mutate(base as UpdateInvoiceRequest, { onSuccess: onClose });
+        (updateMutation as ReturnType<typeof useUpdateInvoice>).mutate(base as UpdateInvoiceRequest, { onSuccess: onClose, onError: handleSaveError });
       } else {
         (createMutation as ReturnType<typeof useCreateInvoice>).mutate(
           { ...base, invoice_type: config.invoiceType } as CreateInvoiceRequest,
-          { onSuccess: onClose },
+          { onSuccess: onClose, onError: handleSaveError },
         );
       }
     }
-  }, [form, customerDetails, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, addShipping, shippingAmount, transport, selectedOutlet]);
+  }, [form, customerDetails, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, handleSaveError, addShipping, shippingAmount, transport, selectedOutlet]);
 
   if (isEdit && existingLoading) {
     return (
