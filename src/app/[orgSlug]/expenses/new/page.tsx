@@ -6,10 +6,12 @@ import { Combobox } from '@/components/ui/combobox';
 import { FormField } from '@/components/ui/form-field';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { useAccounts } from '@/hooks/use-accounts';
-import { useCreateExpense, useExpenses } from '@/hooks/use-expenses';
+import { useCreateExpense } from '@/hooks/use-expenses';
+import { useInvoices } from '@/hooks/use-invoices';
 import { useVendors } from '@/hooks/use-inventory';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSupportedCurrencies } from '@/hooks/use-currencies';
+import { usePreviewNextNumber } from '@/hooks/use-sequences';
 import type { CreateExpenseRequest } from '@/lib/api/expenses';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, Loader2, Paperclip, Plus } from 'lucide-react';
@@ -25,6 +27,14 @@ const TAX_TYPES = [
   { value: 'vat8', label: 'VAT (8%)', rate: 8 },
   { value: 'zero', label: 'Zero Rated (0%)', rate: 0 },
   { value: 'exempt', label: 'Exempt (0%)', rate: 0 },
+];
+
+const RECURRING_FREQUENCIES = [
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'quarterly', label: 'Quarterly' },
+  { value: 'yearly', label: 'Yearly' },
 ];
 
 const inputClass =
@@ -103,7 +113,11 @@ export default function NewExpenditurePage() {
   const { data: vendorData } = useVendors(effectiveTenant, undefined, !!effectiveTenant);
   const { data: accountsData } = useAccounts(effectiveTenant);
   const { data: currencyData } = useSupportedCurrencies();
-  const { data: existingExpenses } = useExpenses(effectiveTenant, undefined, !!effectiveTenant);
+  const { data: invoiceData } = useInvoices(effectiveTenant, undefined, !!effectiveTenant);
+  // Real server-authoritative preview (document-sequence service) — same source of truth the
+  // backend uses at create time. Display-only: never sent as the actual number unless the user
+  // explicitly types an override, so it can never collide with what the server assigns.
+  const { data: expenseNoPreview } = usePreviewNextNumber(effectiveTenant, 'expense', !!effectiveTenant);
 
   const vendorOptions = useMemo(() => {
     const vendors = (vendorData?.vendors ?? []).map((v) => ({ value: v.id, label: v.business_name }));
@@ -114,8 +128,22 @@ export default function NewExpenditurePage() {
     () =>
       (accountsData?.accounts ?? [])
         .filter((a) => a.account_type === 'expense')
-        .map((a) => ({ value: a.id, label: a.account_name, hint: a.account_code })),
+        .map((a) => ({
+          value: a.id,
+          label: a.account_name,
+          hint: `${a.account_code} · bal. ${Number(a.balance ?? 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })} ${a.currency ?? ''}`,
+        })),
     [accountsData],
+  );
+
+  const invoiceOptions = useMemo(
+    () =>
+      (invoiceData?.invoices ?? []).map((inv) => ({
+        value: inv.id,
+        label: inv.invoice_number,
+        hint: inv.customer_name,
+      })),
+    [invoiceData],
   );
 
   const currencyOptions = useMemo(() => {
@@ -124,10 +152,7 @@ export default function NewExpenditurePage() {
     return list.map((code) => ({ value: code, label: code }));
   }, [currencyData]);
 
-  const suggestedExpenseNo = useMemo(() => {
-    const n = (existingExpenses?.total ?? existingExpenses?.expenses?.length ?? 0) + 1;
-    return `A${String(n).padStart(5, '0')}`;
-  }, [existingExpenses]);
+  const suggestedExpenseNo = expenseNoPreview?.next_number ?? '';
 
   const [expenseDate, setExpenseDate] = useState(today());
   // Self / internal expense — no external vendor; the create payload omits vendor_id.
@@ -137,7 +162,9 @@ export default function NewExpenditurePage() {
   const [vendorEmail, setVendorEmail] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [expenseNo, setExpenseNo] = useState('');
-  const [invoiceNo, setInvoiceNo] = useState('');
+  // Real link to an existing invoice (invoice_id) — not a free-typed number with no relationship
+  // to the actual record.
+  const [invoiceId, setInvoiceId] = useState('');
   const [currency, setCurrency] = useState('KES');
   const [taxType, setTaxType] = useState('none');
   const [amount, setAmount] = useState('');
@@ -145,6 +172,7 @@ export default function NewExpenditurePage() {
   const [notes, setNotes] = useState('');
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringFrequency, setRecurringFrequency] = useState('monthly');
   const [errors, setErrors] = useState<{ vendor?: string; amount?: string }>({});
 
   const onSelectVendor = (value: string) => {
@@ -178,6 +206,10 @@ export default function NewExpenditurePage() {
     const tax = Number(((amt * rate) / 100).toFixed(2));
 
     return {
+      // Only sent when the user explicitly overrides it — omitted (undefined) lets the server
+      // autogenerate via the document-sequence service, matching invoice/quotation numbering.
+      // The displayed placeholder (suggestedExpenseNo) is a live preview, never sent as-is.
+      expense_number: expenseNo.trim() || undefined,
       description: notes.trim() || `Expense ${expenseNo.trim() || suggestedExpenseNo}`,
       amount: amt,
       tax_amount: tax || undefined,
@@ -187,14 +219,14 @@ export default function NewExpenditurePage() {
       // Self / internal expense → omit vendor_id entirely (backend treats it as optional).
       vendor_id: selfExpense ? undefined : (vendorId || undefined),
       account_id: ledgerId || undefined,
+      invoice_id: invoiceId || undefined,
       metadata: {
-        expense_number: expenseNo.trim() || suggestedExpenseNo,
-        invoice_number: invoiceNo.trim() || undefined,
         vendor_name: selfExpense ? undefined : (vendorName.trim() || undefined),
         vendor_email: selfExpense ? undefined : (vendorEmail.trim() || undefined),
         is_self_expense: selfExpense || undefined,
         tax_type: taxType,
         is_recurring: isRecurring,
+        recurring_frequency: isRecurring ? recurringFrequency : undefined,
         attachment_name: attachmentName || undefined,
       },
     };
@@ -208,13 +240,14 @@ export default function NewExpenditurePage() {
     setVendorEmail('');
     setCategoryId('');
     setExpenseNo('');
-    setInvoiceNo('');
+    setInvoiceId('');
     setTaxType('none');
     setAmount('');
     setLedgerId('');
     setNotes('');
     setAttachmentName(null);
     setIsRecurring(false);
+    setRecurringFrequency('monthly');
     setErrors({});
   };
 
@@ -277,8 +310,15 @@ export default function NewExpenditurePage() {
                 <input value={expenseNo} onChange={(e) => setExpenseNo(e.target.value)} placeholder={suggestedExpenseNo} className={inputClass} />
               </FormField>
 
-              <FormField label="Invoice Number">
-                <input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} className={inputClass} />
+              <FormField label="Linked Invoice" description="Link this cost to an existing invoice for per-invoice cost/margin reporting.">
+                <Combobox
+                  options={invoiceOptions}
+                  value={invoiceId}
+                  onChange={setInvoiceId}
+                  placeholder="Select invoice (optional)"
+                  searchPlaceholder="Search invoices…"
+                  emptyText="No invoices found"
+                />
               </FormField>
             </div>
           </section>
@@ -425,6 +465,20 @@ export default function NewExpenditurePage() {
                 <span className="block text-xs text-muted-foreground">A draft expenditure will be created with the same details every next period.</span>
               </span>
             </button>
+
+            {isRecurring && (
+              <FormField label="Recurring Cycle" className="max-w-xs">
+                <select
+                  value={recurringFrequency}
+                  onChange={(e) => setRecurringFrequency(e.target.value)}
+                  className={inputClass}
+                >
+                  {RECURRING_FREQUENCIES.map((f) => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+              </FormField>
+            )}
           </section>
 
           {/* Actions */}

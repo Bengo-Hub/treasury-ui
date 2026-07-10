@@ -26,6 +26,7 @@ const DOC_TYPE_LABELS: Record<DocType, string> = {
   sales_order: 'Sales Order',
   payment_receipt: 'Payment Receipt',
   delivery_challan: 'Delivery Challan',
+  expense: 'Expense',
 };
 
 const DOC_TYPE_DEFAULT_PREFIX: Record<DocType, string> = {
@@ -37,6 +38,7 @@ const DOC_TYPE_DEFAULT_PREFIX: Record<DocType, string> = {
   sales_order: 'SO',
   payment_receipt: 'RCP',
   delivery_challan: 'DC',
+  expense: 'EXP',
 };
 
 const RESET_FREQ_OPTIONS = [

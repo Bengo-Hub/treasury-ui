@@ -33,6 +33,7 @@ export const DOC_TYPES = [
   'sales_order',
   'payment_receipt',
   'delivery_challan',
+  'expense',
 ] as const;
 
 export type DocType = (typeof DOC_TYPES)[number];
