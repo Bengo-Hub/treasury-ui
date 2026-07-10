@@ -38,14 +38,16 @@ import {
   Pencil,
   Plus,
   Receipt,
+  RefreshCw,
   Shield,
   Smartphone,
+  Trash2,
   Wrench,
   X,
   XCircle
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import { type ChangeEvent, useEffect, useState } from 'react';
+import { type ChangeEvent, useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 const GATEWAY_TYPES = [
@@ -1327,83 +1329,157 @@ function BackupDestinationSection() {
   );
 }
 
-// ── eTIMS / KRA Platform Configuration ─────────────────────────────────────────
-// Platform admin sets the shared KRA eTIMS API credentials (base URL + API key).
-// Device serial numbers and TINs are tenant-specific — tenants register their own
-// KRA devices via the Tax & Compliance page (branch-scoped via EtimsDevice entity).
+// ── KRA eTIMS + GavaConnect Platform Configuration ─────────────────────────────
+// Platform admin manages the SHARED KRA credentials used by treasury-api for all
+// tenants: the eTIMS OSCU Integrator base URL + apigee_app_id, the GavaConnect
+// gateway base URL, and one OAuth app (consumer key/secret) per KRA product
+// (OSCU, TCC, PIN, TOT, …). Credentials are stored in service_config and applied
+// live via a reload — no pod restart needed. Device serials + KRA PINs remain
+// tenant-scoped (registered on each tenant's Tax & Compliance page).
 
-interface EtimsConfig {
-  base_url: string;
-  api_key: string;   // stored masked in API responses (is_secret=true)
+// Known KRA GavaConnect products (each = one developer.go.ke app with its own key/secret).
+const KRA_PRODUCTS: Array<{ code: string; label: string }> = [
+  { code: 'OSCU', label: 'eTIMS OSCU Integrator (invoice signing)' },
+  { code: 'TCC', label: 'Tax Compliance Certificate' },
+  { code: 'PIN', label: 'PIN Checker' },
+  { code: 'TOT', label: 'Turnover Tax (TOT) Filing' },
+  { code: 'IVC', label: 'Invoice Checker' },
+  { code: 'OBLIGATION', label: 'Taxpayer Obligations' },
+  { code: 'STATION', label: 'Tax Service Office' },
+  { code: 'ITEXM', label: 'Income-Tax Exemption' },
+  { code: 'VATEXM', label: 'VAT Exemption' },
+  { code: 'IMPORT', label: 'Import Certificate Checker' },
+  { code: 'EXCISE', label: 'Excise Checker' },
+  { code: 'ESLIP', label: 'e-Slip Checker' },
+  { code: 'CUSTOMS', label: 'Customs Tax Calculator' },
+  { code: 'DEFAULT', label: 'Default (fallback app)' },
+];
+
+interface GcApp {
+  product: string;
+  key: string;      // consumer_key
+  secret: string;   // consumer_secret (masked "***" when unchanged)
+  showSecret?: boolean;
 }
 
 function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
-  const [config, setConfig] = useState<EtimsConfig>({ base_url: '', api_key: '' });
+  const [etimsBaseUrl, setEtimsBaseUrl] = useState('');
+  const [apigeeAppId, setApigeeAppId] = useState('');
+  const [gavaBaseUrl, setGavaBaseUrl] = useState('');
+  const [apps, setApps] = useState<GcApp[]>([]);
+  const [status, setStatus] = useState<{ etims_configured: boolean; gavaconnect_configured: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await apiClient.get<{ settings: Array<{ config_key: string; config_value: string }> }>(
-          `/api/v1/platform/settings`
-        );
-        const settings = data.settings ?? [];
-        const byKey: Record<string, string> = {};
-        settings.forEach((s) => { byKey[s.config_key] = s.config_value; });
-        setConfig({
-          base_url: byKey['etims.base_url'] ?? '',
-          api_key: byKey['etims.api_key'] ?? '',
-        });
-      } catch {
-        // ignore — likely no settings yet
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async () => {
+    try {
+      const [data, st] = await Promise.all([
+        apiClient.get<{ settings: Array<{ config_key: string; config_value: string }> }>(`/api/v1/platform/settings`),
+        apiClient.get<{ etims_configured: boolean; gavaconnect_configured: boolean }>(`/api/v1/platform/etims/config-status`).catch(() => null),
+      ]);
+      const byKey: Record<string, string> = {};
+      (data.settings ?? []).forEach((s) => { byKey[s.config_key] = s.config_value; });
+      setEtimsBaseUrl(byKey['etims.base_url'] ?? '');
+      setApigeeAppId(byKey['etims.apigee_app_id'] ?? '');
+      setGavaBaseUrl(byKey['gavaconnect.base_url'] ?? '');
+      // group gavaconnect.<PRODUCT>.consumer_key/secret into apps
+      const appMap: Record<string, GcApp> = {};
+      Object.keys(byKey).forEach((k) => {
+        const parts = k.split('.');
+        if (parts.length === 3 && parts[0] === 'gavaconnect' && (parts[2] === 'consumer_key' || parts[2] === 'consumer_secret')) {
+          const product = parts[1].toUpperCase();
+          appMap[product] = appMap[product] ?? { product, key: '', secret: '' };
+          if (parts[2] === 'consumer_key') appMap[product].key = byKey[k];
+          else appMap[product].secret = byKey[k];
+        }
+      });
+      setApps(Object.values(appMap).sort((a, b) => a.product.localeCompare(b.product)));
+      if (st) setStatus(st);
+    } catch {
+      // ignore — likely no settings yet
+    } finally {
+      setLoading(false);
     }
-    load();
-  }, [orgSlug]);
+  }, []);
+
+  useEffect(() => { load(); }, [load, orgSlug]);
+
+  const putSetting = (key: string, value: string, isSecret: boolean, description: string) =>
+    apiClient.put(`/api/v1/platform/settings/${key}`, {
+      config_value: value, config_type: 'string', is_secret: isSecret, description,
+    });
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const updates: Array<{ key: string; value: string; is_secret: boolean }> = [
-        { key: 'etims.base_url', value: config.base_url, is_secret: false },
-        { key: 'etims.api_key', value: config.api_key, is_secret: true },
-      ];
-      for (const u of updates) {
-        if (u.value && u.value !== '***') {
-          await apiClient.put(`/api/v1/platform/settings/${u.key}`, {
-            config_value: u.value,
-            config_type: 'string',
-            description: u.key === 'etims.base_url'
-              ? 'KRA eTIMS API base URL (e.g. https://etims-api.kra.go.ke/etims-api)'
-              : 'KRA eTIMS API key / CMC key (sensitive)',
-            is_secret: u.is_secret,
-          });
-        }
+      if (etimsBaseUrl) await putSetting('etims.base_url', etimsBaseUrl, false, 'KRA eTIMS OSCU Integrator base URL');
+      if (apigeeAppId && apigeeAppId !== '***') await putSetting('etims.apigee_app_id', apigeeAppId, false, 'KRA Apigee app id (usually the OSCU consumer key)');
+      if (gavaBaseUrl) await putSetting('gavaconnect.base_url', gavaBaseUrl, false, 'KRA GavaConnect / OAuth base URL');
+      for (const app of apps) {
+        if (!app.product) continue;
+        const p = app.product.toUpperCase();
+        if (app.key && app.key !== '***') await putSetting(`gavaconnect.${p}.consumer_key`, app.key, true, `${p} GavaConnect app consumer key`);
+        if (app.secret && app.secret !== '***') await putSetting(`gavaconnect.${p}.consumer_secret`, app.secret, true, `${p} GavaConnect app consumer secret`);
       }
-      toast.success('eTIMS configuration saved — takes effect on next treasury-api startup');
+      // apply live (no pod restart)
+      const st = await apiClient.post<{ etims_configured: boolean; gavaconnect_configured: boolean }>(`/api/v1/platform/etims/config-reload`, {});
+      setStatus(st);
+      toast.success('KRA configuration saved & applied live');
+      await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to save eTIMS config');
+      toast.error(e?.response?.data?.error || 'Failed to save KRA config');
     } finally {
       setSaving(false);
     }
   };
 
+  const handleReloadOnly = async () => {
+    setSaving(true);
+    try {
+      const st = await apiClient.post<{ etims_configured: boolean; gavaconnect_configured: boolean }>(`/api/v1/platform/etims/config-reload`, {});
+      setStatus(st);
+      toast.success('Config reloaded from database');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Reload failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeApp = async (product: string) => {
+    const p = product.toUpperCase();
+    try {
+      await apiClient.delete(`/api/v1/platform/settings/gavaconnect.${p}.consumer_key`).catch(() => {});
+      await apiClient.delete(`/api/v1/platform/settings/gavaconnect.${p}.consumer_secret`).catch(() => {});
+      setApps((prev) => prev.filter((a) => a.product !== product));
+      toast.success(`${p} app removed`);
+    } catch {
+      setApps((prev) => prev.filter((a) => a.product !== product));
+    }
+  };
+
+  const usedProducts = new Set(apps.map((a) => a.product));
+  const availableProducts = KRA_PRODUCTS.filter((p) => !usedProducts.has(p.code));
+
   return (
     <div className="space-y-6">
+      {/* eTIMS OSCU Integrator */}
       <Card>
         <CardHeader className="flex flex-row items-center gap-2 py-4">
           <Receipt className="h-4 w-4 text-primary" />
-          <div>
-            <h3 className="font-bold text-sm uppercase tracking-tight">KRA eTIMS — Platform Credentials</h3>
+          <div className="flex-1">
+            <h3 className="font-bold text-sm uppercase tracking-tight">KRA eTIMS OSCU Integrator</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Shared API credentials used by treasury-api to reach KRA's eTIMS gateway on behalf of all tenants.
-              Changes take effect on the next treasury-api pod restart.
+              Shared endpoint for invoice signing. Sandbox <span className="font-mono">https://sbx.kra.go.ke/etims-oscu/api/v1</span> ·
+              Production <span className="font-mono">https://api.kra.go.ke/etims-oscu/api/v1</span>.
             </p>
           </div>
+          {status && (
+            <Badge className={cn('gap-1', status.etims_configured ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400')}>
+              {status.etims_configured ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+              eTIMS {status.etims_configured ? 'ready' : 'not configured'}
+            </Badge>
+          )}
         </CardHeader>
         <CardContent className="space-y-4 pb-6">
           {loading ? (
@@ -1411,72 +1487,122 @@ function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
               <Loader2 className="h-4 w-4 animate-spin" /> Loading configuration…
             </div>
           ) : (
-            <>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">eTIMS API Base URL</label>
-                  <input
-                    type="url"
-                    value={config.base_url}
-                    onChange={(e) => setConfig((p) => ({ ...p, base_url: e.target.value }))}
-                    placeholder="https://etims-api.kra.go.ke/etims-api"
-                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
-                  />
-                  <p className="text-[10px] text-muted-foreground">
-                    Sandbox: https://etims-api-sbx.kra.go.ke/etims-api
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                    <Shield className="h-3 w-3" /> KRA API Key / CMC Key
-                    <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">Secret</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showApiKey ? 'text' : 'password'}
-                      value={config.api_key}
-                      onChange={(e) => setConfig((p) => ({ ...p, api_key: e.target.value }))}
-                      placeholder="Enter KRA API key…"
-                      className="w-full rounded-lg border border-input bg-background px-3 py-2 pr-10 text-sm font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    Masked after save. Leave blank to keep existing value.
-                  </p>
-                </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">eTIMS Base URL</label>
+                <input type="url" value={etimsBaseUrl} onChange={(e) => setEtimsBaseUrl(e.target.value)}
+                  placeholder="https://sbx.kra.go.ke/etims-oscu/api/v1"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono" />
+                <p className="text-[10px] text-muted-foreground">Per-tenant devices set to <span className="font-mono">sandbox</span> route here automatically.</p>
               </div>
-
-              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
-                <div className="flex items-start gap-2">
-                  <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <div className="text-xs text-amber-700 dark:text-amber-400 space-y-1">
-                    <p className="font-semibold">Tenant device registration is separate</p>
-                    <p>
-                      Each tenant registers their own KRA OSCU device serial number and TIN from their
-                      <strong> Tax &amp; Compliance</strong> page (eTIMS Devices tab). Device serials are
-                      business-specific and branch-scoped — they are NOT configured here.
-                    </p>
-                  </div>
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">apigee_app_id <span className="text-[10px] text-muted-foreground">(optional)</span></label>
+                <input type="text" value={apigeeAppId} onChange={(e) => setApigeeAppId(e.target.value)}
+                  placeholder="defaults to the OSCU app consumer key"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono" />
+                <p className="text-[10px] text-muted-foreground">Leave blank — the OSCU consumer key below is used automatically.</p>
               </div>
-
-              <div className="flex justify-end">
-                <Button onClick={handleSave} disabled={saving} className="gap-2">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                  Save eTIMS Configuration
-                </Button>
-              </div>
-            </>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {/* GavaConnect apps */}
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 py-4">
+          <KeyRound className="h-4 w-4 text-primary" />
+          <div className="flex-1">
+            <h3 className="font-bold text-sm uppercase tracking-tight">GavaConnect Apps (OAuth)</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              One developer.go.ke app (consumer key + secret) per KRA product. The <strong>OSCU</strong> app also authenticates eTIMS invoice signing.
+            </p>
+          </div>
+          {status && (
+            <Badge className={cn('gap-1', status.gavaconnect_configured ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400')}>
+              {status.gavaconnect_configured ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+              {apps.length} app{apps.length === 1 ? '' : 's'}
+            </Badge>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-4 pb-6">
+          <div className="space-y-1.5 max-w-md">
+            <label className="text-xs font-medium text-muted-foreground">GavaConnect Base URL</label>
+            <input type="url" value={gavaBaseUrl} onChange={(e) => setGavaBaseUrl(e.target.value)}
+              placeholder="https://sbx.kra.go.ke"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono" />
+            <p className="text-[10px] text-muted-foreground">Token endpoint host. Sandbox <span className="font-mono">https://sbx.kra.go.ke</span> · Production <span className="font-mono">https://api.kra.go.ke</span>.</p>
+          </div>
+
+          <div className="space-y-3">
+            {apps.map((app, idx) => (
+              <div key={app.product || idx} className="rounded-lg border border-input bg-muted/30 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <select
+                    value={app.product}
+                    onChange={(e) => setApps((prev) => prev.map((a, i) => i === idx ? { ...a, product: e.target.value } : a))}
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs font-semibold"
+                  >
+                    <option value="">Select product…</option>
+                    {KRA_PRODUCTS.filter((p) => p.code === app.product || !usedProducts.has(p.code)).map((p) => (
+                      <option key={p.code} value={p.code}>{p.code} — {p.label}</option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={() => removeApp(app.product)} className="text-muted-foreground hover:text-red-500" title="Remove app">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-medium text-muted-foreground flex items-center gap-1"><Shield className="h-3 w-3" /> Consumer Key</label>
+                    <input type="text" value={app.key}
+                      onChange={(e) => setApps((prev) => prev.map((a, i) => i === idx ? { ...a, key: e.target.value } : a))}
+                      placeholder="Consumer Key" className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-mono" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-medium text-muted-foreground flex items-center gap-1"><Shield className="h-3 w-3" /> Consumer Secret</label>
+                    <div className="relative">
+                      <input type={app.showSecret ? 'text' : 'password'} value={app.secret}
+                        onChange={(e) => setApps((prev) => prev.map((a, i) => i === idx ? { ...a, secret: e.target.value } : a))}
+                        placeholder="Consumer Secret" className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 pr-8 text-xs font-mono" />
+                      <button type="button" onClick={() => setApps((prev) => prev.map((a, i) => i === idx ? { ...a, showSecret: !a.showSecret } : a))}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {app.showSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {availableProducts.length > 0 && (
+            <Button variant="outline" size="sm" className="gap-1.5"
+              onClick={() => setApps((prev) => [...prev, { product: '', key: '', secret: '' }])}>
+              <Plus className="h-3.5 w-3.5" /> Add KRA app
+            </Button>
+          )}
+
+          <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
+            <div className="flex items-start gap-2">
+              <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <div className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
+                <p className="font-semibold">Platform-shared vs tenant-scoped</p>
+                <p>These KRA developer apps are <strong>platform-wide</strong> (one set for all tenants). Each tenant registers their own <strong>device serial</strong> + <strong>KRA PIN</strong> on their Tax &amp; Compliance page — those are never configured here.</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="outline" onClick={handleReloadOnly} disabled={saving} className="gap-2">
+          <RefreshCw className={cn('h-4 w-4', saving && 'animate-spin')} /> Reload from DB
+        </Button>
+        <Button onClick={handleSave} disabled={saving} className="gap-2">
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          Save &amp; Apply
+        </Button>
+      </div>
     </div>
   );
 }
