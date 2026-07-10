@@ -24,6 +24,7 @@ import { CurrencySection } from './sections/CurrencySection';
 import { TermsNotesSection } from './sections/TermsNotesSection';
 import { CreateItemModal } from './CreateItemModal';
 import { CreateClientModal } from './CreateClientModal';
+import { BankDetailsPicker, type BankDetailsSnapshot } from './BankDetailsPicker';
 
 export interface DocTypeConfig {
   invoiceType: string;
@@ -223,6 +224,11 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   const [shippingAmount, setShippingAmount] = useState(0);
   const [transport, setTransport]       = useState<TransportDetails>({ transporter_type: 'own_fleet' });
   const [createItemTarget, setCreateItemTarget]   = useState<number | null>(null);
+  // Bank details on the document: whether to include a bank block at all, and the selected
+  // account snapshot. Defaults to included (matching prior behaviour where the tenant profile bank
+  // was always shown) but now user-controllable and pickable per document.
+  const [includeBankDetails, setIncludeBankDetails] = useState(true);
+  const [bankDetails, setBankDetails] = useState<BankDetailsSnapshot | null>(null);
 
   useEffect(() => {
     if (!isEdit || !existing || initialized) return;
@@ -254,6 +260,10 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       country:        (existing.metadata?.customer_country as string) ?? '',
       contact_person: (existing.metadata?.customer_contact_person as string) ?? '',
     });
+    // Hydrate bank-details choice: exclude flag + the snapshot stored at issue time.
+    setIncludeBankDetails(!(existing.metadata?.exclude_bank_details as boolean));
+    const savedBank = existing.metadata?.bank_details as BankDetailsSnapshot | undefined;
+    if (savedBank && savedBank.account_number) setBankDetails(savedBank);
 
     const srcLines = existing.lines ?? [];
     setLines(srcLines.map(l => ({
@@ -384,6 +394,11 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       ...(customerDetails.country.trim() ? { customer_country: customerDetails.country.trim() } : {}),
       ...(customerDetails.contact_person.trim() ? { customer_contact_person: customerDetails.contact_person.trim() } : {}),
       ...(isQuotation && customerDetails.kra_pin.trim() ? { customer_kra_pin: customerDetails.kra_pin.trim() } : {}),
+      // Bank details: when excluded, flag it (the PDF adapter drops the bank block entirely, so it
+      // is NOT auto-included). When included with a picked account, snapshot it so the document
+      // keeps the details it was issued with.
+      exclude_bank_details: !includeBankDetails,
+      ...(includeBankDetails && bankDetails ? { bank_details: bankDetails } : {}),
     };
     const metadata = Object.keys(mergedMeta).length ? mergedMeta : undefined;
 
@@ -640,6 +655,15 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
               vendors={carrierVendors}
             />
           )}
+
+          {/* Bank details — pick an existing business bank account, add a new one, or exclude. */}
+          <BankDetailsPicker
+            orgSlug={effectiveTenant}
+            include={includeBankDetails}
+            onIncludeChange={setIncludeBankDetails}
+            value={bankDetails}
+            onChange={setBankDetails}
+          />
 
           {/* Totals + Terms */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
