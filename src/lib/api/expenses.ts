@@ -94,6 +94,10 @@ export interface ExpensesParams {
 }
 
 export interface CreateExpenseRequest {
+  // Caller-supplied reference number ("Expense Number" on the Add-Expense form). Omit to let
+  // the server autogenerate the next number via the document-sequence service (same pattern as
+  // invoice_number/quotation_number) — do not fabricate one client-side.
+  expense_number?: string;
   category_id?: string;
   description: string;
   amount: number;
@@ -104,6 +108,9 @@ export interface CreateExpenseRequest {
   vendor_id?: string;
   account_id?: string;
   cost_center_id?: string;
+  // Real link to an existing invoice (billable/recharge cost linkage) — pick from the tenant's
+  // invoices rather than free-typing a number with no relationship to the actual record.
+  invoice_id?: string;
   metadata?: Record<string, any>;
 }
 
