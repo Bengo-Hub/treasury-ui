@@ -773,7 +773,7 @@ function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
             </div>
           ) : (
             <>
-              <PaymentAccountFields acct={acct} onChange={onChange} />
+              <PaymentAccountFields acct={acct} onChange={onChange} orgSlug={orgSlug} />
               <div className="flex justify-end">
                 <Button onClick={handleSave} disabled={saving}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

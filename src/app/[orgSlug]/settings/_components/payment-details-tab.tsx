@@ -93,7 +93,7 @@ export function PaymentDetailsTab({ orgSlug, tenantSlug }: { orgSlug: string; te
           </div>
         ) : (
           <>
-            <PaymentAccountFields acct={acct} onChange={onChange} showVat />
+            <PaymentAccountFields acct={acct} onChange={onChange} showVat orgSlug={orgSlug} />
             <div className="flex justify-end">
               <Button onClick={handleSave} disabled={updateSetting.isPending}>
                 {updateSetting.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

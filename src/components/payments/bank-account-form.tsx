@@ -42,9 +42,12 @@ interface BankAccountFormProps {
   orgSlug: string;
   value: BankAccountValue;
   onChange: (value: BankAccountValue) => void;
+  /** Hide the currency/country selector (e.g. the tenant payment profile, which stores no bank
+   *  currency). The banks list + verify still resolve against the value's currency (default KES). */
+  hideCurrency?: boolean;
 }
 
-export function BankAccountForm({ orgSlug, value, onChange }: BankAccountFormProps) {
+export function BankAccountForm({ orgSlug, value, onChange, hideCurrency = false }: BankAccountFormProps) {
   // bankCode is transient: needed only to enumerate/verify against Paystack; we persist bank_name.
   const [bankCode, setBankCode] = useState('');
   const [verifiedName, setVerifiedName] = useState<string | null>(null);
@@ -80,19 +83,21 @@ export function BankAccountForm({ orgSlug, value, onChange }: BankAccountFormPro
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass}>Currency / Country</label>
-          <select
-            value={value.currency}
-            onChange={(e) => { set({ currency: e.target.value, bank_name: '' }); setBankCode(''); setVerifiedName(null); setVerifyError(null); }}
-            className={inputClass}
-          >
-            {CURRENCY_OPTIONS.map((c) => (
-              <option key={c} value={c}>{c} ({currencyToCountry[c]})</option>
-            ))}
-          </select>
-        </div>
+      <div className={hideCurrency ? '' : 'grid grid-cols-1 sm:grid-cols-2 gap-4'}>
+        {!hideCurrency && (
+          <div>
+            <label className={labelClass}>Currency / Country</label>
+            <select
+              value={value.currency}
+              onChange={(e) => { set({ currency: e.target.value, bank_name: '' }); setBankCode(''); setVerifiedName(null); setVerifyError(null); }}
+              className={inputClass}
+            >
+              {CURRENCY_OPTIONS.map((c) => (
+                <option key={c} value={c}>{c} ({currencyToCountry[c]})</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label className={labelClass}>
