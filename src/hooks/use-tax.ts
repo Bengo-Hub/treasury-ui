@@ -160,11 +160,19 @@ export function useTaxpayerObligations(tenantSlug: string, pin: string) {
 
 // ---- GavaConnect: WHT PRN Hooks ----
 
+// A KRA GavaConnect call can return HTTP 200 with an error envelope (errorMessage / a
+// non-success Status) and no result data — treat those as failures, not success.
+function prnResultToast(kind: string, data: taxApi.PRNResponse) {
+  const prn = data.responseData?.prnNumber;
+  if (prn) toast.success(`${kind} WHT PRN generated: ${prn}`);
+  else toast.error(data.errorMessage || data.responseDesc || data.status || `${kind} WHT PRN not generated`);
+}
+
 export function useGenerateRentalWHTPRN() {
   return useMutation({
     mutationFn: ({ tenantSlug, req }: { tenantSlug: string; req: taxApi.WHTPaymentRequest }) =>
       taxApi.generateRentalWHTPRN(tenantSlug, req),
-    onSuccess: (data) => toast.success(`Rental WHT PRN generated: ${data.responseData?.prnNumber ?? data.status}`),
+    onSuccess: (data) => prnResultToast('Rental', data),
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to generate rental WHT PRN'),
   });
 }
@@ -173,7 +181,7 @@ export function useGenerateIncomeTaxWHTPRN() {
   return useMutation({
     mutationFn: ({ tenantSlug, req }: { tenantSlug: string; req: taxApi.WHTPaymentRequest }) =>
       taxApi.generateIncomeTaxWHTPRN(tenantSlug, req),
-    onSuccess: (data) => toast.success(`Income tax WHT PRN generated: ${data.responseData?.prnNumber ?? data.status}`),
+    onSuccess: (data) => prnResultToast('Income tax', data),
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to generate income tax WHT PRN'),
   });
 }
@@ -182,18 +190,23 @@ export function useGenerateVATWHTPRN() {
   return useMutation({
     mutationFn: ({ tenantSlug, req }: { tenantSlug: string; req: taxApi.WHTPaymentRequest }) =>
       taxApi.generateVATWHTPRN(tenantSlug, req),
-    onSuccess: (data) => toast.success(`VAT WHT PRN generated: ${data.responseData?.prnNumber ?? data.status}`),
+    onSuccess: (data) => prnResultToast('VAT', data),
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to generate VAT WHT PRN'),
   });
 }
 
 // ---- GavaConnect: Tax Return Hooks ----
 
+function returnResultToast(kind: string, data: taxApi.ReturnResponse) {
+  if (data.AckNumber) toast.success(`${kind} return filed — Ack: ${data.AckNumber}`);
+  else toast.error(data.ErrorMessage || data.Message || data.Status || `${kind} return not filed`);
+}
+
 export function useFileTOTReturn() {
   return useMutation({
     mutationFn: ({ tenantSlug, req }: { tenantSlug: string; req: taxApi.TOTReturnRequest }) =>
       taxApi.fileTOTReturn(tenantSlug, req),
-    onSuccess: (data) => toast.success(`TOT return filed — Ack: ${data.AckNumber}`),
+    onSuccess: (data) => returnResultToast('TOT', data),
     onError: (err: any) => toast.error(err?.response?.data?.error || 'TOT return filing failed'),
   });
 }
@@ -202,7 +215,7 @@ export function useFileNILReturn() {
   return useMutation({
     mutationFn: ({ tenantSlug, req }: { tenantSlug: string; req: taxApi.NILReturnRequest }) =>
       taxApi.fileNILReturn(tenantSlug, req),
-    onSuccess: (data) => toast.success(`NIL return filed — Ack: ${data.AckNumber}`),
+    onSuccess: (data) => returnResultToast('NIL', data),
     onError: (err: any) => toast.error(err?.response?.data?.error || 'NIL return filing failed'),
   });
 }
