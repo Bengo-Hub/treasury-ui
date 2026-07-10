@@ -1337,21 +1337,29 @@ function BackupDestinationSection() {
 // live via a reload — no pod restart needed. Device serials + KRA PINs remain
 // tenant-scoped (registered on each tenant's Tax & Compliance page).
 
-// Known KRA GavaConnect products (each = one developer.go.ke app with its own key/secret).
+// Known KRA GavaConnect products — one developer.go.ke app (consumer key/secret) per
+// DISTINCT product. Codes match the treasury-api product codes so each app authenticates
+// the right checker/endpoint. Labels mirror the product names shown on the KRA portal.
 const KRA_PRODUCTS: Array<{ code: string; label: string }> = [
   { code: 'OSCU', label: 'eTIMS OSCU Integrator (invoice signing)' },
-  { code: 'TCC', label: 'Tax Compliance Certificate' },
-  { code: 'PIN', label: 'PIN Checker' },
-  { code: 'TOT', label: 'Turnover Tax (TOT) Filing' },
   { code: 'IVC', label: 'Invoice Checker' },
-  { code: 'OBLIGATION', label: 'Taxpayer Obligations' },
-  { code: 'STATION', label: 'Tax Service Office' },
-  { code: 'ITEXM', label: 'Income-Tax Exemption' },
-  { code: 'VATEXM', label: 'VAT Exemption' },
-  { code: 'IMPORT', label: 'Import Certificate Checker' },
+  { code: 'PIN', label: 'PIN Checker by PIN' },
+  { code: 'PINID', label: 'PIN Checker by ID' },
+  { code: 'TCC', label: 'Tax Compliance Certificate — Validation' },
+  { code: 'TCCAPP', label: 'Tax Compliance Certificate — Application' },
+  { code: 'OBLIGATION', label: 'Taxpayer Obligations Checker' },
+  { code: 'STATION', label: 'Know KRA Tax Service Office' },
+  { code: 'VATEXM', label: 'VAT Exemption Checker' },
+  { code: 'ITEXM', label: 'Income-Tax Exemption Checker' },
+  { code: 'WHTRENTAL', label: 'Rental Withholding PRN Generation' },
+  { code: 'WHTIT', label: 'Income-Tax Withholding PRN Generation' },
+  { code: 'WHTVAT', label: 'VAT Withholding PRN Generation' },
+  { code: 'TOT', label: 'TOT Return Filing' },
+  { code: 'NIL', label: 'NIL Return Filing' },
+  { code: 'IMPORT', label: 'Import Certificate Checker by Cert Number' },
+  { code: 'CUSTOMS', label: 'Customs Tax Calculator' },
   { code: 'EXCISE', label: 'Excise Checker' },
   { code: 'ESLIP', label: 'e-Slip Checker' },
-  { code: 'CUSTOMS', label: 'Customs Tax Calculator' },
   { code: 'DEFAULT', label: 'Default (fallback app)' },
 ];
 

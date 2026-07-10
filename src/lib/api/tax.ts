@@ -96,6 +96,14 @@ export interface PINResponse {
   errorMessage?: string;
 }
 
+// PIN Checker by ID returns a FLAT payload (no PINDATA) — see backend GCPINByIDResponse.
+export interface PINByIDResponse {
+  TaxpayerPIN?: string;
+  TaxpayerName?: string;
+  ErrorCode?: string;
+  ErrorMessage?: string;
+}
+
 export interface TCCData {
   KRAPIN: string;
   TCCNumber: string;
@@ -285,11 +293,13 @@ export function validateKRAPIN(tenantSlug: string, pin: string): Promise<PINResp
   return apiClient.post(`${BASE}/${tenantSlug}/tax/kra/pin/validate`, { pin });
 }
 
+// taxpayerType is a KRA ID-type code: KE (Kenyan resident), NKE (non-Kenyan resident),
+// NKENR (non-Kenyan non-resident), COMP (company) — NOT "Individual"/"Company".
 export function lookupKRAPINByID(
   tenantSlug: string,
   idNumber: string,
   taxpayerType: string,
-): Promise<PINResponse> {
+): Promise<PINByIDResponse> {
   return apiClient.post(`${BASE}/${tenantSlug}/tax/kra/pin/lookup`, {
     id_number: idNumber,
     taxpayer_type: taxpayerType,

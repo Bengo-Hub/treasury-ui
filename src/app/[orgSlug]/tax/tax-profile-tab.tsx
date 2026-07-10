@@ -56,7 +56,7 @@ export function TaxProfileTab({ tenantSlug }: Props) {
   const [pinResult, setPinResult] = useState<any>(null);
   const [tccResult, setTccResult] = useState<any>(null);
   const [lookupId, setLookupId] = useState('');
-  const [lookupType, setLookupType] = useState('Individual');
+  const [lookupType, setLookupType] = useState('KE');
   const [lookupResult, setLookupResult] = useState<any>(null);
   useEffect(() => { if (profile?.kra_pin) setPin(profile.kra_pin); }, [profile?.kra_pin]);
 
@@ -149,7 +149,8 @@ export function TaxProfileTab({ tenantSlug }: Props) {
                 </p>
               </div>
             )}
-            {pinResult?.ErrorMessage && <p className="mt-2 text-sm text-destructive">{pinResult.ErrorMessage}</p>}
+            {pinResult && !pinResult.PINDATA && (pinResult.errorMessage || pinResult.Message) &&
+              <p className="mt-2 text-sm text-destructive">{pinResult.errorMessage || pinResult.Message}</p>}
           </div>
           <div className="flex items-end">
             <button
@@ -219,8 +220,10 @@ export function TaxProfileTab({ tenantSlug }: Props) {
         <div className="flex flex-wrap gap-2">
           <input className="flex-1 rounded border px-3 py-2 text-sm min-w-40" placeholder="ID / Reg. number" value={lookupId} onChange={(e) => setLookupId(e.target.value)} />
           <select className="rounded border px-3 py-2 text-sm" value={lookupType} onChange={(e) => setLookupType(e.target.value)}>
-            <option value="Individual">Individual</option>
-            <option value="Company">Company</option>
+            <option value="KE">Individual — Kenyan (National ID)</option>
+            <option value="NKE">Individual — Non-Kenyan resident</option>
+            <option value="NKENR">Individual — Non-Kenyan non-resident</option>
+            <option value="COMP">Company / Non-individual</option>
           </select>
           <button
             className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
@@ -228,14 +231,14 @@ export function TaxProfileTab({ tenantSlug }: Props) {
             onClick={() => lookupPIN.mutate({ tenantSlug, idNumber: lookupId, taxpayerType: lookupType }, { onSuccess: setLookupResult })}
           >{lookupPIN.isPending ? 'Looking up…' : 'Look up PIN'}</button>
         </div>
-        {lookupResult?.PINDATA && (
+        {lookupResult?.TaxpayerPIN && (
           <div className="rounded bg-muted p-3 text-sm space-y-1">
-            <p><span className="font-medium">KRA PIN:</span> {lookupResult.PINDATA.KRAPIN}</p>
-            <p><span className="font-medium">Name:</span> {lookupResult.PINDATA.Name}</p>
-            <p><span className="font-medium">Type:</span> {lookupResult.PINDATA.TypeOfTaxpayer} &middot; <span className="font-medium">Status:</span>{' '}
-              <span className={lookupResult.PINDATA.StatusOfPIN === 'Active' ? 'text-primary' : 'text-destructive'}>{lookupResult.PINDATA.StatusOfPIN}</span>
-            </p>
+            <p><span className="font-medium">KRA PIN:</span> {lookupResult.TaxpayerPIN}</p>
+            <p><span className="font-medium">Name:</span> {lookupResult.TaxpayerName}</p>
           </div>
+        )}
+        {lookupResult && !lookupResult.TaxpayerPIN && (lookupResult.ErrorMessage || lookupResult.errorMessage) && (
+          <p className="text-sm text-destructive">{lookupResult.ErrorMessage || lookupResult.errorMessage}</p>
         )}
       </div>
 
@@ -256,9 +259,11 @@ export function TaxProfileTab({ tenantSlug }: Props) {
               {vatExm.isPending ? 'Checking…' : 'Check'}
             </button>
             {vatRes && (
-              <div className="rounded bg-muted p-2 text-xs">
-                {vatRes.response_status || vatRes.response_message || vatRes.errorMessage || 'No result'}
-                {vatRes.vatExemptionCertificateDetails?.cert_expiry_date && <div>Expires: {vatRes.vatExemptionCertificateDetails.cert_expiry_date}</div>}
+              <div className="rounded bg-muted p-2 text-xs space-y-0.5">
+                <div>{vatRes.response_status || vatRes.response_message || vatRes.errorMessage || (vatRes.vatExemptionCertificateDetails ? 'Found' : 'No result')}</div>
+                {vatRes.vatExemptionCertificateDetails?.vatExemptionCheckerDtls?.map((d: any, i: number) => (
+                  <div key={i}>Cert {d.certiNo} · issued {d.issueDt} · {d.statusFlag}</div>
+                ))}
               </div>
             )}
           </div>
