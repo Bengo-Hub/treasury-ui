@@ -9,6 +9,7 @@
  */
 
 import type { ChangeEvent } from 'react';
+import { BankAccountForm, type BankAccountValue } from './bank-account-form';
 
 export interface PaymentAccount {
   business_name: string;
@@ -54,10 +55,14 @@ interface PaymentAccountFieldsProps {
   onChange: (key: keyof PaymentAccount, value: string | boolean) => void;
   /** Show the VAT registration block (tenant issuer). Defaults to false (platform). */
   showVat?: boolean;
+  /** When provided, the Bank Account subsection uses the canonical BankAccountForm (Paystack
+   *  banks dropdown + Verify), keyed to this tenant slug for the banks/resolve lookups. Falls back
+   *  to plain text fields when absent. */
+  orgSlug?: string;
 }
 
 /** Presentational field set; parents own load/save + the surrounding Card. */
-export function PaymentAccountFields({ acct, onChange, showVat = false }: PaymentAccountFieldsProps) {
+export function PaymentAccountFields({ acct, onChange, showVat = false, orgSlug }: PaymentAccountFieldsProps) {
   const text = (key: keyof PaymentAccount) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     onChange(key, e.target.value);
 
@@ -133,13 +138,35 @@ export function PaymentAccountFields({ acct, onChange, showVat = false }: Paymen
 
       <div>
         <p className={sectionLabel}>Bank Account</p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {field('Bank Name', 'bank_name', 'Equity Bank')}
-          {field('Bank Branch', 'bank_branch', 'e.g. Westlands')}
-          {field('IBAN / Swift', 'branch_code')}
-          {field('Account Name', 'account_name')}
-          {field('Account Number', 'account_number')}
-        </div>
+        {orgSlug ? (
+          <BankAccountForm
+            orgSlug={orgSlug}
+            hideCurrency
+            value={{
+              account_name: acct.account_name,
+              bank_name: acct.bank_name,
+              account_number: acct.account_number,
+              bank_branch: acct.bank_branch,
+              branch_code: acct.branch_code,
+              currency: 'KES',
+            }}
+            onChange={(v: BankAccountValue) => {
+              onChange('account_name', v.account_name);
+              onChange('bank_name', v.bank_name);
+              onChange('account_number', v.account_number);
+              onChange('bank_branch', v.bank_branch);
+              onChange('branch_code', v.branch_code);
+            }}
+          />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {field('Bank Name', 'bank_name', 'Equity Bank')}
+            {field('Bank Branch', 'bank_branch', 'e.g. Westlands')}
+            {field('IBAN / Swift', 'branch_code')}
+            {field('Account Name', 'account_name')}
+            {field('Account Number', 'account_number')}
+          </div>
+        )}
       </div>
 
       <div>
