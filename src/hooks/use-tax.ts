@@ -114,11 +114,11 @@ export function useTransmitVendorBill() {
 export function useInitEtimsDevice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ tenantSlug, deviceId }: { tenantSlug: string; deviceId: string }) =>
-      taxApi.initEtimsDevice(tenantSlug, deviceId),
+    mutationFn: ({ tenantSlug, deviceId, cmcKey }: { tenantSlug: string; deviceId: string; cmcKey?: string }) =>
+      taxApi.initEtimsDevice(tenantSlug, deviceId, cmcKey),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['etims-devices', vars.tenantSlug] });
-      toast.success('Device initialized — CMC key received from KRA');
+      toast.success(vars.cmcKey ? 'Device activated with the provided CMC key' : 'Device initialized — CMC key received from KRA');
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Device initialization failed'),
   });

@@ -248,8 +248,11 @@ export function registerEtimsDevice(
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/devices`, body);
 }
 
-export function initEtimsDevice(tenantSlug: string, deviceId: string): Promise<EtimsDevice> {
-  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/init`);
+// initEtimsDevice initializes a device with KRA (fetching its CMC key). An optional
+// cmcKey activates a device that is already installed at KRA (a fresh /initialize
+// returns 902 and won't re-issue the key) — supply the key from the original init.
+export function initEtimsDevice(tenantSlug: string, deviceId: string, cmcKey?: string): Promise<EtimsDevice> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/init`, cmcKey ? { cmc_key: cmcKey } : {});
 }
 
 export function listEtimsTransmissions(
