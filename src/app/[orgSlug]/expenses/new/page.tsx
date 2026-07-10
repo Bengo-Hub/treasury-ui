@@ -220,13 +220,14 @@ export default function NewExpenditurePage() {
       vendor_id: selfExpense ? undefined : (vendorId || undefined),
       account_id: ledgerId || undefined,
       invoice_id: invoiceId || undefined,
+      // Top-level recurrence fields drive the backend scheduler (persisted to real columns).
+      is_recurring: isRecurring || undefined,
+      recurring_frequency: isRecurring ? recurringFrequency : undefined,
       metadata: {
         vendor_name: selfExpense ? undefined : (vendorName.trim() || undefined),
         vendor_email: selfExpense ? undefined : (vendorEmail.trim() || undefined),
         is_self_expense: selfExpense || undefined,
         tax_type: taxType,
-        is_recurring: isRecurring,
-        recurring_frequency: isRecurring ? recurringFrequency : undefined,
         attachment_name: attachmentName || undefined,
       },
     };

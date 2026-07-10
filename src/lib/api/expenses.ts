@@ -111,6 +111,11 @@ export interface CreateExpenseRequest {
   // Real link to an existing invoice (billable/recharge cost linkage) — pick from the tenant's
   // invoices rather than free-typing a number with no relationship to the actual record.
   invoice_id?: string;
+  // Recurrence: is_recurring marks a template; recurring_frequency sets the cycle. The backend
+  // worker spawns a fresh draft each period. Sent top-level (not just metadata) so they persist to
+  // real columns the scheduler reads.
+  is_recurring?: boolean;
+  recurring_frequency?: string;
   metadata?: Record<string, any>;
 }
 
