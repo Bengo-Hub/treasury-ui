@@ -527,14 +527,27 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
                         <Badge variant={deviceStatusVariant[device.status] ?? 'outline'}>{device.status}</Badge>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {device.status === 'pending' && (
-                          <Button
-                            size="sm" variant="outline"
-                            disabled={initDevice.isPending}
-                            onClick={() => initDevice.mutate({ tenantSlug, deviceId: device.id })}
-                          >
-                            {initDevice.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Init'}
-                          </Button>
+                        {device.status !== 'active' && (
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm" variant="outline"
+                              disabled={initDevice.isPending}
+                              onClick={() => initDevice.mutate({ tenantSlug, deviceId: device.id })}
+                            >
+                              {initDevice.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Init'}
+                            </Button>
+                            <button
+                              type="button"
+                              className="text-[11px] text-muted-foreground underline hover:text-foreground"
+                              title="Activate a device already installed at KRA using its known CMC key"
+                              onClick={() => {
+                                const key = window.prompt('Enter the CMC key from the original KRA initialization to activate this device:');
+                                if (key && key.trim()) initDevice.mutate({ tenantSlug, deviceId: device.id, cmcKey: key.trim() });
+                              }}
+                            >
+                              Activate with CMC key
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
