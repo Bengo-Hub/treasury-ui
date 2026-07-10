@@ -4,6 +4,7 @@ import { Button, Card, CardContent } from '@/components/ui/base';
 import { CategoryCombobox } from '@/components/ui/category-combobox';
 import { Combobox } from '@/components/ui/combobox';
 import { FormField } from '@/components/ui/form-field';
+import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { useAccounts } from '@/hooks/use-accounts';
 import { useCreateExpense, useExpenses } from '@/hooks/use-expenses';
 import { useVendors } from '@/hooks/use-inventory';
@@ -371,14 +372,16 @@ export default function NewExpenditurePage() {
               </FormField>
 
               <FormField label="Expense Ledger">
-                <Combobox
-                  options={ledgerOptions}
-                  value={ledgerId}
-                  onChange={setLedgerId}
-                  placeholder="Select Expense Ledger"
-                  searchPlaceholder="Search ledger accounts…"
-                  emptyText="No expense accounts found"
-                />
+                <SubscriptionGate feature="ledger_posting" mode="overlay">
+                  <Combobox
+                    options={ledgerOptions}
+                    value={ledgerId}
+                    onChange={setLedgerId}
+                    placeholder="Select Expense Ledger"
+                    searchPlaceholder="Search ledger accounts…"
+                    emptyText="No expense accounts found"
+                  />
+                </SubscriptionGate>
               </FormField>
             </div>
           </section>

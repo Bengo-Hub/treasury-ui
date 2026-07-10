@@ -1,6 +1,7 @@
 'use client';
 
 import { CreateLedgerEntryDialog } from '@/components/ledger/CreateLedgerEntryDialog';
+import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -79,6 +80,7 @@ export default function JournalsPage() {
   const refTypeOptions = ['all', 'pos_credit_sale', 'pos_return', 'ar_receipt', 'customer_opening_balance', 'vendor_opening_balance', 'vendor_refund', 'invoice', 'bill'];
 
   return (
+    <SubscriptionGate feature="ledger_posting">
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -138,6 +140,7 @@ export default function JournalsPage() {
         tenantSlug={effectiveTenant}
       />
     </div>
+    </SubscriptionGate>
   );
 }
 

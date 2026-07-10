@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { CreateLedgerEntryDialog } from '@/components/ledger/CreateLedgerEntryDialog';
+import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useJournalEntries } from '@/hooks/use-ledger';
@@ -61,6 +62,7 @@ export default function VouchersPage() {
   }, [entries]);
 
   return (
+    <SubscriptionGate feature="ledger_posting">
     <div className="p-6 space-y-6">
       <div className="rounded-2xl border border-primary/10 bg-gradient-to-br from-primary/10 via-background to-accent/20 p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -189,5 +191,6 @@ export default function VouchersPage() {
 
       <CreateLedgerEntryDialog variant="voucher" open={createOpen} onOpenChange={setCreateOpen} tenantSlug={effectiveTenant} />
     </div>
+    </SubscriptionGate>
   );
 }

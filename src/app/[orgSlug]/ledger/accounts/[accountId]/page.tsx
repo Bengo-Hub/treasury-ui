@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { useAccountLedger } from '@/hooks/use-ledger';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
@@ -30,6 +31,7 @@ export default function AccountLedgerPage() {
   const currency = data?.lines?.[0]?.currency || 'KES';
 
   return (
+    <SubscriptionGate feature="ledger_posting">
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-3">
         <Link
@@ -162,5 +164,6 @@ export default function AccountLedgerPage() {
         </CardContent>
       </Card>
     </div>
+    </SubscriptionGate>
   );
 }
