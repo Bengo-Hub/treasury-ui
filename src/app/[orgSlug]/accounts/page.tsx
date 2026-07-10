@@ -3,6 +3,7 @@
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
+import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
@@ -146,6 +147,7 @@ export default function AccountsPage() {
     'w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none';
 
   return (
+    <SubscriptionGate feature="ledger_posting">
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -411,5 +413,6 @@ export default function AccountsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </SubscriptionGate>
   );
 }

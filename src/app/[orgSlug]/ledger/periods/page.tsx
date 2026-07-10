@@ -3,6 +3,7 @@
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
+import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import {
   useAccountingPeriods,
   useCreatePeriod,
@@ -83,6 +84,7 @@ export default function AccountingPeriodsPage() {
   }
 
   return (
+    <SubscriptionGate feature="ledger_posting">
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -263,5 +265,6 @@ export default function AccountingPeriodsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </SubscriptionGate>
   );
 }
