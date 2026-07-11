@@ -50,6 +50,7 @@ export function CapitalAllowancesTab({ tenantSlug }: Props) {
           {schedule.classes.length === 0 ? (
             <p className="text-sm text-muted-foreground">No assets yet — add a fixed asset below to compute allowances.</p>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm border">
               <thead className="bg-muted text-left">
                 <tr>
@@ -79,6 +80,7 @@ export function CapitalAllowancesTab({ tenantSlug }: Props) {
                 </tr>
               </tbody>
             </table>
+            </div>
           )}
           {schedule.notes?.map((n, i) => <p key={i} className="text-xs text-muted-foreground">{n}</p>)}
         </div>
@@ -115,6 +117,7 @@ export function CapitalAllowancesTab({ tenantSlug }: Props) {
       {assetsData && assetsData.assets.length > 0 && (
         <div className="rounded-lg border p-4 space-y-2">
           <h3 className="font-semibold text-sm">Asset register ({assetsData.total})</h3>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm border">
             <thead className="bg-muted text-left">
               <tr>
@@ -169,6 +172,7 @@ export function CapitalAllowancesTab({ tenantSlug }: Props) {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

@@ -855,8 +855,9 @@ export function listImportedEtimsTxns(tenantSlug: string, direction?: string): P
 
 // ---- KRA verification checkers (GavaConnect) ----
 
-export function checkVATExemption(tenantSlug: string, value: string): Promise<any> {
-  return apiClient.post(`${BASE}/${tenantSlug}/tax/kra/exemption/vat`, { pin: value });
+// VAT exemption checker takes a certificate NUMBER (not a PIN).
+export function checkVATExemption(tenantSlug: string, certificateNo: string): Promise<any> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/kra/exemption/vat`, { certificate_no: certificateNo });
 }
 
 export function checkITExemption(tenantSlug: string, pin: string): Promise<any> {

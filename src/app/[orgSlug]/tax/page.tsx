@@ -101,7 +101,7 @@ export default function TaxPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
   // Default to the platform owner's own tenant (codevertex); drill-down overrides.
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
-  const [tab, setTab] = useState('codes');
+  const [tab, setTab] = useState('profile');
   const { hasFeature, isLoading: subLoading } = useSubscription();
 
   // Platform owners can always see eTIMS for any tenant; tenants need the feature
@@ -126,18 +126,18 @@ export default function TaxPage() {
       )}
       {(
         <CapsuleTabs value={tab} onValueChange={setTab}>
-          <CapsuleTabsList>
+          <CapsuleTabsList wrap>
             <CapsuleTabsTrigger value="profile"><ShieldCheck className="h-4 w-4" />Compliance</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="deductions"><PiggyBank className="h-4 w-4" />Deductions</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="capital-allowances"><Landmark className="h-4 w-4" />Capital Allowances</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="structuring"><Scale className="h-4 w-4" />Structuring</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="rates-calendar"><CalendarDays className="h-4 w-4" />Rates &amp; Calendar</CapsuleTabsTrigger>
-            <CapsuleTabsTrigger value="bad-debt" badge={<span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-green-600">New</span>}><HandCoins className="h-4 w-4" />Bad-Debt Relief</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="bad-debt" badge={<span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">New</span>}><HandCoins className="h-4 w-4" />Bad-Debt Relief</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="codes"><Tag className="h-4 w-4" />Tax Codes</CapsuleTabsTrigger>
-            <CapsuleTabsTrigger value="vat-return" badge={<span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-green-600">New</span>}><FileSpreadsheet className="h-4 w-4" />VAT Return</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="vat-return" badge={<span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">New</span>}><FileSpreadsheet className="h-4 w-4" />VAT Return</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="periods"><CalendarDays className="h-4 w-4" />Tax Periods</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="etims" badge={!subLoading && !canUseEtims ? <Lock className="size-3 text-muted-foreground" /> : undefined}><Cpu className="h-4 w-4" />eTIMS Devices</CapsuleTabsTrigger>
-            <CapsuleTabsTrigger value="etims-sync" badge={<span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-green-600">New</span>}><RefreshCw className="h-4 w-4" />eTIMS Sync</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="etims-sync" badge={<span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">New</span>}><RefreshCw className="h-4 w-4" />eTIMS Sync</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="etims-items"><Package className="h-4 w-4" />eTIMS Items</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="wht-prn"><Coins className="h-4 w-4" />WHT PRN</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="whvat"><ShieldCheck className="h-4 w-4" />WHVAT</CapsuleTabsTrigger>
@@ -305,7 +305,7 @@ function CreateTaxCodeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="New Tax Code" onClose={() => onOpenChange(false)}>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField label="Code" required>
               <input
                 type="text"
@@ -325,7 +325,7 @@ function CreateTaxCodeDialog({
               />
             </FormField>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField label="Rate (%)" required>
               <input
                 type="number"
