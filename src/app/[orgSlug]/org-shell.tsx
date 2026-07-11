@@ -10,6 +10,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
 import { Footer } from '@/components/footer';
 import { SubscriptionBanner } from '@/components/subscription/subscription-banner';
+import { VerifyEmailPrompt } from '@/components/auth/VerifyEmailPrompt';
 import { TaxComplianceBanner } from '@/components/tax/tax-compliance-banner';
 import { PWAUpdateBanner } from '@/components/pwa-update-banner';
 
@@ -67,6 +68,7 @@ export function OrgShell({ children }: { children: ReactNode }) {
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
               <Header onMenuClick={() => setSidebarOpen(true)} />
               <SubscriptionBanner />
+              <VerifyEmailPrompt />
               <TaxComplianceBanner />
               <main className="flex-1 overflow-y-auto bg-accent/5">
                 <div className="min-h-full flex flex-col">
