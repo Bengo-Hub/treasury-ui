@@ -15,6 +15,7 @@ import {
   acceptQuotation, declineQuotation, convertQuotationToProforma,
   convertQuotationToSalesOrder, generateDeliveryChallan,
 } from '@/lib/api/invoices';
+import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
 import { Ban, CheckCircle, Copy, ExternalLink, FileText, Pencil, Send, Trash2, Truck, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -38,6 +39,7 @@ export default function QuotationsPage() {
 
   const src = useDocumentListSource({ family: 'quotation', status: statusFilter, page, limit: ITEMS_PER_PAGE });
   const { run } = useDocRowAction();
+  const { adminActions, statusModal } = useAdminStatusOverride({ family: 'quotation', isPlatformOwner: src.isPlatformOwner, rowTenant: src.rowTenant });
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return src.rows;
@@ -59,6 +61,10 @@ export default function QuotationsPage() {
     cancel: { label: 'Cancel', icon: <Ban className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => cancelQuotation(src.rowTenant(r), r.id), `Quotation ${r.doc_number} cancelled`) },
     delete: { label: 'Delete', icon: <Trash2 className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => deleteQuotation(src.rowTenant(r), r.id), 'Quotation deleted') },
   });
+
+  // Platform-owner-only status override — appended outside the status-gated policy so it is
+  // available on any quotation regardless of its current state.
+  const actionsWithAdmin = useMemo(() => [...actions, ...adminActions], [actions, adminActions]);
 
   if (createOpen || editId) {
     return (
@@ -111,7 +117,7 @@ export default function QuotationsPage() {
             onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
             searchQuery={searchQuery}
             onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
-            actions={actions}
+            actions={actionsWithAdmin}
             pdfKind="quotation"
             showDueDate
             showExpandLineItems
@@ -127,6 +133,8 @@ export default function QuotationsPage() {
       {activeTab === 'manage-clients' && (
         <ManageClients effectiveTenant={src.docTenant} />
       )}
+
+      {statusModal}
     </div>
   );
 }

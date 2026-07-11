@@ -26,6 +26,7 @@ import {
   rejectInvoice,
   type PlatformInvoiceScope,
 } from '@/lib/api/invoices';
+import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useAuthStore } from '@/store/auth';
 import { userHasPermission } from '@/lib/auth/permissions';
@@ -192,6 +193,8 @@ export default function InvoicesPage() {
     [rowAction],
   );
 
+  const { adminActions, statusModal } = useAdminStatusOverride({ family: 'invoice', isPlatformOwner, rowTenant });
+
   const handleRecordPayment = useCallback(() => {
     if (!paymentDialog || !paymentAmount) return;
     rowAction.mutate(
@@ -334,6 +337,9 @@ export default function InvoicesPage() {
       visible: (r) => r.status !== 'void' && r.status !== 'cancelled' && r.status !== 'paid',
       destructive: true,
     },
+    // Platform-owner-only escape hatch: force any status (e.g. sent → draft), bypassing the
+    // normal workflow. Backend independently enforces the platform-owner privilege.
+    ...adminActions,
   ];
 
   if (showCreateView) {
@@ -509,6 +515,8 @@ export default function InvoicesPage() {
           </div>
         </div>
       )}
+
+      {statusModal}
 
       {rejectDialog && (
         <div

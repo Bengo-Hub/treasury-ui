@@ -5,6 +5,7 @@ import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentC
 import { useDocumentListSource } from '@/hooks/use-document-list-source';
 import { useDocumentActions } from '@/hooks/use-document-actions';
 import { useDocRowAction } from '@/hooks/use-doc-row-action';
+import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
 import {
   voidInvoice, duplicateInvoice, deleteInvoice,
   dispatchDeliveryNote, deliverDeliveryNote, cancelDeliveryNote,
@@ -32,6 +33,7 @@ export default function DeliveryChallansPage() {
 
   const src = useDocumentListSource({ family: 'invoice', invoiceType: 'delivery_challan', status: statusFilter, page, limit: ITEMS_PER_PAGE });
   const { run, isPending } = useDocRowAction();
+  const { adminActions, statusModal } = useAdminStatusOverride({ family: 'invoice', isPlatformOwner: src.isPlatformOwner, rowTenant: src.rowTenant });
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return src.rows;
@@ -97,7 +99,7 @@ export default function DeliveryChallansPage() {
 
   // Render delivery lifecycle actions first (the surface's primary workflow), then the
   // standard document actions.
-  const actions = [...deliveryActions, ...baseActions];
+  const actions = [...deliveryActions, ...baseActions, ...adminActions];
 
   if (edit) {
     return <SharedDocumentCreateView effectiveTenant={edit.tenant} docType="delivery_challan" editId={edit.id} onClose={() => setEdit(null)} />;
@@ -129,6 +131,8 @@ export default function DeliveryChallansPage() {
         storageKey="delivery-challan-col-prefs"
         emptyStateDescription="Delivery notes are generated from invoices (Generate Delivery Note in an invoice's action menu) or from a quotation's Generate Delivery Challan action."
       />
+
+      {statusModal}
 
       {/* Mark Delivered dialog — optional received-by + note (dispatched → delivered). */}
       {deliver && (

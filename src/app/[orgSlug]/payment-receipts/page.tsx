@@ -6,6 +6,7 @@ import { RecordPaymentModal } from '@/components/documents/RecordPaymentModal';
 import { useDocumentListSource } from '@/hooks/use-document-list-source';
 import { useDocumentActions } from '@/hooks/use-document-actions';
 import { useDocRowAction } from '@/hooks/use-doc-row-action';
+import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
 import { voidInvoice, duplicateInvoice, deleteInvoice } from '@/lib/api/invoices';
 import { Ban, Copy, ExternalLink, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -29,6 +30,7 @@ export default function PaymentReceiptsPage() {
   // Both manual receipts (payment_receipt) and legacy POS receipts (pos_receipt) belong here.
   const src = useDocumentListSource({ family: 'invoice', invoiceType: 'payment_receipt,pos_receipt', status: statusFilter, page, limit: ITEMS_PER_PAGE });
   const { run } = useDocRowAction();
+  const { adminActions, statusModal } = useAdminStatusOverride({ family: 'invoice', isPlatformOwner: src.isPlatformOwner, rowTenant: src.rowTenant });
 
   // Manually reconcile pending payment intents against their gateway (treasury also runs a 5-min cron).
   const reconcileMutation = useMutation({
@@ -89,13 +91,14 @@ export default function PaymentReceiptsPage() {
           onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
           searchQuery={searchQuery}
           onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
-          actions={actions}
+          actions={[...actions, ...adminActions]}
           pdfKind="invoice"
           showTenant={src.showTenant}
           storageKey="payment-receipt-col-prefs"
           emptyStateDescription="Issue receipts to customers once you receive their payments."
         />
       </div>
+      {statusModal}
     </div>
   );
 }

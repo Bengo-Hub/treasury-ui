@@ -454,6 +454,19 @@ export function voidInvoice(tenant: string, invoiceId: string): Promise<{ status
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/void`, {});
 }
 
+/** Statuses a platform admin may force an invoice into via the status-override tool. */
+export const ADMIN_INVOICE_STATUSES = [
+  'draft', 'sent', 'viewed', 'paid', 'overdue', 'cancelled', 'void', 'pending_approval', 'approved', 'rejected',
+] as const;
+
+/**
+ * Platform-owner-only: force-set an invoice's status, bypassing the normal transition rules
+ * (e.g. pull a "sent" invoice back to "draft"). 403s for non-platform-owners.
+ */
+export function adminSetInvoiceStatus(tenant: string, invoiceId: string, status: string): Promise<Invoice> {
+  return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/set-status`, { status });
+}
+
 // ---- Invoice approval (shared approval engine, entity_type="invoice") ----
 // submit -> backend sets status "pending_approval" (or auto-approves below the tenant
 // workflow threshold). approve advances the multi-step chain (final step -> "approved").
@@ -825,6 +838,19 @@ export function declineQuotation(tenant: string, quotationId: string): Promise<{
 
 export function cancelQuotation(tenant: string, quotationId: string): Promise<{ status: string }> {
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/quotations/${quotationId}/cancel`, {});
+}
+
+/** Statuses a platform admin may force a quotation into via the status-override tool. */
+export const ADMIN_QUOTATION_STATUSES = [
+  'draft', 'sent', 'viewed', 'accepted', 'declined', 'expired', 'converted',
+] as const;
+
+/**
+ * Platform-owner-only: force-set a quotation's status, bypassing the normal transition rules
+ * (e.g. pull a "sent" quotation back to "draft" so it can be edited). 403s for non-platform-owners.
+ */
+export function adminSetQuotationStatus(tenant: string, quotationId: string, status: string): Promise<Quotation> {
+  return apiClient.post<Quotation>(`${BASE}/${tenant}/quotations/${quotationId}/set-status`, { status });
 }
 
 export function convertQuotationToProforma(tenant: string, quotationId: string): Promise<{ status: string; proforma_invoice: Invoice }> {
