@@ -2,9 +2,10 @@
 
 import { Card } from '@/components/ui/base';
 import { StatCard } from '@/components/charts/StatCard';
+import { StatusBanner } from '@/components/tax/kra-cards';
 import { money } from '@/components/charts/chart-theme';
 import { useVATReturnSummary } from '@/hooks/use-tax';
-import { AlertTriangle, CalendarClock, CheckCircle2 } from 'lucide-react';
+import { CalendarClock } from 'lucide-react';
 import { useState } from 'react';
 
 interface Props { tenantSlug: string }
@@ -48,23 +49,21 @@ export function VATReturnTab({ tenantSlug }: Props) {
         </label>
       </div>
 
+      {/* Where VAT-3 is actually filed */}
+      <StatusBanner tone="info" title="VAT-3 is filed on iTax">
+        KRA pre-fills the VAT-3 from your eTIMS transmissions; this screen reconciles your books first so the pre-filled figures match before you submit on iTax (by the 20th).
+      </StatusBanner>
+
       {/* Reconciliation banner */}
       {!isLoading && data && (
-        <Card className={`p-4 ${reconciled ? 'border-green-500/30 bg-green-500/5' : 'border-amber-500/40 bg-amber-500/5'}`}>
-          <div className="flex items-start gap-3">
-            <div className={`rounded-lg p-2 ${reconciled ? 'bg-green-500/15 text-green-600' : 'bg-amber-500/15 text-amber-600'}`}>
-              {reconciled ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
-            </div>
-            <div className="space-y-1 text-sm">
-              <p className="font-semibold">{reconciled ? 'Books reconcile with the ledger' : 'Reconciliation mismatch — do not file yet'}</p>
-              <p className="text-muted-foreground">
-                {reconciled
-                  ? 'Source documents agree with the general ledger for this period. Confirm the figures also match the KRA pre-filled (eTIMS) return before submitting.'
-                  : <>Source-document VAT and the general ledger disagree by <span className="font-semibold text-foreground">{money(data.reconciliation_variance)}</span>. Resolve the variance before filing — from Jan 2026 KRA auto-validates returns and a mismatch can be rejected even after payment.</>}
-              </p>
-            </div>
-          </div>
-        </Card>
+        <StatusBanner
+          tone={reconciled ? 'success' : 'warning'}
+          title={reconciled ? 'Books reconcile with the ledger' : 'Reconciliation mismatch — do not file yet'}
+        >
+          {reconciled
+            ? 'Source documents agree with the general ledger for this period. Confirm the figures also match the KRA pre-filled (eTIMS) return before submitting.'
+            : <>Source-document VAT and the general ledger disagree by <strong>{money(data.reconciliation_variance)}</strong>. Resolve the variance before filing — from Jan 2026 KRA auto-validates returns and a mismatch can be rejected even after payment.</>}
+        </StatusBanner>
       )}
 
       {/* VAT-3 boxes */}

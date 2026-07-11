@@ -54,6 +54,7 @@ export function DeductionsTab({ tenantSlug }: Props) {
       {data.flagged.length > 0 && (
         <div className="rounded-lg border p-4 space-y-2">
           <h3 className="font-semibold text-sm">Flagged costs ({data.flagged.length})</h3>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm border">
             <thead className="bg-muted text-left">
               <tr>
@@ -76,6 +77,7 @@ export function DeductionsTab({ tenantSlug }: Props) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

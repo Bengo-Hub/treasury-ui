@@ -47,7 +47,30 @@ export function CapsuleTabs({
   );
 }
 
-export function CapsuleTabsList({ children, className }: { children: ReactNode; className?: string }) {
+export function CapsuleTabsList({
+  children,
+  className,
+  wrap,
+}: {
+  children: ReactNode;
+  className?: string;
+  /**
+   * When true, pills FLOW onto multiple rows instead of scrolling horizontally — use for long
+   * tab sets (12+) so users never have to scroll the bar left/right. Default keeps the
+   * single-row horizontal scroller (backwards compatible).
+   */
+  wrap?: boolean;
+}) {
+  if (wrap) {
+    return (
+      <div
+        role="tablist"
+        className={cn('flex w-full min-w-0 flex-wrap items-center gap-1 rounded-2xl bg-muted p-1', className)}
+      >
+        {children}
+      </div>
+    );
+  }
   return (
     // The negative margin + padding keeps the focus ring / shadow of edge pills from being
     // clipped while still allowing horizontal scroll on mobile.
