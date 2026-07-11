@@ -10,7 +10,7 @@ import {
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useAuthStore } from '@/store/auth';
 import { userHasPermission } from '@/lib/auth/permissions';
-import { MODULE_LABEL, ROLE_OPTIONS, roleLabel } from '@/lib/documents/approvals';
+import { APPROVAL_MODULE_GROUPS, MODULE_LABEL, ROLE_OPTIONS, roleLabel } from '@/lib/documents/approvals';
 import type { ApprovalModule, ApprovalRule, ApprovalStep } from '@/lib/api/approvals';
 import { AlertTriangle, ArrowLeft, Minus, Plus, Shield, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
@@ -251,23 +251,18 @@ export default function ApprovalRulesPage() {
                         onChange={(e) => setModule(e.target.value as ApprovalModule)}
                         className="w-full rounded-lg border border-input bg-transparent px-4 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
                       >
-                        <optgroup label="Sales & Invoicing">
-                          <option value="invoice">Invoice (send)</option>
-                          <option value="credit_note">Credit Note (issue)</option>
-                          <option value="quotation">Quotation (send)</option>
-                          <option value="proforma_invoice">Proforma Invoice (send)</option>
-                          <option value="sales_order">Sales Order (confirm)</option>
-                        </optgroup>
-                        <optgroup label="Purchases & Payables">
-                          <option value="bill">Bill / Payable (approve)</option>
-                          <option value="debit_note">Debit Note (issue)</option>
-                          <option value="expense">Expense (approve)</option>
-                        </optgroup>
-                        <optgroup label="Money">
-                          <option value="payment">Payment (release)</option>
-                          <option value="journal_entry">Journal Entry (post)</option>
-                        </optgroup>
+                        {APPROVAL_MODULE_GROUPS.map((g) => (
+                          <optgroup key={g.group} label={g.group}>
+                            {g.items.map((it) => (
+                              <option key={it.value} value={it.value}>{it.label}</option>
+                            ))}
+                          </optgroup>
+                        ))}
                       </select>
+                      <p className="text-xs text-muted-foreground">
+                        Payout, Vendor Bill and Expense rules gate outbound money — a matching rule
+                        blocks the payment until it is approved (with OTP).
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Name *</label>

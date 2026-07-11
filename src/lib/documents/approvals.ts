@@ -19,6 +19,25 @@ export const MODULE_LABEL: Record<string, string> = {
   quotation: 'Quotation',
 };
 
+// Grouped, ordered module options for the rules-editor dropdown. Every value is a valid backend
+// ApprovalModule (keys of MODULE_LABEL) — this replaces the old hardcoded <select> that offered
+// invalid `bill`/`payment`/`proforma_invoice`/`sales_order` (rejected 400) and omitted the
+// money-movement modules (payout/vendor_bill/budget), so payout & AP approval rules can be created.
+export const APPROVAL_MODULE_GROUPS: { group: string; items: { value: ApprovalModule; label: string }[] }[] = [
+  {
+    group: 'Sales & Invoicing',
+    items: (['invoice', 'credit_note', 'quotation'] as ApprovalModule[]).map((v) => ({ value: v, label: MODULE_LABEL[v] })),
+  },
+  {
+    group: 'Purchases & Payables',
+    items: (['vendor_bill', 'debit_note', 'expense'] as ApprovalModule[]).map((v) => ({ value: v, label: MODULE_LABEL[v] })),
+  },
+  {
+    group: 'Money out & Ledger',
+    items: (['payout', 'journal_entry', 'budget'] as ApprovalModule[]).map((v) => ({ value: v, label: MODULE_LABEL[v] })),
+  },
+];
+
 // Role codes MUST match the treasury-api seeded roles (rbac seed): a rule step's approver_role is
 // checked against the acting user's roles at approval time.
 export const ROLE_OPTIONS: { value: string; label: string }[] = [
