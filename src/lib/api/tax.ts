@@ -256,6 +256,36 @@ export function registerEtimsDevice(
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/devices`, body);
 }
 
+// ---- Tax liabilities (PRN ledger) + M-Pesa remittance ----
+
+export interface TaxLiability {
+  id: string;
+  obligation: string;
+  prn_number: string;
+  prn_amount: number;
+  currency: string;
+  status: 'unpaid' | 'submitted' | 'remitted' | 'failed';
+  payout_reference?: string;
+  withholder_pin?: string;
+  generated_at?: string;
+  remitted_at?: string;
+}
+
+export function listTaxLiabilities(
+  tenantSlug: string,
+  status?: string,
+): Promise<{ items: TaxLiability[]; total: number }> {
+  const q = status ? `?status=${encodeURIComponent(status)}` : '';
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/liabilities${q}`);
+}
+
+// remitTaxLiability disburses a PRN to the KRA PayBill via M-Pesa B2B. It is approval+OTP gated:
+// a 409 response ({ error: 'approval_required', approval_request_id }) means an approver must
+// approve it (with OTP) in the Approvals inbox before it can be released.
+export function remitTaxLiability(tenantSlug: string, liabilityID: string): Promise<TaxLiability> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/liabilities/${liabilityID}/remit`, {});
+}
+
 // initEtimsDevice initializes a device with KRA (fetching its CMC key). An optional
 // cmcKey activates a device that is already installed at KRA (a fresh /initialize
 // returns 902 and won't re-issue the key) — supply the key from the original init.

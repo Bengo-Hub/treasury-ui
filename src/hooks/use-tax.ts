@@ -507,3 +507,31 @@ export function useTaxServiceOffice() {
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Office lookup failed'),
   });
 }
+
+export function useTaxLiabilities(tenantSlug: string, status?: string) {
+  return useQuery({
+    queryKey: ['tax-liabilities', tenantSlug, status ?? 'all'],
+    queryFn: () => taxApi.listTaxLiabilities(tenantSlug, status),
+    enabled: !!tenantSlug,
+  });
+}
+
+export function useRemitTaxLiability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, liabilityID }: { tenantSlug: string; liabilityID: string }) =>
+      taxApi.remitTaxLiability(tenantSlug, liabilityID),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['tax-liabilities', vars.tenantSlug] });
+      toast.success('Remittance submitted to KRA via M-Pesa');
+    },
+    onError: (err: any) => {
+      const data = err?.response?.data;
+      if (data?.error === 'approval_required') {
+        toast.warning('This remittance needs approval (with OTP) before it can be released. Send it for approval in the Approvals inbox.');
+        return;
+      }
+      toast.error(data?.error || 'Remittance failed');
+    },
+  });
+}

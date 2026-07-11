@@ -1,8 +1,72 @@
 'use client';
 
 import { useState } from 'react';
-import { useGenerateRentalWHTPRN, useGenerateIncomeTaxWHTPRN, useGenerateVATWHTPRN } from '@/hooks/use-tax';
-import type { WHTPaymentRequest, WHTTransactionDetail, PRNResponse } from '@/lib/api/tax';
+import { useGenerateRentalWHTPRN, useGenerateIncomeTaxWHTPRN, useGenerateVATWHTPRN, useTaxLiabilities, useRemitTaxLiability } from '@/hooks/use-tax';
+import type { WHTPaymentRequest, WHTTransactionDetail, PRNResponse, TaxLiability } from '@/lib/api/tax';
+import { Loader2, Send } from 'lucide-react';
+
+const PRN_STATUS_TONE: Record<TaxLiability['status'], string> = {
+  unpaid: 'bg-amber-500/10 text-amber-600',
+  submitted: 'bg-primary/10 text-primary',
+  remitted: 'bg-green-500/10 text-green-600',
+  failed: 'bg-destructive/10 text-destructive',
+};
+
+// PRNLedger lists persisted PRNs and lets an operator remit an unpaid one to KRA via M-Pesa B2B.
+// Remittance is approval+OTP gated server-side — a blocked attempt surfaces a toast pointing to
+// the Approvals inbox (see useRemitTaxLiability).
+function PRNLedger({ tenantSlug }: { tenantSlug: string }) {
+  const { data, isLoading } = useTaxLiabilities(tenantSlug);
+  const remit = useRemitTaxLiability();
+  const rows = data?.items ?? [];
+  if (isLoading || rows.length === 0) return null;
+  return (
+    <div className="rounded-lg border p-4 space-y-3">
+      <div>
+        <h3 className="font-semibold text-sm">PRN ledger &amp; M-Pesa remittance</h3>
+        <p className="text-xs text-muted-foreground">Remit a generated PRN to the KRA PayBill from your M-Pesa float. Remittance requires approval (with OTP).</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-muted-foreground">
+            <tr className="border-b border-border">
+              <th className="px-2 py-2 font-medium">PRN</th>
+              <th className="px-2 py-2 font-medium">Obligation</th>
+              <th className="px-2 py-2 font-medium text-right">Amount</th>
+              <th className="px-2 py-2 font-medium">Status</th>
+              <th className="px-2 py-2 font-medium text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((tl) => (
+              <tr key={tl.id} className="border-b border-border/50">
+                <td className="px-2 py-2 font-mono text-xs">{tl.prn_number}</td>
+                <td className="px-2 py-2">{tl.obligation}</td>
+                <td className="px-2 py-2 text-right tabular-nums">{tl.currency} {Number(tl.prn_amount).toLocaleString()}</td>
+                <td className="px-2 py-2">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${PRN_STATUS_TONE[tl.status]}`}>{tl.status}</span>
+                </td>
+                <td className="px-2 py-2 text-right">
+                  {tl.status === 'unpaid' || tl.status === 'failed' ? (
+                    <button
+                      onClick={() => remit.mutate({ tenantSlug, liabilityID: tl.id })}
+                      disabled={remit.isPending}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {remit.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}Remit via M-Pesa
+                    </button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{tl.payout_reference ?? '—'}</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 interface Props { tenantSlug: string }
 
@@ -137,6 +201,7 @@ export function WHTPaymentRefTab({ tenantSlug }: Props) {
           ))}
         </div>
       )}
+      <PRNLedger tenantSlug={tenantSlug} />
     </div>
   );
 }
