@@ -68,7 +68,7 @@ function PRNForm({ title, variant, tenantSlug, onGenerate, isPending }: {
   return (
     <div className="rounded-lg border p-4 space-y-3">
       <h3 className="font-semibold text-sm">{title}</h3>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><label className={label}>Withholder KRA PIN</label><input className={field} value={withholderPin} onChange={(e) => setWithholderPin(e.target.value)} placeholder="Your KRA PIN" /></div>
         <div><label className={label}>{variant === 'rental' ? 'Landlord' : 'Withholdee'} KRA PIN</label><input className={field} value={counterpartyPin} onChange={(e) => setCounterpartyPin(e.target.value)} /></div>
         <div><label className={label}>Tax Period From</label><input type="date" className={field} value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} /></div>

@@ -37,7 +37,7 @@ export function TaxReturnsTab({ tenantSlug }: Props) {
     <div className="space-y-6">
       <div className="rounded-lg border p-4 space-y-3">
         <h3 className="font-semibold text-sm">Turnover Tax (TOT) Return</h3>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div><label className="text-xs text-muted-foreground">KRA PIN</label><input className="w-full rounded border px-3 py-2 text-sm" placeholder="P000111222A" value={totForm.pin} onChange={(e) => setTotForm({ ...totForm, pin: e.target.value })} /></div>
           <div><label className="text-xs text-muted-foreground">Month (01-12)</label><input className="w-full rounded border px-3 py-2 text-sm" placeholder="09" value={totForm.month} onChange={(e) => setTotForm({ ...totForm, month: e.target.value })} /></div>
           <div><label className="text-xs text-muted-foreground">Year</label><input className="w-full rounded border px-3 py-2 text-sm" placeholder="2026" value={totForm.year} onChange={(e) => setTotForm({ ...totForm, year: e.target.value })} /></div>
@@ -50,7 +50,7 @@ export function TaxReturnsTab({ tenantSlug }: Props) {
 
       <div className="rounded-lg border p-4 space-y-3">
         <h3 className="font-semibold text-sm">NIL Return</h3>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div><label className="text-xs text-muted-foreground">KRA PIN</label><input className="w-full rounded border px-3 py-2 text-sm" placeholder="P000111222A" value={nilForm.pin} onChange={(e) => setNilForm({ ...nilForm, pin: e.target.value })} /></div>
           <div><label className="text-xs text-muted-foreground">Obligation Code</label><input className="w-full rounded border px-3 py-2 text-sm" placeholder="003 (VAT)" value={nilForm.obligationCode} onChange={(e) => setNilForm({ ...nilForm, obligationCode: e.target.value })} /></div>
           <div><label className="text-xs text-muted-foreground">Month (01-12)</label><input className="w-full rounded border px-3 py-2 text-sm" placeholder="06" value={nilForm.month} onChange={(e) => setNilForm({ ...nilForm, month: e.target.value })} /></div>
