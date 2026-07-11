@@ -72,7 +72,7 @@ export function TaxProfileTab({ tenantSlug }: Props) {
       {position && (
         <div className={`rounded-lg border p-4 space-y-2 ${sevTone}`}>
           <h3 className="font-semibold text-sm">Tax position</h3>
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             <div><span className={label}>Rolling 12-month turnover</span><div className="font-medium">{money(position.rolling_turnover_12m)}</div></div>
             <div><span className={label}>VAT registration threshold</span><div className="font-medium">{money(position.vat_threshold)}</div></div>
             <div><span className={label}>VAT eligible</span><div className="font-medium">{position.vat_eligible ? 'Yes' : 'No'}</div></div>
@@ -92,7 +92,7 @@ export function TaxProfileTab({ tenantSlug }: Props) {
             This period’s estimate <span className="font-normal text-muted-foreground">({formatDateRange(estimate.period_start, estimate.period_end)})</span>
           </h3>
           {estimate.vat_registered && (
-            <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
               <div><span className={label}>Output VAT</span><div className="font-medium">{money(estimate.output_vat)}</div></div>
               <div><span className={label}>Input VAT</span><div className="font-medium">{money(estimate.input_vat)}</div></div>
               <div><span className={label}>VAT payable</span><div className="font-medium">{money(estimate.vat_payable)}</div></div>
@@ -124,7 +124,7 @@ export function TaxProfileTab({ tenantSlug }: Props) {
       {/* Registration profile */}
       <div className="rounded-lg border p-4 space-y-3">
         <h3 className="font-semibold text-sm">Registration profile</h3>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className={label}>Business KRA PIN</label>
             <div className="flex gap-2">

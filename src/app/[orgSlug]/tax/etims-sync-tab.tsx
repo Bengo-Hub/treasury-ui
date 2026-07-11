@@ -1,7 +1,8 @@
 'use client';
 
-import { Card } from '@/components/ui/base';
+import { Badge, Card } from '@/components/ui/base';
 import { StatCard } from '@/components/charts/StatCard';
+import { StatusBanner } from '@/components/tax/kra-cards';
 import { money } from '@/components/charts/chart-theme';
 import { useEtimsReconciliation, useImportEtimsTransactions, useVAAReconciliation, useImportedEtimsTxns } from '@/hooks/use-tax';
 import { AlertTriangle, CheckCircle2, DownloadCloud, Loader2, RefreshCw } from 'lucide-react';
@@ -57,8 +58,8 @@ export function EtimsSyncTab({ tenantSlug }: Props) {
               </div>
               {vaa.imported_purchases > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-600">{vaa.matched_purchases} matched to bills</span>
-                  {vaa.unmatched_purchases > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600">{vaa.unmatched_purchases} unrecorded (possible missed input VAT)</span>}
+                  <Badge variant="success">{vaa.matched_purchases} matched to bills</Badge>
+                  {vaa.unmatched_purchases > 0 && <Badge variant="warning">{vaa.unmatched_purchases} unrecorded (possible missed input VAT)</Badge>}
                 </div>
               )}
               {vaa.notes.map((n, i) => <p key={i} className="text-muted-foreground">{n}</p>)}
@@ -74,17 +75,9 @@ export function EtimsSyncTab({ tenantSlug }: Props) {
       ) : (
         <>
           {!isLoading && data && (
-            <Card className={`p-4 ${inSync ? 'border-green-500/30 bg-green-500/5' : 'border-amber-500/40 bg-amber-500/5'}`}>
-              <div className="flex items-start gap-3">
-                <div className={`rounded-lg p-2 ${inSync ? 'bg-green-500/15 text-green-600' : 'bg-amber-500/15 text-amber-600'}`}>
-                  {inSync ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
-                </div>
-                <div className="space-y-1 text-sm">
-                  <p className="font-semibold">{inSync ? 'In sync with KRA eTIMS' : 'Out of sync with KRA eTIMS'}</p>
-                  {data.notes.map((n, i) => <p key={i} className="text-muted-foreground">{n}</p>)}
-                </div>
-              </div>
-            </Card>
+            <StatusBanner tone={inSync ? 'success' : 'warning'} title={inSync ? 'In sync with KRA eTIMS' : 'Out of sync with KRA eTIMS'}>
+              {data.notes.map((n, i) => <p key={i}>{n}</p>)}
+            </StatusBanner>
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

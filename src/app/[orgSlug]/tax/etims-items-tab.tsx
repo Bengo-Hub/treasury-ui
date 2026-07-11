@@ -62,7 +62,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
             <select className={inputCls} value={form.tax_ty_cd} onChange={(e) => setForm({ ...form, tax_ty_cd: e.target.value })}>
               {TAX_BANDS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
             </select>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <input className={inputCls} placeholder="Pkg unit" value={form.pkg_unit_cd} onChange={(e) => setForm({ ...form, pkg_unit_cd: e.target.value })} />
               <input className={inputCls} placeholder="Qty unit" value={form.qty_unit_cd} onChange={(e) => setForm({ ...form, qty_unit_cd: e.target.value })} />
             </div>
