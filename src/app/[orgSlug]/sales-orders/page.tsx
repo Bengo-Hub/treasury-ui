@@ -5,6 +5,7 @@ import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentC
 import { useDocumentListSource } from '@/hooks/use-document-list-source';
 import { useDocumentActions } from '@/hooks/use-document-actions';
 import { useDocRowAction } from '@/hooks/use-doc-row-action';
+import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
 import { sendInvoice, voidInvoice, duplicateInvoice, generateDeliveryNote } from '@/lib/api/invoices';
 import { Ban, Copy, ExternalLink, Pencil, Send, Truck } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -22,6 +23,7 @@ export default function SalesOrdersPage() {
 
   const src = useDocumentListSource({ family: 'invoice', invoiceType: 'sales_order', status: statusFilter, page, limit: ITEMS_PER_PAGE });
   const { run } = useDocRowAction();
+  const { adminActions, statusModal } = useAdminStatusOverride({ family: 'invoice', isPlatformOwner: src.isPlatformOwner, rowTenant: src.rowTenant });
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return src.rows;
@@ -45,6 +47,7 @@ export default function SalesOrdersPage() {
   }
 
   return (
+    <>
     <SharedDocumentList
       title="Sales Orders"
       subtitle={src.isAggregate ? 'All tenants — confirmed customer orders ready for fulfilment.' : 'Confirmed customer orders ready for fulfilment.'}
@@ -62,12 +65,14 @@ export default function SalesOrdersPage() {
       onStatusChange={(s) => { setStatusFilter(s); setPage(1); }}
       searchQuery={searchQuery}
       onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
-      actions={actions}
+      actions={[...actions, ...adminActions]}
       pdfKind="invoice"
       showExpandLineItems
       showTenant={src.showTenant}
       storageKey="sales-order-col-prefs"
       emptyStateDescription="Confirm customer orders before invoicing or dispatch."
     />
+    {statusModal}
+    </>
   );
 }

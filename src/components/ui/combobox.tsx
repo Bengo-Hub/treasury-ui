@@ -2,7 +2,8 @@
 
 import { cn } from '@/lib/utils';
 import { Check, ChevronDown, Loader2, Search, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface ComboboxOption {
   value: string;
@@ -42,11 +43,44 @@ export function Combobox({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number; maxHeight: number; flip: boolean } | null>(null);
+
+  // Position the dropdown against the trigger using fixed coordinates so it escapes any
+  // `overflow-hidden` / clipping ancestor (e.g. Cards) and stays put on scroll/resize.
+  const reposition = () => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - r.bottom;
+    const spaceAbove = r.top;
+    const flip = spaceBelow < 260 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(160, Math.min(360, (flip ? spaceAbove : spaceBelow) - 12));
+    setMenuPos({ top: r.bottom, left: r.left, width: r.width, maxHeight, flip });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    reposition();
+    const onScroll = () => reposition();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const t = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(t) &&
+        menuRef.current && !menuRef.current.contains(t)
+      ) {
         setOpen(false);
       }
     };
@@ -78,6 +112,7 @@ export function Combobox({
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((o) => !o)}
@@ -113,8 +148,19 @@ export function Combobox({
         </span>
       </button>
 
-      {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-card shadow-lg">
+      {open && menuPos && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: menuPos.flip ? undefined : menuPos.top + 4,
+            bottom: menuPos.flip ? window.innerHeight - menuPos.top + 4 + (triggerRef.current?.getBoundingClientRect().height ?? 0) : undefined,
+            left: menuPos.left,
+            width: menuPos.width,
+          }}
+          className="z-[70] rounded-lg border border-border bg-card shadow-lg"
+          role="listbox"
+        >
           <div className="flex items-center gap-2 border-b border-border px-3 py-2">
             <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <input
@@ -125,7 +171,7 @@ export function Combobox({
               className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
-          <div className="max-h-60 overflow-y-auto py-1">
+          <div className="overflow-y-auto py-1" style={{ maxHeight: menuPos.maxHeight }}>
             {loading ? (
               <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
@@ -156,7 +202,8 @@ export function Combobox({
               })
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

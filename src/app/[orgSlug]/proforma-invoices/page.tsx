@@ -5,6 +5,7 @@ import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentC
 import { useDocumentListSource } from '@/hooks/use-document-list-source';
 import { useDocumentActions } from '@/hooks/use-document-actions';
 import { useDocRowAction } from '@/hooks/use-doc-row-action';
+import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
 import {
   sendInvoice, voidInvoice, duplicateInvoice, markPaid, recordPayment,
   convertProformaToInvoice, createCreditNote,
@@ -28,6 +29,7 @@ export default function ProformaInvoicesPage() {
 
   const src = useDocumentListSource({ family: 'invoice', invoiceType: 'proforma_invoice', status: statusFilter, page, limit: ITEMS_PER_PAGE, withStats: true });
   const { run, isPending } = useDocRowAction();
+  const { adminActions, statusModal } = useAdminStatusOverride({ family: 'invoice', isPlatformOwner: src.isPlatformOwner, rowTenant: src.rowTenant });
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return src.rows;
@@ -83,7 +85,7 @@ export default function ProformaInvoicesPage() {
         searchQuery={searchQuery}
         onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
         stats={stats}
-        actions={actions}
+        actions={[...actions, ...adminActions]}
         pdfKind="invoice"
         showPaymentStatus
         showDueDate
@@ -92,6 +94,8 @@ export default function ProformaInvoicesPage() {
         storageKey="proforma-invoice-col-prefs"
         emptyStateDescription="Create proforma invoices to send to customers before issuing the final invoice."
       />
+
+      {statusModal}
 
       {paymentDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/75" onClick={(e) => { if (e.target === e.currentTarget) setPaymentDialog(null); }}>
