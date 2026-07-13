@@ -2,7 +2,7 @@
 
 import { Card } from '@/components/ui/base';
 import { useEtimsItems, useRegisterEtimsItem } from '@/hooks/use-tax';
-import { CheckCircle2, Loader2, Package, Plus } from 'lucide-react';
+import { CheckCircle2, Loader2, Package, Plus, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 
 interface Props { tenantSlug: string }
@@ -19,6 +19,14 @@ const ITEM_TYPES = [
   { v: '2', label: 'Finished goods' },
   { v: '3', label: 'Service' },
 ];
+// Leaf classes from KRA's sandbox classification list (selectItemClass). 1000000000 is the
+// general-goods class verified live during OSCU certification; pick a closer class where known.
+const ITEM_CLASSES = [
+  { v: '1000000000', label: '1000000000 — General goods (verified default)' },
+  { v: '1010151700', label: '1010151700 — Food & beverage products' },
+  { v: '1010150600', label: '1010150600 — Textiles & apparel' },
+  { v: '5059690800', label: '5059690800 — Health & pharmaceutical' },
+];
 
 const inputCls = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
@@ -30,15 +38,16 @@ const inputCls = 'w-full rounded-lg border border-border bg-background px-3 py-2
 export function EtimsItemsTab({ tenantSlug }: Props) {
   const { data, isLoading } = useEtimsItems(tenantSlug);
   const register = useRegisterEtimsItem();
-  const [form, setForm] = useState({ item_cd: '', item_nm: '', item_cls_cd: '', item_ty_cd: '2', tax_ty_cd: 'A', pkg_unit_cd: 'NT', qty_unit_cd: 'U', dft_prc: '' });
+  const EMPTY = { item_cd: '', item_nm: '', item_cls_cd: '1000000000', item_ty_cd: '2', tax_ty_cd: 'A', pkg_unit_cd: 'NT', qty_unit_cd: 'U', dft_prc: '' };
+  const [form, setForm] = useState(EMPTY);
   const items = data?.items ?? [];
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.item_cd || !form.item_nm) return;
+    if (!form.item_nm.trim()) return;
     register.mutate(
-      { tenantSlug, data: { ...form, dft_prc: form.dft_prc ? Number(form.dft_prc) : undefined } },
-      { onSuccess: () => setForm({ item_cd: '', item_nm: '', item_cls_cd: '', item_ty_cd: '2', tax_ty_cd: 'A', pkg_unit_cd: 'NT', qty_unit_cd: 'U', dft_prc: '' }) },
+      { tenantSlug, data: { ...form, item_nm: form.item_nm.trim(), dft_prc: form.dft_prc ? Number(form.dft_prc) : undefined } },
+      { onSuccess: () => setForm(EMPTY) },
     );
   };
 
@@ -53,9 +62,11 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
         <Card className="p-4 lg:col-span-1">
           <div className="mb-3 flex items-center gap-2"><Plus className="h-4 w-4 text-primary" /><h3 className="text-sm font-semibold">Register item</h3></div>
           <form onSubmit={submit} className="space-y-3">
-            <input className={inputCls} placeholder="Item code *" value={form.item_cd} onChange={(e) => setForm({ ...form, item_cd: e.target.value })} />
+            <input className={inputCls} placeholder="Item code (auto-generated if blank)" value={form.item_cd} onChange={(e) => setForm({ ...form, item_cd: e.target.value })} />
             <input className={inputCls} placeholder="Item name *" value={form.item_nm} onChange={(e) => setForm({ ...form, item_nm: e.target.value })} />
-            <input className={inputCls} placeholder="Classification code (UNSPSC)" value={form.item_cls_cd} onChange={(e) => setForm({ ...form, item_cls_cd: e.target.value })} />
+            <select className={inputCls} value={form.item_cls_cd} onChange={(e) => setForm({ ...form, item_cls_cd: e.target.value })}>
+              {ITEM_CLASSES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
+            </select>
             <select className={inputCls} value={form.item_ty_cd} onChange={(e) => setForm({ ...form, item_ty_cd: e.target.value })}>
               {ITEM_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
             </select>
@@ -67,7 +78,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
               <input className={inputCls} placeholder="Qty unit" value={form.qty_unit_cd} onChange={(e) => setForm({ ...form, qty_unit_cd: e.target.value })} />
             </div>
             <input className={inputCls} type="number" step="0.01" placeholder="Default price" value={form.dft_prc} onChange={(e) => setForm({ ...form, dft_prc: e.target.value })} />
-            <button type="submit" disabled={register.isPending || !form.item_cd || !form.item_nm}
+            <button type="submit" disabled={register.isPending || !form.item_nm.trim()}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
               {register.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Register
             </button>
@@ -101,7 +112,25 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                       <td className="px-2 py-2">
                         {it.registered
                           ? <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-600"><CheckCircle2 className="h-3 w-3" />Registered</span>
-                          : <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600">Pending</span>}
+                          : (
+                            <span className="inline-flex items-center gap-2">
+                              <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600">Pending</span>
+                              <button
+                                type="button"
+                                disabled={register.isPending}
+                                onClick={() => register.mutate({ tenantSlug, data: {
+                                  item_cd: it.item_cd, item_nm: it.item_nm, item_cls_cd: it.item_cls_cd || '1000000000',
+                                  item_ty_cd: it.item_ty_cd || '2', tax_ty_cd: it.tax_ty_cd || 'A',
+                                  pkg_unit_cd: it.pkg_unit_cd || 'NT', qty_unit_cd: it.qty_unit_cd || 'U',
+                                  dft_prc: it.dft_prc || undefined,
+                                } })}
+                                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium hover:bg-accent/10 disabled:opacity-50"
+                                title="Retry KRA eTIMS registration for this item"
+                              >
+                                <RefreshCw className="h-3 w-3" /> Retry sync
+                              </button>
+                            </span>
+                          )}
                       </td>
                     </tr>
                   ))}
