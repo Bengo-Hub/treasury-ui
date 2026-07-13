@@ -57,7 +57,12 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
   const register = useRegisterEtimsItem();
   const EMPTY = { item_cd: '', item_nm: '', item_cls_cd: '1000000000', item_ty_cd: '2', tax_ty_cd: 'A', pkg_unit_cd: 'NT', qty_unit_cd: 'U', dft_prc: '' };
   const [form, setForm] = useState(EMPTY);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
   const items = data?.items ?? [];
+  const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageItems = items.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,9 +79,9 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
         KRA requires every item to be registered in the eTIMS item master <span className="font-medium text-foreground">before</span> a sale referencing it can be transmitted. Register your catalogue items here.
       </Card>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
         {/* Register form */}
-        <Card className="p-4 lg:col-span-1">
+        <Card className="self-start p-4 lg:col-span-1">
           <div className="mb-3 flex items-center gap-2"><Plus className="h-4 w-4 text-primary" /><h3 className="text-sm font-semibold">Register item</h3></div>
           <form onSubmit={submit} className="space-y-3">
             <Field label="Item code" hint="KRA eTIMS item code. Leave blank — it is auto-generated in the required format (country + type + package + quantity units + sequential number, e.g. KE2NTBA00000004). KRA enforces the sequence per PIN.">
@@ -119,7 +124,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
         </Card>
 
         {/* Item list */}
-        <Card className="p-4 lg:col-span-2">
+        <Card className="self-start p-4 lg:col-span-2">
           <div className="mb-3 flex items-center gap-2"><Package className="h-4 w-4 text-primary" /><h3 className="text-sm font-semibold">Registered items ({items.length})</h3></div>
           {isLoading ? (
             <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-9 animate-pulse rounded bg-muted" />)}</div>
@@ -137,7 +142,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((it) => (
+                  {pageItems.map((it) => (
                     <tr key={it.id} className="border-b border-border/50 hover:bg-accent/5">
                       <td className="px-2 py-2 font-mono text-xs">{it.item_cd}</td>
                       <td className="px-2 py-2">{it.item_nm}</td>
@@ -169,6 +174,24 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                   ))}
                 </tbody>
               </table>
+              {items.length > PAGE_SIZE && (
+                <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
+                  <span>
+                    Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, items.length)} of {items.length} items
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button type="button" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}
+                      className="rounded-md border border-border px-2.5 py-1 font-medium hover:bg-accent/10 disabled:opacity-40">
+                      Previous
+                    </button>
+                    <span className="tabular-nums">{safePage} / {pageCount}</span>
+                    <button type="button" disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)}
+                      className="rounded-md border border-border px-2.5 py-1 font-medium hover:bg-accent/10 disabled:opacity-40">
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </Card>
