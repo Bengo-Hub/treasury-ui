@@ -2,7 +2,7 @@
 
 import { Card } from '@/components/ui/base';
 import { useEtimsItems, useRegisterEtimsItem } from '@/hooks/use-tax';
-import { CheckCircle2, Loader2, Package, Plus, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Info, Loader2, Package, Plus, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 
 interface Props { tenantSlug: string }
@@ -29,6 +29,23 @@ const ITEM_CLASSES = [
 ];
 
 const inputCls = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+/** Labelled form field with an optional info hint (native title tooltip keeps it dependency-free). */
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+        {label}
+        {hint && (
+          <span title={hint} className="inline-flex cursor-help" aria-label={hint}>
+            <Info className="h-3 w-3 text-muted-foreground/70" />
+          </span>
+        )}
+      </label>
+      {children}
+    </div>
+  );
+}
 
 /**
  * EtimsItemsTab — the KRA eTIMS item master. KRA requires every item to be registered
@@ -62,22 +79,38 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
         <Card className="p-4 lg:col-span-1">
           <div className="mb-3 flex items-center gap-2"><Plus className="h-4 w-4 text-primary" /><h3 className="text-sm font-semibold">Register item</h3></div>
           <form onSubmit={submit} className="space-y-3">
-            <input className={inputCls} placeholder="Item code (auto-generated if blank)" value={form.item_cd} onChange={(e) => setForm({ ...form, item_cd: e.target.value })} />
-            <input className={inputCls} placeholder="Item name *" value={form.item_nm} onChange={(e) => setForm({ ...form, item_nm: e.target.value })} />
-            <select className={inputCls} value={form.item_cls_cd} onChange={(e) => setForm({ ...form, item_cls_cd: e.target.value })}>
-              {ITEM_CLASSES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
-            </select>
-            <select className={inputCls} value={form.item_ty_cd} onChange={(e) => setForm({ ...form, item_ty_cd: e.target.value })}>
-              {ITEM_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
-            </select>
-            <select className={inputCls} value={form.tax_ty_cd} onChange={(e) => setForm({ ...form, tax_ty_cd: e.target.value })}>
-              {TAX_BANDS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
-            </select>
+            <Field label="Item code" hint="KRA eTIMS item code. Leave blank — it is auto-generated in the required format (country + type + package + quantity units + sequential number, e.g. KE2NTBA00000004). KRA enforces the sequence per PIN.">
+              <input className={inputCls} placeholder="Auto-generated if left blank" value={form.item_cd} onChange={(e) => setForm({ ...form, item_cd: e.target.value })} />
+            </Field>
+            <Field label="Item name *" hint="Product or service name as it should appear on KRA tax invoices.">
+              <input className={inputCls} placeholder="e.g. Espresso 250g" value={form.item_nm} onChange={(e) => setForm({ ...form, item_nm: e.target.value })} />
+            </Field>
+            <Field label="Classification (UNSPSC)" hint="KRA item classification from the eTIMS classification list. If unsure keep the default General goods class — it is accepted for any item.">
+              <select className={inputCls} value={form.item_cls_cd} onChange={(e) => setForm({ ...form, item_cls_cd: e.target.value })}>
+                {ITEM_CLASSES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Item type" hint="1 Raw material, 2 Finished goods, 3 Service — becomes the third character of the item code.">
+              <select className={inputCls} value={form.item_ty_cd} onChange={(e) => setForm({ ...form, item_ty_cd: e.target.value })}>
+                {ITEM_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Tax band" hint="KRA VAT band: A 16%, B 0% zero-rated, C exempt, D non-VAT, E 8%. Determines the VAT KRA expects on sales of this item.">
+              <select className={inputCls} value={form.tax_ty_cd} onChange={(e) => setForm({ ...form, tax_ty_cd: e.target.value })}>
+                {TAX_BANDS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+              </select>
+            </Field>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input className={inputCls} placeholder="Pkg unit" value={form.pkg_unit_cd} onChange={(e) => setForm({ ...form, pkg_unit_cd: e.target.value })} />
-              <input className={inputCls} placeholder="Qty unit" value={form.qty_unit_cd} onChange={(e) => setForm({ ...form, qty_unit_cd: e.target.value })} />
+              <Field label="Package unit" hint="KRA package unit code, e.g. NT = no package/net. Full list under eTIMS code lists.">
+                <input className={inputCls} placeholder="NT" value={form.pkg_unit_cd} onChange={(e) => setForm({ ...form, pkg_unit_cd: e.target.value })} />
+              </Field>
+              <Field label="Quantity unit" hint="KRA quantity unit code, e.g. U = unit/each, BA = barrel/bottle, KG = kilogram.">
+                <input className={inputCls} placeholder="U" value={form.qty_unit_cd} onChange={(e) => setForm({ ...form, qty_unit_cd: e.target.value })} />
+              </Field>
             </div>
-            <input className={inputCls} type="number" step="0.01" placeholder="Default price" value={form.dft_prc} onChange={(e) => setForm({ ...form, dft_prc: e.target.value })} />
+            <Field label="Default unit price (KES)" hint="Default selling price sent to KRA with the item master; individual sales can override it.">
+              <input className={inputCls} type="number" step="0.01" placeholder="0.00" value={form.dft_prc} onChange={(e) => setForm({ ...form, dft_prc: e.target.value })} />
+            </Field>
             <button type="submit" disabled={register.isPending || !form.item_nm.trim()}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
               {register.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Register
