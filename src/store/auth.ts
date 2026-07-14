@@ -168,6 +168,17 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
+        // Capture the working org BEFORE clearing any state/storage, so re-login
+        // targets the SAME organisation rather than a default one: URL path first
+        // (every tenant page is /{orgSlug}/...), then the signed-in profile.
+        // Never a hardcoded tenant.
+        let slug = '';
+        if (typeof window !== 'undefined') {
+          const first = window.location.pathname.split('/').filter(Boolean)[0] ?? '';
+          if (first && first !== 'auth') slug = first;
+        }
+        slug = slug || get().user?.tenantSlug || '';
+
         // Revoke the backend session (Redis session_token keys + DB sessions)
         // while the access token is still available.
         const token = get().session?.accessToken;
@@ -180,8 +191,11 @@ export const useAuthStore = create<AuthState>()(
           try { localStorage.removeItem('tenantSlug'); } catch { /* no-op */ }
           try { localStorage.removeItem('treasury-auth-storage'); } catch { /* no-op */ }
           try { sessionStorage.clear(); } catch { /* no-op */ }
-          const returnTo = encodeURIComponent(window.location.origin);
-          window.location.href = buildLogoutUrl(`https://accounts.codevertexitsolutions.com/login?return_to=${returnTo}`);
+          // Land on the tenant app root: arriving there unauthenticated re-triggers
+          // SSO with tenant=<slug>, so the login screen shows the RIGHT organisation.
+          window.location.href = slug
+            ? buildLogoutUrl(`${window.location.origin}/${slug}`)
+            : buildLogoutUrl(`https://accounts.codevertexitsolutions.com/login?return_to=${encodeURIComponent(window.location.origin)}`);
         }
       },
 
