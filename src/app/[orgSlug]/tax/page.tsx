@@ -1,5 +1,6 @@
 'use client';
 
+import { CodeListSelect } from '@/components/tax/code-list-select';
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
@@ -13,6 +14,7 @@ import {
   useRegisterEtimsDevice,
   useInitEtimsDevice,
   useRefreshCodeLists,
+  useKraStatus,
 } from '@/hooks/use-tax';
 import { TaxProfileTab } from './tax-profile-tab';
 import { DeductionsTab } from './deductions-tab';
@@ -32,8 +34,10 @@ import { useSubscription } from '@/hooks/use-subscription';
 import type { TaxCode, TaxPeriod, EtimsDevice } from '@/lib/api/tax';
 import { cn } from '@/lib/utils';
 import {
+  AlertTriangle,
   Calculator,
   CalendarDays,
+  CheckCircle2,
   Coins,
   Cpu,
   FileSpreadsheet,
@@ -350,12 +354,20 @@ function CreateTaxCodeDialog({
             </FormField>
           </div>
           <FormField label="KRA Code">
-            <input
-              type="text"
+            <CodeListSelect
+              tenantSlug={tenantSlug}
+              codeType="TAX_TY"
               value={kraCode}
-              onChange={(e) => setKraCode(e.target.value)}
-              placeholder="e.g. A (optional)"
-              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
+              onChange={setKraCode}
+              allowEmpty
+              placeholder="No KRA band (optional)"
+              fallbackOptions={[
+                { value: 'B', label: 'B — VAT 16%' },
+                { value: 'A', label: 'A — Exempt' },
+                { value: 'C', label: 'C — Zero-rated' },
+                { value: 'D', label: 'D — Non-VAT' },
+                { value: 'E', label: 'E — VAT 8%' },
+              ]}
             />
           </FormField>
           <div className="flex justify-end gap-2 pt-2">
@@ -457,15 +469,66 @@ function TaxPeriodsTab({ tenantSlug }: { tenantSlug: string }) {
 
 // ---- eTIMS Devices Tab ----
 
+// One "KRA eTIMS Integration" checklist — platform credentials + the tenant's activation
+// steps rendered as a single integration (never as separate "eTIMS" and "GavaConnect"
+// integrations; they share one KRA OAuth app under the hood).
+function KraActivationCard({ tenantSlug }: { tenantSlug: string }) {
+  const { data } = useKraStatus(tenantSlug);
+  if (!data) return null;
+  const t = data.tenant ?? ({} as NonNullable<typeof data.tenant>);
+  const p = data.platform ?? ({} as NonNullable<typeof data.platform>);
+  const steps = [
+    { label: 'KRA PIN on tax profile', ok: !!t.kra_pin_set },
+    { label: 'Device registered', ok: !!t.device_registered },
+    { label: 'Device initialized (CMC key)', ok: !!t.device_initialized },
+    { label: 'Subscription feature', ok: !!t.feature_entitled },
+  ];
+  return (
+    <Card className="mb-4">
+      <CardContent className="flex flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-bold uppercase tracking-tight">KRA eTIMS Integration</h3>
+          </div>
+          <Badge variant={t.activated ? 'success' : 'secondary'}>
+            {t.activated ? 'Activated' : 'Not activated'}
+          </Badge>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {steps.map((s) => (
+            <div key={s.label} className="flex items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-xs">
+              {s.ok
+                ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+                : <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+              <span className={s.ok ? 'text-foreground' : 'text-muted-foreground'}>{s.label}</span>
+            </div>
+          ))}
+        </div>
+        {!t.activated && t.reason && (
+          <p className="text-xs text-muted-foreground">{t.reason}</p>
+        )}
+        <p className="text-[11px] text-muted-foreground/70">
+          Platform KRA credentials: {p.oscu_configured && p.gavaconnect_configured ? 'configured' : 'incomplete'}
+          {p.environment ? ` (${p.environment})` : ''} — PIN checks, TCC and filings need only these;
+          invoice fiscalisation additionally needs the steps above.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
   const { data, isLoading, isError } = useEtimsDevices(tenantSlug);
   const devices = data?.devices ?? [];
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [cmcDevice, setCmcDevice] = useState<{ id: string; serial: string; tin: string } | null>(null);
   const initDevice = useInitEtimsDevice();
   const refreshCodes = useRefreshCodeLists();
 
   return (
     <>
+      <KraActivationCard tenantSlug={tenantSlug} />
       <Card>
         <CardHeader className="flex flex-row items-center justify-between py-4">
           <div className="flex items-center gap-2">
@@ -540,10 +603,7 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
                               type="button"
                               className="text-[11px] text-muted-foreground underline hover:text-foreground"
                               title="Activate a device already installed at KRA using its known CMC key"
-                              onClick={() => {
-                                const key = window.prompt('Enter the CMC key from the original KRA initialization to activate this device:');
-                                if (key && key.trim()) initDevice.mutate({ tenantSlug, deviceId: device.id, cmcKey: key.trim() });
-                              }}
+                              onClick={() => setCmcDevice({ id: device.id, serial: device.device_serial, tin: device.tin || '' })}
                             >
                               Activate with CMC key
                             </button>
@@ -563,7 +623,90 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
       </Card>
 
       <RegisterDeviceDialog open={registerOpen} onOpenChange={setRegisterOpen} tenantSlug={tenantSlug} />
+      <CmcKeyDialog
+        device={cmcDevice}
+        onClose={() => setCmcDevice(null)}
+        tenantSlug={tenantSlug}
+      />
     </>
+  );
+}
+
+// CmcKeyDialog activates a device that is ALREADY installed at KRA (init returns 902
+// "already installed") using the CMC key from its original initialization. Proper modal
+// replacing the old window.prompt: masked paste-friendly input + context + pending state.
+function CmcKeyDialog({
+  device,
+  onClose,
+  tenantSlug,
+}: {
+  device: { id: string; serial: string; tin: string } | null;
+  onClose: () => void;
+  tenantSlug: string;
+}) {
+  const initDevice = useInitEtimsDevice();
+  const [key, setKey] = useState('');
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState('');
+
+  function handleActivate() {
+    if (!device || !key.trim()) return;
+    setError('');
+    initDevice.mutate(
+      { tenantSlug, deviceId: device.id, cmcKey: key.trim() },
+      {
+        onSuccess: () => { setKey(''); onClose(); },
+        onError: (e: unknown) => setError(e instanceof Error ? e.message : 'Activation failed — check the CMC key and try again.'),
+      },
+    );
+  }
+
+  return (
+    <Dialog open={!!device} onOpenChange={(o) => { if (!o) { setKey(''); setError(''); onClose(); } }}>
+      <DialogContent title="Activate device with CMC key" onClose={() => { setKey(''); setError(''); onClose(); }}>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            The CMC key was issued by KRA when this device was first initialized; it binds the
+            device serial to the KRA PIN. Use this when KRA reports the device as already
+            installed (a fresh Init returns error 902).
+          </p>
+          <div className="grid grid-cols-1 gap-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-xs sm:grid-cols-2">
+            <div><span className="text-muted-foreground">Device serial:</span> <span className="font-mono font-medium">{device?.serial}</span></div>
+            <div><span className="text-muted-foreground">KRA PIN:</span> <span className="font-mono font-medium">{device?.tin || '—'}</span></div>
+          </div>
+          <FormField label="CMC key" required>
+            <div className="relative">
+              <input
+                type={show ? 'text' : 'password'}
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                placeholder="Paste the CMC key from the original KRA initialization"
+                autoComplete="off"
+                spellCheck={false}
+                className="w-full rounded-lg border border-input bg-transparent px-3 py-2 pr-16 font-mono text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setShow((s) => !s)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground underline hover:text-foreground"
+              >
+                {show ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </FormField>
+          {error && (
+            <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => { setKey(''); setError(''); onClose(); }}>Cancel</Button>
+            <Button onClick={handleActivate} disabled={!key.trim() || initDevice.isPending}>
+              {initDevice.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Activate
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

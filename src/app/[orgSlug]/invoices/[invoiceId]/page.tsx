@@ -31,8 +31,10 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadPublicInvoicePdf } from '@/lib/api/documents';
+import { CreditNoteDialog } from '@/components/documents/CreditNoteDialog';
 import { DocumentApprovalCard } from '@/components/documents/DocumentApprovalCard';
 import { DocumentJournalPanel } from '@/components/documents/DocumentJournalPanel';
+import { FiscalInfoPanel } from '@/components/documents/FiscalInfoPanel';
 import { MarginPanel } from '@/components/documents/MarginPanel';
 import { LinkedCostsPanel } from '@/components/documents/LinkedCostsPanel';
 import { moduleForDocType } from '@/lib/documents/approvals';
@@ -131,6 +133,8 @@ export default function InvoiceDetailPage() {
 
   const [paymentAmount, setPaymentAmount] = useState('');
   const [showPayModal, setShowPayModal]   = useState(false);
+  const [showCreditNote, setShowCreditNote] = useState(false);
+  const [creditNoteError, setCreditNoteError] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason]   = useState('');
   const [showDeliverModal, setShowDeliverModal] = useState(false);
@@ -345,7 +349,7 @@ export default function InvoiceDetailPage() {
           {canCreditDebit && (
             <>
               <button
-                onClick={() => creditNoteMut.mutate(invoiceId)}
+                onClick={() => { setCreditNoteError(''); setShowCreditNote(true); }}
                 disabled={creditNoteMut.isPending}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
               >
@@ -604,12 +608,40 @@ export default function InvoiceDetailPage() {
           </div>
         )}
 
+        {/* KRA eTIMS fiscalisation evidence — renders only for transmitted documents. */}
+        <FiscalInfoPanel tenant={effectiveTenant} invoiceId={invoice.id} />
+
         {/* View Journal — the GL postings for this document (Refrens-style). */}
         <div className="rounded-xl border border-border bg-card shadow-sm p-5">
           <h3 className="text-xs font-bold text-foreground mb-3">View Journal</h3>
           <DocumentJournalPanel tenant={effectiveTenant} referenceID={invoice.id} currency={invoice.currency} />
         </div>
       </div>
+
+      {/* Credit note — line picker (full or partial) */}
+      {invoice && (
+        <CreditNoteDialog
+          invoice={invoice}
+          open={showCreditNote}
+          onClose={() => setShowCreditNote(false)}
+          pending={creditNoteMut.isPending}
+          error={creditNoteError}
+          onSubmit={(lines) => {
+            setCreditNoteError('');
+            creditNoteMut.mutate(
+              { invoiceId, lines },
+              {
+                onSuccess: (cn: any) => {
+                  setShowCreditNote(false);
+                  toast.success(`Credit note ${cn?.invoice_number ?? ''} created`);
+                },
+                onError: (err: any) =>
+                  setCreditNoteError(err?.response?.data?.error ?? err?.message ?? 'Failed to create credit note'),
+              },
+            );
+          }}
+        />
+      )}
 
       {/* Record Payment Modal */}
       {showPayModal && (

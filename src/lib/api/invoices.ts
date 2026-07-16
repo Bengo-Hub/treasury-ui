@@ -544,8 +544,30 @@ export function markPaid(tenant: string, invoiceId: string): Promise<{ status: s
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/mark-paid`, {});
 }
 
-export function createCreditNote(tenant: string, invoiceId: string): Promise<Invoice> {
-  return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/create-credit-note`, {});
+/** Line request for a PARTIAL credit note — mirrors the backend invoicing.LineRequest. */
+export interface CreditNoteLineRequest {
+  description: string;
+  item_id?: string;
+  item_sku?: string;
+  item_type?: string;
+  unit?: string;
+  quantity: string;
+  unit_price: string;
+  tax_code?: string;
+  tax_rate: string;
+  discount_amount?: string;
+}
+
+/**
+ * Create a credit note against an invoice. Empty/omitted `lines` credits the FULL invoice;
+ * passing lines credits only those (partial credit note). The backend rejects credits that
+ * exceed the source's un-credited remainder.
+ */
+export function createCreditNote(tenant: string, invoiceId: string, lines?: CreditNoteLineRequest[]): Promise<Invoice> {
+  return apiClient.post<Invoice>(
+    `${BASE}/${tenant}/invoices/${invoiceId}/create-credit-note`,
+    lines && lines.length > 0 ? { lines } : {},
+  );
 }
 
 export function createDebitNote(tenant: string, invoiceId: string): Promise<Invoice> {

@@ -1,5 +1,6 @@
 'use client';
 
+import { CodeListSelect } from '@/components/tax/code-list-select';
 import { Card } from '@/components/ui/base';
 import { useEtimsItems, useRegisterEtimsItem } from '@/hooks/use-tax';
 import { CheckCircle2, Info, Loader2, Package, Plus, RefreshCw } from 'lucide-react';
@@ -7,25 +8,36 @@ import { useState } from 'react';
 
 interface Props { tenantSlug: string }
 
+// Fallbacks rendered ONLY until the tenant syncs the KRA code lists (eTIMS Devices →
+// Refresh Code Lists) — after that every option comes from the live synced list.
+// Band letters follow the OSCU convention proven live 2026-07-13: A=Exempt, B=VAT 16%,
+// C=Zero-rated, D=Non-VAT, E=VAT 8%.
 const TAX_BANDS = [
-  { v: 'A', label: 'A — VAT 16%' },
-  { v: 'B', label: 'B — VAT 0%' },
-  { v: 'C', label: 'C — Exempt' },
-  { v: 'D', label: 'D — Non-VAT' },
-  { v: 'E', label: 'E — VAT 8%' },
+  { value: 'B', label: 'B — VAT 16%' },
+  { value: 'A', label: 'A — Exempt' },
+  { value: 'C', label: 'C — Zero-rated' },
+  { value: 'D', label: 'D — Non-VAT' },
+  { value: 'E', label: 'E — VAT 8%' },
 ];
 const ITEM_TYPES = [
-  { v: '1', label: 'Raw material' },
-  { v: '2', label: 'Finished goods' },
-  { v: '3', label: 'Service' },
+  { value: '1', label: '1 — Raw material' },
+  { value: '2', label: '2 — Finished product' },
+  { value: '3', label: '3 — Service' },
 ];
-// Leaf classes from KRA's sandbox classification list (selectItemClass). 1000000000 is the
-// general-goods class verified live during OSCU certification; pick a closer class where known.
 const ITEM_CLASSES = [
-  { v: '1000000000', label: '1000000000 — General goods (verified default)' },
-  { v: '1010151700', label: '1010151700 — Food & beverage products' },
-  { v: '1010150600', label: '1010150600 — Textiles & apparel' },
-  { v: '5059690800', label: '5059690800 — Health & pharmaceutical' },
+  { value: '1000000000', label: '1000000000 — General goods (verified default)' },
+];
+const PKG_UNITS = [
+  { value: 'NT', label: 'NT — No package (net)' },
+  { value: 'CT', label: 'CT — Carton' },
+  { value: 'BG', label: 'BG — Bag' },
+  { value: 'BX', label: 'BX — Box' },
+];
+const QTY_UNITS = [
+  { value: 'U', label: 'U — Unit / each' },
+  { value: 'KG', label: 'KG — Kilogramme' },
+  { value: 'LTR', label: 'LTR — Litre' },
+  { value: 'BA', label: 'BA — Barrel' },
 ];
 
 const inputCls = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -55,7 +67,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 export function EtimsItemsTab({ tenantSlug }: Props) {
   const { data, isLoading } = useEtimsItems(tenantSlug);
   const register = useRegisterEtimsItem();
-  const EMPTY = { item_cd: '', item_nm: '', item_cls_cd: '1000000000', item_ty_cd: '2', tax_ty_cd: 'A', pkg_unit_cd: 'NT', qty_unit_cd: 'U', dft_prc: '' };
+  const EMPTY = { item_cd: '', item_nm: '', item_cls_cd: '1000000000', item_ty_cd: '2', tax_ty_cd: 'B', pkg_unit_cd: 'NT', qty_unit_cd: 'U', dft_prc: '' };
   const [form, setForm] = useState(EMPTY);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -90,27 +102,31 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
             <Field label="Item name *" hint="Product or service name as it should appear on KRA tax invoices.">
               <input className={inputCls} placeholder="e.g. Espresso 250g" value={form.item_nm} onChange={(e) => setForm({ ...form, item_nm: e.target.value })} />
             </Field>
-            <Field label="Classification (UNSPSC)" hint="KRA item classification from the eTIMS classification list. If unsure keep the default General goods class — it is accepted for any item.">
-              <select className={inputCls} value={form.item_cls_cd} onChange={(e) => setForm({ ...form, item_cls_cd: e.target.value })}>
-                {ITEM_CLASSES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
-              </select>
+            <Field label="Classification (UNSPSC)" hint="KRA item classification from the eTIMS classification list (selectItemClass). If unsure keep the default General goods class — it is accepted for any item.">
+              <CodeListSelect tenantSlug={tenantSlug} codeType="ITEM_CLS" searchable
+                value={form.item_cls_cd} onChange={(v) => setForm({ ...form, item_cls_cd: v })}
+                fallbackOptions={ITEM_CLASSES} placeholder="Search classifications…" />
             </Field>
-            <Field label="Item type" hint="1 Raw material, 2 Finished goods, 3 Service — becomes the third character of the item code.">
-              <select className={inputCls} value={form.item_ty_cd} onChange={(e) => setForm({ ...form, item_ty_cd: e.target.value })}>
-                {ITEM_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
-              </select>
+            <Field label="Item type" hint="1 Raw material, 2 Finished product, 3 Service — becomes the third character of the item code.">
+              <CodeListSelect tenantSlug={tenantSlug} codeType="ITEM_TY"
+                value={form.item_ty_cd} onChange={(v) => setForm({ ...form, item_ty_cd: v })}
+                fallbackOptions={ITEM_TYPES} />
             </Field>
-            <Field label="Tax band" hint="KRA VAT band: A 16%, B 0% zero-rated, C exempt, D non-VAT, E 8%. Determines the VAT KRA expects on sales of this item.">
-              <select className={inputCls} value={form.tax_ty_cd} onChange={(e) => setForm({ ...form, tax_ty_cd: e.target.value })}>
-                {TAX_BANDS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
-              </select>
+            <Field label="Tax band" hint="KRA VAT band (OSCU): B 16% standard, A exempt, C zero-rated, D non-VAT, E 8%. Determines the VAT KRA expects on sales of this item.">
+              <CodeListSelect tenantSlug={tenantSlug} codeType="TAX_TY"
+                value={form.tax_ty_cd} onChange={(v) => setForm({ ...form, tax_ty_cd: v })}
+                fallbackOptions={TAX_BANDS} />
             </Field>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Field label="Package unit" hint="KRA package unit code, e.g. NT = no package/net. Full list under eTIMS code lists.">
-                <input className={inputCls} placeholder="NT" value={form.pkg_unit_cd} onChange={(e) => setForm({ ...form, pkg_unit_cd: e.target.value })} />
+              <Field label="Package unit" hint="KRA package unit code, e.g. NT = no package/net. Options come from the synced KRA code list.">
+                <CodeListSelect tenantSlug={tenantSlug} codeType="PKG_UNIT"
+                  value={form.pkg_unit_cd} onChange={(v) => setForm({ ...form, pkg_unit_cd: v })}
+                  fallbackOptions={PKG_UNITS} />
               </Field>
-              <Field label="Quantity unit" hint="KRA quantity unit code, e.g. U = unit/each, BA = barrel/bottle, KG = kilogram.">
-                <input className={inputCls} placeholder="U" value={form.qty_unit_cd} onChange={(e) => setForm({ ...form, qty_unit_cd: e.target.value })} />
+              <Field label="Quantity unit" hint="KRA quantity unit code, e.g. U = unit/each, KG = kilogramme. Options come from the synced KRA code list.">
+                <CodeListSelect tenantSlug={tenantSlug} codeType="QTY_UNIT"
+                  value={form.qty_unit_cd} onChange={(v) => setForm({ ...form, qty_unit_cd: v })}
+                  fallbackOptions={QTY_UNITS} />
               </Field>
             </div>
             <Field label="Default unit price (KES)" hint="Default selling price sent to KRA with the item master; individual sales can override it.">
@@ -158,7 +174,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                                 disabled={register.isPending}
                                 onClick={() => register.mutate({ tenantSlug, data: {
                                   item_cd: it.item_cd, item_nm: it.item_nm, item_cls_cd: it.item_cls_cd || '1000000000',
-                                  item_ty_cd: it.item_ty_cd || '2', tax_ty_cd: it.tax_ty_cd || 'A',
+                                  item_ty_cd: it.item_ty_cd || '2', tax_ty_cd: it.tax_ty_cd || 'B',
                                   pkg_unit_cd: it.pkg_unit_cd || 'NT', qty_unit_cd: it.qty_unit_cd || 'U',
                                   dft_prc: it.dft_prc || undefined,
                                 } })}
