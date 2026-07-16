@@ -69,14 +69,88 @@ export interface EtimsTransmissionRecord {
   source: 'invoice' | 'pos_sale' | 'ordering_sale' | 'vendor_bill';
   invoice_id?: string;
   source_id?: string;
-  transmission_status: 'pending' | 'transmitted' | 'failed' | 'retrying';
+  transmission_status: 'pending' | 'transmitted' | 'failed' | 'retrying' | 'dead_letter';
   etims_cu_number?: string;
   etims_receipt_number?: string;
   rcpt_sign?: string;
+  /** KRA eTIMS invoice number (invcNo) — the per-device sequential number. 0/absent = not assigned. */
+  invc_no?: number;
   error_message?: string;
   retry_count: number;
   transmitted_at?: string;
   created_at: string;
+}
+
+// ---- KRA code lists (synced from eTIMS selectCodeList / selectItemClass) ----
+
+/** Known code-list types: TAX_TY, ITEM_CLS, PKG_UNIT, QTY_UNIT, ITEM_TY, PMNT_TY, RFD_RSN, OBLIGATION. */
+export interface KraCodeListEntry {
+  code_type: string;
+  code: string;
+  name: string;
+  code_detail?: string;
+}
+
+export function listEtimsCodeLists(
+  tenantSlug: string,
+  type: string,
+  q?: string,
+  limit?: number,
+): Promise<{ codes: KraCodeListEntry[]; total: number }> {
+  const qs = new URLSearchParams({ type });
+  if (q) qs.set('q', q);
+  if (limit) qs.set('limit', String(limit));
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/code-lists?${qs}`);
+}
+
+// ---- Unified KRA eTIMS integration status ----
+
+export interface KraStatus {
+  platform: {
+    oscu_configured: boolean;
+    gavaconnect_configured: boolean;
+    environment: string;
+  };
+  tenant: {
+    kra_pin_set: boolean;
+    device_registered: boolean;
+    device_initialized: boolean;
+    feature_entitled: boolean;
+    activated: boolean;
+    reason?: string;
+  };
+}
+
+export function getKraStatus(tenantSlug: string): Promise<KraStatus> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/kra/status`);
+}
+
+// ---- Invoice fiscal evidence (KRA eTIMS receipt data recorded at transmission) ----
+
+export interface InvoiceFiscalInfo {
+  kra_pin: string;
+  branch_id: string;
+  device_serial: string;
+  receipt_no: string;
+  cu_invoice_no: string;
+  internal_data?: string;
+  signature?: string;
+  invc_no?: number;
+  qr_url?: string;
+  transmitted_at?: string;
+}
+
+/** Fiscal info for a fiscalised invoice. Resolves to null on 404 (invoice not fiscalised). */
+export async function getInvoiceFiscalInfo(
+  tenantSlug: string,
+  invoiceID: string,
+): Promise<InvoiceFiscalInfo | null> {
+  try {
+    return await apiClient.get<InvoiceFiscalInfo>(`${BASE}/${tenantSlug}/tax/etims/fiscal/${invoiceID}`);
+  } catch (err: any) {
+    if (err?.response?.status === 404) return null;
+    throw err;
+  }
 }
 
 // ---- GavaConnect Types ----
@@ -305,6 +379,7 @@ export function listEtimsTransmissions(
   return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/transmissions${query}`);
 }
 
+// retryTransmission requeues a failed OR dead_letter transmission record.
 export function retryTransmission(tenantSlug: string, recordId: string): Promise<{ status: string }> {
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/retry/${recordId}`);
 }
