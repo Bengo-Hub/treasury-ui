@@ -59,6 +59,10 @@ interface NavGroup {
 
 type NavEntry = NavItem | NavGroup;
 
+// Cross-service ERP UI (linked, never duplicated). Code fallback is the safety net since
+// NEXT_PUBLIC URLs are baked at build time.
+const ERP_UI_URL = process.env.NEXT_PUBLIC_ERP_UI_URL || 'https://erp.codevertexitsolutions.com';
+
 function isNavGroup(entry: NavEntry): entry is NavGroup {
   return 'children' in entry;
 }
@@ -146,37 +150,44 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     {
       label: 'Sales & Invoicing',
       icon: FileText,
-      feature: 'invoice_generation',
+      // No group-level gate: tier 1 includes Quotations + Customers + Payment Receipts, so
+      // gating the whole group on invoice_generation (tier 2) would wrongly lock them.
+      // Each child carries its own feature code per the use-case PowerSuite matrix.
       children: [
         {
           label: 'Invoices',
           icon: FileText,
           href: `/${orgSlug}/invoices`,
           active: pathname.startsWith(`/${orgSlug}/invoices`),
+          feature: 'invoice_generation',
         },
         {
           label: 'Quotations & Estimates',
           icon: ClipboardCheck,
           href: `/${orgSlug}/quotations`,
           active: pathname.startsWith(`/${orgSlug}/quotations`),
+          feature: 'quotations',
         },
         {
           label: 'Proforma Invoices',
           icon: FileCheck,
           href: `/${orgSlug}/proforma-invoices`,
           active: pathname.startsWith(`/${orgSlug}/proforma-invoices`),
+          feature: 'invoice_generation',
         },
         {
           label: 'Credit Notes',
           icon: FileMinus,
           href: `/${orgSlug}/credit-notes`,
           active: pathname.startsWith(`/${orgSlug}/credit-notes`),
+          feature: 'credit_notes',
         },
         {
           label: 'Sales Orders',
           icon: ShoppingCart,
           href: `/${orgSlug}/sales-orders`,
           active: pathname.startsWith(`/${orgSlug}/sales-orders`),
+          feature: 'invoice_generation',
         },
         {
           label: 'Payment Receipts',
@@ -249,6 +260,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: Receipt,
           href: `/${orgSlug}/ledger/vouchers`,
           active: pathname.startsWith(`/${orgSlug}/ledger/vouchers`),
+          feature: 'vouchers',
         },
         {
           label: 'Trial Balance',
@@ -335,6 +347,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       icon: ShieldCheck,
       href: `/${orgSlug}/approvals`,
       active: pathname.startsWith(`/${orgSlug}/approvals`),
+      feature: 'treasury_approvals',
+    },
+    {
+      label: 'ERP',
+      icon: Users,
+      href: `${ERP_UI_URL}/${orgSlug}`,
+      active: false,
+      // Cross-service link (never duplicated here) — locked below tier 2 per the
+      // use-case PowerSuite matrix (no ERP access at Basic).
+      feature: 'hr_management',
     },
     {
       label: 'Settings',

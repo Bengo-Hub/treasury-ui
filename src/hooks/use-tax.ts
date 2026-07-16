@@ -90,11 +90,48 @@ export function useRetryTransmission() {
 }
 
 export function useRefreshCodeLists() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ tenantSlug }: { tenantSlug: string }) =>
       taxApi.refreshCodeLists(tenantSlug),
-    onSuccess: () => toast.success('KRA code lists refreshed successfully'),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['etims-code-lists', vars.tenantSlug] });
+      toast.success('KRA code lists refreshed successfully');
+    },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Code list refresh failed'),
+  });
+}
+
+/** KRA code-list entries of one type (TAX_TY, ITEM_CLS, PKG_UNIT, QTY_UNIT, ITEM_TY, PMNT_TY,
+ *  RFD_RSN, OBLIGATION). `q` searches server-side (useful for the large ITEM_CLS list). */
+export function useEtimsCodeLists(tenantSlug: string, type: string, q?: string, limit?: number) {
+  return useQuery({
+    queryKey: ['etims-code-lists', tenantSlug, type, q ?? '', limit ?? 0],
+    queryFn: () => taxApi.listEtimsCodeLists(tenantSlug, type, q, limit),
+    enabled: !!tenantSlug && !!type,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+/** Unified KRA eTIMS integration status (platform credentials + tenant activation checklist). */
+export function useKraStatus(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['kra-status', tenantSlug],
+    queryFn: () => taxApi.getKraStatus(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Fiscal (KRA eTIMS) evidence for an invoice — resolves to null when not fiscalised (404),
+ *  so consumers can simply hide the panel; no error toast. */
+export function useInvoiceFiscalInfo(tenantSlug: string, invoiceID: string) {
+  return useQuery({
+    queryKey: ['invoice-fiscal-info', tenantSlug, invoiceID],
+    queryFn: () => taxApi.getInvoiceFiscalInfo(tenantSlug, invoiceID),
+    enabled: !!tenantSlug && !!invoiceID,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 }
 

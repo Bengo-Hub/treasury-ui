@@ -10,6 +10,7 @@ import { FinancialPerformanceChart } from '@/components/dashboard/FinancialPerfo
 import { ReceivablesPayables } from '@/components/dashboard/ReceivablesPayables';
 import { ExpenseBreakdown } from '@/components/dashboard/ExpenseBreakdown';
 import { ComplianceSnapshot } from '@/components/dashboard/ComplianceSnapshot';
+import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { MoneyFlow } from '@/components/dashboard/MoneyFlow';
 import { TopCustomers } from '@/components/dashboard/TopCustomers';
 import { BooksBalancedBadge } from '@/components/dashboard/BooksBalancedBadge';
@@ -70,7 +71,11 @@ export default function DashboardPage() {
           <ExpenseBreakdown tenant={dashTenant} from={from} to={to} />
         </div>
         <div className="space-y-4">
-          <ComplianceSnapshot tenant={dashTenant} />
+          {/* Tax & Compliance card is a tier-2+ feature (smart_tax_compliance) per the
+              use-case PowerSuite matrix — show-don't-hide upgrade CTA when locked. */}
+          <SubscriptionGate feature="smart_tax_compliance">
+            <ComplianceSnapshot tenant={dashTenant} />
+          </SubscriptionGate>
           <TopCustomers tenant={dashTenant} />
         </div>
       </div>
