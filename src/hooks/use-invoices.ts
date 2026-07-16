@@ -33,6 +33,7 @@ import {
   type RecordPaymentInput,
   markPaid,
   createCreditNote,
+  type CreditNoteLineRequest,
   createDebitNote,
   convertQuotationToProforma,
   convertQuotationToSalesOrder,
@@ -558,7 +559,10 @@ export function useMarkPaid(tenant: string) {
 export function useCreateCreditNote(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (invoiceId: string) => createCreditNote(tenant, invoiceId),
+    mutationFn: (input: string | { invoiceId: string; lines?: CreditNoteLineRequest[] }) =>
+      typeof input === 'string'
+        ? createCreditNote(tenant, input)
+        : createCreditNote(tenant, input.invoiceId, input.lines),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
     },

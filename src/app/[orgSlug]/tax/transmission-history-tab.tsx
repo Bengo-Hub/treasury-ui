@@ -11,6 +11,7 @@ const STATUS_OPTIONS = [
   { value: 'transmitted', label: 'Transmitted' },
   { value: 'pending', label: 'Pending' },
   { value: 'failed', label: 'Failed' },
+  { value: 'dead_letter', label: 'Dead letter' },
 ];
 
 const STATUS_COLORS: Record<string, string> = {
@@ -18,6 +19,11 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-muted text-muted-foreground',
   failed: 'bg-destructive/10 text-destructive',
   retrying: 'bg-muted text-foreground',
+  dead_letter: 'border border-destructive/40 bg-destructive/5 text-destructive',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  dead_letter: 'dead letter',
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -47,11 +53,12 @@ function TransmissionRow({ record, tenantSlug, onRetry, retrying }: {
             {SOURCE_LABELS[record.source] ?? record.source}
           </span>
         </td>
+        <td className="px-4 py-3 text-xs font-mono">{record.invc_no ? record.invc_no : '—'}</td>
         <td className="px-4 py-3 text-xs font-mono">{record.etims_receipt_number || '—'}</td>
         <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{record.etims_cu_number || '—'}</td>
         <td className="px-4 py-3">
           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[record.transmission_status] ?? 'bg-muted text-foreground'}`}>
-            {record.transmission_status}
+            {STATUS_LABELS[record.transmission_status] ?? record.transmission_status}
           </span>
         </td>
         <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -60,20 +67,20 @@ function TransmissionRow({ record, tenantSlug, onRetry, retrying }: {
             : new Date(record.created_at).toLocaleString()}
         </td>
         <td className="px-4 py-3 text-right">
-          {record.transmission_status === 'failed' && (
+          {(record.transmission_status === 'failed' || record.transmission_status === 'dead_letter') && (
             <button
               className="rounded border border-primary/40 px-2 py-1 text-xs text-primary hover:bg-primary/10 disabled:opacity-50"
               disabled={retrying}
               onClick={(e) => { e.stopPropagation(); onRetry(record.id); }}
             >
-              Retry
+              {record.transmission_status === 'dead_letter' ? 'Requeue' : 'Retry'}
             </button>
           )}
         </td>
       </tr>
       {expanded && (
         <tr className="border-t bg-muted">
-          <td colSpan={7} className="px-4 py-3 text-xs space-y-1">
+          <td colSpan={8} className="px-4 py-3 text-xs space-y-1">
             {record.error_message && (
               <p className="text-destructive"><span className="font-medium">Error:</span> {record.error_message}</p>
             )}
@@ -151,6 +158,7 @@ export function TransmissionHistoryTab({ tenantSlug }: Props) {
                 <tr>
                   <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">ID</th>
                   <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Source</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Invc No</th>
                   <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Receipt #</th>
                   <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">CU Number</th>
                   <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
