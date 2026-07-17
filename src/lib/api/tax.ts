@@ -51,6 +51,7 @@ export interface EtimsDevice {
   branch_id?: string;
   cmc_key?: string;
   environment: string;
+  integration_type?: string; // OSCU (online) | VSCU (offline/batch)
   last_invoice_no: number;
   status: string;
   last_heartbeat?: string;
@@ -61,6 +62,7 @@ export interface RegisterDeviceRequest {
   branch_id?: string;
   tin?: string;
   environment?: string;
+  integration_type?: string; // OSCU (default) | VSCU
 }
 
 export interface EtimsTransmissionRecord {
