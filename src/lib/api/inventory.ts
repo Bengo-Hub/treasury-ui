@@ -25,6 +25,7 @@ export interface InventoryItem {
   tax_code?: string;
   tax_rate?: string;
   description?: string;
+  category_name?: string;
 }
 
 export interface Carrier {
@@ -122,6 +123,7 @@ interface InventoryItemDTO {
   cost_price?: number | null;
   tax_code_id?: string;
   tax_rate?: number | null;
+  category_name?: string;
 }
 
 function dtoToInventoryItem(d: InventoryItemDTO): InventoryItem {
@@ -139,6 +141,7 @@ function dtoToInventoryItem(d: InventoryItemDTO): InventoryItem {
     tax_code: d.tax_code_id,
     tax_rate: d.tax_rate != null ? String(d.tax_rate) : undefined,
     description: d.description,
+    category_name: d.category_name,
   };
 }
 

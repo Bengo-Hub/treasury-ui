@@ -2,11 +2,26 @@
 
 import { CodeListSelect } from '@/components/tax/code-list-select';
 import { Card } from '@/components/ui/base';
+import { Pagination } from '@/components/ui/pagination';
 import { useEtimsItems, useRegisterEtimsItem } from '@/hooks/use-tax';
-import { CheckCircle2, Info, Loader2, Package, Plus, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { useInventoryItems } from '@/hooks/use-inventory';
+import { CheckCircle2, Info, Loader2, Package, Plus, RefreshCw, Search } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 interface Props { tenantSlug: string }
+
+// Map a catalog tax code to the KRA OSCU tax band for eTIMS registration.
+// VAT-16→B (standard), VAT-0→C (zero-rated), VAT-EXEMPT→A (exempt), VAT-8→E, else B.
+function taxCodeToBand(taxCode?: string): string {
+  const c = (taxCode ?? '').toUpperCase();
+  if (c.includes('EXEMPT') || c.includes('EXM')) return 'A';
+  if (c.includes('16')) return 'B';
+  if (c.includes('8')) return 'E';
+  if (c.includes('0') || c.includes('ZERO')) return 'C';
+  return 'B';
+}
+
+type SyncStatus = 'registered' | 'queued' | 'unsynced';
 
 // Fallbacks rendered ONLY until the tenant syncs the KRA code lists (eTIMS Devices →
 // Refresh Code Lists) — after that every option comes from the live synced list.
@@ -69,16 +84,11 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
  * prerequisite. Lists registered items + a form to register a new one.
  */
 export function EtimsItemsTab({ tenantSlug }: Props) {
-  const { data, isLoading } = useEtimsItems(tenantSlug);
+  const { data: etimsData, isLoading: etimsLoading } = useEtimsItems(tenantSlug);
+  const { data: catalogData, isLoading: catalogLoading } = useInventoryItems(tenantSlug, { limit: 1000 });
   const register = useRegisterEtimsItem();
   const EMPTY = { item_cd: '', item_nm: '', item_cls_cd: '1000000000', item_ty_cd: '2', tax_ty_cd: 'B', pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: '' };
   const [form, setForm] = useState(EMPTY);
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
-  const items = data?.items ?? [];
-  const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount);
-  const pageItems = items.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +98,94 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
       { onSuccess: () => setForm(EMPTY) },
     );
   };
+
+  // Join the inventory catalogue to the eTIMS item master (by SKU, else by name) so the
+  // table shows EVERY catalog item and its KRA sync status — the register surface for the
+  // whole catalogue, not just already-registered items.
+  const etimsItems = etimsData?.items ?? [];
+  const catalog = catalogData?.items ?? [];
+  const etimsBySku = useMemo(() => {
+    const m = new Map<string, (typeof etimsItems)[number]>();
+    for (const e of etimsItems) if (e.sku) m.set(e.sku, e);
+    return m;
+  }, [etimsItems]);
+  const etimsByName = useMemo(() => {
+    const m = new Map<string, (typeof etimsItems)[number]>();
+    for (const e of etimsItems) m.set((e.item_nm ?? '').toLowerCase(), e);
+    return m;
+  }, [etimsItems]);
+
+  type Row = {
+    key: string; sku?: string; name: string; type?: string; band: string;
+    status: SyncStatus; itemCd?: string; price?: number; category: string;
+  };
+  const rows: Row[] = useMemo(() => catalog.map((c) => {
+    const e = (c.sku && etimsBySku.get(c.sku)) || etimsByName.get(c.name.toLowerCase());
+    const status: SyncStatus = e ? (e.registered ? 'registered' : 'queued') : 'unsynced';
+    return {
+      key: c.id, sku: c.sku, name: c.name, type: c.item_type,
+      band: e?.tax_ty_cd || taxCodeToBand(c.tax_code),
+      status, itemCd: e?.item_cd,
+      price: c.unit_price ? Number(c.unit_price) : undefined,
+      category: c.category_name || 'Uncategorised',
+    };
+  }), [catalog, etimsBySku, etimsByName]);
+
+  const [filter, setFilter] = useState<'all' | SyncStatus>('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 12;
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const categories = useMemo(() => Array.from(new Set(rows.map((r) => r.category))).sort(), [rows]);
+  const types = useMemo(() => Array.from(new Set(rows.map((r) => r.type).filter(Boolean))).sort() as string[], [rows]);
+
+  const counts = useMemo(() => ({
+    all: rows.length,
+    registered: rows.filter((r) => r.status === 'registered').length,
+    queued: rows.filter((r) => r.status === 'queued').length,
+    unsynced: rows.filter((r) => r.status === 'unsynced').length,
+  }), [rows]);
+
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return rows.filter((r) =>
+      (filter === 'all' || r.status === filter) &&
+      (categoryFilter === 'all' || r.category === categoryFilter) &&
+      (typeFilter === 'all' || r.type === typeFilter) &&
+      (!term || r.name.toLowerCase().includes(term) || (r.sku ?? '').toLowerCase().includes(term)),
+    );
+  }, [rows, filter, categoryFilter, typeFilter, q]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const syncRow = (r: Row) => register.mutate({ tenantSlug, data: {
+    item_nm: r.name, sku: r.sku, item_cls_cd: '1000000000', item_ty_cd: r.type === 'SERVICE' ? '3' : '2',
+    tax_ty_cd: r.band, pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: r.price,
+  } });
+
+  // Bulk "sync all" — register every currently-unsynced catalog item sequentially (KRA
+  // enforces a per-TIN itemCd sequence, so serial registration avoids sequence collisions).
+  const syncAllUnsynced = async () => {
+    const targets = rows.filter((r) => r.status !== 'registered');
+    if (targets.length === 0) return;
+    setBulkBusy(true);
+    for (const r of targets) {
+      try {
+        await register.mutateAsync({ tenantSlug, data: {
+          item_nm: r.name, sku: r.sku, item_cls_cd: '1000000000', item_ty_cd: r.type === 'SERVICE' ? '3' : '2',
+          tax_ty_cd: r.band, pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: r.price,
+        } });
+      } catch { /* keep going — per-row failures surface on the row's status */ }
+    }
+    setBulkBusy(false);
+  };
+
+  const isLoading = etimsLoading || catalogLoading;
 
   return (
     <div className="space-y-6">
@@ -143,75 +241,104 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
           </form>
         </Card>
 
-        {/* Item list */}
+        {/* Catalogue → eTIMS sync table */}
         <Card className="self-start p-4 lg:col-span-2">
-          <div className="mb-3 flex items-center gap-2"><Package className="h-4 w-4 text-primary" /><h3 className="text-sm font-semibold">Registered items ({items.length})</h3></div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">Catalogue items ({counts.all})</h3>
+            </div>
+            <button
+              type="button"
+              disabled={bulkBusy || counts.registered === counts.all || counts.all === 0}
+              onClick={syncAllUnsynced}
+              title="Register every not-yet-registered catalogue item with KRA eTIMS"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {bulkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Sync all ({counts.queued + counts.unsynced})
+            </button>
+          </div>
+
+          {/* Filters */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="flex gap-1">
+              {(['all', 'unsynced', 'queued', 'registered'] as const).map((f) => (
+                <button key={f} type="button" onClick={() => { setFilter(f); setPage(1); }}
+                  className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                    filter === f ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-muted-foreground border-border hover:border-primary/40'}`}>
+                  {f === 'all' ? 'All' : f === 'unsynced' ? 'Unsynced' : f === 'queued' ? 'Queued' : 'Synced'} ({counts[f]})
+                </button>
+              ))}
+            </div>
+            <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+              className="rounded-lg border border-border bg-background px-2 py-1 text-xs">
+              <option value="all">All categories</option>
+              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+              className="rounded-lg border border-border bg-background px-2 py-1 text-xs">
+              <option value="all">All types</option>
+              {types.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <div className="relative min-w-40 flex-1">
+              <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search name or SKU…"
+                className="w-full rounded-lg border border-border bg-background py-1.5 pl-7 pr-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+            </div>
+          </div>
+
           {isLoading ? (
-            <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-9 animate-pulse rounded bg-muted" />)}</div>
-          ) : items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No items registered yet.</p>
+            <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-9 animate-pulse rounded bg-muted" />)}</div>
+          ) : filtered.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No catalogue items match these filters.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-left text-muted-foreground">
                   <tr className="border-b border-border">
-                    <th className="px-2 py-2 font-medium">Code</th>
-                    <th className="px-2 py-2 font-medium">Name</th>
+                    <th className="px-2 py-2 font-medium">Item</th>
+                    <th className="px-2 py-2 font-medium">Category</th>
                     <th className="px-2 py-2 font-medium">Band</th>
+                    <th className="px-2 py-2 font-medium">eTIMS code</th>
                     <th className="px-2 py-2 font-medium">Status</th>
+                    <th className="px-2 py-2 font-medium text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pageItems.map((it) => (
-                    <tr key={it.id} className="border-b border-border/50 hover:bg-accent/5">
-                      <td className="px-2 py-2 font-mono text-xs">{it.item_cd}</td>
-                      <td className="px-2 py-2">{it.item_nm}</td>
-                      <td className="px-2 py-2">{it.tax_ty_cd || '—'}</td>
+                  {pageRows.map((r) => (
+                    <tr key={r.key} className="border-b border-border/50 hover:bg-accent/5">
                       <td className="px-2 py-2">
-                        {it.registered
-                          ? <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-600"><CheckCircle2 className="h-3 w-3" />Registered</span>
-                          : (
-                            <span className="inline-flex items-center gap-2">
-                              <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600">Pending</span>
-                              <button
-                                type="button"
-                                disabled={register.isPending}
-                                onClick={() => register.mutate({ tenantSlug, data: {
-                                  item_cd: it.item_cd, item_nm: it.item_nm, item_cls_cd: it.item_cls_cd || '1000000000',
-                                  item_ty_cd: it.item_ty_cd || '2', tax_ty_cd: it.tax_ty_cd || 'B',
-                                  pkg_unit_cd: it.pkg_unit_cd || 'NT', qty_unit_cd: it.qty_unit_cd || 'NO',
-                                  dft_prc: it.dft_prc || undefined,
-                                } })}
-                                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium hover:bg-accent/10 disabled:opacity-50"
-                                title="Retry KRA eTIMS registration for this item"
-                              >
-                                <RefreshCw className="h-3 w-3" /> Retry sync
-                              </button>
-                            </span>
-                          )}
+                        <div className="font-medium">{r.name}</div>
+                        {r.sku && <div className="font-mono text-[11px] text-muted-foreground">{r.sku}</div>}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-muted-foreground">{r.category}</td>
+                      <td className="px-2 py-2">{r.band}</td>
+                      <td className="px-2 py-2 font-mono text-[11px] text-muted-foreground">{r.itemCd || '—'}</td>
+                      <td className="px-2 py-2">
+                        {r.status === 'registered'
+                          ? <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-600"><CheckCircle2 className="h-3 w-3" />Synced</span>
+                          : r.status === 'queued'
+                          ? <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600">Queued</span>
+                          : <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">Unsynced</span>}
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        {r.status !== 'registered' && (
+                          <button type="button" disabled={register.isPending || bulkBusy} onClick={() => syncRow(r)}
+                            className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
+                            title="Register this catalogue item with KRA eTIMS">
+                            <RefreshCw className="h-3 w-3" /> {r.status === 'queued' ? 'Retry' : 'Sync'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {items.length > PAGE_SIZE && (
-                <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
-                  <span>
-                    Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, items.length)} of {items.length} items
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button type="button" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}
-                      className="rounded-md border border-border px-2.5 py-1 font-medium hover:bg-accent/10 disabled:opacity-40">
-                      Previous
-                    </button>
-                    <span className="tabular-nums">{safePage} / {pageCount}</span>
-                    <button type="button" disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)}
-                      className="rounded-md border border-border px-2.5 py-1 font-medium hover:bg-accent/10 disabled:opacity-40">
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
+                <span>Showing {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+                <Pagination page={safePage} totalPages={pageCount} onPageChange={setPage} />
+              </div>
             </div>
           )}
         </Card>
