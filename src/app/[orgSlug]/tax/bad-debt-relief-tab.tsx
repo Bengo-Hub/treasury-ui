@@ -3,7 +3,8 @@
 import { Card } from '@/components/ui/base';
 import { StatCard } from '@/components/charts/StatCard';
 import { money } from '@/components/charts/chart-theme';
-import { useBadDebtRelief, useClaimVATRelief } from '@/hooks/use-tax';
+import { useBadDebtRelief, useClaimVATRelief, useTaxProfile } from '@/hooks/use-tax';
+import { ObligationGate } from '@/components/tax/obligation-gate';
 import { AlertTriangle, CheckCircle2, Clock, Info, Loader2 } from 'lucide-react';
 
 interface Props { tenantSlug: string }
@@ -27,9 +28,15 @@ function StatusPill({ status, days }: { status: string; days: number }) {
  */
 export function BadDebtReliefTab({ tenantSlug }: Props) {
   const { data, isLoading } = useBadDebtRelief(tenantSlug);
+  const { data: profile } = useTaxProfile(tenantSlug);
   const claim = useClaimVATRelief();
 
   return (
+    <ObligationGate
+      met={profile?.vat_registered}
+      title="Not registered for VAT"
+      message="VAT bad-debt relief (s.31) reclaims output VAT already accounted for — it only applies to VAT-registered businesses."
+    >
     <div className="space-y-6">
       {/* Explainer: credit note vs bad-debt relief */}
       <Card className="p-4">
@@ -108,5 +115,6 @@ export function BadDebtReliefTab({ tenantSlug }: Props) {
         {data?.notes?.map((n, i) => <p key={i} className="text-xs text-muted-foreground">{n}</p>)}
       </Card>
     </div>
+    </ObligationGate>
   );
 }

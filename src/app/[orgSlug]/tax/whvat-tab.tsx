@@ -2,7 +2,8 @@
 
 import { Card } from '@/components/ui/base';
 import { money } from '@/components/charts/chart-theme';
-import { useWHVATCertificates, useCreateWHVATCertificate, useDeleteWHVATCertificate } from '@/hooks/use-tax';
+import { useWHVATCertificates, useCreateWHVATCertificate, useDeleteWHVATCertificate, useTaxProfile } from '@/hooks/use-tax';
+import { ObligationGate } from '@/components/tax/obligation-gate';
 import { Loader2, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -18,6 +19,7 @@ const inputCls = 'w-full rounded-lg border border-border bg-background px-3 py-2
  */
 export function WHVATTab({ tenantSlug }: Props) {
   const { data, isLoading } = useWHVATCertificates(tenantSlug);
+  const { data: profile } = useTaxProfile(tenantSlug);
   const create = useCreateWHVATCertificate();
   const del = useDeleteWHVATCertificate();
   const [form, setForm] = useState({ certificate_no: '', withholder_pin: '', withholder_name: '', invoice_number: '', taxable_amount: '', withheld_amount: '', cert_date: '' });
@@ -43,6 +45,11 @@ export function WHVATTab({ tenantSlug }: Props) {
   };
 
   return (
+    <ObligationGate
+      met={profile?.vat_registered}
+      title="Not registered for VAT"
+      message="Withholding-VAT credits only apply to VAT-registered sellers. Register for VAT to capture WHVAT certificates."
+    >
     <div className="space-y-6">
       <Card className="p-4">
         <div className="flex items-start gap-3">
@@ -117,5 +124,6 @@ export function WHVATTab({ tenantSlug }: Props) {
         </Card>
       </div>
     </div>
+    </ObligationGate>
   );
 }

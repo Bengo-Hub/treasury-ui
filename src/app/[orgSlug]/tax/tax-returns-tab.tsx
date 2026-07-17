@@ -41,6 +41,12 @@ export function TaxReturnsTab({ tenantSlug }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* TOT return only applies to Turnover-Tax-registered tenants (turnover 1M–25M, not VAT). */}
+      {profile?.tot_registered === false ? (
+        <div className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">Turnover Tax (TOT) Return</span> — this business isn&apos;t registered for Turnover Tax, so a TOT return doesn&apos;t apply. (TOT is for turnover of KES 1M–25M and not VAT-registered.)
+        </div>
+      ) : (
       <div className="rounded-lg border p-4 space-y-3">
         <h3 className="font-semibold text-sm">Turnover Tax (TOT) Return</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -53,6 +59,7 @@ export function TaxReturnsTab({ tenantSlug }: Props) {
           {fileTOT.isPending ? 'Filing...' : 'File TOT Return'}
         </button>
       </div>
+      )}
 
       <div className="rounded-lg border p-4 space-y-3">
         <h3 className="font-semibold text-sm">NIL Return</h3>
