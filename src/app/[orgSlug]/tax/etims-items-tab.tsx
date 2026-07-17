@@ -28,16 +28,20 @@ const ITEM_CLASSES = [
   { value: '1000000000', label: '1000000000 — General goods (verified default)' },
 ];
 const PKG_UNITS = [
-  { value: 'NT', label: 'NT — No package (net)' },
-  { value: 'CT', label: 'CT — Carton' },
+  { value: 'NT', label: 'NT — Net (no package)' },
   { value: 'BG', label: 'BG — Bag' },
   { value: 'BX', label: 'BX — Box' },
-];
-const QTY_UNITS = [
-  { value: 'U', label: 'U — Unit / each' },
-  { value: 'KG', label: 'KG — Kilogramme' },
-  { value: 'LTR', label: 'LTR — Litre' },
   { value: 'BA', label: 'BA — Barrel' },
+];
+// KRA itemCd embeds the qty unit at a fixed 2-char position, so only 2-char codes are valid
+// here (the 1-char "U" breaks the itemCd → KRA "Incorrect QtyUnitCd Prefix"). NO = Number/each.
+const QTY_UNITS = [
+  { value: 'NO', label: 'NO — Number / each' },
+  { value: 'KG', label: 'KG — Kilo-Gramme' },
+  { value: 'DZ', label: 'DZ — Dozen' },
+  { value: 'PA', label: 'PA — Packet' },
+  { value: 'BX', label: 'BX — Box' },
+  { value: 'CA', label: 'CA — Can' },
 ];
 
 const inputCls = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -67,7 +71,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 export function EtimsItemsTab({ tenantSlug }: Props) {
   const { data, isLoading } = useEtimsItems(tenantSlug);
   const register = useRegisterEtimsItem();
-  const EMPTY = { item_cd: '', item_nm: '', item_cls_cd: '1000000000', item_ty_cd: '2', tax_ty_cd: 'B', pkg_unit_cd: 'NT', qty_unit_cd: 'U', dft_prc: '' };
+  const EMPTY = { item_cd: '', item_nm: '', item_cls_cd: '1000000000', item_ty_cd: '2', tax_ty_cd: 'B', pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: '' };
   const [form, setForm] = useState(EMPTY);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -175,7 +179,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                                 onClick={() => register.mutate({ tenantSlug, data: {
                                   item_cd: it.item_cd, item_nm: it.item_nm, item_cls_cd: it.item_cls_cd || '1000000000',
                                   item_ty_cd: it.item_ty_cd || '2', tax_ty_cd: it.tax_ty_cd || 'B',
-                                  pkg_unit_cd: it.pkg_unit_cd || 'NT', qty_unit_cd: it.qty_unit_cd || 'U',
+                                  pkg_unit_cd: it.pkg_unit_cd || 'NT', qty_unit_cd: it.qty_unit_cd || 'NO',
                                   dft_prc: it.dft_prc || undefined,
                                 } })}
                                 className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium hover:bg-accent/10 disabled:opacity-50"
