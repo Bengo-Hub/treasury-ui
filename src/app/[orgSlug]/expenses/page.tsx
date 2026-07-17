@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { RowActionMenu, type RowAction } from '@/components/ui/action-menu';
 import { FormField } from '@/components/ui/form-field';
 import { Pagination } from '@/components/ui/pagination';
+import { ExpensePaymentModal } from '@/components/expenses/ExpensePaymentModal';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
   useExpenses,
@@ -24,6 +25,7 @@ import {
   Check,
   Eye,
   Filter,
+  Link2,
   Loader2,
   Pencil,
   Plus,
@@ -68,6 +70,10 @@ export default function ExpensesPage() {
   const [rejectReason, setRejectReason] = useState('');
   // Row-action dialog state (status-aware confirmations).
   const [confirmAction, setConfirmAction] = useState<{ kind: 'submit' | 'approve' | 'delete'; exp: Expense } | null>(null);
+  // Primary "Record Payment" flow: open the embedded checkout referencing the expense,
+  // then link the settled intent via reimburse. `reimburseExp`/`paymentIntentId` back the
+  // secondary power-user "link an existing intent ID" fallback.
+  const [payExp, setPayExp] = useState<Expense | null>(null);
   const [reimburseExp, setReimburseExp] = useState<Expense | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState('');
   const dateRange = useMemo(() => defaultDateRange(), []);
@@ -169,6 +175,29 @@ export default function ExpensesPage() {
     }
   };
 
+  // Called by ExpensePaymentModal once the embedded checkout confirms the payment. The
+  // returned intentId is the intent that settled THIS expense — link it so the expense is
+  // marked reimbursed and payment_intent_id is persisted.
+  const handlePaymentConfirmed = async (intentId: string) => {
+    if (!payExp) return;
+    try {
+      await reimburseMutation.mutateAsync({ id: payExp.id, paymentIntentId: intentId });
+      toast.success(`Expense ${payExp.expense_number} marked reimbursed`);
+      // TODO(etims-purchase): no expense→eTIMS purchase-transmission hook exists yet. The only
+      // KRA purchase hook is transmitVendorBill (vendor bills), and EtimsTransmissionRecord.source
+      // has no 'expense' variant. When a backend endpoint to transmit a taxable expense/purchase to
+      // eTIMS ships, call it here for VAT-bearing expenses (exp.tax_amount > 0).
+      setPayExp(null);
+    } catch (err: any) {
+      // Payment succeeded but the link failed — surface the real error plus the intent ID so
+      // it can be recovered via the manual "Link payment intent" fallback.
+      toast.error(
+        (err?.response?.data?.error ?? 'Payment succeeded but linking it to the expense failed.') +
+          ` Intent ID: ${intentId}`,
+      );
+    }
+  };
+
   // Status-aware row actions: View (always); Edit + Delete + Submit (draft);
   // Approve + Reject (submitted); Reimburse (approved). Each is gated by status
   // so only valid transitions appear.
@@ -204,8 +233,14 @@ export default function ExpensesPage() {
       onClick: (exp) => { setRejectReason(''); setRejectOpen(exp.id); },
     },
     {
-      label: 'Mark Reimbursed',
+      label: 'Record Payment',
       icon: <Wallet className="h-3.5 w-3.5" />,
+      visible: (exp) => exp.status === 'approved',
+      onClick: (exp) => setPayExp(exp),
+    },
+    {
+      label: 'Link payment intent (manual)',
+      icon: <Link2 className="h-3.5 w-3.5" />,
       visible: (exp) => exp.status === 'approved',
       onClick: (exp) => { setPaymentIntentId(''); setReimburseExp(exp); },
     },
@@ -380,13 +415,24 @@ export default function ExpensesPage() {
         onConfirm={runConfirm}
       />
 
-      {/* Reimburse Dialog — requires a payment intent ID (approved → reimbursed) */}
+      {/* Primary: Record Payment — pay the expense via the embedded checkout and link the intent. */}
+      {payExp && effectiveTenant && (
+        <ExpensePaymentModal
+          tenant={effectiveTenant}
+          expense={payExp}
+          linking={reimburseMutation.isPending}
+          onConfirmed={handlePaymentConfirmed}
+          onClose={() => setPayExp(null)}
+        />
+      )}
+
+      {/* Secondary (power users): link an already-created payment intent ID (approved → reimbursed). */}
       <ConfirmDialog
         open={!!reimburseExp}
         onOpenChange={(o) => { if (!o) { setReimburseExp(null); setPaymentIntentId(''); } }}
-        title="Mark reimbursed"
-        description={`Record the reimbursement payment for ${reimburseExp?.expense_number ?? ''}.`}
-        confirmLabel="Mark Reimbursed"
+        title="Link payment intent"
+        description={`Link an existing reimbursement payment intent to ${reimburseExp?.expense_number ?? ''}. Most users should use “Record Payment” instead.`}
+        confirmLabel="Link & mark reimbursed"
         isPending={reimburseMutation.isPending}
         confirmDisabled={!paymentIntentId.trim()}
         onConfirm={handleReimburse}

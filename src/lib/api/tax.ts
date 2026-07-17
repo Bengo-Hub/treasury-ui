@@ -51,7 +51,14 @@ export interface EtimsDevice {
   branch_id?: string;
   cmc_key?: string;
   environment: string;
-  integration_type?: string; // OSCU (online) | VSCU (offline/batch)
+  integration_type?: string; // OSCU (online) | VSCU (offline/batch) — the CONFIGURED mode
+  /** Local KRA VSCU server URL that signs offline (e.g. http://localhost:8088). Only meaningful for VSCU. */
+  vscu_url?: string;
+  /**
+   * The mode that will ACTUALLY sign. "OSCU" when a device is configured VSCU but has no
+   * vscu_url yet (it transmits online via OSCU until the local unit is provisioned).
+   */
+  effective_integration?: string; // "OSCU" | "VSCU"
   last_invoice_no: number;
   status: string;
   last_heartbeat?: string;
@@ -63,6 +70,8 @@ export interface RegisterDeviceRequest {
   tin?: string;
   environment?: string;
   integration_type?: string; // OSCU (default) | VSCU
+  /** Local VSCU server URL (only relevant when integration_type=VSCU). */
+  vscu_url?: string;
 }
 
 export interface EtimsTransmissionRecord {
