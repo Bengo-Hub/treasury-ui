@@ -1,22 +1,29 @@
 'use client';
 
-import {
-  SharedDocumentList,
-  invoiceToDocumentRow,
-  type DocAction,
-  type DocumentRow,
-} from '@/components/documents/SharedDocumentList';
-import {
-  useInvoices,
-  useInvoiceStats,
-  usePlatformInvoices,
-  usePlatformInvoiceStats,
-} from '@/hooks/use-invoices';
+/**
+ * Invoices Overview — a thin consumer of the SAME shared document stack every sibling page
+ * uses (quotations, credit/debit notes, proforma, sales orders, delivery challans,
+ * payment receipts): useDocumentListSource (tenant/aggregate resolution + scope filter),
+ * useDocumentActions (centralized per-type action policy), useDocRowAction (mutation
+ * runner) and the shared modals. Invoice-specific extras kept here: approval workflow
+ * (permission-gated), Record Payment (shared RecordPaymentModal), View Payments, bulk
+ * upload, and the Suggested/Clients/Scanned/Reports tabs.
+ */
+
+import { SharedDocumentList } from '@/components/documents/SharedDocumentList';
+import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentCreateView';
+import { DocTabNav, type DocTab } from '@/components/documents/DocTabNav';
+import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
+import { RecordPaymentModal } from '@/components/documents/RecordPaymentModal';
+import { ViewPaymentsModal, type ViewPaymentsInvoiceRef } from '@/components/documents/ViewPaymentsModal';
+import { useDocumentListSource } from '@/hooks/use-document-list-source';
+import { useDocumentActions, type ActionRunner } from '@/hooks/use-document-actions';
+import { useDocRowAction } from '@/hooks/use-doc-row-action';
+import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
 import {
   sendInvoice,
   voidInvoice,
   markPaid,
-  recordPayment,
   createCreditNote,
   createDebitNote,
   generateReceiptFromInvoice,
@@ -26,20 +33,13 @@ import {
   rejectInvoice,
   type PlatformInvoiceScope,
 } from '@/lib/api/invoices';
-import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
-import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useAuthStore } from '@/store/auth';
 import { userHasPermission } from '@/lib/auth/permissions';
 import { cn } from '@/lib/utils';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { ActionKey } from '@/lib/documents/actions';
 import { Ban, Check, CheckCircle, DollarSign, ExternalLink, FileText, FileMinus, FilePlus, Loader2, Pencil, Receipt, Send, ThumbsUp, Truck, Upload, X } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
-import { toast } from 'sonner';
-import { useRouter, useParams } from 'next/navigation';
-import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
-import { ViewPaymentsModal, type ViewPaymentsInvoiceRef } from '@/components/documents/ViewPaymentsModal';
-import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentCreateView';
-import { DocTabNav, type DocTab } from '@/components/documents/DocTabNav';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { SuggestedInvoice } from './_components/SuggestedInvoice';
 import { ManageClients } from './_components/ManageClients';
 import { ScannedDocuments } from './_components/ScannedDocuments';
@@ -63,58 +63,38 @@ const SCOPE_OPTIONS: { value: PlatformInvoiceScope; label: string }[] = [
   { value: 'business', label: 'Tenant sales only' },
 ];
 
-// The Invoices page shows the invoice family (standard + platform subscription invoices) —
-// credit/debit notes, proforma, sales orders, delivery challans and receipts (incl. POS
-// receipts) each have their own page. The scope filter narrows the type set.
-const SCOPE_TYPES: Record<PlatformInvoiceScope, string> = {
-  all: 'standard,subscription',
-  platform: 'subscription',
-  business: 'standard',
-};
-const TENANT_INVOICE_TYPES = 'standard';
-
 export default function InvoicesPage() {
   const router = useRouter();
-  const params = useParams();
-  const orgSlug = params.orgSlug as string;
-  const { tenantPathId, isPlatformOwner, isAllTenants, tenantQueryParam, routingSlug } = useResolvedTenant();
-  // Default (no selection) resolves to the platform owner's OWN tenant — NOT the aggregate.
-  const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
-
-  // The platform owner viewing their OWN "My Treasury" Invoices (no specific tenant drilled
-  // into, not the cross-tenant aggregate) should see subscription/platform invoices alongside
-  // their standard sales invoices. The treasury-api is platform-owner-aware: calling the
-  // tenant list/stats with NO `types` returns the broader set (incl. subscription) for the
-  // platform owner. Regular tenants — and the owner once they drill into a specific tenant —
-  // keep the narrow business-only ('standard') filter.
-  const isOwnerSelfView = isPlatformOwner && !tenantQueryParam;
-
-  // Aggregate (all-tenants) mode: only when the platform owner EXPLICITLY selects
-  // "All Tenants" — invoices across every tenant (incl. platform-level subscription
-  // invoices) via the dedicated /platform/invoices endpoint.
-  const isAggregate = isPlatformOwner && isAllTenants;
-
-  // The tenant-specific tabs (suggested, clients, scanned, payments, reports) and the
-  // create/bulk flows always need a single tenant. For a platform owner with no tenant
-  // selected, default to their own org (orgSlug, e.g. "codevertex") so these surfaces show
-  // real content instead of a dead-end gate; selecting a tenant switches them to that tenant.
-  const docTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
   const [activeTab, setActiveTab] = useState<InvoiceTab>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [scopeFilter, setScopeFilter] = useState<PlatformInvoiceScope>('all');
   const [page, setPage] = useState(1);
   const [showCreateView, setShowCreateView] = useState(false);
   const [editId, setEditId] = useState<string | undefined>(undefined);
   // In the all-tenants view a row's edit must target that row's tenant, not the owner org.
   const [editTenant, setEditTenant] = useState<string | undefined>(undefined);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
-  const [paymentDialog, setPaymentDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentFor, setPaymentFor] = useState<{ tenant: string; invoiceId: string; invoiceTotal?: string; currency?: string } | null>(null);
   const [viewPaymentsFor, setViewPaymentsFor] = useState<{ tenant: string; invoice: ViewPaymentsInvoiceRef } | null>(null);
   const [rejectDialog, setRejectDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+
+  // The Invoices page shows the invoice family: 'standard' for regular tenants, broadened
+  // (subscription/platform invoices too) on the owner's own view, and scope-driven in the
+  // all-tenants aggregate — all inside the shared list source.
+  const src = useDocumentListSource({
+    family: 'invoice',
+    invoiceType: 'standard',
+    status: statusFilter,
+    page,
+    limit: ITEMS_PER_PAGE,
+    withStats: true,
+    withScope: true,
+    ownerSelfOmitsTypes: true,
+  });
+  const { run, isPending } = useDocRowAction();
+  const { adminActions, statusModal } = useAdminStatusOverride({ family: 'invoice', isPlatformOwner: src.isPlatformOwner, rowTenant: src.rowTenant });
 
   // Approve/reject/submit are privileged: the backend gates them on
   // treasury.invoices.change|manage — mirror that here so a view-only user never sees them.
@@ -125,227 +105,58 @@ export default function InvoicesPage() {
     'or',
   );
 
-  const platformTypes = SCOPE_TYPES[scopeFilter];
-
-  // For the owner's own view, omit `types` entirely so the platform-owner-aware backend
-  // returns the broader set (standard + subscription/platform invoices). Otherwise restrict
-  // to business-only 'standard'.
-  const tenantTypes = isOwnerSelfView ? undefined : TENANT_INVOICE_TYPES;
-
-  const filters = useMemo(
-    () => ({
-      ...(tenantTypes ? { types: tenantTypes } : {}),
-      ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-      page,
-      limit: ITEMS_PER_PAGE,
-    }),
-    [tenantTypes, statusFilter, page],
-  );
-
-  const platformFilters = useMemo(
-    () => ({
-      types: platformTypes,
-      ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-      page,
-      limit: ITEMS_PER_PAGE,
-    }),
-    [platformTypes, statusFilter, page],
-  );
-
-  // Tenant-scoped queries (regular tenant, or platform owner with a tenant selected).
-  const tenantQuery = useInvoices(effectiveTenant, filters, !isAggregate && !!effectiveTenant);
-  const tenantStats = useInvoiceStats(effectiveTenant, tenantTypes, !isAggregate && !!effectiveTenant);
-  // Cross-tenant queries (platform owner, no tenant selected).
-  const platformQuery = usePlatformInvoices(platformFilters, isAggregate);
-  const platformStats = usePlatformInvoiceStats({ types: platformTypes }, isAggregate);
-
-  const data = isAggregate ? platformQuery.data : tenantQuery.data;
-  const isLoading = isAggregate ? platformQuery.isLoading : tenantQuery.isLoading;
-  const error = isAggregate ? platformQuery.error : tenantQuery.error;
-  const statsData = isAggregate ? platformStats.data : tenantStats.data;
-
-  const invoices = data?.invoices ?? [];
-  const total = data?.total ?? 0;
-
-  // Resolve the tenant a row's mutations should target: the row's own tenant in the
-  // all-tenants view, otherwise the active tenant.
-  const rowTenant = useCallback(
-    (r: DocumentRow & { tenant_slug?: string }) => (isAggregate ? r.tenant_slug ?? '' : effectiveTenant),
-    [isAggregate, effectiveTenant],
-  );
-
-  const queryClient = useQueryClient();
-  const invalidate = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['invoices'] });
-    queryClient.invalidateQueries({ queryKey: ['platform-invoices'] });
-  }, [queryClient]);
-
-  // Generic per-row action runner — works in both tenant-scoped and all-tenants modes
-  // by resolving the target tenant per row.
-  const rowAction = useMutation({
-    mutationFn: ({ fn }: { fn: () => Promise<unknown>; label: string }) => fn(),
-    onSuccess: (_d, vars) => { invalidate(); toast.success(vars.label); },
-    onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Action failed'),
-  });
-
-  const run = useCallback(
-    (fn: () => Promise<unknown>, label: string) => rowAction.mutate({ fn, label }),
-    [rowAction],
-  );
-
-  const { adminActions, statusModal } = useAdminStatusOverride({ family: 'invoice', isPlatformOwner, rowTenant });
-
-  const handleRecordPayment = useCallback(() => {
-    if (!paymentDialog || !paymentAmount) return;
-    rowAction.mutate(
-      { fn: () => recordPayment(paymentDialog.tenant, paymentDialog.invoiceId, { amount: paymentAmount }), label: 'Payment recorded' },
-      { onSuccess: () => { invalidate(); setPaymentDialog(null); setPaymentAmount(''); } },
-    );
-  }, [paymentDialog, paymentAmount, rowAction, invalidate]);
-
-  const handleReject = useCallback(() => {
-    if (!rejectDialog) return;
-    rowAction.mutate(
-      { fn: () => rejectInvoice(rejectDialog.tenant, rejectDialog.invoiceId, rejectReason || undefined), label: `Invoice ${rejectDialog.invoiceNumber} rejected` },
-      { onSuccess: () => { invalidate(); setRejectDialog(null); setRejectReason(''); } },
-    );
-  }, [rejectDialog, rejectReason, rowAction, invalidate]);
-
-  // Build a tenant-scoped detail route. In the all-tenants view a platform owner can
-  // open any tenant's invoice because the API resolves the tenant from the URL slug.
-  // Non-aggregate MUST route through routingSlug (not the raw orgSlug) — on the owner's own
-  // shell with a specific tenant drilled into via the TenantFilter dropdown, orgSlug is still
-  // "codevertex" while the invoice actually belongs to the drilled-into tenant; using orgSlug
-  // here would 404 the detail page (see [[treasury-tenant-resolution-consistency]]).
-  const detailHref = useCallback(
-    (r: DocumentRow & { tenant_slug?: string }) => `/${isAggregate ? (r.tenant_slug ?? orgSlug) : routingSlug}/invoices/${r.id}`,
-    [isAggregate, orgSlug, routingSlug],
-  );
-
-  const rows = useMemo(() => invoices.map(invoiceToDocumentRow), [invoices]);
-
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return rows;
+    if (!searchQuery.trim()) return src.rows;
     const q = searchQuery.toLowerCase();
-    return rows.filter(r =>
+    return src.rows.filter(r =>
       r.doc_number?.toLowerCase().includes(q) ||
       r.customer_name?.toLowerCase().includes(q) ||
       r.customer_email?.toLowerCase().includes(q) ||
       r.tenant_name?.toLowerCase().includes(q),
     );
-  }, [rows, searchQuery]);
+  }, [src.rows, searchQuery]);
 
-  const actions: DocAction[] = [
-    {
-      label: 'View Details',
-      icon: <FileText className="h-3.5 w-3.5" />,
-      onClick: (r) => router.push(detailHref(r)),
+  const handleReject = () => {
+    if (!rejectDialog) return;
+    run(() => rejectInvoice(rejectDialog.tenant, rejectDialog.invoiceId, rejectReason || undefined), `Invoice ${rejectDialog.invoiceNumber} rejected`);
+    setRejectDialog(null);
+    setRejectReason('');
+  };
+
+  // Action runners bound to the centralized per-type policy (lib/documents/actions.ts) —
+  // visibility comes from allowedActions('invoice', row), same as every sibling page.
+  // Approval-workflow runners are only supplied when the caller has the permission.
+  const runners: Partial<Record<ActionKey, ActionRunner>> = {
+    view_details: { label: 'View Details', icon: <FileText className="h-3.5 w-3.5" />, onClick: (r) => router.push(`/${src.detailHrefTenant(r)}/invoices/${r.id}`) },
+    view_public: { label: 'View Public Page', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank') },
+    edit: { label: 'Edit', icon: <Pencil className="h-3.5 w-3.5" />, onClick: (r) => { setEditId(r.id); setEditTenant(src.rowTenant(r) || src.docTenant); setShowCreateView(true); } },
+    ...(canApprove ? {
+      submit_for_approval: { label: 'Submit for Approval', icon: <ThumbsUp className="h-3.5 w-3.5" />, onClick: (r) => run(() => submitInvoiceForApproval(src.rowTenant(r), r.id), `Invoice ${r.doc_number} submitted for approval`) } as ActionRunner,
+      approve: { label: 'Approve', icon: <Check className="h-3.5 w-3.5" />, onClick: (r) => run(() => approveInvoice(src.rowTenant(r), r.id), `Invoice ${r.doc_number} approved`) } as ActionRunner,
+      reject: { label: 'Reject', icon: <X className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => setRejectDialog({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) } as ActionRunner,
+    } : {}),
+    send: { label: 'Send / Resend', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => run(() => sendInvoice(src.rowTenant(r), r.id), `Invoice ${r.doc_number} sent to customer`) },
+    generate_delivery_note: { label: 'Generate Delivery Note', icon: <Truck className="h-3.5 w-3.5" />, onClick: (r) => run(() => generateDeliveryNote(src.rowTenant(r), r.id), `Delivery note generated for ${r.doc_number}`) },
+    record_payment: { label: 'Record Payment', icon: <DollarSign className="h-3.5 w-3.5" />, onClick: (r) => setPaymentFor({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceTotal: r.total_amount, currency: r.currency }) },
+    view_payments: {
+      label: 'View Payments', icon: <Receipt className="h-3.5 w-3.5" />,
+      onClick: (r) => setViewPaymentsFor({ tenant: src.rowTenant(r), invoice: { id: r.id, invoice_number: r.doc_number, total_amount: r.total_amount, currency: r.currency } }),
     },
-    {
-      label: 'View Public Page',
-      icon: <ExternalLink className="h-3.5 w-3.5" />,
-      onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank'),
-      visible: (r) => !!r.public_token,
-    },
-    {
-      label: 'Edit',
-      icon: <Pencil className="h-3.5 w-3.5" />,
-      onClick: (r) => { setEditId(r.id); setEditTenant(rowTenant(r) || docTenant); setShowCreateView(true); },
-      visible: (r) => r.status === 'draft',
-    },
-    {
-      label: 'Submit for Approval',
-      icon: <ThumbsUp className="h-3.5 w-3.5" />,
-      onClick: (r) => run(() => submitInvoiceForApproval(rowTenant(r), r.id), `Invoice ${r.doc_number} submitted for approval`),
-      // Draft invoices only; gated on the same permission the backend requires.
-      visible: (r) => canApprove && r.status === 'draft',
-    },
-    {
-      label: 'Approve',
-      icon: <Check className="h-3.5 w-3.5" />,
-      onClick: (r) => run(() => approveInvoice(rowTenant(r), r.id), `Invoice ${r.doc_number} approved`),
-      visible: (r) => canApprove && r.status === 'pending_approval',
-    },
-    {
-      label: 'Reject',
-      icon: <X className="h-3.5 w-3.5" />,
-      onClick: (r) => setRejectDialog({ tenant: rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }),
-      visible: (r) => canApprove && r.status === 'pending_approval',
-      destructive: true,
-    },
-    {
-      // Send doubles as resend — the backend re-emails the customer on sent→sent — so it
-      // stays available for sent/overdue invoices, not only drafts.
-      label: 'Send / Resend',
-      icon: <Send className="h-3.5 w-3.5" />,
-      onClick: (r) => run(() => sendInvoice(rowTenant(r), r.id), `Invoice ${r.doc_number} sent to customer`),
-      visible: (r) => r.status === 'draft' || r.status === 'approved' || r.status === 'sent' || r.status === 'overdue',
-    },
-    {
-      label: 'Generate Delivery Note',
-      icon: <Truck className="h-3.5 w-3.5" />,
-      onClick: (r) => run(() => generateDeliveryNote(rowTenant(r), r.id), `Delivery note generated for ${r.doc_number}`),
-      visible: (r) => r.status !== 'void' && r.status !== 'cancelled',
-    },
-    {
-      label: 'Record Payment',
-      icon: <DollarSign className="h-3.5 w-3.5" />,
-      onClick: (r) => setPaymentDialog({ tenant: rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }),
-      visible: (r) =>
-        (r.payment_status === 'unpaid' || r.payment_status === 'partial') &&
-        r.status !== 'void' && r.status !== 'cancelled',
-    },
-    {
-      // Detailed recorded-payments history: edit/void per payment, print, send
-      // payment-received notification (backed by the InvoicePayment records).
-      label: 'View Payments',
-      icon: <Receipt className="h-3.5 w-3.5" />,
-      onClick: (r) => setViewPaymentsFor({
-        tenant: rowTenant(r),
-        invoice: { id: r.id, invoice_number: r.doc_number, total_amount: r.total_amount, currency: r.currency },
-      }),
-      visible: (r) => r.payment_status !== 'unpaid' || r.status === 'paid',
-    },
-    {
-      label: 'Mark as Paid',
-      icon: <CheckCircle className="h-3.5 w-3.5" />,
-      onClick: (r) => run(() => markPaid(rowTenant(r), r.id), `Invoice ${r.doc_number} marked paid`),
-      visible: (r) => r.payment_status !== 'paid' && r.status !== 'void' && r.status !== 'cancelled',
-    },
-    {
-      label: 'Create Credit Note',
-      icon: <FileMinus className="h-3.5 w-3.5" />,
-      onClick: (r) => run(() => createCreditNote(rowTenant(r), r.id), `Credit note created for ${r.doc_number}`),
-      visible: (r) => r.status === 'sent' || r.status === 'paid' || r.status === 'overdue',
-    },
-    {
-      label: 'Create Debit Note',
-      icon: <FilePlus className="h-3.5 w-3.5" />,
-      onClick: (r) => run(() => createDebitNote(rowTenant(r), r.id), `Debit note created for ${r.doc_number}`),
-      visible: (r) => r.status === 'sent' || r.status === 'paid' || r.status === 'overdue',
-    },
-    {
-      label: 'Generate Receipt',
-      icon: <Receipt className="h-3.5 w-3.5" />,
-      onClick: (r) => run(() => generateReceiptFromInvoice(rowTenant(r), r.id), `Receipt generated for ${r.doc_number}`),
-      visible: (r) => r.payment_status === 'paid' || r.status === 'paid',
-    },
-    {
-      label: 'Void Invoice',
-      icon: <Ban className="h-3.5 w-3.5" />,
-      onClick: (r) => run(() => voidInvoice(rowTenant(r), r.id), `Invoice ${r.doc_number} voided`),
-      visible: (r) => r.status !== 'void' && r.status !== 'cancelled' && r.status !== 'paid',
-      destructive: true,
-    },
-    // Platform-owner-only escape hatch: force any status (e.g. sent → draft), bypassing the
-    // normal workflow. Backend independently enforces the platform-owner privilege.
-    ...adminActions,
-  ];
+    mark_paid: { label: 'Mark as Paid', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (r) => run(() => markPaid(src.rowTenant(r), r.id), `Invoice ${r.doc_number} marked paid`) },
+    create_credit_note: { label: 'Create Credit Note', icon: <FileMinus className="h-3.5 w-3.5" />, onClick: (r) => run(() => createCreditNote(src.rowTenant(r), r.id), `Credit note created for ${r.doc_number}`) },
+    create_debit_note: { label: 'Create Debit Note', icon: <FilePlus className="h-3.5 w-3.5" />, onClick: (r) => run(() => createDebitNote(src.rowTenant(r), r.id), `Debit note created for ${r.doc_number}`) },
+    generate_receipt: { label: 'Generate Receipt', icon: <Receipt className="h-3.5 w-3.5" />, onClick: (r) => run(() => generateReceiptFromInvoice(src.rowTenant(r), r.id), `Receipt generated for ${r.doc_number}`) },
+    void: { label: 'Void Invoice', icon: <Ban className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => voidInvoice(src.rowTenant(r), r.id), `Invoice ${r.doc_number} voided`) },
+  };
+  const actions = useDocumentActions('invoice', runners);
+  // Platform-owner-only escape hatch: force any status, bypassing the workflow (backend
+  // independently enforces the privilege).
+  const actionsWithAdmin = useMemo(() => [...actions, ...adminActions], [actions, adminActions]);
 
   if (showCreateView) {
     return (
       <SharedDocumentCreateView
-        effectiveTenant={editId ? (editTenant ?? docTenant) : docTenant}
+        effectiveTenant={editId ? (editTenant ?? src.docTenant) : src.docTenant}
         docType="invoice"
         onClose={() => { setShowCreateView(false); setEditId(undefined); setEditTenant(undefined); }}
         editId={editId}
@@ -353,12 +164,12 @@ export default function InvoicesPage() {
     );
   }
 
-  const stats = statsData
+  const stats = src.statsData
     ? {
-        total_count: statsData.total_count,
-        total_amount: statsData.total_amount,
-        amount_due: statsData.amount_due,
-        currency: statsData.currency,
+        total_count: src.statsData.total_count,
+        total_amount: src.statsData.total_amount,
+        amount_due: src.statsData.amount_due,
+        currency: src.statsData.currency,
       }
     : undefined;
 
@@ -375,12 +186,12 @@ export default function InvoicesPage() {
       {/* Tab content */}
       {activeTab === 'overview' && (
         <>
-          {isAggregate && (
+          {src.isAggregate && (
             <div className="px-8 pt-4 flex flex-wrap items-center gap-3">
               <label className="text-xs font-bold text-muted-foreground">Invoice scope</label>
               <select
-                value={scopeFilter}
-                onChange={(e) => { setScopeFilter(e.target.value as PlatformInvoiceScope); setPage(1); }}
+                value={src.scope}
+                onChange={(e) => { src.setScope(e.target.value as PlatformInvoiceScope); setPage(1); }}
                 className="rounded-lg border border-input bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 {SCOPE_OPTIONS.map((o) => (
@@ -395,13 +206,13 @@ export default function InvoicesPage() {
 
           <SharedDocumentList
             title="Invoices"
-            subtitle={isAggregate ? 'All tenants — create, send and manage invoices.' : 'Create, send and manage invoices.'}
-            createLabel={isAggregate ? undefined : 'Create Invoice'}
-            onCreateClick={isAggregate ? undefined : () => setShowCreateView(true)}
+            subtitle={src.isAggregate ? 'All tenants — create, send and manage invoices.' : 'Create, send and manage invoices.'}
+            createLabel={src.isAggregate ? undefined : 'Create Invoice'}
+            onCreateClick={src.isAggregate ? undefined : () => setShowCreateView(true)}
             rows={filtered}
-            isLoading={isLoading}
-            error={error}
-            total={total}
+            isLoading={src.isLoading}
+            error={src.error}
+            total={src.total}
             page={page}
             onPageChange={setPage}
             itemsPerPage={ITEMS_PER_PAGE}
@@ -411,17 +222,17 @@ export default function InvoicesPage() {
             searchQuery={searchQuery}
             onSearchChange={(q) => { setSearchQuery(q); setPage(1); }}
             stats={stats}
-            actions={actions}
+            actions={actionsWithAdmin}
             pdfKind="invoice"
             showPaymentStatus
             showDueDate
             showExpandLineItems
-            showTenant={isAggregate}
+            showTenant={src.showTenant}
             storageKey="invoice-col-prefs"
             emptyStateDescription="Send professional invoices and get paid faster."
           />
 
-          {!isAggregate && (
+          {!src.isAggregate && (
             <div className="px-8 pb-6 flex">
               <button
                 onClick={() => setBulkUploadOpen(true)}
@@ -435,26 +246,39 @@ export default function InvoicesPage() {
       )}
 
       {activeTab === 'suggested' && (
-        <SuggestedInvoice effectiveTenant={docTenant} onCreateFromSuggestion={() => setShowCreateView(true)} />
+        <SuggestedInvoice effectiveTenant={src.docTenant} onCreateFromSuggestion={() => setShowCreateView(true)} />
       )}
 
       {activeTab === 'clients' && (
-        <ManageClients effectiveTenant={docTenant} />
+        <ManageClients effectiveTenant={src.docTenant} />
       )}
 
       {activeTab === 'scanned' && (
-        <ScannedDocuments effectiveTenant={docTenant} />
+        <ScannedDocuments effectiveTenant={src.docTenant} />
       )}
 
       {activeTab === 'reports' && (
-        <ReportsAndMore effectiveTenant={docTenant} />
+        <ReportsAndMore effectiveTenant={src.docTenant} />
       )}
 
       {bulkUploadOpen && (
         <BulkUploadStepper
-          tenant={docTenant}
+          tenant={src.docTenant}
           docType="invoice"
           onClose={() => setBulkUploadOpen(false)}
+        />
+      )}
+
+      {/* Record Payment — the SAME shared modal the Payment Receipts page uses (full capture:
+          date/reference/method persisted on the InvoicePayment record), replacing the old
+          amount-only inline dialog. */}
+      {paymentFor && (
+        <RecordPaymentModal
+          tenant={paymentFor.tenant}
+          invoiceId={paymentFor.invoiceId}
+          invoiceTotal={paymentFor.invoiceTotal}
+          currency={paymentFor.currency}
+          onClose={() => setPaymentFor(null)}
         />
       )}
 
@@ -465,55 +289,6 @@ export default function InvoicesPage() {
           onClose={() => setViewPaymentsFor(null)}
           canManage={canApprove}
         />
-      )}
-
-      {paymentDialog && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/75"
-          onClick={(e) => { if (e.target === e.currentTarget) setPaymentDialog(null); }}
-        >
-          <div className="relative w-full max-w-sm rounded-2xl border border-border p-6 space-y-4 bg-card shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-foreground">Record Payment</h2>
-              <button onClick={() => setPaymentDialog(null)}>
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">Invoice: {paymentDialog.invoiceNumber}</p>
-            <div>
-              <label className="text-xs font-bold block mb-1 text-foreground">
-                Amount<span className="text-destructive">*</span>
-              </label>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                className="w-full rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-ring bg-background border border-input text-foreground"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setPaymentDialog(null)}
-                className="px-4 py-2 rounded-lg text-xs font-medium hover:bg-accent transition-colors text-muted-foreground"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRecordPayment}
-                disabled={rowAction.isPending || !paymentAmount}
-                className={cn(
-                  'px-5 py-2 rounded-lg text-xs font-bold transition-all bg-primary text-primary-foreground hover:bg-primary/90',
-                  (rowAction.isPending || !paymentAmount) && 'opacity-50 cursor-not-allowed',
-                )}
-              >
-                {rowAction.isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
-                Record Payment
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {statusModal}
@@ -551,13 +326,13 @@ export default function InvoicesPage() {
               </button>
               <button
                 onClick={handleReject}
-                disabled={rowAction.isPending}
+                disabled={isPending}
                 className={cn(
                   'px-5 py-2 rounded-lg text-xs font-bold transition-all bg-destructive text-destructive-foreground hover:bg-destructive/90',
-                  rowAction.isPending && 'opacity-50 cursor-not-allowed',
+                  isPending && 'opacity-50 cursor-not-allowed',
                 )}
               >
-                {rowAction.isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
+                {isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
                 Reject Invoice
               </button>
             </div>

@@ -29,6 +29,10 @@ interface Options {
   withStats?: boolean;
   /** Expose the platform scope filter (all/platform/business) — Invoices Overview only. */
   withScope?: boolean;
+  /** Invoices Overview: the platform owner viewing their OWN treasury (no tenant selected,
+   *  not the aggregate) sees subscription/platform invoices alongside standard sales — the
+   *  backend is platform-owner-aware and returns the broader set when `types` is omitted. */
+  ownerSelfOmitsTypes?: boolean;
 }
 
 /**
@@ -52,14 +56,19 @@ export function useDocumentListSource(opts: Options) {
 
   // `invoiceType` may be a single type or a comma list (e.g. "payment_receipt,pos_receipt"),
   // sent as `types` so one page can cover several invoice_types.
+  const isOwnerSelfView = isPlatformOwner && !tenantQueryParam && !isAggregate;
+  const tenantTypes = opts.ownerSelfOmitsTypes && isOwnerSelfView ? undefined : opts.invoiceType;
   const tenantFilters = {
-    ...(opts.invoiceType ? { types: opts.invoiceType } : {}),
+    ...(tenantTypes ? { types: tenantTypes } : {}),
     ...(status ? { status } : {}),
     page: opts.page,
     limit: opts.limit,
   };
+  // With the scope filter active, `scope` governs the type set server-side (all/platform/
+  // business) — sending `types` too would fight it (e.g. types=standard excludes the
+  // subscription invoices scope=platform selects).
   const platInvFilters = {
-    ...(opts.invoiceType ? { types: opts.invoiceType } : {}),
+    ...(opts.withScope ? {} : opts.invoiceType ? { types: opts.invoiceType } : {}),
     ...(opts.withScope && scope !== 'all' ? { scope } : {}),
     ...(status ? { status } : {}),
     page: opts.page,
@@ -73,8 +82,11 @@ export function useDocumentListSource(opts: Options) {
   const platQuoQ = usePlatformQuotations(quoFilters, !isInvoice && isAggregate);
 
   // Stats are scoped to this page's invoice_type so the summary cards match the list.
-  const tenantStats = useInvoiceStats(effectiveTenant, opts.invoiceType, !!opts.withStats && isInvoice && !isAggregate && !!effectiveTenant);
-  const platStats = usePlatformInvoiceStats({ types: opts.invoiceType }, !!opts.withStats && isInvoice && isAggregate);
+  const tenantStats = useInvoiceStats(effectiveTenant, tenantTypes, !!opts.withStats && isInvoice && !isAggregate && !!effectiveTenant);
+  const platStats = usePlatformInvoiceStats(
+    opts.withScope ? (scope !== 'all' ? { scope } : {}) : { types: opts.invoiceType },
+    !!opts.withStats && isInvoice && isAggregate,
+  );
 
   const q = isInvoice ? (isAggregate ? platInvQ : tenantInvQ) : (isAggregate ? platQuoQ : tenantQuoQ);
   const data = q.data as { invoices?: unknown[]; quotations?: unknown[]; total?: number } | undefined;
