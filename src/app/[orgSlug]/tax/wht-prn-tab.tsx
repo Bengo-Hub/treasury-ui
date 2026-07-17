@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { EtimsResponseModal } from '@/components/tax/etims-response-modal';
 import { useGenerateRentalWHTPRN, useGenerateIncomeTaxWHTPRN, useGenerateVATWHTPRN, useTaxLiabilities, useRemitTaxLiability } from '@/hooks/use-tax';
 import type { WHTPaymentRequest, WHTTransactionDetail, PRNResponse, TaxLiability } from '@/lib/api/tax';
 import { Loader2, Send } from 'lucide-react';
@@ -171,6 +172,7 @@ export function WHTPaymentRefTab({ tenantSlug }: Props) {
   const incomePRN = useGenerateIncomeTaxWHTPRN();
   const vatPRN = useGenerateVATWHTPRN();
   const [results, setResults] = useState<{ type: string; data: PRNResponse }[]>([]);
+  const [detail, setDetail] = useState<{ type: string; data: PRNResponse } | null>(null);
 
   const handleGenerate = (type: string, mutate: any) => (params: any) => {
     mutate.mutate(params, {
@@ -188,7 +190,16 @@ export function WHTPaymentRefTab({ tenantSlug }: Props) {
           <h3 className="font-semibold text-sm">Generated PRNs</h3>
           {results.map((r, i) => (
             <div key={i} className="rounded bg-muted p-3 text-sm space-y-1">
-              <p className="font-medium text-foreground">{r.type} — {r.data.status ?? r.data.responseDesc}</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-medium text-foreground">{r.type} — {r.data.status ?? r.data.responseDesc}</p>
+                <button
+                  type="button"
+                  className="shrink-0 rounded border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent"
+                  onClick={() => setDetail(r)}
+                >
+                  View / print
+                </button>
+              </div>
               {r.data.responseData && (
                 <>
                   <p><span className="font-medium">PRN:</span> <span className="font-mono font-bold">{r.data.responseData.prnNumber}</span></p>
@@ -200,6 +211,23 @@ export function WHTPaymentRefTab({ tenantSlug }: Props) {
             </div>
           ))}
         </div>
+      )}
+      {detail && (
+        <EtimsResponseModal
+          open={!!detail}
+          onClose={() => setDetail(null)}
+          title={`${detail.type} PRN`}
+          payload={detail.data}
+          rows={[
+            { label: 'Type', value: detail.type },
+            { label: 'Status', value: detail.data.status ?? detail.data.responseDesc },
+            { label: 'Response code', value: detail.data.responseCode, mono: true },
+            { label: 'PRN number', value: detail.data.responseData?.prnNumber, mono: true },
+            { label: 'PRN amount', value: detail.data.responseData ? `KES ${Number(detail.data.responseData.prnAmount).toLocaleString()}` : undefined },
+            { label: 'PRN date', value: detail.data.responseData?.prnDate },
+            { label: 'Error', value: detail.data.errorMessage, danger: true },
+          ]}
+        />
       )}
       <PRNLedger tenantSlug={tenantSlug} />
     </div>
