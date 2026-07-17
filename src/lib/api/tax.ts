@@ -838,6 +838,7 @@ export interface EtimsItem {
   item_cd: string;
   item_cls_cd?: string;
   item_nm: string;
+  sku?: string;
   item_ty_cd?: string;
   tax_ty_cd?: string;
   pkg_unit_cd?: string;
@@ -848,8 +849,9 @@ export interface EtimsItem {
 }
 
 export interface RegisterEtimsItemRequest {
-  item_cd: string;
+  item_cd?: string;
   item_nm: string;
+  sku?: string;
   item_cls_cd?: string;
   item_ty_cd?: string;
   tax_ty_cd?: string;
