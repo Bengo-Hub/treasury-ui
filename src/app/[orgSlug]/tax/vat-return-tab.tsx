@@ -4,7 +4,8 @@ import { Card } from '@/components/ui/base';
 import { StatCard } from '@/components/charts/StatCard';
 import { StatusBanner } from '@/components/tax/kra-cards';
 import { money } from '@/components/charts/chart-theme';
-import { useVATReturnSummary } from '@/hooks/use-tax';
+import { useVATReturnSummary, useTaxProfile } from '@/hooks/use-tax';
+import { ObligationGate } from '@/components/tax/obligation-gate';
 import { CalendarClock } from 'lucide-react';
 import { useState } from 'react';
 
@@ -33,9 +34,15 @@ export function VATReturnTab({ tenantSlug }: Props) {
   const [month, setMonth] = useState(currentMonth());
   const range = monthRange(month);
   const { data, isLoading } = useVATReturnSummary(tenantSlug, range);
+  const { data: profile } = useTaxProfile(tenantSlug);
   const reconciled = data?.reconciled;
 
   return (
+    <ObligationGate
+      met={profile?.vat_registered}
+      title="Not registered for VAT"
+      message="This business isn't VAT-registered, so a VAT-3 return doesn't apply. Register for VAT to file VAT returns."
+    >
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -120,5 +127,6 @@ export function VATReturnTab({ tenantSlug }: Props) {
         {data?.notes?.map((n, i) => <p key={i} className="text-xs text-muted-foreground">{n}</p>)}
       </Card>
     </div>
+    </ObligationGate>
   );
 }
