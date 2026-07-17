@@ -1,6 +1,7 @@
 'use client';
 
 import { CodeListSelect } from '@/components/tax/code-list-select';
+import { CodeListsModal } from '@/components/tax/code-lists-modal';
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
@@ -523,12 +524,14 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
   const devices = data?.devices ?? [];
   const [registerOpen, setRegisterOpen] = useState(false);
   const [cmcDevice, setCmcDevice] = useState<{ id: string; serial: string; tin: string } | null>(null);
+  const [codeListsOpen, setCodeListsOpen] = useState(false);
   const initDevice = useInitEtimsDevice();
   const refreshCodes = useRefreshCodeLists();
 
   return (
     <>
       <KraActivationCard tenantSlug={tenantSlug} />
+      <CodeListsModal tenantSlug={tenantSlug} open={codeListsOpen} onClose={() => setCodeListsOpen(false)} />
       <Card>
         <CardHeader className="flex flex-row items-center justify-between py-4">
           <div className="flex items-center gap-2">
@@ -536,6 +539,15 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
             <h3 className="font-bold text-sm uppercase tracking-tight">eTIMS Devices</h3>
           </div>
           <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCodeListsOpen(true)}
+              title="View / print the synced KRA code lists"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span className="ml-1">View Code Lists</span>
+            </Button>
             <Button
               size="sm"
               variant="outline"

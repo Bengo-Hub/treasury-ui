@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCurrency } from '@/lib/utils/currency';
 import { useState } from 'react';
 import { useCapitalAllowanceSchedule, useCAAssets, useCreateCAAsset, useDeleteCAAsset, useUpdateCAAsset } from '@/hooks/use-tax';
 
@@ -8,8 +9,10 @@ interface Props { tenantSlug: string }
 const label = 'text-xs text-muted-foreground';
 const field = 'rounded border px-3 py-2 text-sm';
 
-function money(v?: string) {
-  return `KES ${Number(v ?? 0).toLocaleString()}`;
+function money(v?: string | number) {
+  // Delegate to the shared 2-decimal formatter so tax figures never render 3-dp
+  // artefacts (e.g. 275.862) from toLocaleString()'s default maximumFractionDigits.
+  return formatCurrency(Number(v ?? 0));
 }
 
 /**

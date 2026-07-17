@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCurrency } from '@/lib/utils/currency';
 import { useEffect, useState } from 'react';
 import { EtimsResponseModal, type EtimsResponseRow } from '@/components/tax/etims-response-modal';
 import {
@@ -22,9 +23,10 @@ interface Props { tenantSlug: string }
 const field = 'w-full rounded border px-3 py-2 text-sm';
 const label = 'text-xs text-muted-foreground';
 
-function money(v?: string) {
-  const n = Number(v ?? 0);
-  return `KES ${n.toLocaleString()}`;
+function money(v?: string | number) {
+  // Delegate to the shared 2-decimal formatter so tax figures never render 3-dp
+  // artefacts (e.g. 275.862) from toLocaleString()'s default maximumFractionDigits.
+  return formatCurrency(Number(v ?? 0));
 }
 
 /**

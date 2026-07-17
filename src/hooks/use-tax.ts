@@ -113,6 +113,17 @@ export function useEtimsCodeLists(tenantSlug: string, type: string, q?: string, 
   });
 }
 
+/** ALL synced KRA code lists (every type) for the printable code-lists viewer. `q` searches
+ *  server-side across code + name. */
+export function useAllEtimsCodeLists(tenantSlug: string, q?: string) {
+  return useQuery({
+    queryKey: ['etims-code-lists-all', tenantSlug, q ?? ''],
+    queryFn: () => taxApi.listEtimsCodeLists(tenantSlug, '', q, 2000),
+    enabled: !!tenantSlug,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
 /** Unified KRA eTIMS integration status (platform credentials + tenant activation checklist). */
 export function useKraStatus(tenantSlug: string) {
   return useQuery({
