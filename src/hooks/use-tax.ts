@@ -89,6 +89,28 @@ export function useRetryTransmission() {
   });
 }
 
+// useTransmitInvoice pushes an invoice/credit note to KRA eTIMS. On success it refreshes the
+// invoice's fiscal-info + transmissions so the FiscalInfoPanel populates; the caller opens
+// EtimsResponseModal with the returned fiscal record.
+export function useTransmitInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, invoiceId }: { tenantSlug: string; invoiceId: string }) =>
+      taxApi.transmitInvoice(tenantSlug, invoiceId),
+    onSuccess: (data: any, vars) => {
+      qc.invalidateQueries({ queryKey: ['invoice-fiscal-info', vars.tenantSlug, vars.invoiceId] });
+      qc.invalidateQueries({ queryKey: ['etims-transmissions', vars.tenantSlug] });
+      if (data?.status === 'queued') {
+        toast.success('Invoice queued for eTIMS transmission');
+      } else {
+        toast.success('Invoice transmitted to eTIMS');
+      }
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.error || 'eTIMS transmission failed'),
+  });
+}
+
 export function useRefreshCodeLists() {
   const qc = useQueryClient();
   return useMutation({

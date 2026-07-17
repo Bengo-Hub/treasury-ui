@@ -392,6 +392,13 @@ export function transmitVendorBill(tenantSlug: string, billId: string): Promise<
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/transmit/bill/${billId}`);
 }
 
+// transmitInvoice pushes an invoice (or credit note) to KRA eTIMS (saveSalesTrscInfo). The
+// backend transmits synchronously and returns the fiscal record, or 202 {status:"queued"} when
+// it defers to the worker (e.g. approval-gated). Callers surface the response in EtimsResponseModal.
+export function transmitInvoice(tenantSlug: string, invoiceId: string): Promise<any> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/transmit/${invoiceId}`);
+}
+
 // ---- GavaConnect: PIN & Compliance ----
 
 export function validateKRAPIN(tenantSlug: string, pin: string): Promise<PINResponse> {

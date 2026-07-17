@@ -591,14 +591,21 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
                     onChange={e => setForm(p => ({ ...p, customer_email: e.target.value }))}
                     className="mt-1 w-full rounded-lg py-2 px-3 text-xs border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
                 </div>
+                {/* Buyer KRA PIN — editable so a B2B eTIMS invoice can carry the buyer's PIN
+                    (custTin) without the Add-Client detour. Prefilled from a picked CRM contact. */}
+                <div>
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Customer KRA PIN <span className="text-muted-foreground/60 normal-case">(eTIMS buyer PIN — optional)</span></label>
+                  <input type="text" placeholder="P051234567X" value={customerDetails.kra_pin}
+                    onChange={e => setCustomerDetails(p => ({ ...p, kra_pin: e.target.value.toUpperCase() }))}
+                    className="mt-1 w-full rounded-lg py-2 px-3 text-xs font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+                </div>
                 {/* Extra Billed-To details carried over from the picked/created CRM contact
                     (see selectContact / CreateClientModal) — read-only here; edit them by
                     updating the contact in MarketFlow (the customer source of truth). */}
-                {(form.customer_phone || customerDetails.kra_pin || customerDetails.address || customerDetails.country || customerDetails.contact_person) && (
+                {(form.customer_phone || customerDetails.address || customerDetails.country || customerDetails.contact_person) && (
                   <div className="rounded-lg border border-border bg-background/60 px-3 py-2 space-y-0.5 text-[10px] text-muted-foreground">
                     {form.customer_phone && <div><span className="font-bold text-foreground">Phone:</span> {form.customer_phone}</div>}
                     {customerDetails.contact_person && <div><span className="font-bold text-foreground">Contact Person:</span> {customerDetails.contact_person}</div>}
-                    {customerDetails.kra_pin && <div><span className="font-bold text-foreground">Tax/KRA PIN:</span> {customerDetails.kra_pin}</div>}
                     {customerDetails.address && <div><span className="font-bold text-foreground">Address:</span> {customerDetails.address}</div>}
                     {customerDetails.country && <div><span className="font-bold text-foreground">Country:</span> {customerDetails.country}</div>}
                   </div>

@@ -35,6 +35,8 @@ import { CreditNoteDialog } from '@/components/documents/CreditNoteDialog';
 import { DocumentApprovalCard } from '@/components/documents/DocumentApprovalCard';
 import { DocumentJournalPanel } from '@/components/documents/DocumentJournalPanel';
 import { FiscalInfoPanel } from '@/components/documents/FiscalInfoPanel';
+import { EtimsResponseModal } from '@/components/tax/etims-response-modal';
+import { useTransmitInvoice } from '@/hooks/use-tax';
 import { MarginPanel } from '@/components/documents/MarginPanel';
 import { LinkedCostsPanel } from '@/components/documents/LinkedCostsPanel';
 import { moduleForDocType } from '@/lib/documents/approvals';
@@ -140,6 +142,8 @@ export default function InvoiceDetailPage() {
   const [showDeliverModal, setShowDeliverModal] = useState(false);
   const [receivedBy, setReceivedBy]       = useState('');
   const [deliverNote, setDeliverNote]     = useState('');
+  const [etimsResp, setEtimsResp]         = useState<any>(null);
+  const transmitMut = useTransmitInvoice();
 
   const handleRecordPayment = useCallback(() => {
     if (!paymentAmount) return;
@@ -283,6 +287,24 @@ export default function InvoiceDetailPage() {
               >
                 <Download className="h-3.5 w-3.5" /> PDF
               </button>
+              {/* Transmit to KRA eTIMS — for fiscal sale documents (standard invoice / credit
+                  note). The backend is idempotent; the worker may also fiscalise automatically,
+                  but this gives the operator an explicit action + immediate KRA response. */}
+              {(invoice.invoice_type === 'standard' || invoice.invoice_type === 'credit_note') && (
+                <button
+                  onClick={() => transmitMut.mutate(
+                    { tenantSlug: orgSlug, invoiceId },
+                    { onSuccess: (data) => setEtimsResp(data) },
+                  )}
+                  disabled={transmitMut.isPending}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/40 text-xs font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                >
+                  {transmitMut.isPending
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Send className="h-3.5 w-3.5" />}
+                  {invoice.invoice_type === 'credit_note' ? 'Transmit refund' : 'Transmit to eTIMS'}
+                </button>
+              )}
             </>
           )}
           {canSubmitApproval && (
@@ -793,6 +815,21 @@ export default function InvoiceDetailPage() {
       )}
 
       <PdfPreview {...previewProps} />
+
+      <EtimsResponseModal
+        open={!!etimsResp}
+        onClose={() => setEtimsResp(null)}
+        title="KRA eTIMS transmission"
+        payload={etimsResp}
+        rows={[
+          { label: 'Status', value: etimsResp?.status ?? etimsResp?.transmission_status },
+          { label: 'eTIMS Invc No', value: etimsResp?.invc_no, mono: true },
+          { label: 'KRA Receipt No', value: etimsResp?.etims_receipt_number, mono: true },
+          { label: 'CU Number', value: etimsResp?.etims_cu_number, mono: true },
+          { label: 'Receipt signature', value: etimsResp?.rcpt_sign, mono: true },
+          { label: 'Message', value: etimsResp?.kra_response?.resultMsg },
+        ]}
+      />
     </div>
   );
 }
