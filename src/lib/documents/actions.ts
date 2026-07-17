@@ -26,6 +26,7 @@ export type ActionKey =
   | 'reject'
   | 'send'
   | 'record_payment'
+  | 'view_payments'
   | 'mark_paid'
   | 'generate_delivery_note'
   | 'create_credit_note'
@@ -78,6 +79,8 @@ export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
       if (pendingApproval) out.push('approve', 'reject');
       if (canSend) out.push('send');
       if (isPayable(ctx)) out.push('record_payment', 'mark_paid');
+      // Recorded-payments history (view/edit/void per payment) once anything was collected.
+      if (ctx.payment_status === 'partial' || ctx.payment_status === 'paid' || ctx.status === 'paid') out.push('view_payments');
       if (!isVoided(ctx.status)) out.push('generate_delivery_note');
       if (isFinalized(ctx.status)) out.push('create_credit_note', 'create_debit_note');
       if (ctx.payment_status === 'paid' || ctx.status === 'paid') out.push('generate_receipt');

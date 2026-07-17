@@ -131,9 +131,10 @@ export function Header({ onMenuClick }: HeaderProps) {
             {profileOpen && (
               <>
                 <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setProfileOpen(false)} />
-                {/* Responsive panel: caps to the viewport on phones (never clipped off-screen)
-                    and scrolls internally when the service list outgrows the screen. */}
-                <div className="absolute right-0 top-full mt-2 z-50 w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl p-2 shadow-xl border border-border bg-popover overflow-hidden">
+                {/* Responsive panel: wide enough for FULL service titles (never truncated),
+                    caps to the viewport on phones and scrolls internally only when the list
+                    outgrows the screen height. */}
+                <div className="absolute right-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-5rem)] overflow-y-auto rounded-2xl p-2 shadow-xl border border-border bg-popover">
                   <div className="mb-1 px-3 py-2">
                     <p className="text-sm font-bold text-foreground truncate">{name}</p>
                     <p className="text-xs text-muted-foreground capitalize mt-0.5">{role || 'Accountant'}</p>
@@ -155,7 +156,10 @@ export function Header({ onMenuClick }: HeaderProps) {
                   <div className="h-px bg-border my-1" />
 
                   <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-3 py-1">Services</p>
-                  <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-0.5 max-h-[45vh] overflow-y-auto">
+                  {/* Single column so every external-link title renders IN FULL — the old
+                      two-column grid truncated CRM/Online Store/Subscriptions/Account Portal.
+                      The panel itself scrolls when taller than the viewport. */}
+                  <div className="grid gap-0.5">
                     {services.map(({ label, href, Icon }) => (
                       <a
                         key={label}
@@ -167,7 +171,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                         title={`Open ${label}`}
                       >
                         <Icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-                        <span className="flex-1 truncate">{label}</span>
+                        <span className="flex-1 whitespace-nowrap">{label}</span>
                         <ExternalLink className="h-3 w-3 text-muted-foreground opacity-50 shrink-0" />
                       </a>
                     ))}
