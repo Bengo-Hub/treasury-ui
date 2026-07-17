@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { EtimsResponseModal, type EtimsResponseRow } from '@/components/tax/etims-response-modal';
 import {
   useTaxEligibility,
   useTaxProfile,
@@ -58,6 +59,10 @@ export function TaxProfileTab({ tenantSlug }: Props) {
   const [lookupId, setLookupId] = useState('');
   const [lookupType, setLookupType] = useState('KE');
   const [lookupResult, setLookupResult] = useState<any>(null);
+  // Single reusable KRA-response modal (SCU-style detail view + print/download) for every
+  // GavaConnect verification result — PIN lookup, TCC, exemptions, tax-office station.
+  const [kraDetail, setKraDetail] = useState<{ title: string; rows: EtimsResponseRow[]; payload: unknown } | null>(null);
+  const showKra = (title: string, rows: EtimsResponseRow[], payload: unknown) => setKraDetail({ title, rows, payload });
   useEffect(() => { if (profile?.kra_pin) setPin(profile.kra_pin); }, [profile?.kra_pin]);
 
   const sev = position?.severity ?? 'ok';
@@ -198,7 +203,20 @@ export function TaxProfileTab({ tenantSlug }: Props) {
           <button
             className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
             disabled={!pin || checkTCC.isPending}
-            onClick={() => checkTCC.mutate({ tenantSlug, pin, tccNumber }, { onSuccess: setTccResult })}
+            onClick={() => checkTCC.mutate({ tenantSlug, pin, tccNumber }, {
+              onSuccess: (res: any) => {
+                setTccResult(res);
+                const d = res?.TCCData ?? {};
+                showKra('KRA Tax Compliance Certificate', [
+                  { label: 'Certificate', value: d.TCCNumber, mono: true },
+                  { label: 'KRA PIN', value: d.KRAPIN, mono: true },
+                  { label: 'Status', value: d.TCCStatus, danger: d.TCCStatus && d.TCCStatus !== 'Approved' },
+                  { label: 'Issued', value: d.TCCIssueDate },
+                  { label: 'Expires', value: d.TCCExpiryDate },
+                  { label: 'Error', value: res?.errorMessage ?? res?.ErrorMessage, danger: true },
+                ], res);
+              },
+            })}
           >{checkTCC.isPending ? 'Checking…' : 'Check TCC'}</button>
         </div>
         {tccResult?.TCCData && (
@@ -228,7 +246,17 @@ export function TaxProfileTab({ tenantSlug }: Props) {
           <button
             className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
             disabled={!lookupId || lookupPIN.isPending}
-            onClick={() => lookupPIN.mutate({ tenantSlug, idNumber: lookupId, taxpayerType: lookupType }, { onSuccess: setLookupResult })}
+            onClick={() => lookupPIN.mutate({ tenantSlug, idNumber: lookupId, taxpayerType: lookupType }, {
+              onSuccess: (res: any) => {
+                setLookupResult(res);
+                showKra('KRA PIN Lookup', [
+                  { label: 'KRA PIN', value: res?.TaxpayerPIN, mono: true },
+                  { label: 'Taxpayer name', value: res?.TaxpayerName },
+                  { label: 'ID number', value: lookupId, mono: true },
+                  { label: 'Error', value: res?.ErrorMessage ?? res?.errorMessage, danger: true },
+                ], res);
+              },
+            })}
           >{lookupPIN.isPending ? 'Looking up…' : 'Look up PIN'}</button>
         </div>
         {lookupResult?.TaxpayerPIN && (
@@ -255,7 +283,19 @@ export function TaxProfileTab({ tenantSlug }: Props) {
             <input className={field} placeholder="VAT exemption cert no." value={vatCert} onChange={(e) => setVatCert(e.target.value)} />
             <button className="w-full rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
               disabled={!vatCert || vatExm.isPending}
-              onClick={() => vatExm.mutate({ tenantSlug, value: vatCert }, { onSuccess: setVatRes })}>
+              onClick={() => vatExm.mutate({ tenantSlug, value: vatCert }, {
+                onSuccess: (res: any) => {
+                  setVatRes(res);
+                  const c = res?.vatExemptionCertificateDetails?.vatExemptionCheckerDtls?.[0] ?? {};
+                  showKra('VAT Exemption', [
+                    { label: 'Certificate no.', value: c.certiNo ?? vatCert, mono: true },
+                    { label: 'Issued', value: c.issueDt },
+                    { label: 'Status', value: c.statusFlag },
+                    { label: 'Response', value: res?.response_status ?? res?.response_message },
+                    { label: 'Error', value: res?.errorMessage, danger: true },
+                  ], res);
+                },
+              })}>
               {vatExm.isPending ? 'Checking…' : 'Check'}
             </button>
             {vatRes && (
@@ -273,7 +313,18 @@ export function TaxProfileTab({ tenantSlug }: Props) {
             <input className={field} placeholder="KRA PIN" value={itPin} onChange={(e) => setItPin(e.target.value)} />
             <button className="w-full rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
               disabled={!itPin || itExm.isPending}
-              onClick={() => itExm.mutate({ tenantSlug, pin: itPin }, { onSuccess: setItRes })}>
+              onClick={() => itExm.mutate({ tenantSlug, pin: itPin }, {
+                onSuccess: (res: any) => {
+                  setItRes(res);
+                  showKra('Income-Tax Exemption', [
+                    { label: 'KRA PIN', value: itPin, mono: true },
+                    { label: 'Certificate no.', value: res?.cert_no, mono: true },
+                    { label: 'Expiry', value: res?.cert_expiry_date },
+                    { label: 'Response', value: res?.response_message ?? res?.response_status },
+                    { label: 'Error', value: res?.errorMessage, danger: true },
+                  ], res);
+                },
+              })}>
               {itExm.isPending ? 'Checking…' : 'Check'}
             </button>
             {itRes && (
@@ -289,17 +340,45 @@ export function TaxProfileTab({ tenantSlug }: Props) {
             <input className={field} placeholder="KRA PIN" value={officePin} onChange={(e) => setOfficePin(e.target.value)} />
             <button className="w-full rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
               disabled={!officePin || office.isPending}
-              onClick={() => office.mutate({ tenantSlug, pin: officePin }, { onSuccess: setOfficeRes })}>
+              onClick={() => office.mutate({ tenantSlug, pin: officePin }, {
+                onSuccess: (res: any) => {
+                  setOfficeRes(res);
+                  const s = res?.STATIONDATA ?? {};
+                  showKra('KRA Tax Service Office', [
+                    { label: 'KRA PIN', value: s.kraPin ?? s.KraPin ?? officePin, mono: true },
+                    { label: 'Station', value: s.stationName ?? s.StationName },
+                    { label: 'Station code', value: s.stationCode ?? s.StationCode, mono: true },
+                    { label: 'Response', value: res?.Message ?? res?.message },
+                    { label: 'Error', value: res?.errorMessage ?? res?.ErrorMessage, danger: true },
+                  ], res);
+                },
+              })}>
               {office.isPending ? 'Looking up…' : 'Look up'}
             </button>
             {officeRes && (
-              <div className="rounded bg-muted p-2 text-xs">
-                {officeRes.STATIONDATA?.StationName || officeRes.Message || officeRes.errorMessage || 'No result'}
-              </div>
+              <button type="button" onClick={() => officeRes.STATIONDATA && showKra('KRA Tax Service Office', [
+                { label: 'KRA PIN', value: officeRes.STATIONDATA.kraPin ?? officePin, mono: true },
+                { label: 'Station', value: officeRes.STATIONDATA.stationName },
+              ], officeRes)}
+                className="w-full rounded bg-muted p-2 text-left text-xs hover:bg-accent">
+                {officeRes.STATIONDATA?.stationName
+                  ? <><span className="font-medium">{officeRes.STATIONDATA.stationName}</span> · view / print</>
+                  : (officeRes.Message || officeRes.errorMessage || 'No result')}
+              </button>
             )}
           </div>
         </div>
       </div>
+
+      {kraDetail && (
+        <EtimsResponseModal
+          open={!!kraDetail}
+          onClose={() => setKraDetail(null)}
+          title={kraDetail.title}
+          rows={kraDetail.rows}
+          payload={kraDetail.payload}
+        />
+      )}
     </div>
   );
 }
