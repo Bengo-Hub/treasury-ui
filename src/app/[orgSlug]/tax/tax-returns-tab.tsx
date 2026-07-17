@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { EtimsResponseModal } from '@/components/tax/etims-response-modal';
 import { useFileTOTReturn, useFileNILReturn, useTaxProfile } from '@/hooks/use-tax';
 import type { ReturnResponse } from '@/lib/api/tax';
 
@@ -14,6 +15,7 @@ export function TaxReturnsTab({ tenantSlug }: Props) {
   const { data: profile } = useTaxProfile(tenantSlug);
   const obligations = profile?.registered_obligations ?? [];
   const [filedResults, setFiledResults] = useState<{ type: string; data: ReturnResponse }[]>([]);
+  const [detail, setDetail] = useState<{ type: string; data: ReturnResponse } | null>(null);
   const [totForm, setTotForm] = useState({ pin: '', month: '', year: '', grossTurnover: '' });
   const [nilForm, setNilForm] = useState({ pin: '', obligationCode: '', month: '', year: '', returnType: 'Nil' });
 
@@ -83,7 +85,16 @@ export function TaxReturnsTab({ tenantSlug }: Props) {
           <h3 className="font-semibold text-sm">Filed Returns</h3>
           {filedResults.map((r, i) => (
             <div key={i} className="rounded bg-muted p-3 text-sm space-y-1">
-              <p className="font-medium text-foreground">{r.type}</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-medium text-foreground">{r.type}</p>
+                <button
+                  type="button"
+                  className="shrink-0 rounded border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent"
+                  onClick={() => setDetail(r)}
+                >
+                  View / print
+                </button>
+              </div>
               <p><span className="font-medium">Ack:</span> {r.data.AckNumber}</p>
               <p><span className="font-medium">Status:</span> {r.data.Status}</p>
               {r.data.PRN && <p><span className="font-medium">PRN:</span> {r.data.PRN}</p>}
@@ -91,6 +102,25 @@ export function TaxReturnsTab({ tenantSlug }: Props) {
             </div>
           ))}
         </div>
+      )}
+      {detail && (
+        <EtimsResponseModal
+          open={!!detail}
+          onClose={() => setDetail(null)}
+          title={`${detail.type} — KRA filing`}
+          payload={detail.data}
+          rows={[
+            { label: 'Return type', value: detail.type },
+            { label: 'Acknowledgement', value: detail.data.AckNumber, mono: true },
+            { label: 'Status', value: detail.data.Status },
+            { label: 'Response code', value: detail.data.ResponseCode, mono: true },
+            { label: 'PRN', value: detail.data.PRN, mono: true },
+            { label: 'Computed tax', value: detail.data.ComputedTax },
+            { label: 'Tax payable', value: detail.data.TaxPayable },
+            { label: 'Message', value: detail.data.Message },
+            { label: 'Error', value: detail.data.ErrorMessage, danger: true },
+          ]}
+        />
       )}
     </div>
   );

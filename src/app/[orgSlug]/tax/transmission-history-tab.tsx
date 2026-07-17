@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { EtimsResponseModal } from '@/components/tax/etims-response-modal';
 import { useEtimsTransmissions, useRetryTransmission } from '@/hooks/use-tax';
 import type { EtimsTransmissionRecord } from '@/lib/api/tax';
 
@@ -40,6 +41,7 @@ function TransmissionRow({ record, tenantSlug, onRetry, retrying }: {
   retrying: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   return (
     <>
@@ -91,9 +93,35 @@ function TransmissionRow({ record, tenantSlug, onRetry, retrying }: {
               <span className="font-medium">Retry count:</span> {record.retry_count} &nbsp;|&nbsp;
               <span className="font-medium">Created:</span> {new Date(record.created_at).toLocaleString()}
             </p>
+            <button
+              type="button"
+              className="mt-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent"
+              onClick={(e) => { e.stopPropagation(); setShowDetails(true); }}
+            >
+              View details / print
+            </button>
           </td>
         </tr>
       )}
+      <EtimsResponseModal
+        open={showDetails}
+        onClose={() => setShowDetails(false)}
+        title={`eTIMS Transmission — ${SOURCE_LABELS[record.source] ?? record.source}`}
+        payload={record}
+        rows={[
+          { label: 'Record ID', value: record.id, mono: true },
+          { label: 'Source', value: SOURCE_LABELS[record.source] ?? record.source },
+          { label: 'Status', value: STATUS_LABELS[record.transmission_status] ?? record.transmission_status, danger: record.transmission_status === 'failed' || record.transmission_status === 'dead_letter' },
+          { label: 'eTIMS Invc No', value: record.invc_no || undefined, mono: true },
+          { label: 'KRA Receipt No', value: record.etims_receipt_number, mono: true },
+          { label: 'CU Number', value: record.etims_cu_number, mono: true },
+          { label: 'Receipt signature', value: record.rcpt_sign, mono: true },
+          { label: 'Error', value: record.error_message, danger: true },
+          { label: 'Retry count', value: record.retry_count },
+          { label: 'Transmitted at', value: record.transmitted_at ? new Date(record.transmitted_at).toLocaleString() : undefined },
+          { label: 'Created', value: new Date(record.created_at).toLocaleString() },
+        ]}
+      />
     </>
   );
 }
