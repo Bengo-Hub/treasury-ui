@@ -595,7 +595,10 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
                       <td className="px-6 py-4 text-xs font-mono">{device.tin || '—'}</td>
                       <td className="px-6 py-4 text-xs">{device.branch_id || '00'}</td>
                       <td className="px-6 py-4 text-xs">
-                        <Badge variant={device.environment === 'production' ? 'success' : 'secondary'}>{device.environment}</Badge>
+                        <div className="flex items-center gap-1">
+                          <Badge variant={device.environment === 'production' ? 'success' : 'secondary'}>{device.environment}</Badge>
+                          <Badge variant="secondary">{device.integration_type || 'OSCU'}</Badge>
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-right text-xs font-mono">{device.last_invoice_no ?? 0}</td>
                       <td className="px-6 py-4 text-center">
@@ -736,14 +739,15 @@ function RegisterDeviceDialog({
   const [branchId, setBranchId] = useState('00');
   const [tin, setTin] = useState('');
   const [environment, setEnvironment] = useState('sandbox');
+  const [integrationType, setIntegrationType] = useState('OSCU');
 
   function handleSubmit() {
     registerMutation.mutate(
-      { tenantSlug, data: { device_serial: serial, branch_id: branchId || '00', tin, environment } },
+      { tenantSlug, data: { device_serial: serial, branch_id: branchId || '00', tin, environment, integration_type: integrationType } },
       {
         onSuccess: () => {
           onOpenChange(false);
-          setSerial(''); setBranchId('00'); setTin(''); setEnvironment('sandbox');
+          setSerial(''); setBranchId('00'); setTin(''); setEnvironment('sandbox'); setIntegrationType('OSCU');
         },
       },
     );
@@ -789,6 +793,19 @@ function RegisterDeviceDialog({
               <option value="sandbox">Sandbox (testing)</option>
               <option value="production">Production</option>
             </select>
+          </FormField>
+          <FormField label="Sales Control Unit">
+            <select
+              value={integrationType}
+              onChange={(e) => setIntegrationType(e.target.value)}
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="OSCU">OSCU — Online (real-time KRA signing, instant receipt)</option>
+              <option value="VSCU">VSCU — Virtual/offline (local signing + batch sync; high-volume)</option>
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              VSCU offline signing activates once the KRA VSCU device/SDK is provisioned; until then a VSCU device transmits online like OSCU.
+            </p>
           </FormField>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
