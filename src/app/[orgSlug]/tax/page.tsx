@@ -519,6 +519,21 @@ function KraActivationCard({ tenantSlug }: { tenantSlug: string }) {
   );
 }
 
+// Shows the CONFIGURED integration and, when the mode that will actually sign differs, the
+// effective one — e.g. a device configured VSCU with no local vscu_url yet signs online via OSCU.
+function IntegrationBadge({ device }: { device: EtimsDevice }) {
+  const configured = device.integration_type || 'OSCU';
+  const effective = device.effective_integration || configured;
+  if (configured !== effective) {
+    return (
+      <span title={`Configured ${configured} but no local VSCU URL yet — signing online via ${effective} until provisioned.`}>
+        <Badge variant="warning">{configured} (using {effective} — no local URL)</Badge>
+      </span>
+    );
+  }
+  return <Badge variant="secondary">{configured}</Badge>;
+}
+
 function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
   const { data, isLoading, isError } = useEtimsDevices(tenantSlug);
   const devices = data?.devices ?? [];
@@ -597,7 +612,7 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
                       <td className="px-6 py-4 text-xs">
                         <div className="flex items-center gap-1">
                           <Badge variant={device.environment === 'production' ? 'success' : 'secondary'}>{device.environment}</Badge>
-                          <Badge variant="secondary">{device.integration_type || 'OSCU'}</Badge>
+                          <IntegrationBadge device={device} />
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right text-xs font-mono">{device.last_invoice_no ?? 0}</td>
@@ -740,14 +755,26 @@ function RegisterDeviceDialog({
   const [tin, setTin] = useState('');
   const [environment, setEnvironment] = useState('sandbox');
   const [integrationType, setIntegrationType] = useState('OSCU');
+  const [vscuUrl, setVscuUrl] = useState('');
 
   function handleSubmit() {
     registerMutation.mutate(
-      { tenantSlug, data: { device_serial: serial, branch_id: branchId || '00', tin, environment, integration_type: integrationType } },
+      {
+        tenantSlug,
+        data: {
+          device_serial: serial,
+          branch_id: branchId || '00',
+          tin,
+          environment,
+          integration_type: integrationType,
+          // Only meaningful for VSCU; omit otherwise so we don't send a stray URL for OSCU.
+          vscu_url: integrationType === 'VSCU' && vscuUrl.trim() ? vscuUrl.trim() : undefined,
+        },
+      },
       {
         onSuccess: () => {
           onOpenChange(false);
-          setSerial(''); setBranchId('00'); setTin(''); setEnvironment('sandbox'); setIntegrationType('OSCU');
+          setSerial(''); setBranchId('00'); setTin(''); setEnvironment('sandbox'); setIntegrationType('OSCU'); setVscuUrl('');
         },
       },
     );
@@ -807,6 +834,20 @@ function RegisterDeviceDialog({
               VSCU offline signing activates once the KRA VSCU device/SDK is provisioned; until then a VSCU device transmits online like OSCU.
             </p>
           </FormField>
+          {integrationType === 'VSCU' && (
+            <FormField label="VSCU Server URL">
+              <input
+                type="url"
+                value={vscuUrl}
+                onChange={(e) => setVscuUrl(e.target.value)}
+                placeholder="http://localhost:8088"
+                className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                The local KRA VSCU unit on your network that signs offline. Leave blank to fall back to online OSCU until provisioned.
+              </p>
+            </FormField>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={!serial || registerMutation.isPending}>
