@@ -3,9 +3,9 @@
 import { CodeListSelect } from '@/components/tax/code-list-select';
 import { Card } from '@/components/ui/base';
 import { Pagination } from '@/components/ui/pagination';
-import { useEtimsItems, useRegisterEtimsItem } from '@/hooks/use-tax';
+import { useEtimsItems, useRegisterEtimsItem, useTaxProfile } from '@/hooks/use-tax';
 import { useInventoryItems } from '@/hooks/use-inventory';
-import { CheckCircle2, Info, Loader2, Package, Plus, RefreshCw, Search } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, Loader2, Package, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 interface Props { tenantSlug: string }
@@ -20,6 +20,23 @@ function taxCodeToBand(taxCode?: string): string {
   if (c.includes('0') || c.includes('ZERO')) return 'C';
   return 'B';
 }
+
+const VAT_BANDS = new Set(['B', 'E']);
+
+// itemTyCd from the inventory catalog type — MUST mirror the treasury classifier so the UI
+// registers the same stock-bearing decision the backend would (RECIPE/menu items + vouchers are
+// services, ingredients are raw materials). Passing inventory_type lets the backend re-derive it.
+function typeToItemTy(t?: string): string {
+  switch ((t ?? '').toUpperCase()) {
+    case 'INGREDIENT': return '1';
+    case 'SERVICE': case 'RECIPE': case 'VOUCHER': return '3';
+    default: return '2'; // GOODS, EQUIPMENT
+  }
+}
+
+// A pre-registration tax-code flag: the item's current band conflicts with what the tenant's
+// obligation (and item type) require, which would later break POS/invoice sales.
+interface TaxFlag { key: string; sku?: string; name: string; type?: string; current: string; expected: string; reason: string }
 
 type SyncStatus = 'registered' | 'queued' | 'unsynced';
 
@@ -86,7 +103,9 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 export function EtimsItemsTab({ tenantSlug }: Props) {
   const { data: etimsData, isLoading: etimsLoading } = useEtimsItems(tenantSlug);
   const { data: catalogData, isLoading: catalogLoading } = useInventoryItems(tenantSlug, { limit: 1000 });
+  const { data: profile } = useTaxProfile(tenantSlug);
   const register = useRegisterEtimsItem();
+  const vatRegistered = profile?.vat_registered ?? true; // optimistic until profile loads
   const EMPTY = { item_cd: '', item_nm: '', item_cls_cd: '1000000000', item_ty_cd: '2', tax_ty_cd: 'B', pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: '' };
   const [form, setForm] = useState(EMPTY);
 
@@ -116,20 +135,41 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
   }, [etimsItems]);
 
   type Row = {
-    key: string; sku?: string; name: string; type?: string; band: string;
+    key: string; sku?: string; name: string; type?: string; band: string; catalogBand: string;
     status: SyncStatus; itemCd?: string; price?: number; category: string;
   };
   const rows: Row[] = useMemo(() => catalog.map((c) => {
     const e = (c.sku && etimsBySku.get(c.sku)) || etimsByName.get(c.name.toLowerCase());
     const status: SyncStatus = e ? (e.registered ? 'registered' : 'queued') : 'unsynced';
+    const catalogBand = taxCodeToBand(c.tax_code);
     return {
       key: c.id, sku: c.sku, name: c.name, type: c.item_type,
-      band: e?.tax_ty_cd || taxCodeToBand(c.tax_code),
+      band: e?.tax_ty_cd || catalogBand, catalogBand,
       status, itemCd: e?.item_cd,
       price: c.unit_price ? Number(c.unit_price) : undefined,
       category: c.category_name || 'Uncategorised',
     };
   }), [catalog, etimsBySku, etimsByName]);
+
+  // Obligation-aware pre-flight: the band a tenant SHOULD register/sell an item under.
+  //  - not VAT-registered ⇒ Non-VAT (D) for everything (no VAT may be charged).
+  //  - VAT-registered ⇒ the item's catalog band (trust the catalog tax code).
+  const expectedBand = (r: Row): string => (vatRegistered ? r.catalogBand : 'D');
+  // Flag rows whose CURRENT band (registered or catalog-derived) conflicts with the expected
+  // band — these would later fail a sale ("Invalid tax type") or wrongly (not) charge VAT.
+  const flags: TaxFlag[] = useMemo(() => rows.flatMap((r) => {
+    const exp = expectedBand(r);
+    if (r.band === exp) return [];
+    const reason = !vatRegistered
+      ? `Tenant is not VAT-registered — item carries ${VAT_BANDS.has(r.band) ? 'a VAT' : `band ${r.band}`}; expected Non-VAT (D).`
+      : `Registered/catalog band ${r.band} differs from the catalog tax code's band ${exp}.`;
+    return [{ key: r.key, sku: r.sku, name: r.name, type: r.type, current: r.band, expected: exp, reason }];
+  }), [rows, vatRegistered]);
+  const flagBySku = useMemo(() => {
+    const m = new Map<string, TaxFlag>();
+    for (const f of flags) if (f.sku) m.set(f.sku, f);
+    return m;
+  }, [flags]);
 
   const [filter, setFilter] = useState<'all' | SyncStatus>('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -163,26 +203,37 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
   const safePage = Math.min(page, pageCount);
   const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
+  const [showPreflight, setShowPreflight] = useState(false);
+
+  // Register with the CATALOG TYPE + the OBLIGATION-ADJUSTED band, so the backend classifier
+  // derives the right itemTyCd (RECIPE/menu→3, ingredient→1) and no VAT band leaks onto a
+  // non-VAT tenant's item.
   const syncRow = (r: Row) => register.mutate({ tenantSlug, data: {
-    item_nm: r.name, sku: r.sku, item_cls_cd: '1000000000', item_ty_cd: r.type === 'SERVICE' ? '3' : '2',
-    tax_ty_cd: r.band, pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: r.price,
+    item_nm: r.name, sku: r.sku, inventory_type: r.type, item_cls_cd: '1000000000',
+    item_ty_cd: typeToItemTy(r.type), tax_ty_cd: expectedBand(r), pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: r.price,
   } });
 
   // Bulk "sync all" — register every currently-unsynced catalog item sequentially (KRA
   // enforces a per-TIN itemCd sequence, so serial registration avoids sequence collisions).
-  const syncAllUnsynced = async () => {
+  const runSyncAll = async () => {
     const targets = rows.filter((r) => r.status !== 'registered');
     if (targets.length === 0) return;
     setBulkBusy(true);
     for (const r of targets) {
       try {
         await register.mutateAsync({ tenantSlug, data: {
-          item_nm: r.name, sku: r.sku, item_cls_cd: '1000000000', item_ty_cd: r.type === 'SERVICE' ? '3' : '2',
-          tax_ty_cd: r.band, pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: r.price,
+          item_nm: r.name, sku: r.sku, inventory_type: r.type, item_cls_cd: '1000000000',
+          item_ty_cd: typeToItemTy(r.type), tax_ty_cd: expectedBand(r), pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: r.price,
         } });
       } catch { /* keep going — per-row failures surface on the row's status */ }
     }
     setBulkBusy(false);
+  };
+  // Gate Sync-all behind the obligation pre-flight: if any item's code conflicts with the
+  // tenant's obligation, warn first (listing current→expected) so codes can be fixed.
+  const syncAllUnsynced = () => {
+    if (flags.length > 0) { setShowPreflight(true); return; }
+    void runSyncAll();
   };
 
   const isLoading = etimsLoading || catalogLoading;
@@ -313,7 +364,16 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                         {r.sku && <div className="font-mono text-[11px] text-muted-foreground">{r.sku}</div>}
                       </td>
                       <td className="px-2 py-2 text-xs text-muted-foreground">{r.category}</td>
-                      <td className="px-2 py-2">{r.band}</td>
+                      <td className="px-2 py-2">
+                        <span className="inline-flex items-center gap-1">
+                          {r.band}
+                          {r.sku && flagBySku.has(r.sku) && (
+                            <span title={flagBySku.get(r.sku)!.reason}>
+                              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       <td className="px-2 py-2 font-mono text-[11px] text-muted-foreground">{r.itemCd || '—'}</td>
                       <td className="px-2 py-2">
                         {r.status === 'registered'
@@ -343,6 +403,55 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
           )}
         </Card>
       </div>
+
+      {showPreflight && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowPreflight(false)}>
+          <div className="w-full max-w-2xl rounded-xl bg-background shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between border-b p-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                <div>
+                  <h3 className="text-sm font-semibold">Tax-code check before sync</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {flags.length} item{flags.length === 1 ? '' : 's'} carry a tax code that conflicts with this
+                    tenant&apos;s obligations{vatRegistered ? '' : ' (not VAT-registered)'}. Syncing will register them
+                    with the <span className="font-medium text-foreground">expected</span> band; fix the catalog codes
+                    for lasting consistency.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowPreflight(false)} className="rounded p-1 hover:bg-accent"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="max-h-[50vh] overflow-y-auto p-4">
+              <table className="w-full text-xs">
+                <thead className="text-left text-muted-foreground">
+                  <tr><th className="pb-2">Item</th><th className="pb-2">Type</th><th className="pb-2">Current</th><th className="pb-2">Expected</th><th className="pb-2">Why</th></tr>
+                </thead>
+                <tbody>
+                  {flags.map((f) => (
+                    <tr key={f.key} className="border-t">
+                      <td className="py-2 font-medium">{f.name}{f.sku ? <span className="ml-1 font-mono text-[10px] text-muted-foreground">{f.sku}</span> : null}</td>
+                      <td className="py-2">{f.type ?? '—'}</td>
+                      <td className="py-2"><span className="rounded bg-destructive/10 px-1.5 py-0.5 font-mono text-destructive">{f.current}</span></td>
+                      <td className="py-2"><span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-emerald-600">{f.expected}</span></td>
+                      <td className="py-2 text-muted-foreground">{f.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t p-4">
+              <button onClick={() => setShowPreflight(false)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => { setShowPreflight(false); void runSyncAll(); }}
+                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90"
+              >
+                Sync all with corrected bands
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

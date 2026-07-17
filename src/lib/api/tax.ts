@@ -865,6 +865,9 @@ export interface RegisterEtimsItemRequest {
   pkg_unit_cd?: string;
   qty_unit_cd?: string;
   dft_prc?: number;
+  // Catalog type (GOODS/SERVICE/RECIPE/INGREDIENT/VOUCHER/EQUIPMENT). When set the backend
+  // AUTHORITATIVELY derives item_ty_cd + the obligation-adjusted band from it.
+  inventory_type?: string;
 }
 
 export function listEtimsItems(tenantSlug: string): Promise<{ items: EtimsItem[]; total: number }> {
