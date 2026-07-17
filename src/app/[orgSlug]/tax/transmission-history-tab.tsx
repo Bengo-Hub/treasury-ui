@@ -1,9 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { EtimsResponseModal } from '@/components/tax/etims-response-modal';
 import { useEtimsTransmissions, useRetryTransmission } from '@/hooks/use-tax';
 import type { EtimsTransmissionRecord } from '@/lib/api/tax';
+
+// localDocHref maps a transmission to its local treasury document, so download/print reuses the
+// document's own preview-PDF (which already renders the KRA fiscal strip + QR via FiscalInfoPanel).
+function localDocHref(tenantSlug: string, record: EtimsTransmissionRecord): string | null {
+  const id = record.invoice_id || record.source_id;
+  if (!id) return null;
+  // Only invoices have a treasury document detail page (preview-PDF + FiscalInfoPanel). POS/
+  // ordering sales fiscalise on their own receipt surface; vendor bills have no detail route.
+  if (record.source === 'invoice') return `/${tenantSlug}/invoices/${id}`;
+  return null;
+}
 
 interface Props { tenantSlug: string }
 
@@ -93,13 +105,27 @@ function TransmissionRow({ record, tenantSlug, onRetry, retrying }: {
               <span className="font-medium">Retry count:</span> {record.retry_count} &nbsp;|&nbsp;
               <span className="font-medium">Created:</span> {new Date(record.created_at).toLocaleString()}
             </p>
-            <button
-              type="button"
-              className="mt-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent"
-              onClick={(e) => { e.stopPropagation(); setShowDetails(true); }}
-            >
-              View details / print
-            </button>
+            <div className="mt-1 flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent"
+                onClick={(e) => { e.stopPropagation(); setShowDetails(true); }}
+              >
+                View details
+              </button>
+              {(() => {
+                const href = localDocHref(tenantSlug, record);
+                return href ? (
+                  <Link
+                    href={href}
+                    className="rounded border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Open document / print →
+                  </Link>
+                ) : null;
+              })()}
+            </div>
           </td>
         </tr>
       )}
