@@ -1,7 +1,7 @@
 'use client';
 
 import { formatCurrency } from '@/lib/utils/currency';
-import { useDeductionsSummary } from '@/hooks/use-tax';
+import { useDeductionsSummary, useTaxProfile } from '@/hooks/use-tax';
 import { formatDateRange } from '@/lib/utils/date';
 
 interface Props { tenantSlug: string }
@@ -21,6 +21,8 @@ function money(v?: string | number) {
  */
 export function DeductionsTab({ tenantSlug }: Props) {
   const { data, isLoading } = useDeductionsSummary(tenantSlug);
+  const { data: profile } = useTaxProfile(tenantSlug);
+  const showVAT = profile?.vat_registered ?? true; // input-VAT recovery only matters if VAT-registered
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (!data) return <p className="text-sm text-muted-foreground">No expense data for this period.</p>;
@@ -35,8 +37,8 @@ export function DeductionsTab({ tenantSlug }: Props) {
           <div><span className={label}>Deductible (eTIMS-validated)</span><div className="font-medium text-primary">{money(data.deductible_amount)}</div></div>
           <div><span className={label}>At risk (no eTIMS invoice)</span><div className="font-medium text-destructive">{money(data.at_risk_amount)}</div></div>
           <div><span className={label}>Non-deductible</span><div className="font-medium">{money(data.non_deductible_amount)}</div></div>
-          <div><span className={label}>Recoverable input VAT</span><div className="font-medium">{money(data.recoverable_input_vat)}</div></div>
-          <div><span className={label}>Missed input VAT</span><div className="font-medium text-destructive">{money(data.missed_input_vat)}</div></div>
+          {showVAT && <div><span className={label}>Recoverable input VAT</span><div className="font-medium">{money(data.recoverable_input_vat)}</div></div>}
+          {showVAT && <div><span className={label}>Missed input VAT</span><div className="font-medium text-destructive">{money(data.missed_input_vat)}</div></div>}
           <div><span className={label}>Extra tax at risk (CIT {Number(data.cit_rate)}%)</span><div className="font-medium text-destructive">{money(data.estimated_tax_at_risk)}</div></div>
         </div>
         {data.notes?.map((n, i) => <p key={i} className="text-xs text-muted-foreground">{n}</p>)}
