@@ -482,9 +482,17 @@ export function useRegisterEtimsItem() {
   return useMutation({
     mutationFn: ({ tenantSlug, data }: { tenantSlug: string; data: taxApi.RegisterEtimsItemRequest }) =>
       taxApi.registerEtimsItem(tenantSlug, data),
-    onSuccess: (_, vars) => {
+    onSuccess: (item: any, vars) => {
       qc.invalidateQueries({ queryKey: ['tax-etims-items', vars.tenantSlug] });
-      toast.success('Item registered with eTIMS');
+      // Reflect the ACTUAL KRA outcome — the item can come back queued (registered=false) when
+      // KRA is unreachable/rejected; asserting success then would be misleading.
+      if (item?.registered) {
+        toast.success(`Item registered with eTIMS${item.item_cd ? ` — ${item.item_cd}` : ''}`);
+      } else {
+        toast(`Item "${item?.item_nm ?? ''}" saved but not yet confirmed by KRA`, {
+          description: 'It will show as Queued — use Retry sync once KRA is reachable.',
+        });
+      }
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to register item'),
   });
