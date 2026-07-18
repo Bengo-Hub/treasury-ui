@@ -18,6 +18,7 @@ import {
   getARAging,
   getCustomerBalances,
   recordCustomerPayment,
+  setCustomerCreditTerms,
   syncCustomerToCRM,
   getQuotation,
   getQuotationGraph,
@@ -224,6 +225,19 @@ export function useRecordCustomerPayment(tenant: string) {
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+    },
+  });
+}
+
+// Set/clear a customer's credit terms (limit + payment period); refreshes balances.
+export function useSetCustomerCreditTerms(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ contactId, creditLimit, creditPeriodDays, customerName }: { contactId: string; creditLimit?: number; creditPeriodDays?: number; customerName?: string }) =>
+      setCustomerCreditTerms(tenant, contactId, { credit_limit: creditLimit, credit_period_days: creditPeriodDays, customer_name: customerName }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
     },
   });
 }
