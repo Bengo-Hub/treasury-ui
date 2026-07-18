@@ -10,6 +10,7 @@ import {
   ArrowUpRight,
   Banknote,
   CloudUpload,
+  CreditCard,
   FileText,
   Loader2,
   Mail,
@@ -22,8 +23,22 @@ import { toast } from 'sonner';
 import { useSyncCustomerToCRM } from '@/hooks/use-invoices';
 import { useClients, type ClientRecord } from './use-clients';
 import { ClientDetail } from './ClientDetail';
+import { CreditTermsDialog } from './CreditTermsDialog';
 import { ReceivePaymentModal } from './ReceivePaymentModal';
 import { SyncToCrmDialog } from './SyncToCrmDialog';
+
+/** Account-relationship filter: who owes me money vs whom I owe (store credit / overpayment). */
+type BalanceFilter = 'all' | 'owe_me' | 'i_owe' | 'settled';
+/** Credit-terms filter. */
+type CreditFilter = 'all' | 'has_limit' | 'over_limit' | 'no_limit';
+type SortKey = 'name' | 'highest_due' | 'store_credit' | 'recent_payment';
+
+const BALANCE_FILTERS: { key: BalanceFilter; label: string; active: string }[] = [
+  { key: 'all', label: 'All', active: 'bg-primary/10 border-primary/50 text-primary' },
+  { key: 'owe_me', label: 'Owe me (debtors)', active: 'bg-amber-500/15 border-amber-500/50 text-amber-700' },
+  { key: 'i_owe', label: 'I owe (credit)', active: 'bg-emerald-500/15 border-emerald-500/50 text-emerald-700' },
+  { key: 'settled', label: 'Settled', active: 'bg-accent border-border text-foreground' },
+];
 
 interface ClientsManagerProps {
   /** Tenant identifier (orgSlug or UUID) whose clients to manage. */
@@ -47,6 +62,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [statementClient, setStatementClient] = useState<{ id: string; name: string } | null>(null);
   const [openingClient, setOpeningClient] = useState<ClientRecord | null>(null);
   const [payTarget, setPayTarget] = useState<CustomerBalance | null>(null);
+  const [creditTermsClient, setCreditTermsClient] = useState<ClientRecord | null>(null);
   const [syncingKey, setSyncingKey] = useState<string | null>(null);
   const [syncDialogClient, setSyncDialogClient] = useState<ClientRecord | null>(null);
   const syncCrm = useSyncCustomerToCRM(tenant);
@@ -82,22 +98,68 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
     [clients],
   );
 
-  const [onlyDue, setOnlyDue] = useState(false);
-  const [onlyStoreCredit, setOnlyStoreCredit] = useState(false);
+  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all');
+  const [creditFilter, setCreditFilter] = useState<CreditFilter>('all');
+  const [methodFilter, setMethodFilter] = useState('all');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+
+  // Payment-mode options come from the data itself (last_payment_method on the AR row),
+  // so the dropdown only ever offers modes that actually occur in this tenant's book.
+  const paymentMethods = useMemo(() => {
+    const set = new Set<string>();
+    clients.forEach((c) => {
+      const m = (c.balance?.last_payment_method ?? '').trim().toLowerCase();
+      if (m) set.add(m);
+    });
+    return Array.from(set).sort();
+  }, [clients]);
+
+  // "I owe" = the customer holds value against me: store credit issued, or an
+  // overpaid/negative balance (they paid more than they were invoiced).
+  const owedToCustomer = (c: ClientRecord) => {
+    const storeCredit = parseFloat(c.balance?.total_credits ?? '0') || 0;
+    const due = parseFloat(c.balance?.balance_due ?? '0') || 0;
+    return storeCredit > 0.0001 || due < -0.0001;
+  };
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return clients.filter((c) => {
+    const rows = clients.filter((c) => {
       if (q &&
         !(c.name.toLowerCase().includes(q) ||
           c.email.toLowerCase().includes(q) ||
           c.phone.toLowerCase().includes(q) ||
           (c.customerId ?? '').toLowerCase().includes(q))) return false;
-      if (onlyDue && !(c.outstanding > 0.0001)) return false;
-      if (onlyStoreCredit && !(parseFloat(c.balance?.total_credits ?? '0') > 0.0001)) return false;
+      if (balanceFilter === 'owe_me' && !(c.outstanding > 0.0001)) return false;
+      if (balanceFilter === 'i_owe' && !owedToCustomer(c)) return false;
+      if (balanceFilter === 'settled' && (c.outstanding > 0.0001 || owedToCustomer(c))) return false;
+      if (creditFilter !== 'all') {
+        const limit = parseFloat(c.balance?.credit_limit ?? '0') || 0;
+        if (creditFilter === 'has_limit' && !(limit > 0)) return false;
+        if (creditFilter === 'no_limit' && limit > 0) return false;
+        if (creditFilter === 'over_limit' && !(limit > 0 && c.outstanding > limit)) return false;
+      }
+      if (methodFilter !== 'all' &&
+        (c.balance?.last_payment_method ?? '').trim().toLowerCase() !== methodFilter) return false;
       return true;
     });
-  }, [clients, searchQuery, onlyDue, onlyStoreCredit]);
+    const num = (v?: string) => parseFloat(v ?? '0') || 0;
+    switch (sortKey) {
+      case 'highest_due':
+        rows.sort((a, b) => b.outstanding - a.outstanding);
+        break;
+      case 'store_credit':
+        rows.sort((a, b) => num(b.balance?.total_credits) - num(a.balance?.total_credits));
+        break;
+      case 'recent_payment':
+        rows.sort((a, b) =>
+          new Date(b.balance?.last_payment_date ?? 0).getTime() - new Date(a.balance?.last_payment_date ?? 0).getTime());
+        break;
+      default:
+        rows.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return rows;
+  }, [clients, searchQuery, balanceFilter, creditFilter, methodFilter, sortKey]);
 
   if (!tenant) return null;
 
@@ -182,33 +244,67 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
       )}
 
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between py-4">
-          <div className="relative w-full max-w-sm group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-            <input
-              placeholder="Search name, email, phone, contact ID..."
-              className="w-full bg-accent/30 border-none rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary transition-all"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+        <CardHeader className="space-y-3 py-4">
+          <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
+            <div className="relative w-full max-w-sm group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+              <input
+                placeholder="Search name, email, phone, contact ID..."
+                className="w-full bg-accent/30 border-none rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary transition-all"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            {/* Account-relationship capsule tabs: debtors (they owe me) vs creditors (I owe them). */}
+            <div className="flex items-center gap-2 text-xs flex-wrap">
+              {BALANCE_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setBalanceFilter(f.key)}
+                  className={cn('px-3 py-1.5 rounded-full border transition-colors',
+                    balanceFilter === f.key ? f.active : 'border-border text-muted-foreground hover:bg-accent/30')}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => setOnlyDue((v) => !v)}
-              className={cn('px-3 py-1.5 rounded-full border transition-colors',
-                onlyDue ? 'bg-amber-500/15 border-amber-500/50 text-amber-700' : 'border-border text-muted-foreground hover:bg-accent/30')}
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <select
+              value={creditFilter}
+              onChange={(e) => setCreditFilter(e.target.value as CreditFilter)}
+              className="bg-accent/30 border-none rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-primary"
+              title="Credit terms filter"
             >
-              Has balance due
-            </button>
-            <button
-              type="button"
-              onClick={() => setOnlyStoreCredit((v) => !v)}
-              className={cn('px-3 py-1.5 rounded-full border transition-colors',
-                onlyStoreCredit ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-700' : 'border-border text-muted-foreground hover:bg-accent/30')}
+              <option value="all">Credit: any</option>
+              <option value="has_limit">Has credit limit</option>
+              <option value="over_limit">Over credit limit</option>
+              <option value="no_limit">No credit limit</option>
+            </select>
+            <select
+              value={methodFilter}
+              onChange={(e) => setMethodFilter(e.target.value)}
+              className="bg-accent/30 border-none rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-primary"
+              title="Filter by how the customer last paid"
             >
-              Has store credit
-            </button>
+              <option value="all">Payment mode: any</option>
+              {paymentMethods.map((m) => (
+                <option key={m} value={m} className="capitalize">{m.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as SortKey)}
+              className="bg-accent/30 border-none rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-primary ml-auto"
+              title="Sort"
+            >
+              <option value="name">Sort: name</option>
+              <option value="highest_due">Sort: highest balance due</option>
+              <option value="store_credit">Sort: store credit</option>
+              <option value="recent_payment">Sort: recently paid</option>
+            </select>
+            <span className="text-muted-foreground">{filtered.length} of {clients.length}</span>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -228,6 +324,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                     <th className="text-right font-semibold px-3 py-3">Opening Bal.</th>
                     <th className="text-right font-semibold px-3 py-3">Store Credit</th>
                     <th className="text-right font-semibold px-3 py-3">Balance Due</th>
+                    <th className="text-left font-semibold px-3 py-3">Last Paid</th>
                     <th className="text-right font-semibold px-6 py-3">Actions</th>
                   </tr>
                 </thead>
@@ -275,11 +372,25 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                         <td className={cn('px-3 py-3 text-right tabular-nums font-bold', c.outstanding > 0 ? 'text-amber-600' : 'text-emerald-600')}>
                           {c.outstanding > 0 ? formatCurrency(c.outstanding, c.currency) : 'Settled'}
                         </td>
+                        <td className="px-3 py-3 text-[11px] text-muted-foreground whitespace-nowrap">
+                          {b?.last_payment_method ? (
+                            <span className="capitalize">{b.last_payment_method.replace(/_/g, ' ')}</span>
+                          ) : '—'}
+                          {b?.last_payment_date && (
+                            <span className="block text-[10px]">{new Date(b.last_payment_date).toLocaleDateString()}</span>
+                          )}
+                        </td>
                         <td className="px-6 py-3">
                           <div className="flex items-center justify-end gap-1.5">
                             {b && c.outstanding > 0 && (
                               <Button size="sm" onClick={(e: React.MouseEvent) => { e.stopPropagation(); setPayTarget(b); }}>
                                 Receive
+                              </Button>
+                            )}
+                            {(c.customerId || b) && (
+                              <Button variant="outline" size="sm" title="Credit terms (limit & payment period)"
+                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setCreditTermsClient(c); }}>
+                                <CreditCard className="h-3.5 w-3.5" />
                               </Button>
                             )}
                             {!c.fromCRM && (
@@ -305,7 +416,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                     );
                   })}
                   {filtered.length === 0 && !isLoading && (
-                    <tr><td colSpan={7} className="p-12 text-center text-muted-foreground">No clients found.</td></tr>
+                    <tr><td colSpan={8} className="p-12 text-center text-muted-foreground">No clients found.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -334,6 +445,18 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
           name={openingClient.name}
           crmContactId={openingClient.customerId}
           customerIdentifier={openingClient.name}
+        />
+      )}
+
+      {creditTermsClient && (
+        <CreditTermsDialog
+          tenant={tenant}
+          contactId={creditTermsClient.customerId || creditTermsClient.balance?.customer_identifier || creditTermsClient.balance?.id || creditTermsClient.name}
+          customerName={creditTermsClient.name}
+          currency={creditTermsClient.currency}
+          currentLimit={creditTermsClient.balance?.credit_limit ? parseFloat(creditTermsClient.balance.credit_limit) || 0 : null}
+          currentPeriodDays={creditTermsClient.balance?.credit_period_days ?? null}
+          onClose={() => setCreditTermsClient(null)}
         />
       )}
 

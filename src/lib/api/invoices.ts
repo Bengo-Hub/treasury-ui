@@ -759,7 +759,10 @@ export interface CustomerBalance {
   total_credits: string;
   balance_due: string;
   credit_limit?: string;
+  credit_period_days?: number;
   currency: string;
+  /** Method of the most recent payment (cash/mpesa/bank/cheque/card/manual) — drives the payment-mode filter. */
+  last_payment_method?: string;
   last_payment_date?: string;
   last_invoice_date?: string;
   updated_at: string;
@@ -783,6 +786,20 @@ export function recordCustomerPayment(
     amount: String(body.amount),
     payment_method: body.payment_method,
     reference: body.reference,
+  });
+}
+
+// Set/clear a customer's credit terms (limit amount + payment period days). `contactId` =
+// crm_contact_id (or the customer_identifier for non-CRM rows). Zero clears the respective term.
+export function setCustomerCreditTerms(
+  tenant: string,
+  contactId: string,
+  body: { credit_limit?: number; credit_period_days?: number; customer_name?: string },
+): Promise<CustomerBalance> {
+  return apiClient.patch<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/credit-terms`, {
+    credit_limit: body.credit_limit != null ? String(body.credit_limit) : undefined,
+    credit_period_days: body.credit_period_days,
+    customer_name: body.customer_name,
   });
 }
 
