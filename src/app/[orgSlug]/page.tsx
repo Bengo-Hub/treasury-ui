@@ -12,6 +12,7 @@ import { ExpenseBreakdown } from '@/components/dashboard/ExpenseBreakdown';
 import { ComplianceSnapshot } from '@/components/dashboard/ComplianceSnapshot';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { MoneyFlow } from '@/components/dashboard/MoneyFlow';
+import { PlatformMoneyFlow } from '@/components/dashboard/PlatformMoneyFlow';
 import { TopCustomers } from '@/components/dashboard/TopCustomers';
 import { BooksBalancedBadge } from '@/components/dashboard/BooksBalancedBadge';
 import { RangePicker, rangeFor, type RangeKey } from '@/components/dashboard/RangePicker';
@@ -134,6 +135,7 @@ function PlatformDashboard({ from, to, tenantIds, rangeKey, onRange }: { from: s
           Failed to load platform analytics.
         </div>
       )}
+      <PlatformMoneyFlow from={from} to={to} tenantIds={tenantIds} />
     </div>
   );
 }

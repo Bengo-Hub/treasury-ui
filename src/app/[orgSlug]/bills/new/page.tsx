@@ -80,7 +80,7 @@ export default function NewPurchasePage() {
   // Auto-suggest the next expense number from existing bills count.
   const { data: existingBills } = useBills(effectiveTenant, undefined, !!effectiveTenant);
   const suggestedExpenseNo = useMemo(() => {
-    const n = (existingBills?.total ?? existingBills?.bills?.length ?? 0) + 1;
+    const n = (existingBills?.total ?? existingBills?.data?.length ?? 0) + 1;
     return `A${String(n).padStart(5, '0')}`;
   }, [existingBills]);
 

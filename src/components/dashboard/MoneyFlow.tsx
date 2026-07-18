@@ -23,8 +23,18 @@ export function MoneyFlow({ tenant, from, to }: Props) {
   const denom = collections + outstanding;
   const rate = denom > 0 ? (collections / denom) * 100 : 0;
 
+  // Friendly labels for the synthetic finance-module rows the backend appends alongside the
+  // gateway services (see treasury-api MoneyFlow): direct (non-gateway) sales + GL expenses.
+  const SERVICE_LABELS: Record<string, string> = {
+    direct_sales: 'Direct sales',
+    expenses: 'Expenses',
+    pos: 'POS',
+    ordering: 'Ordering',
+    treasury: 'Treasury',
+    subscription: 'Subscriptions',
+  };
   const data = (flow.data?.services ?? []).map((s) => ({
-    name: s.source_service,
+    name: SERVICE_LABELS[s.source_service] ?? s.source_service,
     in: Number(s.money_in),
     out: Number(s.costs),
   }));

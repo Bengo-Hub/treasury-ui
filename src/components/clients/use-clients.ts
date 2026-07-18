@@ -135,6 +135,14 @@ export function useClients(tenant: string) {
       }
     });
 
+    // Track which balance rows got attached to a client — any left over MUST still surface
+    // (step 3), or a POS-credit debtor with no invoice/CRM row is invisible to the list and
+    // the "Owe me (debtors)" filter (the Samu Malaba bug).
+    const attachedBalances = new Set<string>();
+    map.forEach((c) => {
+      if (c.balance) attachedBalances.add(c.balance.id);
+    });
+
     // 2. Merge CRM contacts — enrich matches, add CRM-only contacts.
     crmContacts.forEach((c: CRMContact) => {
       const name = crmName(c);
@@ -154,8 +162,19 @@ export function useClients(tenant: string) {
         if (!target.email && c.email) target.email = c.email;
         if (!target.phone && c.phone) target.phone = c.phone;
         if (!target.contactType && c.contact_type) target.contactType = c.contact_type;
+        // A CRM match may carry the balance key the doc row didn't (e.g. balance keyed on
+        // the CRM UUID while the invoice row only had a name) — retry the balance match.
+        if (!target.balance) {
+          const bal = matchBalance(c.id, name);
+          if (bal) {
+            target.balance = bal;
+            target.outstanding = parseFloat(bal.balance_due) || 0;
+          }
+        }
+        if (target.balance) attachedBalances.add(target.balance.id);
       } else {
         const bal = matchBalance(c.id, name);
+        if (bal) attachedBalances.add(bal.id);
         map.set(c.id, {
           key: c.id,
           name: name || 'Unknown Contact',
@@ -173,6 +192,30 @@ export function useClients(tenant: string) {
           fromCRM: true,
         });
       }
+    });
+
+    // 3. Surface UNMATCHED balance rows as their own clients. A customer whose only activity
+    // is a POS credit sale exists solely in CustomerBalance — without this they never appear,
+    // and "Owe me (debtors)" reads 0 while the statement shows real debt.
+    (balances ?? []).forEach((b) => {
+      if (attachedBalances.has(b.id)) return;
+      const key = b.crm_contact_id || b.customer_identifier || b.id;
+      if (map.has(key)) return;
+      map.set(key, {
+        key,
+        name: b.customer_name || b.customer_identifier || 'Unknown Customer',
+        email: '',
+        phone: b.customer_identifier?.includes('@') ? b.customer_identifier : '',
+        totalAmount: parseFloat(b.total_invoiced) || 0,
+        paidAmount: parseFloat(b.total_paid) || 0,
+        outstanding: parseFloat(b.balance_due) || 0,
+        invoiceCount: 0,
+        currency: b.currency || 'KES',
+        lastInvoiceDate: b.last_invoice_date || '',
+        customerId: b.crm_contact_id || b.customer_identifier || b.id,
+        balance: b,
+        fromCRM: false,
+      });
     });
 
     return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);

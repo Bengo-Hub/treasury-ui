@@ -42,9 +42,13 @@ export interface Bill {
   updated_at: string;
 }
 
+// Shared pagination envelope (Bengo-Hub/pagination): the list key is `data`. The old `bills`
+// key never existed in the response — every consumer reading it rendered an empty list.
 export interface BillsResponse {
-  bills: Bill[];
+  data: Bill[];
   total: number;
+  page?: number;
+  limit?: number;
 }
 
 export interface BillsParams {

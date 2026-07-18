@@ -121,7 +121,7 @@ export default function VendorsPage() {
   const [refundVendor, setRefundVendor] = useState<{ id?: string; name: string } | null>(null);
 
   const { data, isLoading, error } = useBills(effectiveTenant, {}, !!effectiveTenant);
-  const bills = useMemo(() => data?.bills ?? [], [data]);
+  const bills = useMemo(() => data?.data ?? [], [data]);
 
   // AP balances + summary (the operational AP ledger — opening/advance + owed per supplier).
   const { data: apSummary } = useAPSummary(effectiveTenant, !!effectiveTenant);

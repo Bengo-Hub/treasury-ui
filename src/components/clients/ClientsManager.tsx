@@ -369,8 +369,37 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                         <td className={cn('px-3 py-3 text-right tabular-nums', storeCredit > 0 && 'text-emerald-600 font-semibold')}>
                           {storeCredit ? formatCurrency(storeCredit, c.currency) : '—'}
                         </td>
-                        <td className={cn('px-3 py-3 text-right tabular-nums font-bold', c.outstanding > 0 ? 'text-amber-600' : 'text-emerald-600')}>
-                          {c.outstanding > 0 ? formatCurrency(c.outstanding, c.currency) : 'Settled'}
+                        <td className="px-3 py-3 text-right">
+                          {(() => {
+                            const overdueAmt = parseFloat(b?.overdue_amount ?? '0') || 0;
+                            const oldestDue = b?.oldest_due_date ? new Date(b.oldest_due_date) : null;
+                            if (c.outstanding > 0.0001) {
+                              return (
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className="tabular-nums font-bold text-amber-600">{formatCurrency(c.outstanding, c.currency)}</span>
+                                  {overdueAmt > 0.0001 ? (
+                                    <span title="Past its due date — settle via Receive payment">
+                                      <Badge variant="error">Overdue {formatCurrency(overdueAmt, c.currency)}</Badge>
+                                    </span>
+                                  ) : (
+                                    <span title={oldestDue ? `Falls due ${oldestDue.toLocaleDateString()}` : 'Open balance within credit terms'}>
+                                      <Badge variant="warning">Due{oldestDue ? ` ${oldestDue.toLocaleDateString()}` : ''}</Badge>
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            }
+                            if (owedToCustomer(c)) {
+                              const storeCr = parseFloat(b?.total_credits ?? '0') || 0;
+                              const overpaid = Math.max(-(parseFloat(b?.balance_due ?? '0') || 0), 0);
+                              return (
+                                <span title="Value the customer holds against you (store credit / overpayment)">
+                                  <Badge variant="success">Owed {formatCurrency(storeCr + overpaid, c.currency)}</Badge>
+                                </span>
+                              );
+                            }
+                            return <span className="tabular-nums font-bold text-emerald-600">Settled</span>;
+                          })()}
                         </td>
                         <td className="px-3 py-3 text-[11px] text-muted-foreground whitespace-nowrap">
                           {b?.last_payment_method ? (

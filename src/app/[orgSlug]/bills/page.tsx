@@ -23,8 +23,8 @@ import {
   ShoppingBag,
   Upload,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -47,6 +47,12 @@ export default function BillsPage() {
   const [page, setPage] = useState(1);
   const [payOpen, setPayOpen] = useState<string | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState('');
+  // Deep link from the dashboard payables list: /bills?pay=<billID> opens the Pay dialog.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const payParam = searchParams?.get('pay');
+    if (payParam) setPayOpen(payParam);
+  }, [searchParams]);
 
   const queryParams = useMemo(() => ({
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
@@ -55,7 +61,7 @@ export default function BillsPage() {
   const { data, isLoading, error } = useBills(effectiveTenant, queryParams, !!effectiveTenant);
   const { data: agingData } = useAPAging(effectiveTenant, !!effectiveTenant);
 
-  const list = data?.bills ?? [];
+  const list = data?.data ?? [];
   const agingRows = agingData?.rows ?? [];
 
   // Note: the bills list endpoint does not support a document_type query filter
