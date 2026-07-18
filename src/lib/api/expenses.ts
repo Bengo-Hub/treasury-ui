@@ -21,7 +21,7 @@ export interface Expense {
   total_amount: string;
   currency: string;
   expense_date: string;
-  status: string; // draft, submitted, approved, rejected, reimbursed, cancelled
+  status: string; // draft, submitted, approved, rejected, paid, reimbursed, cancelled
   submitted_by: string;
   approved_by?: string;
   approved_at?: string;
@@ -31,6 +31,7 @@ export interface Expense {
   account_id?: string;
   cost_center_id?: string;
   payment_intent_id?: string;
+  paid_from_account_id?: string;
   source_service?: string;
   source_reference_id?: string;
   is_recurring: boolean;
@@ -208,6 +209,22 @@ export function rejectExpense(tenantIdOrSlug: string, id: string, reason?: strin
 
 export function reimburseExpense(tenantIdOrSlug: string, id: string, paymentIntentId: string): Promise<{ status: string }> {
   return apiClient.post<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/${id}/reimburse`, { payment_intent_id: paymentIntentId });
+}
+
+// payExpense settles a direct business expense: posts DR Accounts Payable / CR the chosen cash/bank
+// account and marks it paid. paid_from_account_id = the cash/bank GL account the money left (omit
+// for the tenant default); payment_intent_id = only when paid through a gateway.
+export function payExpense(
+  tenantIdOrSlug: string,
+  id: string,
+  body?: { paid_from_account_id?: string; payment_intent_id?: string },
+): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/${id}/pay`, body ?? {});
+}
+
+// reconcileExpenseJournals posts any missing GL journals for approved/paid expenses (idempotent).
+export function reconcileExpenseJournals(tenantIdOrSlug: string): Promise<{ scanned: number; accruals_posted: number; settlements_posted: number; skipped_no_account: number }> {
+  return apiClient.post(`${BASE}/${tenantIdOrSlug}/expenses/reconcile-journals`, {});
 }
 
 export function getExpenseCategories(tenantIdOrSlug: string): Promise<CategoriesResponse> {

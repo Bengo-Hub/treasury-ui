@@ -7,6 +7,7 @@ import { RowActionMenu, type RowAction } from '@/components/ui/action-menu';
 import { FormField } from '@/components/ui/form-field';
 import { Pagination } from '@/components/ui/pagination';
 import { ExpensePaymentModal } from '@/components/expenses/ExpensePaymentModal';
+import { MarkExpensePaidModal } from '@/components/expenses/MarkExpensePaidModal';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
   useExpenses,
@@ -14,6 +15,8 @@ import {
   useApproveExpense,
   useRejectExpense,
   useReimburseExpense,
+  usePayExpense,
+  useReconcileExpenseJournals,
   useDeleteExpense,
 } from '@/hooks/use-expenses';
 import { useRouter } from 'next/navigation';
@@ -45,6 +48,7 @@ const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' 
   submitted: 'default',
   approved: 'success',
   rejected: 'error',
+  paid: 'success',
   reimbursed: 'success',
   cancelled: 'outline',
 };
@@ -74,6 +78,7 @@ export default function ExpensesPage() {
   // then link the settled intent via reimburse. `reimburseExp`/`paymentIntentId` back the
   // secondary power-user "link an existing intent ID" fallback.
   const [payExp, setPayExp] = useState<Expense | null>(null);
+  const [markPaidExp, setMarkPaidExp] = useState<Expense | null>(null);
   const [reimburseExp, setReimburseExp] = useState<Expense | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState('');
   const dateRange = useMemo(() => defaultDateRange(), []);
@@ -109,13 +114,24 @@ export default function ExpensesPage() {
 
   useMemo(() => { setPage(1); }, [searchQuery, statusFilter, costCenterFilter]);
 
-  const statusOptions = ['all', 'draft', 'submitted', 'approved', 'rejected', 'reimbursed'];
+  const statusOptions = ['all', 'draft', 'submitted', 'approved', 'rejected', 'paid'];
 
   // Mutations
   const submitMutation = useSubmitExpense(effectiveTenant);
   const approveMutation = useApproveExpense(effectiveTenant);
   const rejectMutation = useRejectExpense(effectiveTenant);
   const reimburseMutation = useReimburseExpense(effectiveTenant);
+  const payMutation = usePayExpense(effectiveTenant);
+  const reconcileMutation = useReconcileExpenseJournals(effectiveTenant);
+
+  const handleReconcile = async () => {
+    try {
+      const r = await reconcileMutation.mutateAsync();
+      toast.success(`Reconciled: ${r.accruals_posted} accrual + ${r.settlements_posted} settlement journal(s) posted${r.skipped_no_account ? `, ${r.skipped_no_account} skipped (no account)` : ''}.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? 'Failed to reconcile expense journals.');
+    }
+  };
   const deleteMutation = useDeleteExpense(effectiveTenant);
 
   const goToNewExpenditure = () => router.push(`/${orgSlug}/expenses/new`);
@@ -175,22 +191,31 @@ export default function ExpensesPage() {
     }
   };
 
-  // Called by ExpensePaymentModal once the embedded checkout confirms the payment. The
-  // returned intentId is the intent that settled THIS expense — link it so the expense is
-  // marked reimbursed and payment_intent_id is persisted.
+  // Primary: settle a direct business expense from a chosen cash/bank account. The backend posts
+  // DR Accounts Payable / CR that account and marks it paid.
+  const handleMarkPaid = async (paidFromAccountId: string) => {
+    if (!markPaidExp) return;
+    try {
+      await payMutation.mutateAsync({ id: markPaidExp.id, paidFromAccountId: paidFromAccountId || undefined });
+      toast.success(`Expense ${markPaidExp.expense_number} marked paid`);
+      setMarkPaidExp(null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? 'Failed to mark the expense paid.');
+    }
+  };
+
+  // Gateway path: once the embedded checkout confirms, settle THIS expense with the returned
+  // intent id — payExpense posts the settlement GL (DR AP / CR cash) and persists payment_intent_id.
+  // The backend also records the paid taxable expense as a KRA eTIMS purchase for input VAT.
   const handlePaymentConfirmed = async (intentId: string) => {
     if (!payExp) return;
     try {
-      await reimburseMutation.mutateAsync({ id: payExp.id, paymentIntentId: intentId });
-      toast.success(`Expense ${payExp.expense_number} marked reimbursed`);
-      // TODO(etims-purchase): no expense→eTIMS purchase-transmission hook exists yet. The only
-      // KRA purchase hook is transmitVendorBill (vendor bills), and EtimsTransmissionRecord.source
-      // has no 'expense' variant. When a backend endpoint to transmit a taxable expense/purchase to
-      // eTIMS ships, call it here for VAT-bearing expenses (exp.tax_amount > 0).
+      await payMutation.mutateAsync({ id: payExp.id, paymentIntentId: intentId });
+      toast.success(`Expense ${payExp.expense_number} marked paid`);
       setPayExp(null);
     } catch (err: any) {
-      // Payment succeeded but the link failed — surface the real error plus the intent ID so
-      // it can be recovered via the manual "Link payment intent" fallback.
+      // Payment succeeded but the settlement link failed — surface the real error plus the intent
+      // ID so it can be recovered via the manual "Link payment intent" fallback.
       toast.error(
         (err?.response?.data?.error ?? 'Payment succeeded but linking it to the expense failed.') +
           ` Intent ID: ${intentId}`,
@@ -233,7 +258,13 @@ export default function ExpensesPage() {
       onClick: (exp) => { setRejectReason(''); setRejectOpen(exp.id); },
     },
     {
-      label: 'Record Payment',
+      label: 'Mark Paid',
+      icon: <Wallet className="h-3.5 w-3.5" />,
+      visible: (exp) => exp.status === 'approved',
+      onClick: (exp) => setMarkPaidExp(exp),
+    },
+    {
+      label: 'Pay via gateway',
       icon: <Wallet className="h-3.5 w-3.5" />,
       visible: (exp) => exp.status === 'approved',
       onClick: (exp) => setPayExp(exp),
@@ -260,9 +291,16 @@ export default function ExpensesPage() {
           <h1 className="text-3xl font-bold tracking-tight">Expenses</h1>
           <p className="text-muted-foreground mt-1">Track, submit, and manage expense claims.</p>
         </div>
-        <Button className="gap-2 shadow-lg shadow-primary/20" onClick={goToNewExpenditure}>
-          <Plus className="h-4 w-4" /> New Expenditure
-        </Button>
+        <div className="flex items-center gap-2">
+          {isPlatformOwner && (
+            <Button variant="outline" className="gap-2" onClick={handleReconcile} disabled={reconcileMutation.isPending}>
+              {reconcileMutation.isPending ? 'Reconciling…' : 'Reconcile journals'}
+            </Button>
+          )}
+          <Button className="gap-2 shadow-lg shadow-primary/20" onClick={goToNewExpenditure}>
+            <Plus className="h-4 w-4" /> New Expenditure
+          </Button>
+        </div>
       </div>
 
       {isPlatformOwner && !tenantQueryParam && (
@@ -365,7 +403,7 @@ export default function ExpensesPage() {
                       <td className="px-6 py-4 text-right font-bold text-xs tabular-nums">{formatCurrency(Number(exp.total_amount), exp.currency)}</td>
                       <td className="px-6 py-4 text-center">
                         <Badge variant={statusVariant[exp.status] ?? 'outline'}>
-                          {exp.status}
+                          {exp.status === 'reimbursed' ? 'paid' : exp.status}
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-right text-xs text-muted-foreground">
@@ -415,12 +453,23 @@ export default function ExpensesPage() {
         onConfirm={runConfirm}
       />
 
-      {/* Primary: Record Payment — pay the expense via the embedded checkout and link the intent. */}
+      {/* Primary: Mark Paid — settle from a cash/bank account (DR AP / CR cash). No gateway. */}
+      {markPaidExp && effectiveTenant && (
+        <MarkExpensePaidModal
+          tenant={effectiveTenant}
+          expense={markPaidExp}
+          pending={payMutation.isPending}
+          onConfirm={handleMarkPaid}
+          onClose={() => setMarkPaidExp(null)}
+        />
+      )}
+
+      {/* Secondary: Pay via gateway — pay through the embedded M-Pesa/Paystack checkout, then settle. */}
       {payExp && effectiveTenant && (
         <ExpensePaymentModal
           tenant={effectiveTenant}
           expense={payExp}
-          linking={reimburseMutation.isPending}
+          linking={payMutation.isPending}
           onConfirmed={handlePaymentConfirmed}
           onClose={() => setPayExp(null)}
         />
@@ -431,7 +480,7 @@ export default function ExpensesPage() {
         open={!!reimburseExp}
         onOpenChange={(o) => { if (!o) { setReimburseExp(null); setPaymentIntentId(''); } }}
         title="Link payment intent"
-        description={`Link an existing reimbursement payment intent to ${reimburseExp?.expense_number ?? ''}. Most users should use “Record Payment” instead.`}
+        description={`Link an existing payment intent to ${reimburseExp?.expense_number ?? ''}. Most users should use “Mark Paid” instead.`}
         confirmLabel="Link & mark reimbursed"
         isPending={reimburseMutation.isPending}
         confirmDisabled={!paymentIntentId.trim()}

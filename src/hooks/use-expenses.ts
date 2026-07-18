@@ -11,6 +11,8 @@ import {
   approveExpense,
   rejectExpense,
   reimburseExpense,
+  payExpense,
+  reconcileExpenseJournals,
   createExpenseCategory,
   updateExpenseCategory,
   deleteExpenseCategory,
@@ -140,6 +142,28 @@ export function useReimburseExpense(tenantIdOrSlug: string | undefined) {
   return useMutation({
     mutationFn: ({ id, paymentIntentId }: { id: string; paymentIntentId: string }) =>
       reimburseExpense(tenantIdOrSlug!, id, paymentIntentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
+    },
+  });
+}
+
+export function usePayExpense(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, paidFromAccountId, paymentIntentId }: { id: string; paidFromAccountId?: string; paymentIntentId?: string }) =>
+      payExpense(tenantIdOrSlug!, id, { paid_from_account_id: paidFromAccountId, payment_intent_id: paymentIntentId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
+    },
+  });
+}
+
+// useReconcileExpenseJournals posts any missing GL journals for approved/paid expenses (idempotent).
+export function useReconcileExpenseJournals(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => reconcileExpenseJournals(tenantIdOrSlug!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
     },
