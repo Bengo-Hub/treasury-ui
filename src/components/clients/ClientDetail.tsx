@@ -2,11 +2,13 @@
 
 import { Badge, Button, Card, CardContent } from '@/components/ui/base';
 import type { Invoice } from '@/lib/api/invoices';
+import { useCustomerStatement } from '@/hooks/use-arpa';
 import { formatCurrency } from '@/lib/utils/currency';
-import { ArrowLeft, FileText, Mail, Phone } from 'lucide-react';
-import { useMemo } from 'react';
+import { ArrowLeft, Banknote, FileText, Loader2, Mail, Phone } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import type { ClientRecord } from './use-clients';
+import { ReceivePaymentModal } from './ReceivePaymentModal';
 
 const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
   draft: 'secondary',
@@ -24,11 +26,25 @@ interface ClientDetailProps {
   onBack: () => void;
 }
 
-/** Per-client drill-in: header, AR statement, totals, and this client's invoices. */
-export function ClientDetail({ client, invoices, onBack }: ClientDetailProps) {
+/**
+ * Per-client drill-in. Totals + activity come from the OPERATIONAL AR ledger
+ * (CustomerBalance via the statement endpoint) — the same source the Statement modal
+ * reads — because POS credit sales never create Invoice rows. Sourcing these cards from
+ * invoices left credit-sale customers showing 0/0/0 with "No invoices found" while their
+ * statement showed real debt. Invoices remain as a secondary section for doc-backed clients.
+ */
+export function ClientDetail({ tenant, client, invoices, onBack }: ClientDetailProps) {
   const router = useRouter();
   const params = useParams();
   const orgSlug = (params?.orgSlug as string) ?? '';
+  const [payOpen, setPayOpen] = useState(false);
+
+  const { data: statement, isLoading: stmtLoading } = useCustomerStatement(
+    tenant,
+    client.customerId,
+    undefined,
+    !!client.customerId,
+  );
 
   const clientInvoices = useMemo(
     () =>
@@ -39,6 +55,16 @@ export function ClientDetail({ client, invoices, onBack }: ClientDetailProps) {
       }),
     [invoices, client],
   );
+
+  // Operational AR ledger first (matches the statement), doc-derived numbers as fallback.
+  const b = client.balance;
+  const totalInvoiced = b ? parseFloat(b.total_invoiced) || 0
+    : statement ? parseFloat(statement.total_invoiced) || 0 : client.totalAmount;
+  const totalPaid = b ? parseFloat(b.total_paid) || 0 : client.paidAmount;
+  const outstanding = b ? parseFloat(b.balance_due) || 0
+    : statement ? parseFloat(statement.closing_balance) || 0 : client.outstanding;
+
+  const lines = statement?.lines ?? [];
 
   return (
     <div className="p-6 space-y-6">
@@ -63,6 +89,12 @@ export function ClientDetail({ client, invoices, onBack }: ClientDetailProps) {
             )}
           </div>
         </div>
+        {b && outstanding > 0.0001 && (
+          <Button size="sm" onClick={() => setPayOpen(true)}>
+            <Banknote className="h-4 w-4 mr-1.5" />
+            Record payment
+          </Button>
+        )}
         {client.customerId && (
           <Button
             variant="outline"
@@ -77,9 +109,9 @@ export function ClientDetail({ client, invoices, onBack }: ClientDetailProps) {
 
       <div className="grid gap-4 md:grid-cols-3">
         {[
-          { label: 'Total Invoiced', value: formatCurrency(client.totalAmount, client.currency) },
-          { label: 'Total Paid', value: formatCurrency(client.paidAmount, client.currency) },
-          { label: 'Outstanding', value: formatCurrency(client.outstanding, client.currency) },
+          { label: 'Total Invoiced', value: formatCurrency(totalInvoiced, client.currency) },
+          { label: 'Total Paid', value: formatCurrency(totalPaid, client.currency) },
+          { label: 'Outstanding', value: formatCurrency(outstanding, client.currency) },
         ].map(({ label, value }) => (
           <Card key={label}>
             <CardContent className="pt-4">
@@ -90,41 +122,108 @@ export function ClientDetail({ client, invoices, onBack }: ClientDetailProps) {
         ))}
       </div>
 
+      {/* Account activity — the itemized AR ledger (credit sales, payments, credit notes…). */}
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-accent/5">
-                  <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Invoice #</th>
-                  <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Amount</th>
-                  <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Due Date</th>
-                  <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                  <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {clientInvoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-accent/5 transition-colors">
-                    <td className="px-6 py-4 font-mono text-xs font-bold">{inv.invoice_number}</td>
-                    <td className="px-6 py-4 text-right font-bold text-xs">{inv.currency} {inv.total_amount}</td>
-                    <td className="px-6 py-4 text-xs">{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '—'}</td>
-                    <td className="px-6 py-4 text-center">
-                      <Badge variant={statusVariant[inv.status] ?? 'outline'}>{inv.status}</Badge>
-                    </td>
-                    <td className="px-6 py-4 text-right text-xs text-muted-foreground">
-                      {new Date(inv.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {clientInvoices.length === 0 && (
-              <div className="p-12 text-center text-muted-foreground">No invoices found for this client.</div>
+          <div className="px-6 py-3 border-b border-border flex items-center justify-between">
+            <h3 className="text-sm font-bold">Account activity</h3>
+            {statement && (
+              <span className="text-[11px] text-muted-foreground">
+                {new Date(statement.from).toLocaleDateString()} – {new Date(statement.to).toLocaleDateString()}
+              </span>
             )}
           </div>
+          {stmtLoading && (
+            <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading activity…
+            </div>
+          )}
+          {!stmtLoading && lines.length === 0 && (
+            <div className="p-10 text-center text-muted-foreground text-sm">
+              No account activity for this client yet.
+            </div>
+          )}
+          {!stmtLoading && lines.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-accent/5">
+                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Date</th>
+                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Reference</th>
+                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Debit</th>
+                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Credit</th>
+                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Balance</th>
+                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {lines.map((l, i) => (
+                    <tr key={`${l.reference}-${i}`} className="hover:bg-accent/5 transition-colors">
+                      <td className="px-6 py-3 text-xs whitespace-nowrap">{new Date(l.date).toLocaleDateString()}</td>
+                      <td className="px-6 py-3 font-mono text-xs">{l.reference || '—'}</td>
+                      <td className="px-6 py-3 text-right tabular-nums text-xs">
+                        {parseFloat(l.debit) > 0 ? formatCurrency(parseFloat(l.debit), client.currency) : '—'}
+                      </td>
+                      <td className="px-6 py-3 text-right tabular-nums text-xs">
+                        {parseFloat(l.credit) > 0 ? formatCurrency(parseFloat(l.credit), client.currency) : '—'}
+                      </td>
+                      <td className="px-6 py-3 text-right tabular-nums text-xs font-bold">
+                        {formatCurrency(parseFloat(l.balance) || 0, client.currency)}
+                      </td>
+                      <td className="px-6 py-3 text-xs">
+                        <Badge variant="outline">{(l.status || l.doc_type || '').replace(/_/g, ' ') || '—'}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Invoices — secondary section for doc-backed clients. */}
+      {clientInvoices.length > 0 && (
+        <Card>
+          <CardContent className="p-0">
+            <div className="px-6 py-3 border-b border-border">
+              <h3 className="text-sm font-bold">Invoices</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-accent/5">
+                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Invoice #</th>
+                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Amount</th>
+                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Due Date</th>
+                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
+                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {clientInvoices.map((inv) => (
+                    <tr key={inv.id} className="hover:bg-accent/5 transition-colors">
+                      <td className="px-6 py-4 font-mono text-xs font-bold">{inv.invoice_number}</td>
+                      <td className="px-6 py-4 text-right font-bold text-xs">{inv.currency} {inv.total_amount}</td>
+                      <td className="px-6 py-4 text-xs">{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '—'}</td>
+                      <td className="px-6 py-4 text-center">
+                        <Badge variant={statusVariant[inv.status] ?? 'outline'}>{inv.status}</Badge>
+                      </td>
+                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">
+                        {new Date(inv.created_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {payOpen && b && (
+        <ReceivePaymentModal tenant={tenant} target={b} onClose={() => setPayOpen(false)} />
+      )}
     </div>
   );
 }

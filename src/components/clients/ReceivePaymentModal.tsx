@@ -14,6 +14,23 @@ interface ReceivePaymentModalProps {
 }
 
 /**
+ * Every payment method the platform supports for settling AR — aligned with the POS tender
+ * methods so a payment recorded here reads the same as one recorded at the till. The backend
+ * accepts any method string and stamps last_payment_method (drives the payment-mode filter).
+ * Exported for reuse by the dashboard receivables/payables lists.
+ */
+export const AR_PAYMENT_METHODS: { value: string; label: string }[] = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'mpesa', label: 'M-Pesa (STK / Paybill)' },
+  { value: 'mpesa_manual', label: 'M-Pesa code (sighted)' },
+  { value: 'bank', label: 'Bank transfer' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'card', label: 'Card' },
+  { value: 'paystack', label: 'Paystack' },
+  { value: 'store_credit', label: 'Store credit' },
+];
+
+/**
  * Modal to receive a customer's AR repayment (POST /ar/customers/{contactID}/payment
  * via useRecordCustomerPayment). Reused by ClientsManager — the single place AR
  * repayments are captured.
@@ -78,11 +95,9 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
                 onChange={(e) => setMethod(e.target.value)}
                 className="w-full mt-1 bg-accent/30 border-none rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
               >
-                <option value="cash">Cash</option>
-                <option value="mpesa">M-Pesa</option>
-                <option value="bank">Bank transfer</option>
-                <option value="cheque">Cheque</option>
-                <option value="card">Card</option>
+                {AR_PAYMENT_METHODS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
               </select>
             </div>
             <div>

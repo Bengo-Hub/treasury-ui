@@ -765,6 +765,10 @@ export interface CustomerBalance {
   last_payment_method?: string;
   last_payment_date?: string;
   last_invoice_date?: string;
+  /** FIFO-aged portion of balance_due already past its due date (drives the Overdue badge). */
+  overdue_amount?: string;
+  /** Earliest open-charge due date (drives the Due badge / tooltip). */
+  oldest_due_date?: string;
   updated_at: string;
 }
 

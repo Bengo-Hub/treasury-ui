@@ -1,52 +1,51 @@
 'use client';
 
-import { ChartCard } from '@/components/charts/ChartCard';
 import { StatCard } from '@/components/charts/StatCard';
 import { money } from '@/components/charts/chart-theme';
+import { PayablesDueList, ReceivablesDueList } from '@/components/dashboard/ArApDueLists';
 import { useARAging, useARSummary } from '@/hooks/use-invoices';
 import { useAPAging } from '@/hooks/use-bills';
 import { useAPSummary } from '@/hooks/use-arpa';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
+import { cn } from '@/lib/utils';
 
 interface AgingRowLike {
   current: string; days_1_to_30: string; days_31_to_60: string; days_61_to_90: string; over_90: string;
 }
 
 const BUCKETS = [
-  { key: 'current', label: 'Current', color: '#10b981' },
-  { key: 'days_1_to_30', label: '1–30d', color: '#84cc16' },
-  { key: 'days_31_to_60', label: '31–60d', color: '#f59e0b' },
-  { key: 'days_61_to_90', label: '61–90d', color: '#f97316' },
-  { key: 'over_90', label: '90d+', color: '#ef4444' },
+  { key: 'current', label: 'Current', tone: 'text-emerald-600' },
+  { key: 'days_1_to_30', label: '1–30d', tone: 'text-lime-600' },
+  { key: 'days_31_to_60', label: '31–60d', tone: 'text-amber-600' },
+  { key: 'days_61_to_90', label: '61–90d', tone: 'text-orange-600' },
+  { key: 'over_90', label: '90d+', tone: 'text-destructive' },
 ] as const;
 
-// AgingChart sums each bucket across rows into a single aging distribution bar — reused for AR + AP.
-function AgingChart({ title, rows, empty }: { title: string; rows: AgingRowLike[]; empty: boolean }) {
+/** Compact aging distribution chips (replaces the old full-height bar chart). */
+function AgingChips({ rows }: { rows: AgingRowLike[] }) {
   const data = BUCKETS.map((b) => ({
-    label: b.label,
-    color: b.color,
+    ...b,
     amount: rows.reduce((s, r) => s + Number((r as any)[b.key] ?? 0), 0),
-  }));
+  })).filter((d) => d.amount > 0.0001);
+  if (data.length === 0) return null;
   return (
-    <ChartCard title={title} subtitle="Outstanding by age" height={240} empty={empty}>
-      <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-        <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-        <YAxis tickFormatter={(v) => money(v).replace('KES', '').trim()} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={56} />
-        <Tooltip formatter={(v) => money(Number(v))} />
-        <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
-          {data.map((d, i) => <Cell key={i} fill={d.color} />)}
-        </Bar>
-      </BarChart>
-    </ChartCard>
+    <div className="flex flex-wrap items-center gap-2 px-1">
+      {data.map((d) => (
+        <span key={d.key} className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11px]">
+          <span className="text-muted-foreground">{d.label}</span>
+          <span className={cn('font-bold tabular-nums', d.tone)}>{money(d.amount)}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
 interface Props { tenant: string }
 
 /**
- * ReceivablesPayables — debtors (AR) and creditors (AP) aging + headline balances. Self-contained
- * widget reusing the shared aging chart + StatCard, and the existing AR/AP hooks.
+ * ReceivablesPayables — headline AR/AP balances + actionable due/overdue LISTS (GoDigital
+ * pattern): each receivable row settles via Record payment, each payable row deep-links into
+ * the Bills pay flow. The old aging bar charts are condensed into distribution chips above
+ * each list.
  */
 export function ReceivablesPayables({ tenant }: Props) {
   const arAging = useARAging(tenant);
@@ -62,9 +61,15 @@ export function ReceivablesPayables({ tenant }: Props) {
         <StatCard label="Total Payable" value={money(apSummary.data?.total_payable)} tone="warning" loading={apSummary.isLoading} />
         <StatCard label="AP Overdue" value={money(apSummary.data?.overdue)} tone="destructive" loading={apSummary.isLoading} />
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <AgingChart title="Debtors (Receivables)" rows={arAging.data?.rows ?? []} empty={!arAging.isLoading && !(arAging.data?.rows?.length)} />
-        <AgingChart title="Creditors (Payables)" rows={apAging.data?.rows ?? []} empty={!apAging.isLoading && !(apAging.data?.rows?.length)} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 items-start">
+        <div className="space-y-2">
+          <AgingChips rows={arAging.data?.rows ?? []} />
+          <ReceivablesDueList tenant={tenant} />
+        </div>
+        <div className="space-y-2">
+          <AgingChips rows={apAging.data?.rows ?? []} />
+          <PayablesDueList tenant={tenant} />
+        </div>
       </div>
     </div>
   );
