@@ -160,6 +160,8 @@ export default function NewExpenditurePage() {
   const [vendorId, setVendorId] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [vendorEmail, setVendorEmail] = useState('');
+  // Supplier KRA PIN — lets a paid taxable expense be recorded as a KRA eTIMS purchase (input VAT).
+  const [vendorKraPin, setVendorKraPin] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [expenseNo, setExpenseNo] = useState('');
   // Real link to an existing invoice (invoice_id) — not a free-typed number with no relationship
@@ -186,6 +188,8 @@ export default function NewExpenditurePage() {
     if (v) {
       setVendorName(v.business_name);
       if (v.email) setVendorEmail(v.email);
+      const pin = (v as any).kra_pin ?? (v as any).tax_pin ?? '';
+      if (pin) setVendorKraPin(pin);
     }
   };
 
@@ -226,6 +230,9 @@ export default function NewExpenditurePage() {
       metadata: {
         vendor_name: selfExpense ? undefined : (vendorName.trim() || undefined),
         vendor_email: selfExpense ? undefined : (vendorEmail.trim() || undefined),
+        // Read by treasury on payment to record the expense as a KRA eTIMS purchase (input VAT).
+        supplier_kra_pin: selfExpense ? undefined : (vendorKraPin.trim() || undefined),
+        supplier_name: selfExpense ? undefined : (vendorName.trim() || undefined),
         is_self_expense: selfExpense || undefined,
         tax_type: taxType,
         attachment_name: attachmentName || undefined,
@@ -239,6 +246,7 @@ export default function NewExpenditurePage() {
     setVendorId('');
     setVendorName('');
     setVendorEmail('');
+    setVendorKraPin('');
     setCategoryId('');
     setExpenseNo('');
     setInvoiceId('');
@@ -340,6 +348,7 @@ export default function NewExpenditurePage() {
                     setVendorId('');
                     setVendorName('');
                     setVendorEmail('');
+                    setVendorKraPin('');
                     setErrors((e) => ({ ...e, vendor: undefined }));
                   }
                   return next;
@@ -375,6 +384,10 @@ export default function NewExpenditurePage() {
 
                 <FormField label="Vendor's Email">
                   <input type="email" value={vendorEmail} onChange={(e) => setVendorEmail(e.target.value)} className={inputClass} />
+                </FormField>
+
+                <FormField label="Supplier KRA PIN" description="Optional — enables recording this expense as a KRA eTIMS purchase (input VAT) when paid.">
+                  <input value={vendorKraPin} onChange={(e) => setVendorKraPin(e.target.value.toUpperCase())} placeholder="e.g. P051234567X" className={inputClass} />
                 </FormField>
               </div>
             )}
