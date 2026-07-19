@@ -29,7 +29,9 @@ const DOC_TYPE_LABELS: Record<DocType, string> = {
   expense: 'Expense',
 };
 
-const DOC_TYPE_DEFAULT_PREFIX: Record<DocType, string> = {
+// Suggested prefixes pre-filled ONLY when a tenant switches a doc type to the "Prefixed" format.
+// The platform default is pure numeric (no prefix, no date) — these are hints, not defaults.
+const DOC_TYPE_SUGGESTED_PREFIX: Record<DocType, string> = {
   quotation: 'QT',
   invoice: 'INV',
   proforma_invoice: 'PI',
@@ -101,11 +103,14 @@ function ResetConfirmDialog({
 function DocTypeCard({ tenant, docType }: { tenant: string; docType: DocType }) {
   const { data: cfg } = useSequenceConfig(tenant, docType);
   const { data: preview } = usePreviewNextNumber(tenant, docType);
+  const suggestedPrefix = DOC_TYPE_SUGGESTED_PREFIX[docType];
 
+  // 'numeric' → pure sequential number (e.g. 000001); 'prefixed' → prefix/date/separator style.
+  const [format, setFormat] = useState<'numeric' | 'prefixed'>('numeric');
   const [form, setForm] = useState({
-    prefix: DOC_TYPE_DEFAULT_PREFIX[docType],
+    prefix: '',
     separator: '-',
-    date_format: 'YYMMDD',
+    date_format: '',
     padding: 6,
     reset_freq: 'never',
   });
@@ -116,15 +121,31 @@ function DocTypeCard({ tenant, docType }: { tenant: string; docType: DocType }) 
 
   useEffect(() => {
     if (cfg) {
+      const isPrefixed = Boolean(cfg.prefix || cfg.date_format);
+      setFormat(isPrefixed ? 'prefixed' : 'numeric');
       setForm({
-        prefix: cfg.prefix ?? DOC_TYPE_DEFAULT_PREFIX[docType],
+        prefix: cfg.prefix ?? '',
         separator: cfg.separator ?? '-',
-        date_format: cfg.date_format ?? 'YYMMDD',
+        date_format: cfg.date_format ?? '',
         padding: cfg.padding ?? 6,
         reset_freq: cfg.reset_freq ?? 'never',
       });
     }
   }, [cfg, docType]);
+
+  // Switching format clears (numeric) or pre-fills (prefixed) the prefix/date fields.
+  const selectNumeric = () => {
+    setFormat('numeric');
+    setForm((f) => ({ ...f, prefix: '', date_format: '' }));
+  };
+  const selectPrefixed = () => {
+    setFormat('prefixed');
+    setForm((f) => ({
+      ...f,
+      prefix: f.prefix || suggestedPrefix,
+      date_format: f.date_format || 'YYMMDD',
+    }));
+  };
 
   const update = useUpdateSequenceConfig(tenant, docType);
   const reset = useResetSequenceCounter(tenant, docType);
@@ -146,11 +167,13 @@ function DocTypeCard({ tenant, docType }: { tenant: string; docType: DocType }) 
   };
 
   const handleSave = () => {
+    // Numeric format persists as empty prefix + empty date so the backend emits just the counter.
+    const numeric = format === 'numeric';
     update.mutate(
       {
-        prefix: form.prefix,
+        prefix: numeric ? '' : form.prefix,
         separator: form.separator,
-        date_format: form.date_format,
+        date_format: numeric ? '' : form.date_format,
         padding: form.padding,
         reset_freq: form.reset_freq,
       },
@@ -198,40 +221,76 @@ function DocTypeCard({ tenant, docType }: { tenant: string; docType: DocType }) 
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <FormField
-              label="Prefix"
-              description={`Default: ${DOC_TYPE_DEFAULT_PREFIX[docType]}`}
-            >
-              <input
-                className="w-full rounded border px-2 py-1.5 text-sm bg-background"
-                value={form.prefix}
-                onChange={(e) => setForm((f) => ({ ...f, prefix: e.target.value }))}
-                placeholder={DOC_TYPE_DEFAULT_PREFIX[docType]}
-              />
-            </FormField>
-            <FormField label="Separator">
-              <input
-                className="w-full rounded border px-2 py-1.5 text-sm bg-background"
-                value={form.separator}
-                onChange={(e) => setForm((f) => ({ ...f, separator: e.target.value }))}
-                placeholder="-"
-                maxLength={3}
-              />
-            </FormField>
-            <FormField label="Date Format">
-              <select
-                className="w-full rounded border px-2 py-1.5 text-sm bg-background"
-                value={form.date_format}
-                onChange={(e) => setForm((f) => ({ ...f, date_format: e.target.value }))}
+          {/* Numbering format toggle: pure numeric (default) vs prefixed/dated. */}
+          <FormField
+            label="Numbering Format"
+            description={
+              format === 'numeric'
+                ? 'Pure sequential number — no prefix or date.'
+                : 'Prefix + optional date + sequential number.'
+            }
+          >
+            <div className="inline-flex rounded-md border bg-background p-0.5 text-sm">
+              <button
+                type="button"
+                onClick={selectNumeric}
+                className={`px-3 py-1 rounded ${
+                  format === 'numeric'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
-                {DATE_FORMAT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </FormField>
+                Numeric
+              </button>
+              <button
+                type="button"
+                onClick={selectPrefixed}
+                className={`px-3 py-1 rounded ${
+                  format === 'prefixed'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Prefixed
+              </button>
+            </div>
+          </FormField>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {format === 'prefixed' && (
+              <>
+                <FormField label="Prefix" description={`Suggested: ${suggestedPrefix}`}>
+                  <input
+                    className="w-full rounded border px-2 py-1.5 text-sm bg-background"
+                    value={form.prefix}
+                    onChange={(e) => setForm((f) => ({ ...f, prefix: e.target.value }))}
+                    placeholder={suggestedPrefix}
+                  />
+                </FormField>
+                <FormField label="Separator">
+                  <input
+                    className="w-full rounded border px-2 py-1.5 text-sm bg-background"
+                    value={form.separator}
+                    onChange={(e) => setForm((f) => ({ ...f, separator: e.target.value }))}
+                    placeholder="-"
+                    maxLength={3}
+                  />
+                </FormField>
+                <FormField label="Date Format">
+                  <select
+                    className="w-full rounded border px-2 py-1.5 text-sm bg-background"
+                    value={form.date_format}
+                    onChange={(e) => setForm((f) => ({ ...f, date_format: e.target.value }))}
+                  >
+                    {DATE_FORMAT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              </>
+            )}
             <FormField label="Zero Padding">
               <input
                 type="number"
@@ -337,8 +396,8 @@ export default function DocumentNumberingPage() {
       <div>
         <h1 className="text-2xl font-semibold">Document Numbering</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Configure the prefix, separator, date format, and padding for each document type.
-          Changes apply to new documents only — existing numbers are not affected.
+          Choose pure numeric numbering (the default, e.g. 000001) or a prefixed/dated format
+          per document type. Changes apply to new documents only — existing numbers are not affected.
         </p>
       </div>
       <div className="space-y-4">
