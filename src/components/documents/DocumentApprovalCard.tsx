@@ -44,9 +44,13 @@ interface Props {
   /** Display reference (e.g. invoice number) used when submitting. */
   documentReference?: string;
   className?: string;
+  /** Drop the outer card chrome when the card is embedded in another shell (e.g. a modal). */
+  embedded?: boolean;
+  /** Invoked after a successful submit / approve / reject — lets a host modal close itself. */
+  onActed?: () => void;
 }
 
-export function DocumentApprovalCard({ tenant, module, documentId, className }: Props) {
+export function DocumentApprovalCard({ tenant, module, documentId, className, embedded, onActed }: Props) {
   const { data: request, isLoading } = useApprovalForObject(tenant, documentId);
   const submit = useSubmitForApproval(tenant);
   const approve = useApproveRequest(tenant);
@@ -76,6 +80,7 @@ export function DocumentApprovalCard({ tenant, module, documentId, className }: 
       {
         onSuccess: (res) => {
           toast.success(res.approval_required ? 'Submitted for approval' : (res.message ?? 'No approval required — auto-approved'));
+          onActed?.();
         },
         onError: (e) => toast.error(errMsg(e, 'Failed to submit for approval')),
       },
@@ -87,7 +92,7 @@ export function DocumentApprovalCard({ tenant, module, documentId, className }: 
     approve.mutate(
       { id: request.id, comment: comment.trim() || undefined },
       {
-        onSuccess: () => { toast.success('Approved'); setComment(''); },
+        onSuccess: () => { toast.success('Approved'); setComment(''); onActed?.(); },
         onError: (e) => toast.error(errMsg(e, 'Failed to approve')),
       },
     );
@@ -98,7 +103,7 @@ export function DocumentApprovalCard({ tenant, module, documentId, className }: 
     reject.mutate(
       { id: request.id, comment: comment.trim() || undefined },
       {
-        onSuccess: () => { toast.success('Rejected'); setComment(''); },
+        onSuccess: () => { toast.success('Rejected'); setComment(''); onActed?.(); },
         onError: (e) => toast.error(errMsg(e, 'Failed to reject')),
       },
     );
@@ -113,7 +118,12 @@ export function DocumentApprovalCard({ tenant, module, documentId, className }: 
       : undefined;
 
   return (
-    <div className={['rounded-xl border border-border bg-card shadow-sm p-5', className].filter(Boolean).join(' ')}>
+    <div
+      className={[
+        embedded ? '' : 'rounded-xl border border-border bg-card shadow-sm p-5',
+        className,
+      ].filter(Boolean).join(' ')}
+    >
       <div className="flex items-center justify-between gap-3 mb-3">
         <h3 className="text-xs font-bold text-foreground flex items-center gap-2">
           <ShieldCheck className="h-4 w-4" /> Approval

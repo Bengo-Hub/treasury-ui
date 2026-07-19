@@ -10,12 +10,13 @@
  * upload, and the Suggested/Clients/Scanned/Reports tabs.
  */
 
-import { SharedDocumentList } from '@/components/documents/SharedDocumentList';
+import { SharedDocumentList, type DocumentRow } from '@/components/documents/SharedDocumentList';
 import { SharedDocumentCreateView } from '@/components/documents/SharedDocumentCreateView';
 import { DocTabNav, type DocTab } from '@/components/documents/DocTabNav';
 import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
 import { RecordPaymentModal } from '@/components/documents/RecordPaymentModal';
 import { ViewPaymentsModal, type ViewPaymentsInvoiceRef } from '@/components/documents/ViewPaymentsModal';
+import { DocumentApprovalModal } from '@/components/documents/DocumentApprovalModal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useDocumentListSource } from '@/hooks/use-document-list-source';
 import { useDocumentActions, type ActionRunner } from '@/hooks/use-document-actions';
@@ -29,16 +30,12 @@ import {
   createDebitNote,
   generateReceiptFromInvoice,
   generateDeliveryNote,
-  submitInvoiceForApproval,
-  approveInvoice,
-  rejectInvoice,
   type PlatformInvoiceScope,
 } from '@/lib/api/invoices';
 import { useAuthStore } from '@/store/auth';
 import { userHasPermission } from '@/lib/auth/permissions';
-import { cn } from '@/lib/utils';
 import type { ActionKey } from '@/lib/documents/actions';
-import { Ban, Check, CheckCircle, DollarSign, ExternalLink, FileText, FileMinus, FilePlus, Loader2, Pencil, Receipt, Send, ThumbsUp, Truck, Upload, X } from 'lucide-react';
+import { Ban, Check, CheckCircle, DollarSign, ExternalLink, FileText, FileMinus, FilePlus, Pencil, Receipt, Send, ThumbsUp, Truck, Upload, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SuggestedInvoice } from './_components/SuggestedInvoice';
@@ -78,11 +75,13 @@ export default function InvoicesPage() {
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [paymentFor, setPaymentFor] = useState<{ tenant: string; invoiceId: string; invoiceTotal?: string; currency?: string } | null>(null);
   const [viewPaymentsFor, setViewPaymentsFor] = useState<{ tenant: string; invoice: ViewPaymentsInvoiceRef } | null>(null);
-  const [rejectDialog, setRejectDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
-  // Confirm gate for the fiscal-consequence actions (Approve fiscalises on the final step; Send
-  // fiscalises + delivers) — warns about the KRA eTIMS sync via the shared ConfirmDialog.
-  const [confirmDialog, setConfirmDialog] = useState<{ kind: 'approve' | 'send'; tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  // Reused centralized approval modal (submit / approve / reject) — the SAME flow as the Approvals
+  // inbox and the invoice detail page, opened right from a row so no one has to navigate away.
+  const [approvalFor, setApprovalFor] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
+  // Confirm gate for Send (fiscalises + delivers) — warns about the KRA eTIMS sync via the shared
+  // ConfirmDialog. (Approval itself now runs through the centralized modal, which fiscalises on the
+  // final approval step server-side.)
+  const [confirmDialog, setConfirmDialog] = useState<{ kind: 'send'; tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
 
   // The Invoices page shows the invoice family: 'standard' for regular tenants, broadened
   // (subscription/platform invoices too) on the owner's own view, and scope-driven in the
@@ -100,12 +99,19 @@ export default function InvoicesPage() {
   const { run, isPending } = useDocRowAction();
   const { adminActions, statusModal } = useAdminStatusOverride({ family: 'invoice', isPlatformOwner: src.isPlatformOwner, rowTenant: src.rowTenant });
 
-  // Approve/reject/submit are privileged: the backend gates them on
-  // treasury.invoices.change|manage — mirror that here so a view-only user never sees them.
+  // Approve/reject/submit are privileged: mirror the permission set the backend + the shared
+  // DocumentApprovalCard enforce (approvals.* OR invoices.change|manage) so anyone who can actually
+  // act on an approval sees the buttons — a view-only user never does.
   const user = useAuthStore((s) => s.user);
   const canApprove = userHasPermission(
     user as Parameters<typeof userHasPermission>[0],
-    ['treasury.invoices.change', 'treasury.invoices.manage'],
+    [
+      'treasury.approvals.change',
+      'treasury.approvals.manage',
+      'treasury.approvals.add',
+      'treasury.invoices.change',
+      'treasury.invoices.manage',
+    ],
     'or',
   );
 
@@ -120,24 +126,20 @@ export default function InvoicesPage() {
     );
   }, [src.rows, searchQuery]);
 
-  const handleReject = () => {
-    if (!rejectDialog) return;
-    run(() => rejectInvoice(rejectDialog.tenant, rejectDialog.invoiceId, rejectReason || undefined), `Invoice ${rejectDialog.invoiceNumber} rejected`);
-    setRejectDialog(null);
-    setRejectReason('');
-  };
-
   // Action runners bound to the centralized per-type policy (lib/documents/actions.ts) —
   // visibility comes from allowedActions('invoice', row), same as every sibling page.
-  // Approval-workflow runners are only supplied when the caller has the permission.
+  // Approval-workflow runners are only supplied when the caller has the permission; all three open
+  // the SAME centralized approval modal (submit / approve / reject) so no one has to leave the list.
+  const openApproval = (r: DocumentRow) =>
+    setApprovalFor({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number });
   const runners: Partial<Record<ActionKey, ActionRunner>> = {
     view_details: { label: 'View Details', icon: <FileText className="h-3.5 w-3.5" />, onClick: (r) => router.push(`/${src.detailHrefTenant(r)}/invoices/${r.id}`) },
     view_public: { label: 'View Public Page', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank') },
     edit: { label: 'Edit', icon: <Pencil className="h-3.5 w-3.5" />, onClick: (r) => { setEditId(r.id); setEditTenant(src.rowTenant(r) || src.docTenant); setShowCreateView(true); } },
     ...(canApprove ? {
-      submit_for_approval: { label: 'Submit for Approval', icon: <ThumbsUp className="h-3.5 w-3.5" />, onClick: (r) => run(() => submitInvoiceForApproval(src.rowTenant(r), r.id), `Invoice ${r.doc_number} submitted for approval`) } as ActionRunner,
-      approve: { label: 'Approve', icon: <Check className="h-3.5 w-3.5" />, onClick: (r) => setConfirmDialog({ kind: 'approve', tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) } as ActionRunner,
-      reject: { label: 'Reject', icon: <X className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => setRejectDialog({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) } as ActionRunner,
+      submit_for_approval: { label: 'Submit for Approval', icon: <ThumbsUp className="h-3.5 w-3.5" />, onClick: openApproval } as ActionRunner,
+      approve: { label: 'Approve', icon: <Check className="h-3.5 w-3.5" />, onClick: openApproval } as ActionRunner,
+      reject: { label: 'Reject', icon: <X className="h-3.5 w-3.5" />, destructive: true, onClick: openApproval } as ActionRunner,
     } : {}),
     send: { label: 'Send / Resend', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => setConfirmDialog({ kind: 'send', tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) },
     generate_delivery_note: { label: 'Generate Delivery Note', icon: <Truck className="h-3.5 w-3.5" />, onClick: (r) => run(() => generateDeliveryNote(src.rowTenant(r), r.id), `Delivery note generated for ${r.doc_number}`) },
@@ -297,67 +299,30 @@ export default function InvoicesPage() {
 
       {statusModal}
 
-      {rejectDialog && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/75"
-          onClick={(e) => { if (e.target === e.currentTarget) setRejectDialog(null); }}
-        >
-          <div className="relative w-full max-w-sm rounded-2xl border border-border p-6 space-y-4 bg-card shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-foreground">Reject Invoice</h2>
-              <button onClick={() => setRejectDialog(null)}>
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Invoice {rejectDialog.invoiceNumber} will be sent back to draft for revision.
-            </p>
-            <div>
-              <label className="text-xs font-bold block mb-1 text-foreground">Reason</label>
-              <textarea
-                className="w-full rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-ring bg-background border border-input text-foreground min-h-20"
-                placeholder="Reason for rejection..."
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setRejectDialog(null)}
-                className="px-4 py-2 rounded-lg text-xs font-medium hover:bg-accent transition-colors text-muted-foreground"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReject}
-                disabled={isPending}
-                className={cn(
-                  'px-5 py-2 rounded-lg text-xs font-bold transition-all bg-destructive text-destructive-foreground hover:bg-destructive/90',
-                  isPending && 'opacity-50 cursor-not-allowed',
-                )}
-              >
-                {isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
-                Reject Invoice
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Centralized approval — reused from the detail page / Approvals inbox so submit/approve/reject
+          happens right here. Terminal approval fiscalises with KRA eTIMS server-side. */}
+      {approvalFor && (
+        <DocumentApprovalModal
+          open
+          onClose={() => setApprovalFor(null)}
+          tenant={approvalFor.tenant}
+          module="invoice"
+          documentId={approvalFor.invoiceId}
+          documentReference={approvalFor.invoiceNumber}
+        />
       )}
 
       <ConfirmDialog
         open={confirmDialog !== null}
         onOpenChange={(o) => { if (!o) setConfirmDialog(null); }}
-        title={confirmDialog?.kind === 'approve' ? 'Approve this invoice?' : 'Send this invoice?'}
-        description={confirmDialog?.kind === 'approve'
-          ? `Approving advances the workflow. On the FINAL approval step ${confirmDialog?.invoiceNumber ?? 'the invoice'} becomes a fiscal supply and is transmitted to KRA eTIMS (fiscalised) — after which it can no longer be edited.`
-          : `${confirmDialog?.invoiceNumber ?? 'The invoice'} will be transmitted to KRA eTIMS (fiscalised) and delivered to the customer.`}
-        confirmLabel={confirmDialog?.kind === 'approve' ? 'Approve' : 'Send'}
+        title="Send this invoice?"
+        description={`${confirmDialog?.invoiceNumber ?? 'The invoice'} will be transmitted to KRA eTIMS (fiscalised) and delivered to the customer.`}
+        confirmLabel="Send"
         isPending={isPending}
         onConfirm={() => {
           if (!confirmDialog) return;
-          const { kind, tenant, invoiceId, invoiceNumber } = confirmDialog;
-          if (kind === 'approve') run(() => approveInvoice(tenant, invoiceId), `Invoice ${invoiceNumber} approved`);
-          else run(() => sendInvoice(tenant, invoiceId), `Invoice ${invoiceNumber} sent to customer`);
+          const { tenant, invoiceId, invoiceNumber } = confirmDialog;
+          run(() => sendInvoice(tenant, invoiceId), `Invoice ${invoiceNumber} sent to customer`);
           setConfirmDialog(null);
         }}
       />
