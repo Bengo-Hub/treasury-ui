@@ -103,7 +103,9 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
  */
 export function EtimsItemsTab({ tenantSlug }: Props) {
   const { data: etimsData, isLoading: etimsLoading } = useEtimsItems(tenantSlug);
-  const { data: catalogData, isLoading: catalogLoading } = useInventoryItems(tenantSlug, { limit: 1000 });
+  // Page through the WHOLE catalogue (inventory-api caps each page at 100) so the "Catalogue
+  // items (N)" count and the sync list reflect every item, not just the first page.
+  const { data: catalogData, isLoading: catalogLoading } = useInventoryItems(tenantSlug, { all: true });
   const { data: profile } = useTaxProfile(tenantSlug);
   const register = useRegisterEtimsItem();
   const bulkRegister = useBulkRegisterEtimsItems();
