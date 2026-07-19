@@ -1,17 +1,17 @@
 'use client';
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
   useApprovalRules,
   useCreateApprovalRule,
   useDeleteApprovalRule,
   useUpdateApprovalRule,
 } from '@/hooks/useApprovals';
-import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { useAuthStore } from '@/store/auth';
-import { userHasPermission } from '@/lib/auth/permissions';
-import { APPROVAL_MODULE_GROUPS, MODULE_LABEL, ROLE_OPTIONS, roleLabel } from '@/lib/documents/approvals';
 import type { ApprovalModule, ApprovalRule, ApprovalStep } from '@/lib/api/approvals';
+import { userHasPermission, userHasRole } from '@/lib/auth/permissions';
+import { APPROVAL_MODULE_GROUPS, MODULE_LABEL, ROLE_OPTIONS, roleLabel } from '@/lib/documents/approvals';
+import { useAuthStore } from '@/store/auth';
 import { AlertTriangle, ArrowLeft, Minus, Plus, Shield, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -22,7 +22,7 @@ interface StepDraft {
   approver_role: string;
 }
 
-const DEFAULT_STEP: StepDraft = { name: 'Manager sign-off', approver_role: 'finance_manager' };
+const DEFAULT_STEP: StepDraft = { name: 'Manager sign-off', approver_role: 'finance_admin' };
 
 export default function ApprovalRulesPage() {
   const { orgSlug, tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
@@ -35,9 +35,14 @@ export default function ApprovalRulesPage() {
   const deleteRule = useDeleteApprovalRule(tenant);
 
   const user = useAuthStore((s) => s.user) as Parameters<typeof userHasPermission>[0];
-  const canAdd = userHasPermission(user, ['treasury.approvals.add', 'treasury.approvals.manage'], 'or');
-  const canChange = userHasPermission(user, ['treasury.approvals.change', 'treasury.approvals.manage'], 'or');
-  const canDelete = userHasPermission(user, ['treasury.approvals.delete', 'treasury.approvals.manage'], 'or');
+  // A tenant admin owns their books' configuration — they manage approval rules even without the
+  // granular treasury.approvals.* grants (which superuser/platform-owner already bypass). Gate on
+  // the admin role OR the explicit permission so the CRUD buttons are visible to the people who
+  // actually set up approval workflows.
+  const isAdmin = userHasRole(user, ['admin', 'superuser']);
+  const canAdd = isAdmin || userHasPermission(user, ['treasury.approvals.add', 'treasury.approvals.manage'], 'or');
+  const canChange = isAdmin || userHasPermission(user, ['treasury.approvals.change', 'treasury.approvals.manage'], 'or');
+  const canDelete = isAdmin || userHasPermission(user, ['treasury.approvals.delete', 'treasury.approvals.manage'], 'or');
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -85,7 +90,7 @@ export default function ApprovalRulesPage() {
   }
 
   function addStep() {
-    setSteps([...steps, { name: '', approver_role: 'finance_manager' }]);
+    setSteps([...steps, { name: '', approver_role: 'finance_admin' }]);
   }
   function removeStep(idx: number) {
     setSteps(steps.filter((_, i) => i !== idx));

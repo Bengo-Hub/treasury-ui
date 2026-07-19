@@ -1,7 +1,7 @@
 'use client';
 
 import { StatCard } from '@/components/charts/StatCard';
-import { money } from '@/components/charts/chart-theme';
+import { MoneyValue } from '@/components/charts/MoneyValue';
 import { useProfitLossSummary } from '@/hooks/use-reports';
 import { useTaxPositionEstimate } from '@/hooks/use-tax';
 import { Banknote, Receipt, TrendingUp, Landmark, Clock } from 'lucide-react';
@@ -28,17 +28,17 @@ export function KpiCards({ tenant, from, to }: Props) {
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-      <StatCard label="Revenue" value={money(d?.gl_revenue)} tone="success" loading={pl.isLoading}
+      <StatCard label="Revenue" value={<MoneyValue amount={Number(d?.gl_revenue ?? 0)} />} tone="success" loading={pl.isLoading}
         icon={<Banknote className="h-5 w-5" />} hint="Accrual (when invoiced)" />
-      <StatCard label="Expenses" value={money(d?.gl_expenses)} tone="destructive" loading={pl.isLoading}
+      <StatCard label="Expenses" value={<MoneyValue amount={Number(d?.gl_expenses ?? 0)} />} tone="destructive" loading={pl.isLoading}
         icon={<Receipt className="h-5 w-5" />} hint="General ledger" />
-      <StatCard label="Net Profit" value={money(netProfit)} tone={netProfit >= 0 ? 'primary' : 'destructive'}
+      <StatCard label="Net Profit" value={<MoneyValue amount={netProfit} />} tone={netProfit >= 0 ? 'primary' : 'destructive'}
         loading={pl.isLoading} icon={<TrendingUp className="h-5 w-5" />}
-        hint={reconciled ? 'Books reconciled' : `Unreconciled drift ${money(variance)}`} />
-      <StatCard label="Outstanding (unpaid)" value={money(outstanding)} tone={outstanding > 0 ? 'warning' : 'default'}
+        hint={reconciled ? 'Books reconciled' : <>Unreconciled drift <MoneyValue amount={variance} /></>} />
+      <StatCard label="Outstanding (unpaid)" value={<MoneyValue amount={outstanding} />} tone={outstanding > 0 ? 'warning' : 'default'}
         loading={pl.isLoading} icon={<Clock className="h-5 w-5" />}
-        hint={`Cash collected ${money(d?.cash_revenue)}`} />
-      <StatCard label="VAT Payable (this period)" value={money(pos.data?.vat_payable)} tone="warning"
+        hint={<>Cash collected <MoneyValue amount={Number(d?.cash_revenue ?? 0)} /></>} />
+      <StatCard label="VAT Payable (this period)" value={<MoneyValue amount={Number(pos.data?.vat_payable ?? 0)} />} tone="warning"
         loading={pos.isLoading} icon={<Landmark className="h-5 w-5" />}
         hint={pos.data?.vat_registered ? 'Output − input VAT' : 'Not VAT-registered'} />
     </div>
