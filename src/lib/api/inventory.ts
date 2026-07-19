@@ -26,6 +26,8 @@ export interface InventoryItem {
   tax_rate?: string;
   description?: string;
   category_name?: string;
+  /** Current inventory on-hand — seeds the KRA stock master on eTIMS sync. */
+  on_hand?: number;
 }
 
 export interface Carrier {
@@ -131,6 +133,7 @@ interface InventoryItemDTO {
   tax_code_id?: string;
   tax_rate?: number | null;
   category_name?: string;
+  on_hand?: number | null;
 }
 
 function dtoToInventoryItem(d: InventoryItemDTO): InventoryItem {
@@ -149,6 +152,7 @@ function dtoToInventoryItem(d: InventoryItemDTO): InventoryItem {
     tax_rate: d.tax_rate != null ? String(d.tax_rate) : undefined,
     description: d.description,
     category_name: d.category_name,
+    on_hand: d.on_hand ?? undefined,
   };
 }
 

@@ -864,6 +864,13 @@ export interface EtimsItem {
   dft_prc?: number;
   registered: boolean;
   last_synced_at?: string;
+  /** Cumulative stock transmitted to KRA (the eTIMS stock master residual) — the "E" in L:x E:y. */
+  cum_stock_in?: number;
+}
+
+/** Reconcile an item's KRA stock master to its current inventory on-hand (transmits the delta). */
+export function reconcileEtimsItemStock(tenantSlug: string, body: { sku?: string; item_cd?: string; on_hand: number }): Promise<{ status: string; cum_stock_in: number }> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/items/reconcile-stock`, body);
 }
 
 export interface RegisterEtimsItemRequest {
@@ -879,6 +886,9 @@ export interface RegisterEtimsItemRequest {
   // Catalog type (GOODS/SERVICE/RECIPE/INGREDIENT/VOUCHER/EQUIPMENT). When set the backend
   // AUTHORITATIVELY derives item_ty_cd + the obligation-adjusted band from it.
   inventory_type?: string;
+  // Current inventory on-hand — seeds the KRA stock master the first time a stock-bearing item is
+  // registered (backend gates on stock-bearing type + cum_stock_in==0, so it never double-counts).
+  opening_qty?: number;
 }
 
 export function listEtimsItems(tenantSlug: string): Promise<{ items: EtimsItem[]; total: number }> {
