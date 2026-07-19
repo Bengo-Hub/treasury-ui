@@ -498,6 +498,21 @@ export function useRegisterEtimsItem() {
   });
 }
 
+// Reconcile one item's KRA stock master to its current inventory on-hand (transmits the delta as a
+// stockIO adjustment). Backs the eTIMS Items "Reconcile" action when local != eTIMS stock.
+export function useReconcileEtimsStock(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { sku?: string; item_cd?: string; on_hand: number }) =>
+      taxApi.reconcileEtimsItemStock(tenantSlug, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tax-etims-items', tenantSlug] });
+      toast.success('Stock reconciled with eTIMS');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to reconcile stock'),
+  });
+}
+
 export function useDeregisterEtimsItem() {
   const qc = useQueryClient();
   return useMutation({

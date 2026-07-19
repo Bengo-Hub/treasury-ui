@@ -4,7 +4,7 @@ import { CodeListSelect } from '@/components/tax/code-list-select';
 import { Card } from '@/components/ui/base';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Pagination } from '@/components/ui/pagination';
-import { useBulkRegisterEtimsItems, useDeregisterEtimsItem, useEtimsItems, useRegisterEtimsItem, useTaxProfile } from '@/hooks/use-tax';
+import { useBulkRegisterEtimsItems, useDeregisterEtimsItem, useEtimsItems, useReconcileEtimsStock, useRegisterEtimsItem, useTaxProfile } from '@/hooks/use-tax';
 import { useInventoryItems } from '@/hooks/use-inventory';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, Info, Loader2, Package, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
@@ -144,7 +144,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
 
   type Row = {
     key: string; id?: string; sku?: string; name: string; type?: string; band: string; catalogBand: string;
-    status: SyncStatus; itemCd?: string; price?: number; category: string;
+    status: SyncStatus; itemCd?: string; price?: number; category: string; onHand?: number; etimsStock?: number;
   };
   const rows: Row[] = useMemo(() => catalog.map((c) => {
     const e = (c.sku && etimsBySku.get(c.sku)) || etimsByName.get(c.name.toLowerCase());
@@ -156,8 +156,28 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
       status, itemCd: e?.item_cd,
       price: c.unit_price ? Number(c.unit_price) : undefined,
       category: c.category_name || 'Uncategorised',
+      onHand: c.on_hand,
+      etimsStock: e?.cum_stock_in,
     };
   }), [catalog, etimsBySku, etimsByName]);
+
+  // A stock-bearing item is a GOODS/EQUIPMENT/INGREDIENT — only these carry a KRA stock master, so
+  // only these get an on-hand vs eTIMS-stock comparison + Reconcile action. Services/recipes/vouchers
+  // hold no stock, so their stock cell is a dash.
+  const isStockRow = (r: Row) => {
+    const t = (r.type || '').toUpperCase();
+    return t === 'GOODS' || t === 'EQUIPMENT' || t === 'INGREDIENT';
+  };
+  const stockDrift = (r: Row) =>
+    isStockRow(r) && r.status === 'registered' && Math.abs((r.onHand ?? 0) - (r.etimsStock ?? 0)) > 0.0001;
+
+  const reconcile = useReconcileEtimsStock(tenantSlug);
+  const reconcileRow = (r: Row) => {
+    reconcile.mutate(
+      { sku: r.sku, item_cd: r.itemCd, on_hand: r.onHand ?? 0 },
+      { onSuccess: () => qc.invalidateQueries({ queryKey: ['tax-etims-items', tenantSlug] }) },
+    );
+  };
 
   // Obligation-aware pre-flight: the band a tenant SHOULD register/sell an item under.
   //  - not VAT-registered ⇒ Non-VAT (D) for everything (no VAT may be charged).
@@ -234,6 +254,9 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
   const syncRow = (r: Row) => register.mutate({ tenantSlug, data: {
     item_nm: r.name, sku: r.sku, inventory_type: r.type, item_cls_cd: '1000000000',
     item_ty_cd: typeToItemTy(r.type), tax_ty_cd: expectedBand(r), pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: r.price,
+    // Seed the KRA stock master with the item's current on-hand (backend gates on stock-bearing
+    // type + cum_stock_in==0, so services and already-stocked items are unaffected).
+    opening_qty: r.onHand,
   } });
 
   // Bulk "sync all" — hand the whole batch to the backend in ONE request. It registers serially
@@ -251,6 +274,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
         items: targets.map((r) => ({
           item_nm: r.name, sku: r.sku, inventory_type: r.type, item_cls_cd: '1000000000',
           item_ty_cd: typeToItemTy(r.type), tax_ty_cd: expectedBand(r), pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: r.price,
+          opening_qty: r.onHand,
         })),
       });
       setPolling(true); // watch rows flip to Synced while the backend registers them
@@ -380,6 +404,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                     <th className="px-2 py-2 font-medium">Category</th>
                     <th className="px-2 py-2 font-medium">Band</th>
                     <th className="px-2 py-2 font-medium">eTIMS code</th>
+                    <th className="px-2 py-2 font-medium" title="Local inventory on-hand (L) vs stock transmitted to eTIMS (E)">Stock (L·E)</th>
                     <th className="px-2 py-2 font-medium">Status</th>
                     <th className="px-2 py-2 font-medium text-right">Action</th>
                   </tr>
@@ -403,6 +428,25 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                         </span>
                       </td>
                       <td className="px-2 py-2 font-mono text-[11px] text-muted-foreground">{r.itemCd || '—'}</td>
+                      <td className="px-2 py-2">
+                        {!isStockRow(r) ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5">
+                            {/* L:local on-hand · E:eTIMS stock master. Green when aligned (fully seeded + synced). */}
+                            <span className={`font-mono text-[11px] ${stockDrift(r) ? 'text-amber-600' : 'text-green-600'}`}>
+                              L:{r.onHand ?? 0} E:{r.status === 'registered' ? (r.etimsStock ?? 0) : '–'}
+                            </span>
+                            {stockDrift(r) && (
+                              <button type="button" disabled={reconcile.isPending} onClick={() => reconcileRow(r)}
+                                className="inline-flex items-center gap-1 rounded-md border border-amber-500/50 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 hover:bg-amber-500/10 disabled:opacity-50"
+                                title={`Reconcile: transmit the ${((r.onHand ?? 0) - (r.etimsStock ?? 0)) > 0 ? 'increase' : 'decrease'} to KRA so the eTIMS stock master matches on-hand`}>
+                                <RefreshCw className={`h-3 w-3 ${reconcile.isPending ? 'animate-spin' : ''}`} /> Reconcile
+                              </button>
+                            )}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-2 py-2">
                         {r.status === 'registered'
                           ? <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-600"><CheckCircle2 className="h-3 w-3" />Synced</span>
