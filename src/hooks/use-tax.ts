@@ -498,6 +498,30 @@ export function useRegisterEtimsItem() {
   });
 }
 
+// useBulkRegisterEtimsItems fires the whole "Sync all" batch as ONE request (202) and lets the
+// backend register serially in the background. The tab then polls the items list to reflect
+// progress. Fixes the timeout/"CORS" storm from firing one POST per item from the browser.
+export function useBulkRegisterEtimsItems() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, items }: { tenantSlug: string; items: taxApi.RegisterEtimsItemRequest[] }) =>
+      taxApi.bulkRegisterEtimsItems(tenantSlug, items),
+    onSuccess: (res: taxApi.BulkRegisterResult, vars) => {
+      qc.invalidateQueries({ queryKey: ['tax-etims-items', vars.tenantSlug] });
+      if (res.status === 'nothing_to_sync' || res.queued === 0) {
+        toast('Nothing to sync — all items are already registered.');
+      } else if (res.status === 'already_running') {
+        toast('A sync is already running for this business — watching progress.');
+      } else {
+        toast.success(`Syncing ${res.queued} item${res.queued === 1 ? '' : 's'} with KRA eTIMS in the background…`, {
+          description: 'Rows will flip to Synced as KRA confirms each one.',
+        });
+      }
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not start item sync'),
+  });
+}
+
 export function useVAAReconciliation(tenantSlug: string) {
   return useQuery({
     queryKey: ['tax-vaa', tenantSlug],

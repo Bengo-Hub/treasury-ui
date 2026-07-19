@@ -889,6 +889,23 @@ export function registerEtimsItem(tenantSlug: string, body: RegisterEtimsItemReq
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/items`, body);
 }
 
+export interface BulkRegisterResult {
+  queued: number;
+  status: 'queued' | 'already_running' | 'nothing_to_sync';
+}
+
+// bulkRegisterEtimsItems hands the whole "Sync all" batch to the backend in ONE request; it
+// registers them server-side in a background pass (serial, to keep KRA's per-TIN itemCd sequence)
+// and returns 202 immediately. This replaces the browser firing one synchronous cross-origin POST
+// per item, which stacked up until the gateway timed out (the CORS-looking "Failed to register"
+// storm). Poll listEtimsItems afterwards to watch rows flip to Synced.
+export function bulkRegisterEtimsItems(
+  tenantSlug: string,
+  items: RegisterEtimsItemRequest[],
+): Promise<BulkRegisterResult> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/items/bulk`, { items });
+}
+
 // ---- eTIMS historical import + VAA reconciliation ----
 
 export interface EtimsImportResult {

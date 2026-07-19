@@ -3,10 +3,11 @@
 import { CodeListSelect } from '@/components/tax/code-list-select';
 import { Card } from '@/components/ui/base';
 import { Pagination } from '@/components/ui/pagination';
-import { useEtimsItems, useRegisterEtimsItem, useTaxProfile } from '@/hooks/use-tax';
+import { useBulkRegisterEtimsItems, useEtimsItems, useRegisterEtimsItem, useTaxProfile } from '@/hooks/use-tax';
 import { useInventoryItems } from '@/hooks/use-inventory';
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, Info, Loader2, Package, Plus, RefreshCw, Search, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface Props { tenantSlug: string }
 
@@ -105,6 +106,8 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
   const { data: catalogData, isLoading: catalogLoading } = useInventoryItems(tenantSlug, { limit: 1000 });
   const { data: profile } = useTaxProfile(tenantSlug);
   const register = useRegisterEtimsItem();
+  const bulkRegister = useBulkRegisterEtimsItems();
+  const qc = useQueryClient();
   const vatRegistered = profile?.vat_registered ?? true; // optimistic until profile loads
   const EMPTY = { item_cd: '', item_nm: '', item_cls_cd: '1000000000', item_ty_cd: '2', tax_ty_cd: 'B', pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: '' };
   const [form, setForm] = useState(EMPTY);
@@ -178,6 +181,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 12;
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [polling, setPolling] = useState(false);
 
   const categories = useMemo(() => Array.from(new Set(rows.map((r) => r.category))).sort(), [rows]);
   const types = useMemo(() => Array.from(new Set(rows.map((r) => r.type).filter(Boolean))).sort() as string[], [rows]);
@@ -188,6 +192,20 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
     queued: rows.filter((r) => r.status === 'queued').length,
     unsynced: rows.filter((r) => r.status === 'unsynced').length,
   }), [rows]);
+
+  // While a background bulk sync runs, refresh the items list so rows flip to Synced as KRA
+  // confirms each one. Stops once nothing is left unsynced/queued, or after a 5-minute ceiling.
+  const pending = counts.queued + counts.unsynced;
+  useEffect(() => {
+    if (!polling) return;
+    if (pending === 0) { setPolling(false); return; }
+    const startedAt = Date.now();
+    const id = setInterval(() => {
+      qc.invalidateQueries({ queryKey: ['tax-etims-items', tenantSlug] });
+      if (Date.now() - startedAt > 5 * 60 * 1000) setPolling(false);
+    }, 4000);
+    return () => clearInterval(id);
+  }, [polling, pending, tenantSlug, qc]);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -213,20 +231,25 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
     item_ty_cd: typeToItemTy(r.type), tax_ty_cd: expectedBand(r), pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: r.price,
   } });
 
-  // Bulk "sync all" — register every currently-unsynced catalog item sequentially (KRA
-  // enforces a per-TIN itemCd sequence, so serial registration avoids sequence collisions).
+  // Bulk "sync all" — hand the whole batch to the backend in ONE request. It registers serially
+  // in the background (KRA enforces a per-TIN itemCd sequence, so serial avoids collisions) and
+  // returns immediately, so the browser never holds one slow cross-origin POST per item open until
+  // the gateway times it out (the old "Failed to register item" / CORS storm). We then poll the
+  // items list so rows flip to Synced as KRA confirms each one.
   const runSyncAll = async () => {
     const targets = rows.filter((r) => r.status !== 'registered');
     if (targets.length === 0) return;
     setBulkBusy(true);
-    for (const r of targets) {
-      try {
-        await register.mutateAsync({ tenantSlug, data: {
+    try {
+      await bulkRegister.mutateAsync({
+        tenantSlug,
+        items: targets.map((r) => ({
           item_nm: r.name, sku: r.sku, inventory_type: r.type, item_cls_cd: '1000000000',
           item_ty_cd: typeToItemTy(r.type), tax_ty_cd: expectedBand(r), pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: r.price,
-        } });
-      } catch { /* keep going — per-row failures surface on the row's status */ }
-    }
+        })),
+      });
+      setPolling(true); // watch rows flip to Synced while the backend registers them
+    } catch { /* toast surfaced by the hook */ }
     setBulkBusy(false);
   };
   // Gate Sync-all behind the obligation pre-flight: if any item's code conflicts with the
@@ -301,13 +324,13 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
             </div>
             <button
               type="button"
-              disabled={bulkBusy || counts.registered === counts.all || counts.all === 0}
+              disabled={bulkBusy || polling || counts.registered === counts.all || counts.all === 0}
               onClick={syncAllUnsynced}
               title="Register every not-yet-registered catalogue item with KRA eTIMS"
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {bulkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              Sync all ({counts.queued + counts.unsynced})
+              {bulkBusy || polling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {polling ? `Syncing… (${counts.queued + counts.unsynced} left)` : `Sync all (${counts.queued + counts.unsynced})`}
             </button>
           </div>
 
@@ -384,7 +407,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                       </td>
                       <td className="px-2 py-2 text-right">
                         {r.status !== 'registered' && (
-                          <button type="button" disabled={register.isPending || bulkBusy} onClick={() => syncRow(r)}
+                          <button type="button" disabled={register.isPending || bulkBusy || polling} onClick={() => syncRow(r)}
                             className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
                             title="Register this catalogue item with KRA eTIMS">
                             <RefreshCw className="h-3 w-3" /> {r.status === 'queued' ? 'Retry' : 'Sync'}
