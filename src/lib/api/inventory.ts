@@ -105,6 +105,13 @@ export interface SearchItemsParams {
   q?: string;
   limit?: number;
   type?: string;
+  /**
+   * Fetch EVERY item by paging through inventory-api instead of a single page. inventory-api
+   * clamps any list to 100 rows (shared pagination MaxLimit), so a plain `limit: 1000` silently
+   * returns only the first 100 — use this when a complete catalogue is needed (e.g. the eTIMS
+   * item-master sync surface must see all items, not page 1).
+   */
+  all?: boolean;
 }
 
 // inventory-api ItemDTO — the shape inventory actually returns (and the list is a
@@ -147,10 +154,34 @@ function dtoToInventoryItem(d: InventoryItemDTO): InventoryItem {
 
 export async function searchInventoryItems(tenant: string, params?: SearchItemsParams): Promise<{ items: InventoryItem[]; total: number }> {
   // inventory-api expects `search` (not `q`) and returns a `{ data, total }` envelope.
-  const query: Record<string, unknown> = {};
-  if (params?.q) query.search = params.q;
+  const baseQuery: Record<string, unknown> = {};
+  if (params?.q) baseQuery.search = params.q;
+  if (params?.type) baseQuery.type = params.type;
+
+  // Paging mode: inventory-api caps every page at 100 rows, so walk pages until the reported
+  // total is reached (or a short/empty page) rather than trusting a single oversized `limit`.
+  if (params?.all) {
+    const PAGE = 100;
+    const collected: InventoryItemDTO[] = [];
+    let total = 0;
+    for (let page = 1; page <= 50; page++) {
+      const res = await apiClient.get<{ data?: InventoryItemDTO[]; total?: number } | InventoryItemDTO[]>(
+        `${BASE}/${tenant}/inventory/items`,
+        { ...baseQuery, page, limit: PAGE },
+      );
+      const rows = Array.isArray(res) ? res : (res.data ?? []);
+      if (!Array.isArray(res) && res.total != null) total = res.total;
+      collected.push(...rows);
+      if (rows.length < PAGE || (total > 0 && collected.length >= total)) break;
+    }
+    return {
+      items: collected.map(dtoToInventoryItem),
+      total: total || collected.length,
+    };
+  }
+
+  const query = { ...baseQuery };
   if (params?.limit != null) query.limit = params.limit;
-  if (params?.type) query.type = params.type;
   const res = await apiClient.get<{ data?: InventoryItemDTO[]; total?: number } | InventoryItemDTO[]>(
     `${BASE}/${tenant}/inventory/items`,
     query,
