@@ -16,6 +16,7 @@ import { DocTabNav, type DocTab } from '@/components/documents/DocTabNav';
 import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
 import { RecordPaymentModal } from '@/components/documents/RecordPaymentModal';
 import { ViewPaymentsModal, type ViewPaymentsInvoiceRef } from '@/components/documents/ViewPaymentsModal';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useDocumentListSource } from '@/hooks/use-document-list-source';
 import { useDocumentActions, type ActionRunner } from '@/hooks/use-document-actions';
 import { useDocRowAction } from '@/hooks/use-doc-row-action';
@@ -78,6 +79,9 @@ export default function InvoicesPage() {
   const [paymentFor, setPaymentFor] = useState<{ tenant: string; invoiceId: string; invoiceTotal?: string; currency?: string } | null>(null);
   const [viewPaymentsFor, setViewPaymentsFor] = useState<{ tenant: string; invoice: ViewPaymentsInvoiceRef } | null>(null);
   const [rejectDialog, setRejectDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
+  // Confirm gate for the fiscal-consequence actions (Approve fiscalises on the final step; Send
+  // fiscalises + delivers) — warns about the KRA eTIMS sync via the shared ConfirmDialog.
+  const [confirmDialog, setConfirmDialog] = useState<{ kind: 'approve' | 'send'; tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
   // The Invoices page shows the invoice family: 'standard' for regular tenants, broadened
@@ -132,10 +136,10 @@ export default function InvoicesPage() {
     edit: { label: 'Edit', icon: <Pencil className="h-3.5 w-3.5" />, onClick: (r) => { setEditId(r.id); setEditTenant(src.rowTenant(r) || src.docTenant); setShowCreateView(true); } },
     ...(canApprove ? {
       submit_for_approval: { label: 'Submit for Approval', icon: <ThumbsUp className="h-3.5 w-3.5" />, onClick: (r) => run(() => submitInvoiceForApproval(src.rowTenant(r), r.id), `Invoice ${r.doc_number} submitted for approval`) } as ActionRunner,
-      approve: { label: 'Approve', icon: <Check className="h-3.5 w-3.5" />, onClick: (r) => run(() => approveInvoice(src.rowTenant(r), r.id), `Invoice ${r.doc_number} approved`) } as ActionRunner,
+      approve: { label: 'Approve', icon: <Check className="h-3.5 w-3.5" />, onClick: (r) => setConfirmDialog({ kind: 'approve', tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) } as ActionRunner,
       reject: { label: 'Reject', icon: <X className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => setRejectDialog({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) } as ActionRunner,
     } : {}),
-    send: { label: 'Send / Resend', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => run(() => sendInvoice(src.rowTenant(r), r.id), `Invoice ${r.doc_number} sent to customer`) },
+    send: { label: 'Send / Resend', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => setConfirmDialog({ kind: 'send', tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) },
     generate_delivery_note: { label: 'Generate Delivery Note', icon: <Truck className="h-3.5 w-3.5" />, onClick: (r) => run(() => generateDeliveryNote(src.rowTenant(r), r.id), `Delivery note generated for ${r.doc_number}`) },
     record_payment: { label: 'Record Payment', icon: <DollarSign className="h-3.5 w-3.5" />, onClick: (r) => setPaymentFor({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceTotal: r.total_amount, currency: r.currency }) },
     view_payments: {
@@ -339,6 +343,24 @@ export default function InvoicesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDialog !== null}
+        onOpenChange={(o) => { if (!o) setConfirmDialog(null); }}
+        title={confirmDialog?.kind === 'approve' ? 'Approve this invoice?' : 'Send this invoice?'}
+        description={confirmDialog?.kind === 'approve'
+          ? `Approving advances the workflow. On the FINAL approval step ${confirmDialog?.invoiceNumber ?? 'the invoice'} becomes a fiscal supply and is transmitted to KRA eTIMS (fiscalised) — after which it can no longer be edited.`
+          : `${confirmDialog?.invoiceNumber ?? 'The invoice'} will be transmitted to KRA eTIMS (fiscalised) and delivered to the customer.`}
+        confirmLabel={confirmDialog?.kind === 'approve' ? 'Approve' : 'Send'}
+        isPending={isPending}
+        onConfirm={() => {
+          if (!confirmDialog) return;
+          const { kind, tenant, invoiceId, invoiceNumber } = confirmDialog;
+          if (kind === 'approve') run(() => approveInvoice(tenant, invoiceId), `Invoice ${invoiceNumber} approved`);
+          else run(() => sendInvoice(tenant, invoiceId), `Invoice ${invoiceNumber} sent to customer`);
+          setConfirmDialog(null);
+        }}
+      />
     </>
   );
 }

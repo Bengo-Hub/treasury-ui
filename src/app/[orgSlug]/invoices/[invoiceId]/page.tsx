@@ -28,6 +28,7 @@ import {
   ExternalLink, FileMinus, FilePlus, Loader2, Send, ThumbsUp, Truck, X,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { toast } from 'sonner';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadPublicInvoicePdf } from '@/lib/api/documents';
@@ -139,6 +140,9 @@ export default function InvoiceDetailPage() {
   const [creditNoteError, setCreditNoteError] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason]   = useState('');
+  // Confirm gate for the fiscal-consequence actions (Approve fiscalises on the final step; Send
+  // fiscalises + delivers) — the shared ConfirmDialog warns about the KRA eTIMS sync.
+  const [confirmAction, setConfirmAction] = useState<null | 'approve' | 'send'>(null);
   const [showDeliverModal, setShowDeliverModal] = useState(false);
   const [receivedBy, setReceivedBy]       = useState('');
   const [deliverNote, setDeliverNote]     = useState('');
@@ -322,10 +326,7 @@ export default function InvoiceDetailPage() {
           )}
           {canApproveNow && (
             <button
-              onClick={() => approveMut.mutate({ invoiceId }, {
-                onSuccess: () => toast.success('Invoice approved'),
-                onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to approve invoice'),
-              })}
+              onClick={() => setConfirmAction('approve')}
               disabled={approveMut.isPending}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50"
             >
@@ -343,7 +344,7 @@ export default function InvoiceDetailPage() {
           )}
           {canSend && (
             <button
-              onClick={() => sendMutation.mutate(invoiceId)}
+              onClick={() => setConfirmAction('send')}
               disabled={sendMutation.isPending}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
@@ -829,6 +830,30 @@ export default function InvoiceDetailPage() {
           { label: 'Receipt signature', value: etimsResp?.rcpt_sign, mono: true },
           { label: 'Message', value: etimsResp?.kra_response?.resultMsg },
         ]}
+      />
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        onOpenChange={(o) => { if (!o) setConfirmAction(null); }}
+        title={confirmAction === 'approve' ? 'Approve this document?' : 'Send this document?'}
+        description={confirmAction === 'approve'
+          ? 'Approving advances the workflow. On the FINAL approval step the document becomes a fiscal supply and is transmitted to KRA eTIMS (fiscalised) — after which it can no longer be edited. Continue?'
+          : 'This will transmit the document to KRA eTIMS (fiscalised) and deliver it to the customer. Continue?'}
+        confirmLabel={confirmAction === 'approve' ? 'Approve' : 'Send'}
+        isPending={confirmAction === 'approve' ? approveMut.isPending : sendMutation.isPending}
+        onConfirm={() => {
+          if (confirmAction === 'approve') {
+            approveMut.mutate({ invoiceId }, {
+              onSuccess: () => { toast.success('Invoice approved'); setConfirmAction(null); },
+              onError: (err: any) => { toast.error(err?.response?.data?.error ?? 'Failed to approve invoice'); setConfirmAction(null); },
+            });
+          } else if (confirmAction === 'send') {
+            sendMutation.mutate(invoiceId, {
+              onSuccess: () => setConfirmAction(null),
+              onError: () => setConfirmAction(null),
+            });
+          }
+        }}
       />
     </div>
   );
