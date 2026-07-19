@@ -889,6 +889,13 @@ export function registerEtimsItem(tenantSlug: string, body: RegisterEtimsItemReq
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/items`, body);
 }
 
+// deregisterEtimsItem "deletes" an item at KRA the eTIMS-correct way: the backend re-sends
+// saveItem with useYn=N (KRA has no hard delete — an itemCd is permanent), retires any residual
+// stock via a stockIO adjustment-OUT (sarTyCd 16), then removes the local mirror. Idempotent.
+export function deregisterEtimsItem(tenantSlug: string, itemId: string): Promise<void> {
+  return apiClient.delete(`${BASE}/${tenantSlug}/tax/etims/items/${itemId}`);
+}
+
 export interface BulkRegisterResult {
   queued: number;
   status: 'queued' | 'already_running' | 'nothing_to_sync';
