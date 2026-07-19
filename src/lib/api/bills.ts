@@ -34,6 +34,9 @@ export interface Bill {
   currency: string;
   status: string; // draft, pending, paid, overdue, cancelled
   payment_intent_id?: string;
+  paid_from_account_id?: string;
+  payment_method?: string;
+  payment_reference?: string;
   source_service?: string;
   source_reference_id?: string;
   lines?: BillLine[];
@@ -79,6 +82,27 @@ export interface CreateBillRequest {
   metadata?: Record<string, any>;
 }
 
+// PayBillRequest is the full vendor-bill settlement payload: an explicit GL account + payment
+// method + reference (offline: cash/bank/card), a real online dispatch (mpesa_b2b/mpesa_b2c/
+// paystack_bank/paystack_mobile — the backend routes these through the payout Dispatcher), or the
+// legacy fallback of linking an already-collected payment intent.
+export interface PayBillRequest {
+  payment_intent_id?: string;
+  paid_from_account_id?: string;
+  /** cash|bank|card (offline, requires reference) or mpesa_b2b|mpesa_b2c|paystack_bank|paystack_mobile (online, dispatched for real). */
+  payment_method?: string;
+  reference?: string;
+  /** Recipient* are only used for online payment methods — the supplier's payout destination. */
+  recipient_phone?: string;
+  recipient_bank_code?: string;
+  recipient_account_number?: string;
+  recipient_account_name?: string;
+  user_id?: string;
+}
+
+/** payment_method values PayBill dispatches for real via the payout Dispatcher rather than merely recording. */
+export const ONLINE_PAYMENT_METHODS = ['mpesa_b2b', 'mpesa_b2c', 'paystack_bank', 'paystack_mobile'] as const;
+
 export interface AgingRow {
   entity_id: string;
   entity_name: string;
@@ -111,8 +135,8 @@ export function createBill(tenantIdOrSlug: string, data: CreateBillRequest): Pro
   return apiClient.post<Bill>(`${BASE}/${tenantIdOrSlug}/ap/bills`, data);
 }
 
-export function payBill(tenantIdOrSlug: string, id: string, paymentIntentId: string): Promise<{ status: string }> {
-  return apiClient.post<{ status: string }>(`${BASE}/${tenantIdOrSlug}/ap/bills/${id}/pay`, { payment_intent_id: paymentIntentId });
+export function payBill(tenantIdOrSlug: string, id: string, data: PayBillRequest): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenantIdOrSlug}/ap/bills/${id}/pay`, data);
 }
 
 export function getAPAging(tenantIdOrSlug: string): Promise<AgingReport> {

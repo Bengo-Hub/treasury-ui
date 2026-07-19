@@ -18,6 +18,7 @@ import {
   getARAging,
   getCustomerBalances,
   recordCustomerPayment,
+  payoutCustomerCredit,
   setCustomerCreditTerms,
   syncCustomerToCRM,
   getQuotation,
@@ -221,6 +222,20 @@ export function useRecordCustomerPayment(tenant: string) {
   return useMutation({
     mutationFn: ({ contactId, amount, paymentMethod, reference }: { contactId: string; amount: number; paymentMethod?: string; reference?: string }) =>
       recordCustomerPayment(tenant, contactId, { amount, payment_method: paymentMethod, reference }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+    },
+  });
+}
+
+// Pay out a customer's existing stored credit (standalone — not tied to a return/sale).
+export function usePayoutCustomerCredit(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ contactId, amount, payoutChannel, reference }: { contactId: string; amount: number; payoutChannel: string; reference?: string }) =>
+      payoutCustomerCredit(tenant, contactId, { amount, payoutChannel, reference }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });

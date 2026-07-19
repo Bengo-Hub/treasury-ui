@@ -134,6 +134,29 @@ export interface RecordVendorRefundResult {
   status: string;
 }
 
+/**
+ * Draw down a supplier's EXISTING stored credit (a negative balance_owed) against a NEW bill
+ * (POST /ap/vendors/{vendorID}/apply-credit). Full-bill-amount only; posts no GL entry (the
+ * credit note and the bill both already sit in AP-2050, so it nets on its own).
+ */
+export interface ApplyVendorCreditRequest {
+  amount: string | number;
+  bill_id: string;
+  reference?: string;
+  user_id?: string;
+}
+
+/**
+ * Pay out some/all of a supplier's existing stored credit, independent of any bill
+ * (POST /ap/vendors/{vendorID}/payout-credit). payout_channel: cash|mpesa|mpesa_b2c|bank|cheque.
+ */
+export interface PayoutVendorCreditRequest {
+  amount: string | number;
+  payout_channel: string;
+  reference?: string;
+  user_id?: string;
+}
+
 /** treasury-api list endpoints return a pagination envelope `{ data, total, page, limit }`. */
 interface Paginated<T> {
   data: T[];
@@ -203,6 +226,30 @@ export function recordVendorRefund(
 ): Promise<RecordVendorRefundResult> {
   return apiClient.post<RecordVendorRefundResult>(
     `${BASE}/${tenant}/ap/vendors/refund-received`,
+    body,
+  );
+}
+
+/** Draw down a vendor's stored credit against a new bill (posts no GL entry — see request doc). */
+export function applyVendorCredit(
+  tenant: string,
+  vendorKey: string,
+  body: ApplyVendorCreditRequest,
+): Promise<VendorBalance> {
+  return apiClient.post<VendorBalance>(
+    `${BASE}/${tenant}/ap/vendors/${encodeURIComponent(vendorKey)}/apply-credit`,
+    body,
+  );
+}
+
+/** Pay out a vendor's stored credit (posts DR the chosen channel / CR Accounts Payable). */
+export function payoutVendorCredit(
+  tenant: string,
+  vendorKey: string,
+  body: PayoutVendorCreditRequest,
+): Promise<VendorBalance> {
+  return apiClient.post<VendorBalance>(
+    `${BASE}/${tenant}/ap/vendors/${encodeURIComponent(vendorKey)}/payout-credit`,
     body,
   );
 }

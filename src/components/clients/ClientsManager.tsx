@@ -25,6 +25,7 @@ import { useClients, type ClientRecord } from './use-clients';
 import { ClientDetail } from './ClientDetail';
 import { CreditTermsDialog } from './CreditTermsDialog';
 import { ReceivePaymentModal } from './ReceivePaymentModal';
+import { PayoutCreditModal } from './PayoutCreditModal';
 import { SyncToCrmDialog } from './SyncToCrmDialog';
 
 /** Account-relationship filter: who owes me money vs whom I owe (store credit / overpayment). */
@@ -62,6 +63,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [statementClient, setStatementClient] = useState<{ id: string; name: string } | null>(null);
   const [openingClient, setOpeningClient] = useState<ClientRecord | null>(null);
   const [payTarget, setPayTarget] = useState<CustomerBalance | null>(null);
+  const [payoutTarget, setPayoutTarget] = useState<CustomerBalance | null>(null);
   const [creditTermsClient, setCreditTermsClient] = useState<ClientRecord | null>(null);
   const [syncingKey, setSyncingKey] = useState<string | null>(null);
   const [syncDialogClient, setSyncDialogClient] = useState<ClientRecord | null>(null);
@@ -243,6 +245,10 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
         <ReceivePaymentModal tenant={tenant} target={payTarget} onClose={() => setPayTarget(null)} />
       )}
 
+      {payoutTarget && (
+        <PayoutCreditModal tenant={tenant} target={payoutTarget} onClose={() => setPayoutTarget(null)} />
+      )}
+
       <Card>
         <CardHeader className="space-y-3 py-4">
           <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
@@ -414,6 +420,12 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                             {b && c.outstanding > 0 && (
                               <Button size="sm" onClick={(e: React.MouseEvent) => { e.stopPropagation(); setPayTarget(b); }}>
                                 Receive
+                              </Button>
+                            )}
+                            {b && owedToCustomer(c) && (
+                              <Button size="sm" variant="outline" title="Pay out the customer's stored credit"
+                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setPayoutTarget(b); }}>
+                                Pay out
                               </Button>
                             )}
                             {(c.customerId || b) && (

@@ -793,6 +793,20 @@ export function recordCustomerPayment(
   });
 }
 
+// Pay out some/all of a customer's EXISTING stored credit (a negative balance_due) via a real
+// channel, independent of any return/sale — the inverse-direction sibling of recordCustomerPayment.
+export function payoutCustomerCredit(
+  tenant: string,
+  contactId: string,
+  body: { amount: number; payoutChannel: string; reference?: string },
+): Promise<CustomerBalance> {
+  return apiClient.post<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/payout-credit`, {
+    amount: String(body.amount),
+    payout_channel: body.payoutChannel,
+    reference: body.reference,
+  });
+}
+
 // Set/clear a customer's credit terms (limit amount + payment period days). `contactId` =
 // crm_contact_id (or the customer_identifier for non-CRM rows). Zero clears the respective term.
 export function setCustomerCreditTerms(

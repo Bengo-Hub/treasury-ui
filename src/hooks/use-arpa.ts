@@ -8,10 +8,14 @@ import {
   setCustomerOpeningBalance,
   upsertVendorBalance,
   recordVendorRefund,
+  applyVendorCredit,
+  payoutVendorCredit,
   type StatementRange,
   type SetCustomerOpeningBalanceRequest,
   type UpsertVendorBalanceRequest,
   type RecordVendorRefundRequest,
+  type ApplyVendorCreditRequest,
+  type PayoutVendorCreditRequest,
 } from '@/lib/api/arpa';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -131,5 +135,44 @@ export function useRecordVendorRefund(tenant: string | undefined) {
       toast.success('Vendor refund recorded.');
     },
     onError: (e: unknown) => toast.error(errMessage(e, 'Failed to record vendor refund.')),
+  });
+}
+
+/**
+ * Draw down a supplier's existing stored credit against a NEW bill
+ * (POST /ap/vendors/{vendorID}/apply-credit). Refreshes the vendor balances + AP summary +
+ * bills list (the target bill flips to paid). Toasts success/error.
+ */
+export function useApplyVendorCredit(tenant: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vendorKey, body }: { vendorKey: string; body: ApplyVendorCreditRequest }) =>
+      applyVendorCredit(tenant!, vendorKey, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenant ?? '') });
+      queryClient.invalidateQueries({ queryKey: arpaKeys.apSummary(tenant ?? '') });
+      queryClient.invalidateQueries({ queryKey: ['bills', 'list', tenant ?? ''] });
+      toast.success('Vendor credit applied to bill.');
+    },
+    onError: (e: unknown) => toast.error(errMessage(e, 'Failed to apply vendor credit.')),
+  });
+}
+
+/**
+ * Pay out some/all of a supplier's existing stored credit, independent of any bill
+ * (POST /ap/vendors/{vendorID}/payout-credit). Refreshes the vendor balances + AP summary.
+ * Toasts success/error.
+ */
+export function usePayoutVendorCredit(tenant: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vendorKey, body }: { vendorKey: string; body: PayoutVendorCreditRequest }) =>
+      payoutVendorCredit(tenant!, vendorKey, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenant ?? '') });
+      queryClient.invalidateQueries({ queryKey: arpaKeys.apSummary(tenant ?? '') });
+      toast.success('Vendor credit paid out.');
+    },
+    onError: (e: unknown) => toast.error(errMessage(e, 'Failed to pay out vendor credit.')),
   });
 }
