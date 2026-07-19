@@ -10,6 +10,7 @@ import type { VendorBalance } from '@/lib/api/arpa';
 import { StatementDialog } from '@/components/statement-dialog';
 import { OpeningBalanceDialog } from '@/components/opening-balance-dialog';
 import { VendorRefundDialog } from '@/components/vendor-refund-dialog';
+import { PayoutVendorCreditDialog } from '@/components/payout-vendor-credit-dialog';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
@@ -21,6 +22,7 @@ import {
   Download,
   FileText,
   Filter,
+  HandCoins,
   Inbox,
   Loader2,
   Plus,
@@ -119,6 +121,7 @@ export default function VendorsPage() {
   const [statementVendor, setStatementVendor] = useState<{ id: string; name: string } | null>(null);
   const [openingVendor, setOpeningVendor] = useState<{ id?: string; name: string } | null>(null);
   const [refundVendor, setRefundVendor] = useState<{ id?: string; name: string } | null>(null);
+  const [payoutVendor, setPayoutVendor] = useState<{ id?: string; name: string; creditAvailable: number; currency: string } | null>(null);
 
   const { data, isLoading, error } = useBills(effectiveTenant, {}, !!effectiveTenant);
   const bills = useMemo(() => data?.data ?? [], [data]);
@@ -639,6 +642,11 @@ export default function VendorsPage() {
                                     {vendor.balanceOwed !== undefined && vendor.balanceOwed > 0.0001 && (
                                       <span className="text-amber-600 font-semibold"> · {formatCurrency(vendor.balanceOwed, vendor.currency)} owed</span>
                                     )}
+                                    {vendor.balanceOwed !== undefined && vendor.balanceOwed < -0.0001 && (
+                                      <span className="text-emerald-600 font-semibold" title="Value this vendor holds against you (overpayment / return credit)">
+                                        {' '}· {formatCurrency(-vendor.balanceOwed, vendor.currency)} credit
+                                      </span>
+                                    )}
                                   </span>
                                 </td>
                               );
@@ -668,6 +676,25 @@ export default function VendorsPage() {
                               return (
                                 <td key={col.key} className="px-6 py-3 text-right whitespace-nowrap">
                                   <div className="inline-flex items-center justify-end gap-2">
+                                    {vendor.balanceOwed !== undefined && vendor.balanceOwed < -0.0001 && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        title="Pay out this vendor's stored credit (overpayment / return credit)"
+                                        onClick={(e: React.MouseEvent) => {
+                                          e.stopPropagation();
+                                          setPayoutVendor({
+                                            id: vendor.vendorId,
+                                            name: vendor.name,
+                                            creditAvailable: -vendor.balanceOwed!,
+                                            currency: vendor.currency,
+                                          });
+                                        }}
+                                      >
+                                        <HandCoins className="h-3.5 w-3.5 mr-1" />
+                                        Pay Out Credit
+                                      </Button>
+                                    )}
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -772,6 +799,19 @@ export default function VendorsPage() {
           name={refundVendor.name}
           vendorId={refundVendor.id}
           vendorIdentifier={refundVendor.name}
+        />
+      )}
+
+      {payoutVendor && (
+        <PayoutVendorCreditDialog
+          open={!!payoutVendor}
+          onClose={() => setPayoutVendor(null)}
+          tenant={effectiveTenant}
+          name={payoutVendor.name}
+          vendorId={payoutVendor.id}
+          vendorIdentifier={payoutVendor.name}
+          creditAvailable={payoutVendor.creditAvailable}
+          currency={payoutVendor.currency}
         />
       )}
     </div>

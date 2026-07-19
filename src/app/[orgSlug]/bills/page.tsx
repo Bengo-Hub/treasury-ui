@@ -1,16 +1,12 @@
 'use client';
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { FormField } from '@/components/ui/form-field';
 import { Pagination } from '@/components/ui/pagination';
+import { PayBillDialog } from '@/components/bills/PayBillDialog';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { useBills, useAPAging, usePayBill } from '@/hooks/use-bills';
+import { useBills, useAPAging } from '@/hooks/use-bills';
 import { useTransmitVendorBill } from '@/hooks/use-tax';
 import type { Bill, AgingRow } from '@/lib/api/bills';
-import { listPaymentIntents } from '@/lib/api/payments';
-import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
@@ -45,13 +41,12 @@ export default function BillsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'bill' | 'credit_note'>('all');
   const [page, setPage] = useState(1);
-  const [payOpen, setPayOpen] = useState<string | null>(null);
-  const [paymentIntentId, setPaymentIntentId] = useState('');
+  const [payBillId, setPayBillId] = useState<string | null>(null);
   // Deep link from the dashboard payables list: /bills?pay=<billID> opens the Pay dialog.
   const searchParams = useSearchParams();
   useEffect(() => {
     const payParam = searchParams?.get('pay');
-    if (payParam) setPayOpen(payParam);
+    if (payParam) setPayBillId(payParam);
   }, [searchParams]);
 
   const queryParams = useMemo(() => ({
@@ -90,21 +85,11 @@ export default function BillsPage() {
     { value: 'credit_note', label: 'Credit Notes' },
   ];
 
-  const payMutation = usePayBill(effectiveTenant);
   const transmit = useTransmitVendorBill();
 
-  // Payment intents to settle a bill with — fetched only while the Pay dialog is open.
-  const { data: intentsData, isLoading: loadingIntents } = useQuery({
-    queryKey: ['payment-intents', effectiveTenant],
-    queryFn: () => listPaymentIntents(effectiveTenant),
-    enabled: !!effectiveTenant,
-    staleTime: 60_000,
-  });
-  const intentOptions: ComboboxOption[] = (intentsData?.intents ?? []).map((it) => ({
-    value: it.id,
-    label: `${it.currency ?? 'KES'} ${it.amount} · ${it.status}${it.reference_type ? ` · ${it.reference_type}` : ''}`,
-    hint: it.id.slice(0, 8),
-  }));
+  // The bill the Pay dialog is settling, resolved from the loaded list (covers both the
+  // row-level "Pay" click and the ?pay=<billID> deep link).
+  const payTarget = useMemo(() => list.find((b: Bill) => b.id === payBillId) ?? null, [list, payBillId]);
 
   const goToNewPurchase = () => router.push(`/${orgSlug}/bills/new`);
 
@@ -118,13 +103,6 @@ export default function BillsPage() {
     statusFilter === 'all' &&
     typeFilter === 'all' &&
     !searchQuery.trim();
-
-  const handlePay = async () => {
-    if (!payOpen || !paymentIntentId) return;
-    await payMutation.mutateAsync({ id: payOpen, paymentIntentId });
-    setPayOpen(null);
-    setPaymentIntentId('');
-  };
 
   return (
     <div className="p-6 space-y-6">
@@ -324,7 +302,7 @@ export default function BillsPage() {
                               variant="ghost"
                               size="sm"
                               className="gap-1 text-xs"
-                              onClick={() => setPayOpen(bill.id)}
+                              onClick={() => setPayBillId(bill.id)}
                             >
                               <CreditCard className="h-3 w-3" /> Pay
                             </Button>
@@ -361,34 +339,12 @@ export default function BillsPage() {
       </Card>
       )}
 
-      {/* Pay Bill Dialog */}
-      <Dialog open={!!payOpen} onOpenChange={() => setPayOpen(null)}>
-        <DialogContent title="Pay Bill" description="Select the payment that settles this bill." onClose={() => setPayOpen(null)}>
-          <div className="space-y-4">
-            <FormField label="Payment" required description="The payment intent that covers this bill.">
-              <Combobox
-                options={intentOptions}
-                value={paymentIntentId}
-                onChange={setPaymentIntentId}
-                loading={loadingIntents}
-                placeholder="Select a payment…"
-                searchPlaceholder="Search payments by amount, status or reference…"
-                emptyText="No payment intents found"
-              />
-            </FormField>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setPayOpen(null)}>Cancel</Button>
-              <Button
-                onClick={handlePay}
-                disabled={payMutation.isPending || !paymentIntentId}
-              >
-                {payMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                <CreditCard className="h-4 w-4 mr-1" /> Pay Bill
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PayBillDialog
+        tenant={effectiveTenant}
+        orgSlug={orgSlug}
+        bill={payTarget}
+        onClose={() => setPayBillId(null)}
+      />
     </div>
   );
 }
