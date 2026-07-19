@@ -2,11 +2,12 @@
 
 import { CodeListSelect } from '@/components/tax/code-list-select';
 import { Card } from '@/components/ui/base';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Pagination } from '@/components/ui/pagination';
-import { useBulkRegisterEtimsItems, useEtimsItems, useRegisterEtimsItem, useTaxProfile } from '@/hooks/use-tax';
+import { useBulkRegisterEtimsItems, useDeregisterEtimsItem, useEtimsItems, useRegisterEtimsItem, useTaxProfile } from '@/hooks/use-tax';
 import { useInventoryItems } from '@/hooks/use-inventory';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Info, Loader2, Package, Plus, RefreshCw, Search, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, Loader2, Package, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 interface Props { tenantSlug: string }
@@ -109,6 +110,8 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
   const { data: profile } = useTaxProfile(tenantSlug);
   const register = useRegisterEtimsItem();
   const bulkRegister = useBulkRegisterEtimsItems();
+  const deregister = useDeregisterEtimsItem();
+  const [toDeregister, setToDeregister] = useState<Row | null>(null);
   const qc = useQueryClient();
   const vatRegistered = profile?.vat_registered ?? true; // optimistic until profile loads
   const EMPTY = { item_cd: '', item_nm: '', item_cls_cd: '1000000000', item_ty_cd: '2', tax_ty_cd: 'B', pkg_unit_cd: 'NT', qty_unit_cd: 'NO', dft_prc: '' };
@@ -140,7 +143,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
   }, [etimsItems]);
 
   type Row = {
-    key: string; sku?: string; name: string; type?: string; band: string; catalogBand: string;
+    key: string; id?: string; sku?: string; name: string; type?: string; band: string; catalogBand: string;
     status: SyncStatus; itemCd?: string; price?: number; category: string;
   };
   const rows: Row[] = useMemo(() => catalog.map((c) => {
@@ -148,7 +151,7 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
     const status: SyncStatus = e ? (e.registered ? 'registered' : 'queued') : 'unsynced';
     const catalogBand = taxCodeToBand(c.tax_code);
     return {
-      key: c.id, sku: c.sku, name: c.name, type: c.item_type,
+      key: c.id, id: e?.id, sku: c.sku, name: c.name, type: c.item_type,
       band: e?.tax_ty_cd || catalogBand, catalogBand,
       status, itemCd: e?.item_cd,
       price: c.unit_price ? Number(c.unit_price) : undefined,
@@ -408,13 +411,19 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                           : <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">Unsynced</span>}
                       </td>
                       <td className="px-2 py-2 text-right">
-                        {r.status !== 'registered' && (
+                        {r.status !== 'registered' ? (
                           <button type="button" disabled={register.isPending || bulkBusy || polling} onClick={() => syncRow(r)}
                             className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
                             title="Register this catalogue item with KRA eTIMS">
                             <RefreshCw className="h-3 w-3" /> {r.status === 'queued' ? 'Retry' : 'Sync'}
                           </button>
-                        )}
+                        ) : r.id ? (
+                          <button type="button" disabled={deregister.isPending} onClick={() => setToDeregister(r)}
+                            className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-0.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                            title="Deregister this item at KRA (useYn=N) and retire its stock">
+                            <Trash2 className="h-3 w-3" /> Deregister
+                          </button>
+                        ) : null}
                       </td>
                     </tr>
                   ))}
@@ -477,6 +486,22 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!toDeregister}
+        onOpenChange={(o) => { if (!o) setToDeregister(null); }}
+        title="Deregister item from eTIMS?"
+        description={toDeregister
+          ? `"${toDeregister.name}" (${toDeregister.itemCd ?? '—'}) will be deactivated at KRA (useYn=N) and any residual stock retired via a stockIO adjustment-out. KRA has no hard delete — the item code is retired, not reused. It will need re-registering before it can be sold again.`
+          : ''}
+        confirmLabel="Deregister"
+        destructive
+        isPending={deregister.isPending}
+        onConfirm={() => {
+          if (!toDeregister?.id) return;
+          deregister.mutate({ tenantSlug, itemId: toDeregister.id }, { onSuccess: () => setToDeregister(null) });
+        }}
+      />
     </div>
   );
 }

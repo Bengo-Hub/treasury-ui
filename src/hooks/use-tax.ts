@@ -498,6 +498,19 @@ export function useRegisterEtimsItem() {
   });
 }
 
+export function useDeregisterEtimsItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, itemId }: { tenantSlug: string; itemId: string }) =>
+      taxApi.deregisterEtimsItem(tenantSlug, itemId),
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: ['tax-etims-items', vars.tenantSlug] });
+      toast.success('Item deregistered from eTIMS (useYn=N) and stock retired');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to deregister item'),
+  });
+}
+
 // useBulkRegisterEtimsItems fires the whole "Sync all" batch as ONE request (202) and lets the
 // backend register serially in the background. The tab then polls the items list to reflect
 // progress. Fixes the timeout/"CORS" storm from firing one POST per item from the browser.
