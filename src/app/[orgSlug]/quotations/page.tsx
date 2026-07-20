@@ -123,6 +123,7 @@ export default function QuotationsPage() {
             showExpandLineItems
             showTenant={src.showTenant}
             storageKey="quotation-col-prefs"
+            bulk={src.isAggregate ? undefined : { docType: 'quotation', family: 'quotation', tenant: src.docTenant }}
             secondaryDateLabel="Valid Until"
             emptyStateDescription="Create quotations and send them to customers for approval."
             onRowPreview={setPreviewId}

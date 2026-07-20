@@ -92,6 +92,7 @@ export default function ProformaInvoicesPage() {
         showExpandLineItems
         showTenant={src.showTenant}
         storageKey="proforma-invoice-col-prefs"
+        bulk={src.isAggregate ? undefined : { docType: 'proforma_invoice', family: 'invoice', tenant: src.docTenant }}
         emptyStateDescription="Create proforma invoices to send to customers before issuing the final invoice."
       />
 

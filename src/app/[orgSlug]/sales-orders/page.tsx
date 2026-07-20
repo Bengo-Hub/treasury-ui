@@ -70,6 +70,7 @@ export default function SalesOrdersPage() {
       showExpandLineItems
       showTenant={src.showTenant}
       storageKey="sales-order-col-prefs"
+      bulk={src.isAggregate ? undefined : { docType: 'sales_order', family: 'invoice', tenant: src.docTenant }}
       emptyStateDescription="Confirm customer orders before invoicing or dispatch."
     />
     {statusModal}

@@ -430,6 +430,43 @@ export function bulkUploadInvoices(tenant: string, type: string, file: File): Pr
   });
 }
 
+// ---- Bulk operations (invoice family + quotations) ----
+
+export interface BulkOpSkipped {
+  id: string;
+  reason: string;
+}
+
+/** Response of the bulk archive/delete endpoints: processed count + per-id skip reasons. */
+export interface BulkOpResult {
+  processed: number;
+  skipped: BulkOpSkipped[];
+}
+
+/**
+ * Bulk-archive (void/cancel transition) documents of the whole invoice family
+ * (standard, credit_note, debit_note, proforma, sales_order, delivery_challan,
+ * payment_receipt). Idempotent; paid invoices are skipped server-side.
+ */
+export function bulkArchiveInvoices(tenant: string, ids: string[]): Promise<BulkOpResult> {
+  return apiClient.post<BulkOpResult>(`${BASE}/${tenant}/invoices/bulk-archive`, { ids });
+}
+
+/** Bulk-delete invoice-family documents (relaxed per-status rules server-side). Idempotent. */
+export function bulkDeleteInvoices(tenant: string, ids: string[]): Promise<BulkOpResult> {
+  return apiClient.post<BulkOpResult>(`${BASE}/${tenant}/invoices/bulk-delete`, { ids });
+}
+
+/** Bulk-archive (cancel transition) quotations. Idempotent. */
+export function bulkArchiveQuotations(tenant: string, ids: string[]): Promise<BulkOpResult> {
+  return apiClient.post<BulkOpResult>(`${BASE}/${tenant}/quotations/bulk-archive`, { ids });
+}
+
+/** Bulk-delete quotations (relaxed per-status rules server-side). Idempotent. */
+export function bulkDeleteQuotations(tenant: string, ids: string[]): Promise<BulkOpResult> {
+  return apiClient.post<BulkOpResult>(`${BASE}/${tenant}/quotations/bulk-delete`, { ids });
+}
+
 export function getInvoice(tenant: string, invoiceId: string): Promise<Invoice> {
   return apiClient.get<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}`);
 }
