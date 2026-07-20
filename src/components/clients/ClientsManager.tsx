@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { useSyncCustomerToCRM } from '@/hooks/use-invoices';
+import { useSyncCustomerToCRM, useReconcileCustomerBalances } from '@/hooks/use-invoices';
 import { useClients, type ClientRecord } from './use-clients';
 import { ClientDetail } from './ClientDetail';
 import { CreditTermsDialog } from './CreditTermsDialog';
@@ -39,6 +39,11 @@ type BalanceFilter = 'all' | 'owe_me' | 'i_owe' | 'settled';
 type CreditFilter = 'all' | 'has_limit' | 'over_limit' | 'no_limit';
 
 const numAcc = (v?: string | null) => parseFloat(v ?? '0') || 0;
+
+/** The AR statement endpoint keys on a crm_contact_id UUID — a phone-keyed row has no UUID id,
+ *  so its statement 400s. Gate the statement action on a real UUID (merge unifies the rest). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const hasUuidId = (c: ClientRecord) => !!c.customerId && UUID_RE.test(c.customerId);
 
 /** Raw sort values per column key — shared by the DataTable headers and the host-side sort. */
 const CLIENT_SORT_ACCESSORS: Record<string, (c: ClientRecord) => unknown> = {
@@ -87,6 +92,32 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [syncingKey, setSyncingKey] = useState<string | null>(null);
   const [syncDialogClient, setSyncDialogClient] = useState<ClientRecord | null>(null);
   const syncCrm = useSyncCustomerToCRM(tenant);
+  const reconcile = useReconcileCustomerBalances(tenant);
+
+  // Detect split-row duplicates: the SAME customer surfacing as >1 row (a phone-keyed AR row +
+  // a crm/name-keyed opening-balance row that never netted). Grouping on normalized name mirrors
+  // the treasury reconcile. When any exist, offer a one-click merge.
+  const duplicateCount = useMemo(() => {
+    const byName = new Map<string, number>();
+    clients.forEach((c) => {
+      const n = c.name.trim().toLowerCase().replace(/\s+/g, ' ');
+      if (n) byName.set(n, (byName.get(n) ?? 0) + 1);
+    });
+    let extra = 0;
+    byName.forEach((count) => { if (count > 1) extra += count - 1; });
+    return extra;
+  }, [clients]);
+
+  const handleMergeDuplicates = () => {
+    reconcile.mutate(false, {
+      onSuccess: (r) => toast.success(
+        r.rows_merged > 0
+          ? `Merged ${r.rows_merged} duplicate customer record${r.rows_merged === 1 ? '' : 's'}`
+          : 'No duplicates to merge',
+      ),
+      onError: () => toast.error('Failed to merge duplicate customers. Please try again.'),
+    });
+  };
 
   // Run the actual sync mutation with the resolved contact details.
   const performSync = (c: ClientRecord, email?: string, phone?: string) => {
@@ -217,7 +248,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   }
 
   const openStatement = (c: ClientRecord) => {
-    if (c.customerId) setStatementClient({ id: c.customerId, name: c.name });
+    if (hasUuidId(c)) setStatementClient({ id: c.customerId!, name: c.name });
   };
 
   // Columns for the shared DataTable — same data + actions as the old hand-rolled table, now with
@@ -361,7 +392,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
               onClick={(e: React.MouseEvent) => { e.stopPropagation(); setOpeningClient(c); }}>
               <Wallet className="h-3.5 w-3.5" />
             </Button>
-            {c.customerId && (
+            {hasUuidId(c) && (
               <Button variant="outline" size="sm" title="AR statement"
                 onClick={(e: React.MouseEvent) => { e.stopPropagation(); openStatement(c); }}>
                 <FileText className="h-3.5 w-3.5" />
@@ -392,6 +423,19 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           Failed to load clients. Check your connection and try again.
+        </div>
+      )}
+
+      {duplicateCount > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+          <p className="text-sm text-amber-800 dark:text-amber-300">
+            <span className="font-bold">{duplicateCount}</span> duplicate customer record{duplicateCount === 1 ? '' : 's'} detected
+            — the same customer split across separate AR rows. Merge them into one so all their
+            transactions and statement line up.
+          </p>
+          <Button size="sm" onClick={handleMergeDuplicates} disabled={reconcile.isPending} className="shrink-0">
+            {reconcile.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Merge duplicates'}
+          </Button>
         </div>
       )}
 
@@ -509,7 +553,9 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
           tenant={tenant}
           name={openingClient.name}
           crmContactId={openingClient.customerId}
-          customerIdentifier={openingClient.name}
+          // Key on the STABLE AR identifier (phone) the credit-sale path uses — NOT the name.
+          // Using the name here created a separate CustomerBalance row (the split-row dup source).
+          customerIdentifier={openingClient.phone || openingClient.balance?.customer_identifier || openingClient.name}
         />
       )}
 
