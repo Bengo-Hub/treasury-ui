@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Scan the shared UI library so its Tailwind utility classes are generated. */
+@source "../../node_modules/@bengo-hub/shared-ui-lib/dist";
+
 @theme {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));

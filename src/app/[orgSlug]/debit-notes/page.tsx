@@ -70,6 +70,7 @@ export default function DebitNotesPage() {
       showExpandLineItems
       showTenant={src.showTenant}
       storageKey="debit-note-col-prefs"
+      bulk={src.isAggregate ? undefined : { docType: 'debit_note', family: 'invoice', tenant: src.docTenant }}
       emptyStateDescription="Issue debit notes to charge customers for additional amounts."
     />
     {statusModal}

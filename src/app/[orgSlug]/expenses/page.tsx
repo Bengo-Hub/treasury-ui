@@ -1,11 +1,17 @@
 'use client';
 
-import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { RowActionMenu, type RowAction } from '@/components/ui/action-menu';
+import { type RowAction } from '@/components/ui/action-menu';
 import { FormField } from '@/components/ui/form-field';
-import { Pagination } from '@/components/ui/pagination';
+import {
+  DataTable,
+  compareValues,
+  type FilterMap,
+  type SortState,
+} from '@bengo-hub/shared-ui-lib/data-table';
+import { EXPENSE_ACCESSORS, buildExpenseColumns } from './expense-columns';
 import { ExpensePaymentModal } from '@/components/expenses/ExpensePaymentModal';
 import { MarkExpensePaidModal } from '@/components/expenses/MarkExpensePaidModal';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
@@ -23,7 +29,6 @@ import { useRouter } from 'next/navigation';
 import { useCostCenters } from '@/hooks/use-cost-centers';
 import type { Expense } from '@/lib/api/expenses';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/utils/currency';
 import {
   Check,
   Eye,
@@ -40,18 +45,6 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-
-const ITEMS_PER_PAGE = 20;
-
-const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
-  draft: 'secondary',
-  submitted: 'default',
-  approved: 'success',
-  rejected: 'error',
-  paid: 'success',
-  reimbursed: 'success',
-  cancelled: 'outline',
-};
 
 function defaultDateRange(): { from: string; to: string } {
   const to = new Date();
@@ -70,6 +63,11 @@ export default function ExpensesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [costCenterFilter, setCostCenterFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  // DataTable header state (controlled so sorting/funnel-filtering run over the WHOLE
+  // loaded list before client pagination, not just the visible page).
+  const [sort, setSort] = useState<SortState | null>(null);
+  const [funnel, setFunnel] = useState<FilterMap>({});
   const [rejectOpen, setRejectOpen] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   // Row-action dialog state (status-aware confirmations).
@@ -99,20 +97,44 @@ export default function ExpensesPage() {
   const costCenters = costCenterData?.cost_centers ?? [];
 
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return list;
-    const q = searchQuery.toLowerCase();
-    return list.filter(
-      (exp: Expense) =>
-        exp.expense_number?.toLowerCase().includes(q) ||
-        exp.description?.toLowerCase().includes(q) ||
-        exp.category_name?.toLowerCase().includes(q)
-    );
-  }, [list, searchQuery]);
+    let out = list;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      out = out.filter(
+        (exp: Expense) =>
+          exp.expense_number?.toLowerCase().includes(q) ||
+          exp.description?.toLowerCase().includes(q) ||
+          exp.category_name?.toLowerCase().includes(q)
+      );
+    }
+    // Funnel filters (controlled: applied over the whole list, before pagination).
+    for (const [key, st] of Object.entries(funnel)) {
+      const acc = EXPENSE_ACCESSORS[key];
+      if (!acc || !st) continue;
+      const values = st.values ?? [];
+      const query = st.query?.trim().toLowerCase();
+      if (values.length === 0 && !query) continue;
+      out = out.filter((exp) => {
+        const text = String(acc(exp) ?? '');
+        if (values.length > 0 && !values.includes(text)) return false;
+        if (query && !text.toLowerCase().includes(query)) return false;
+        return true;
+      });
+    }
+    if (sort) {
+      const acc = EXPENSE_ACCESSORS[sort.key];
+      if (acc) {
+        const dir = sort.dir === 'asc' ? 1 : -1;
+        out = [...out].sort((a, b) => dir * compareValues(acc(a), acc(b)));
+      }
+    }
+    return out;
+  }, [list, searchQuery, funnel, sort]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginatedItems = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginatedItems = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, costCenterFilter]);
+  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, costCenterFilter, funnel, pageSize]);
 
   const statusOptions = ['all', 'draft', 'submitted', 'approved', 'rejected', 'paid'];
 
@@ -284,6 +306,16 @@ export default function ExpensesPage() {
     },
   ];
 
+  // Funnel checklists derived from the WHOLE loaded list (controlled-filter mode would
+  // otherwise only see the current page slice).
+  const categoryOptions = [...new Set(list.map((e: Expense) => e.category_name || ''))]
+    .sort()
+    .map((v) => ({ value: v, label: v || '(none)' }));
+  const statusFunnelOptions = [...new Set(list.map((e: Expense) => (e.status === 'reimbursed' ? 'paid' : e.status)))]
+    .sort()
+    .map((v) => ({ value: v }));
+
+  const columns = buildExpenseColumns({ categoryOptions, statusOptions: statusFunnelOptions, rowActions });
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -358,72 +390,29 @@ export default function ExpensesPage() {
             ))}
           </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            {isLoading && (
-              <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" /> Loading expenses...
-              </div>
-            )}
-            {!isLoading && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Expense #</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Category</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Description</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Amount</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Date</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {paginatedItems.map((exp: Expense) => (
-                    <tr key={exp.id} className="hover:bg-accent/5 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs font-bold">{exp.expense_number}</td>
-                      <td className="px-6 py-4 text-xs">{exp.category_name || '---'}</td>
-                      <td className="px-6 py-4 text-xs max-w-60">
-                        <span className="block truncate">{exp.description}</span>
-                        {(exp.invoice_id || exp.billable) && (
-                          <span className="mt-1 inline-flex items-center gap-1.5">
-                            {exp.invoice_id && (
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                                Linked to invoice
-                              </span>
-                            )}
-                            {exp.billable && (
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                                {exp.billed ? 'Billed' : 'Billable'}
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right font-bold text-xs tabular-nums">{formatCurrency(Number(exp.total_amount), exp.currency)}</td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge variant={statusVariant[exp.status] ?? 'outline'}>
-                          {exp.status === 'reimbursed' ? 'paid' : exp.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">
-                        {new Date(exp.expense_date).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <RowActionMenu row={exp} actions={rowActions} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {!isLoading && filtered.length === 0 && (
-              <div className="p-12 text-center text-muted-foreground">No expenses match your filters.</div>
-            )}
-          </div>
-          {!isLoading && filtered.length > 0 && (
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-          )}
+        <CardContent className="pt-0">
+          <DataTable<Expense>
+            columns={columns}
+            rows={paginatedItems}
+            rowKey={(exp) => exp.id}
+            loading={isLoading}
+            error={!!error}
+            emptyText="No expenses match your filters."
+            sort={sort}
+            onSortChange={setSort}
+            filters={funnel}
+            onFiltersChange={setFunnel}
+            storageKey="expenses-table"
+            showExportCsv
+            exportFileName="expenses"
+            onExportAll={() => Promise.resolve(filtered)}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            total={filtered.length}
+          />
         </CardContent>
       </Card>
 

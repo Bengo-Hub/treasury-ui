@@ -235,6 +235,7 @@ export default function InvoicesPage() {
             showExpandLineItems
             showTenant={src.showTenant}
             storageKey="invoice-col-prefs"
+            bulk={src.isAggregate ? undefined : { docType: 'invoice', family: 'invoice', tenant: src.docTenant }}
             emptyStateDescription="Send professional invoices and get paid faster."
           />
 

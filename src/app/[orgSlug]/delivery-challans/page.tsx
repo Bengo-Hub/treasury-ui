@@ -129,6 +129,7 @@ export default function DeliveryChallansPage() {
         showExpandLineItems
         showTenant={src.showTenant}
         storageKey="delivery-challan-col-prefs"
+        bulk={src.isAggregate ? undefined : { docType: 'delivery_challan', family: 'invoice', tenant: src.docTenant }}
         emptyStateDescription="Delivery notes are generated from invoices (Generate Delivery Note in an invoice's action menu) or from a quotation's Generate Delivery Challan action."
       />
 

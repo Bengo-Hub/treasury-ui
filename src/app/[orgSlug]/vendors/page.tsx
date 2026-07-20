@@ -14,45 +14,25 @@ import { PayoutVendorCreditDialog } from '@/components/payout-vendor-credit-dial
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
+  DataTable,
+  compareValues,
+  type FilterMap,
+  type SortState,
+} from '@bengo-hub/shared-ui-lib/data-table';
+import { buildVendorColumns, VENDOR_ACCESSORS, type VendorSummary } from './vendor-columns';
+import {
   ArrowLeft,
-  ArrowUpDown,
   Banknote,
   ChevronRight,
-  Columns3,
-  Download,
-  FileText,
   Filter,
-  HandCoins,
   Inbox,
-  Loader2,
   Plus,
   Search,
   SlidersHorizontal,
-  Undo2,
-  Wallet,
   X,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-
-interface VendorSummary {
-  name: string;
-  industry: string;
-  phone: string;
-  email: string;
-  country: string;
-  billCount: number;
-  totalAmount: number;
-  outstanding: number;
-  currency: string;
-  lastCommunication: string;
-  /** A vendor is archived when every one of its bills is cancelled. */
-  archived: boolean;
-  /** AP ledger vendor UUID (from /ap/vendors), when this vendor has a balance row. */
-  vendorId?: string;
-  /** Running AP balance owed from the operational ledger (/ap/vendors), if known. */
-  balanceOwed?: number;
-}
 
 const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
   draft: 'secondary',
@@ -61,41 +41,6 @@ const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' 
   overdue: 'error',
   cancelled: 'outline',
 };
-
-type ColumnKey =
-  | 'logo'
-  | 'name'
-  | 'industry'
-  | 'phone'
-  | 'email'
-  | 'country'
-  | 'status'
-  | 'lastComm'
-  | 'actions';
-
-interface ColumnDef {
-  key: ColumnKey;
-  label: string;
-  /** Columns that cannot be hidden. */
-  locked?: boolean;
-  align?: 'left' | 'right' | 'center';
-}
-
-const COLUMNS: ColumnDef[] = [
-  { key: 'logo', label: 'Logo', locked: true },
-  { key: 'name', label: 'Name', locked: true },
-  { key: 'industry', label: 'Industry' },
-  { key: 'phone', label: 'Phone' },
-  { key: 'email', label: 'Email' },
-  { key: 'country', label: 'Country' },
-  { key: 'status', label: 'Status', align: 'center' },
-  { key: 'lastComm', label: 'Last Communication Date', align: 'right' },
-  { key: 'actions', label: 'Actions', locked: true, align: 'right' },
-];
-
-type SortKey = 'name' | 'total' | 'lastComm';
-
-const EMPTY = '—';
 
 export default function VendorsPage() {
   const params = useParams();
@@ -113,10 +58,12 @@ export default function VendorsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [currencyFilter, setCurrencyFilter] = useState('all');
-  const [showColumnMenu, setShowColumnMenu] = useState(false);
-  const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(new Set());
-  const [sortKey, setSortKey] = useState<SortKey>('total');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  // DataTable header state — controlled so sort/funnel run over the whole vendor
+  // list before client pagination. Default order: biggest vendors (total billed) first.
+  const [sort, setSort] = useState<SortState | null>(null);
+  const [funnel, setFunnel] = useState<FilterMap>({});
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
   const [statementVendor, setStatementVendor] = useState<{ id: string; name: string } | null>(null);
   const [openingVendor, setOpeningVendor] = useState<{ id?: string; name: string } | null>(null);
@@ -213,64 +160,60 @@ export default function VendorsPage() {
       );
     }
 
-    const dir = sortDir === 'asc' ? 1 : -1;
-    return [...list].sort((a, b) => {
-      if (sortKey === 'name') return a.name.localeCompare(b.name) * dir;
-      if (sortKey === 'lastComm') {
-        return (a.lastCommunication < b.lastCommunication ? -1 : 1) * dir;
-      }
-      return (a.totalAmount - b.totalAmount) * dir;
-    });
-  }, [vendors, archivedTab, currencyFilter, searchQuery, sortKey, sortDir]);
-
-  const visibleColumns = COLUMNS.filter((c) => !hiddenColumns.has(c.key));
-
-  const toggleColumn = (key: ColumnKey) =>
-    setHiddenColumns((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir(key === 'name' ? 'asc' : 'desc');
+    // Funnel filters from the DataTable headers.
+    for (const [key, st] of Object.entries(funnel)) {
+      const acc = VENDOR_ACCESSORS[key];
+      if (!acc || !st) continue;
+      const values = st.values ?? [];
+      const query = st.query?.trim().toLowerCase();
+      if (values.length === 0 && !query) continue;
+      list = list.filter((v) => {
+        const text = String(acc(v) ?? '');
+        if (values.length > 0 && !values.includes(text)) return false;
+        if (query && !text.toLowerCase().includes(query)) return false;
+        return true;
+      });
     }
-  };
+
+    const acc = sort ? VENDOR_ACCESSORS[sort.key] : undefined;
+    if (sort && acc) {
+      const dir = sort.dir === 'asc' ? 1 : -1;
+      return [...list].sort((a, b) => dir * compareValues(acc(a), acc(b)));
+    }
+    // Default order: biggest vendors first.
+    return [...list].sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [vendors, archivedTab, currencyFilter, searchQuery, funnel, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredVendors.length / pageSize));
+  const pagedVendors = filteredVendors.slice((page - 1) * pageSize, page * pageSize);
+
+  useMemo(() => { setPage(1); }, [archivedTab, currencyFilter, searchQuery, funnel, pageSize]);
 
   const clearAllFilters = () => {
     setSearchQuery('');
     setCurrencyFilter('all');
   };
 
-  const downloadCSV = () => {
-    const headers = ['Name', 'Industry', 'Phone', 'Email', 'Country', 'Bills', 'Total Billed', 'Currency', 'Status', 'Last Communication'];
-    const rows = filteredVendors.map((v) => [
-      v.name,
-      v.industry || '',
-      v.phone || '',
-      v.email || '',
-      v.country || '',
-      String(v.billCount),
-      v.totalAmount.toFixed(2),
-      v.currency,
-      v.archived ? 'Archived' : 'Active',
-      v.lastCommunication ? new Date(v.lastCommunication).toLocaleDateString() : '',
-    ]);
-    const escape = (cell: string) => `"${cell.replace(/"/g, '""')}"`;
-    const csv = [headers, ...rows].map((r) => r.map(escape).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `vendors-${orgSlug || 'export'}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  // Funnel checklists derived from the whole vendor set (controlled-filter mode
+  // would otherwise only see the current page slice).
+  const industryOptions = [...new Set(vendors.map((v) => v.industry || ''))]
+    .sort()
+    .map((v) => ({ value: v, label: v || '(none)' }));
+
+  const vendorColumns = buildVendorColumns(industryOptions, {
+    onPayoutCredit: (vendor) =>
+      setPayoutVendor({
+        id: vendor.vendorId,
+        name: vendor.name,
+        creditAvailable: -(vendor.balanceOwed ?? 0),
+        currency: vendor.currency,
+      }),
+    onOpeningBalance: (vendor) => setOpeningVendor({ id: vendor.vendorId, name: vendor.name }),
+    onRefund: (vendor) => setRefundVendor({ id: vendor.vendorId, name: vendor.name }),
+    onStatement: (vendor) => {
+      if (vendor.vendorId) setStatementVendor({ id: vendor.vendorId, name: vendor.name });
+    },
+  });
 
   // ---- Vendor detail (bill history) ----
   const vendorBills = useMemo(() => {
@@ -468,12 +411,8 @@ export default function VendorsPage() {
               ))}
             </div>
 
-            {/* Toolbar: CSV + search */}
+            {/* Toolbar: search (CSV export lives in the DataTable toolbar below) */}
             <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-end px-6 py-4">
-              <Button variant="outline" size="sm" onClick={downloadCSV} disabled={filteredVendors.length === 0}>
-                <Download className="h-4 w-4 mr-1.5" />
-                Download CSV
-              </Button>
               <div className="relative w-full sm:max-w-xs group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                 <input
@@ -532,237 +471,50 @@ export default function VendorsPage() {
               </div>
             )}
 
-            {/* Count + Show/Hide columns */}
-            <div className="flex items-center justify-between gap-4 px-6 py-3 border-t border-border">
-              <p className="text-sm text-muted-foreground">
-                <span className="font-bold text-foreground">{filteredVendors.length}</span>{' '}
-                Vendor{filteredVendors.length !== 1 ? 's' : ''} Found
-              </p>
-              <div className="relative">
-                <Button variant="outline" size="sm" onClick={() => setShowColumnMenu((s) => !s)}>
-                  <Columns3 className="h-4 w-4 mr-1.5" />
-                  Show/Hide Columns
-                </Button>
-                {showColumnMenu && (
-                  <>
-                    <button
-                      type="button"
-                      aria-label="Close column menu"
-                      className="fixed inset-0 z-10 cursor-default"
-                      onClick={() => setShowColumnMenu(false)}
-                    />
-                    <div className="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-border bg-card shadow-lg p-2">
-                      {COLUMNS.map((col) => (
-                        <label
-                          key={col.key}
-                          className={cn(
-                            'flex items-center gap-2 px-2 py-1.5 rounded-md text-sm',
-                            col.locked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent/40 cursor-pointer',
-                          )}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={!hiddenColumns.has(col.key)}
-                            disabled={col.locked}
-                            onChange={() => toggleColumn(col.key)}
-                            className="accent-primary"
-                          />
-                          {col.label}
-                        </label>
-                      ))}
+            {/* Table — shared DataTable: sortable headers, funnel filters, column
+                visibility (storageKey), CSV export, entries selector + pagination. */}
+            <div className="px-6 py-4 border-t border-border">
+              <DataTable<VendorSummary>
+                columns={vendorColumns}
+                rows={pagedVendors}
+                rowKey={(v) => v.name}
+                loading={isLoading}
+                onRowClick={(v) => setSelectedVendor(v.name)}
+                rowClassName={() => 'group'}
+                emptyState={
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="h-16 w-16 rounded-full bg-accent/40 flex items-center justify-center mb-4 mx-auto">
+                      <Inbox className="h-7 w-7 text-muted-foreground" />
                     </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Table */}
-            <div className="overflow-x-auto border-t border-border">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    {visibleColumns.map((col) => {
-                      const sortable = col.key === 'name' || col.key === 'lastComm';
-                      const sortFor: SortKey | null =
-                        col.key === 'name' ? 'name' : col.key === 'lastComm' ? 'lastComm' : null;
-                      return (
-                        <th
-                          key={col.key}
-                          className={cn(
-                            'px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground whitespace-nowrap',
-                            col.align === 'right' && 'text-right',
-                            col.align === 'center' && 'text-center',
-                            (!col.align || col.align === 'left') && 'text-left',
-                          )}
-                        >
-                          {sortable && sortFor ? (
-                            <button
-                              type="button"
-                              onClick={() => toggleSort(sortFor)}
-                              className={cn(
-                                'inline-flex items-center gap-1 hover:text-foreground transition-colors',
-                                col.align === 'right' && 'flex-row-reverse',
-                              )}
-                            >
-                              {col.label}
-                              <ArrowUpDown className={cn('h-3 w-3', sortKey === sortFor && 'text-primary')} />
-                            </button>
-                          ) : (
-                            col.label
-                          )}
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {!isLoading &&
-                    filteredVendors.map((vendor) => (
-                      <tr
-                        key={vendor.name}
-                        onClick={() => setSelectedVendor(vendor.name)}
-                        className="hover:bg-accent/5 transition-colors cursor-pointer group"
-                      >
-                        {visibleColumns.map((col) => {
-                          switch (col.key) {
-                            case 'logo':
-                              return (
-                                <td key={col.key} className="px-6 py-3">
-                                  <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20 text-primary font-bold text-sm">
-                                    {vendor.name.charAt(0).toUpperCase()}
-                                  </div>
-                                </td>
-                              );
-                            case 'name':
-                              return (
-                                <td key={col.key} className="px-6 py-3">
-                                  <span className="font-bold group-hover:text-primary transition-colors">{vendor.name}</span>
-                                  <span className="block text-[10px] text-muted-foreground mt-0.5">
-                                    {vendor.billCount} bill{vendor.billCount !== 1 ? 's' : ''} · {formatCurrency(vendor.totalAmount, vendor.currency)}
-                                    {vendor.balanceOwed !== undefined && vendor.balanceOwed > 0.0001 && (
-                                      <span className="text-amber-600 font-semibold"> · {formatCurrency(vendor.balanceOwed, vendor.currency)} owed</span>
-                                    )}
-                                    {vendor.balanceOwed !== undefined && vendor.balanceOwed < -0.0001 && (
-                                      <span className="text-emerald-600 font-semibold" title="Value this vendor holds against you (overpayment / return credit)">
-                                        {' '}· {formatCurrency(-vendor.balanceOwed, vendor.currency)} credit
-                                      </span>
-                                    )}
-                                  </span>
-                                </td>
-                              );
-                            case 'industry':
-                              return <td key={col.key} className="px-6 py-3 text-muted-foreground">{vendor.industry || EMPTY}</td>;
-                            case 'phone':
-                              return <td key={col.key} className="px-6 py-3 text-muted-foreground">{vendor.phone || EMPTY}</td>;
-                            case 'email':
-                              return <td key={col.key} className="px-6 py-3 text-muted-foreground">{vendor.email || EMPTY}</td>;
-                            case 'country':
-                              return <td key={col.key} className="px-6 py-3 text-muted-foreground">{vendor.country || EMPTY}</td>;
-                            case 'status':
-                              return (
-                                <td key={col.key} className="px-6 py-3 text-center">
-                                  <Badge variant={vendor.archived ? 'outline' : 'success'}>
-                                    {vendor.archived ? 'Archived' : 'Active'}
-                                  </Badge>
-                                </td>
-                              );
-                            case 'lastComm':
-                              return (
-                                <td key={col.key} className="px-6 py-3 text-right text-xs text-muted-foreground whitespace-nowrap">
-                                  {vendor.lastCommunication ? new Date(vendor.lastCommunication).toLocaleDateString() : EMPTY}
-                                </td>
-                              );
-                            case 'actions':
-                              return (
-                                <td key={col.key} className="px-6 py-3 text-right whitespace-nowrap">
-                                  <div className="inline-flex items-center justify-end gap-2">
-                                    {vendor.balanceOwed !== undefined && vendor.balanceOwed < -0.0001 && (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        title="Pay out this vendor's stored credit (overpayment / return credit)"
-                                        onClick={(e: React.MouseEvent) => {
-                                          e.stopPropagation();
-                                          setPayoutVendor({
-                                            id: vendor.vendorId,
-                                            name: vendor.name,
-                                            creditAvailable: -vendor.balanceOwed!,
-                                            currency: vendor.currency,
-                                          });
-                                        }}
-                                      >
-                                        <HandCoins className="h-3.5 w-3.5 mr-1" />
-                                        Pay Out Credit
-                                      </Button>
-                                    )}
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      title="Set this vendor's opening / advance balance"
-                                      onClick={(e: React.MouseEvent) => {
-                                        e.stopPropagation();
-                                        setOpeningVendor({ id: vendor.vendorId, name: vendor.name });
-                                      }}
-                                    >
-                                      <Wallet className="h-3.5 w-3.5 mr-1" />
-                                      Opening Balance
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      title="Record cash received back from this vendor on a purchase return"
-                                      onClick={(e: React.MouseEvent) => {
-                                        e.stopPropagation();
-                                        setRefundVendor({ id: vendor.vendorId, name: vendor.name });
-                                      }}
-                                    >
-                                      <Undo2 className="h-3.5 w-3.5 mr-1" />
-                                      Record Refund Received
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      disabled={!vendor.vendorId}
-                                      title={vendor.vendorId ? 'View vendor statement' : 'No AP ledger balance for this vendor yet'}
-                                      onClick={(e: React.MouseEvent) => {
-                                        e.stopPropagation();
-                                        if (vendor.vendorId) setStatementVendor({ id: vendor.vendorId, name: vendor.name });
-                                      }}
-                                    >
-                                      <FileText className="h-3.5 w-3.5 mr-1" />
-                                      Statement
-                                    </Button>
-                                  </div>
-                                </td>
-                              );
-                            default:
-                              return null;
-                          }
-                        })}
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-
-              {isLoading && (
-                <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin" /> Loading vendors...
-                </div>
-              )}
-
-              {!isLoading && filteredVendors.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <div className="h-16 w-16 rounded-full bg-accent/40 flex items-center justify-center mb-4">
-                    <Inbox className="h-7 w-7 text-muted-foreground" />
+                    <p className="text-lg font-semibold text-foreground">No Data</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {archivedTab === 'archived'
+                        ? 'No archived vendors found.'
+                        : 'No vendors found. They appear here once you record bills.'}
+                    </p>
                   </div>
-                  <p className="text-lg font-semibold text-foreground">No Data</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {archivedTab === 'archived'
-                      ? 'No archived vendors found.'
-                      : 'No vendors found. They appear here once you record bills.'}
+                }
+                sort={sort}
+                onSortChange={setSort}
+                filters={funnel}
+                onFiltersChange={setFunnel}
+                storageKey="vendors-table"
+                showExportCsv
+                exportFileName={`vendors-${orgSlug || 'export'}`}
+                onExportAll={() => Promise.resolve(filteredVendors)}
+                pageSize={pageSize}
+                onPageSizeChange={setPageSize}
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                total={filteredVendors.length}
+                toolbar={
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-bold text-foreground">{filteredVendors.length}</span>{' '}
+                    Vendor{filteredVendors.length !== 1 ? 's' : ''} Found
                   </p>
-                </div>
-              )}
+                }
+              />
             </div>
           </CardContent>
         </Card>

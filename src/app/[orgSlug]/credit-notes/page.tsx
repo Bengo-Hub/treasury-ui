@@ -70,6 +70,7 @@ export default function CreditNotesPage() {
       showExpandLineItems
       showTenant={src.showTenant}
       storageKey="credit-note-col-prefs"
+      bulk={src.isAggregate ? undefined : { docType: 'credit_note', family: 'invoice', tenant: src.docTenant }}
       emptyStateDescription="Issue credit notes to reduce a customer's outstanding balance."
     />
     {statusModal}

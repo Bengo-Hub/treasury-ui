@@ -95,6 +95,7 @@ export default function PaymentReceiptsPage() {
           pdfKind="invoice"
           showTenant={src.showTenant}
           storageKey="payment-receipt-col-prefs"
+          bulk={src.isAggregate ? undefined : { docType: 'payment_receipt', family: 'invoice', tenant: src.docTenant }}
           emptyStateDescription="Issue receipts to customers once you receive their payments."
         />
       </div>
