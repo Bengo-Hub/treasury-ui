@@ -18,6 +18,8 @@ import {
   getARAging,
   getCustomerBalances,
   recordCustomerPayment,
+  reconcileCustomerBalances,
+  type ReconcileResult,
   payoutCustomerCredit,
   setCustomerCreditTerms,
   syncCustomerToCRM,
@@ -222,6 +224,19 @@ export function useRecordCustomerPayment(tenant: string) {
   return useMutation({
     mutationFn: ({ contactId, amount, paymentMethod, reference }: { contactId: string; amount: number; paymentMethod?: string; reference?: string }) =>
       recordCustomerPayment(tenant, contactId, { amount, payment_method: paymentMethod, reference }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+    },
+  });
+}
+
+// Merge historic split customer AR rows into one canonical row; refreshes balances on success.
+export function useReconcileCustomerBalances(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation<ReconcileResult, Error, boolean>({
+    mutationFn: (dryRun: boolean) => reconcileCustomerBalances(tenant, dryRun),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });

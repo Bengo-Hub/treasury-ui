@@ -837,6 +837,19 @@ export function recordCustomerPayment(
   });
 }
 
+export interface ReconcileResult {
+  dry_run: boolean;
+  rows_merged: number;
+  merges?: { canonical_id: string; merged_ids: string[]; customer_name: string }[];
+}
+
+// Merge historic split customer AR rows (a phone-keyed credit-sale row and a crm/name-keyed
+// opening-balance row for the SAME customer that never netted) into one canonical row. dry_run
+// (default true server-side) reports the merges without mutating; pass false to apply them.
+export function reconcileCustomerBalances(tenant: string, dryRun = false): Promise<ReconcileResult> {
+  return apiClient.post<ReconcileResult>(`${BASE}/${tenant}/ar/customers/reconcile`, { dry_run: dryRun });
+}
+
 // Pay out some/all of a customer's EXISTING stored credit (a negative balance_due) via a real
 // channel, independent of any return/sale — the inverse-direction sibling of recordCustomerPayment.
 export function payoutCustomerCredit(
