@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const q       = searchParams.get('q') ?? '';
   const limit   = searchParams.get('limit') ?? '20';
+  const offset  = searchParams.get('offset') ?? '';
   const tenantId = searchParams.get('tenant_id') ?? '';
 
   const auth = req.headers.get('Authorization') ?? '';
@@ -44,8 +45,11 @@ export async function GET(req: NextRequest) {
   if (bad) return bad;
 
   const upstream = new URL(`${MARKETFLOW_API_URL}/api/v1/contacts`);
-  if (q)     upstream.searchParams.set('q', q);
+  if (q)      upstream.searchParams.set('q', q);
   upstream.searchParams.set('limit', limit);
+  // Forward offset so callers can page through the WHOLE customer directory (the shared
+  // pagination lib caps limit at 100, so "list all customers" must paginate).
+  if (offset) upstream.searchParams.set('offset', offset);
 
   try {
     const res = await fetch(upstream.toString(), {
