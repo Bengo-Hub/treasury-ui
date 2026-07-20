@@ -62,12 +62,14 @@ const crmName = (c: CRMContact) =>
  *    (by crm id, else by normalized name) is enriched with email/phone/contact_type;
  *    CRM-only contacts are added as zero-balance clients.
  */
-export function useClients(tenant: string) {
+export function useClients(tenant: string, search = '') {
   const { data, isLoading, error } = useInvoices(tenant, {}, !!tenant);
   const invoices = useMemo(() => data?.invoices ?? [], [data]);
 
   const { data: balances } = useCustomerBalances(tenant, !!tenant);
-  const { data: crmContacts = [], isLoading: crmLoading } = useCRMContacts(tenant, '');
+  // Drive the CRM lookup server-side: empty search loads the whole customer directory, a typed
+  // query searches the ENTIRE book (not just the preloaded page) so any customer is findable.
+  const { data: crmContacts = [], isLoading: crmLoading } = useCRMContacts(tenant, search);
 
   const clients = useMemo<ClientRecord[]>(() => {
     const map = new Map<string, ClientRecord>();
@@ -201,11 +203,17 @@ export function useClients(tenant: string) {
       if (attachedBalances.has(b.id)) return;
       const key = b.crm_contact_id || b.customer_identifier || b.id;
       if (map.has(key)) return;
+      // The identifier is the AR key POS credit sales use — an email OR a phone. Populate the
+      // right field so this POS-credit-only debtor is findable by BOTH name and phone (the
+      // phone was previously dropped for phone-shaped identifiers → phone search missed them).
+      const identIsEmail = b.customer_identifier?.includes('@') ?? false;
       map.set(key, {
         key,
         name: b.customer_name || b.customer_identifier || 'Unknown Customer',
-        email: '',
-        phone: b.customer_identifier?.includes('@') ? b.customer_identifier : '',
+        email: identIsEmail ? (b.customer_identifier ?? '') : '',
+        phone: !identIsEmail && b.customer_identifier && !b.customer_identifier.startsWith('staff:')
+          ? b.customer_identifier
+          : '',
         totalAmount: parseFloat(b.total_invoiced) || 0,
         paidAmount: parseFloat(b.total_paid) || 0,
         outstanding: parseFloat(b.balance_due) || 0,

@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from './client';
+import { fetchAllViaApiClient } from './paginate';
 
 const BASE = '/api/v1';
 
@@ -811,9 +812,15 @@ export interface CustomerBalance {
 
 interface Paginated<T> { data: T[]; total: number; page: number; limit: number }
 
+/**
+ * Fetch the tenant's ENTIRE operational AR customer directory. `/ar/customers` is paginated and
+ * the shared pagination lib caps a page at 100, so a single request only ever returned the top
+ * page (by balance due) — a debtor further down (e.g. a POS credit customer) was invisible AND
+ * unsearchable on the treasury Customers page. Page through every row (via the centralized
+ * `paginateAll` helper, matching the shared backend envelope) so ALL customers sync.
+ */
 export async function getCustomerBalances(tenant: string): Promise<CustomerBalance[]> {
-  const res = await apiClient.get<Paginated<CustomerBalance> | CustomerBalance[]>(`${BASE}/${tenant}/ar/customers`);
-  return Array.isArray(res) ? res : res.data ?? [];
+  return fetchAllViaApiClient<CustomerBalance>(`${BASE}/${tenant}/ar/customers`);
 }
 
 // Receive a customer's repayment against their AR balance. `contactId` = crm_contact_id (or the

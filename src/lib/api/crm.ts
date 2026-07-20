@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuthStore } from '@/store/auth';
+import { paginateAll, type Page } from './paginate';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -51,15 +52,27 @@ export async function searchCRMContacts(
   tenantId: string,
   query: string,
   limit = 20,
+  offset = 0,
 ): Promise<CRMContact[]> {
+  const page = await fetchCRMContactsPage(tenantId, query, limit, offset);
+  return page.data;
+}
+
+async function fetchCRMContactsPage(
+  tenantId: string,
+  query: string,
+  limit: number,
+  offset: number,
+): Promise<Page<CRMContact>> {
   const token = useAuthStore.getState().session?.accessToken;
   const marketflowTenantId = resolveMarketflowTenantId(tenantId);
-  if (!token || !marketflowTenantId) return [];
+  if (!token || !marketflowTenantId) return { data: [], total: 0, hasMore: false };
 
   const url = new URL('/api/crm/contacts', window.location.origin);
   url.searchParams.set('tenant_id', marketflowTenantId);
   if (query) url.searchParams.set('q', query);
   url.searchParams.set('limit', String(limit));
+  if (offset > 0) url.searchParams.set('offset', String(offset));
 
   try {
     const res = await fetch(url.toString(), {
@@ -68,12 +81,27 @@ export async function searchCRMContacts(
         Accept: 'application/json',
       },
     });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data?.data) ? data.data : [];
+    if (!res.ok) return { data: [], total: 0, hasMore: false };
+    const body = await res.json();
+    // Same shared `pagination.NewResponse` envelope the treasury API uses: { data, total, hasMore }.
+    const data = Array.isArray(body?.data) ? body.data : [];
+    const total = Number(body?.total ?? data.length) || data.length;
+    return { data, total, hasMore: body?.hasMore ?? false };
   } catch {
-    return [];
+    return { data: [], total: 0, hasMore: false };
   }
+}
+
+/**
+ * List the tenant's ENTIRE CRM customer directory by paging through marketflow via the SAME
+ * centralized `paginateAll` helper the treasury AR balances use (marketflow speaks the identical
+ * shared pagination envelope). This is what makes the treasury Customers page show ALL of a
+ * tenant's customers — the same directory POS resolves a customer against when selling — not
+ * just the first page. Beyond the paginateAll page cap, server-side search (searchCRMContacts
+ * with a query) still finds any customer.
+ */
+export async function listAllCRMContacts(tenantId: string): Promise<CRMContact[]> {
+  return paginateAll<CRMContact>((limit, offset) => fetchCRMContactsPage(tenantId, '', limit, offset));
 }
 
 export interface CreateCRMContactInput {
