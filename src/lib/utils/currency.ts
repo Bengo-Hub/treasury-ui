@@ -21,7 +21,11 @@ export function formatCompactCurrency(amount: number, currency = 'KES'): string 
   for (const [div, suffix] of units) {
     if (abs >= div) {
       const v = n / div;
-      const s = (Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1)).replace(/\.0$/, '');
+      // Truncate toward zero to 1 dp — never round. Rounding is misleading on money tiles
+      // (925,937 must read "925.9K", not "926K"). The exact figure is always available via
+      // MoneyValue's tooltip and the title attribute on the rendered compact string.
+      const truncated = Math.trunc(v * 10) / 10;
+      const s = truncated.toFixed(1).replace(/\.0$/, '');
       return `${currency} ${s}${suffix}`;
     }
   }
