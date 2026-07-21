@@ -130,7 +130,7 @@ export function useClients(tenant: string, search = '') {
       const bal = matchBalance(c.customerId, c.name);
       if (bal) {
         c.balance = bal;
-        c.outstanding = parseFloat(bal.balance_due) || 0;
+        c.outstanding = parseFloat(bal.outstanding_debit) || 0;
         if (!c.customerId) c.customerId = bal.crm_contact_id || bal.customer_identifier || bal.id;
       } else {
         c.outstanding = Math.max(c.totalAmount - c.paidAmount, 0);
@@ -170,7 +170,7 @@ export function useClients(tenant: string, search = '') {
           const bal = matchBalance(c.id, name);
           if (bal) {
             target.balance = bal;
-            target.outstanding = parseFloat(bal.balance_due) || 0;
+            target.outstanding = parseFloat(bal.outstanding_debit) || 0;
           }
         }
         if (target.balance) attachedBalances.add(target.balance.id);
@@ -185,7 +185,7 @@ export function useClients(tenant: string, search = '') {
           contactType: c.contact_type,
           totalAmount: bal ? parseFloat(bal.total_invoiced) || 0 : 0,
           paidAmount: bal ? parseFloat(bal.total_paid) || 0 : 0,
-          outstanding: bal ? parseFloat(bal.balance_due) || 0 : 0,
+          outstanding: bal ? parseFloat(bal.outstanding_debit) || 0 : 0,
           invoiceCount: 0,
           currency: bal?.currency || 'KES',
           lastInvoiceDate: bal?.last_invoice_date || '',
@@ -216,7 +216,7 @@ export function useClients(tenant: string, search = '') {
           : '',
         totalAmount: parseFloat(b.total_invoiced) || 0,
         paidAmount: parseFloat(b.total_paid) || 0,
-        outstanding: parseFloat(b.balance_due) || 0,
+        outstanding: parseFloat(b.outstanding_debit) || 0,
         invoiceCount: 0,
         currency: b.currency || 'KES',
         lastInvoiceDate: b.last_invoice_date || '',

@@ -820,6 +820,13 @@ export interface CustomerBalance {
   overdue_amount?: string;
   /** Earliest open-charge due date (drives the Due badge / tooltip). */
   oldest_due_date?: string;
+  /** Currently-DRAWABLE stored credit, tracked independently of balance_due — "Pay out credit"
+   *  and "Apply store credit to debt" both read this (never balance_due), so a credit grant can
+   *  no longer be silently stranded by an unrelated cash payment (the boi-enterprises fix). */
+  store_credit_balance: string;
+  /** Gross amount currently owed, independent of any stored credit — "Receive payment" reads
+   *  this (never balance_due). max(0, balance_due). */
+  outstanding_debit: string;
   updated_at: string;
 }
 
@@ -863,7 +870,7 @@ export function reconcileCustomerBalances(tenant: string, dryRun = false): Promi
   return apiClient.post<ReconcileResult>(`${BASE}/${tenant}/ar/customers/reconcile`, { dry_run: dryRun });
 }
 
-// Pay out some/all of a customer's EXISTING stored credit (a negative balance_due) via a real
+// Pay out some/all of a customer's EXISTING stored credit (store_credit_balance) via a real
 // channel, independent of any return/sale — the inverse-direction sibling of recordCustomerPayment.
 export function payoutCustomerCredit(
   tenant: string,
@@ -873,6 +880,20 @@ export function payoutCustomerCredit(
   return apiClient.post<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/payout-credit`, {
     amount: String(body.amount),
     payout_channel: body.payoutChannel,
+    reference: body.reference,
+  });
+}
+
+// Net a customer's EXISTING stored credit against their OWN outstanding debit — the explicit,
+// visible action that replaces the old implicit "a cash payment silently stranded the credit"
+// behaviour (the boi-enterprises fix).
+export function applyCustomerCreditToDebt(
+  tenant: string,
+  contactId: string,
+  body: { amount: number; reference?: string },
+): Promise<CustomerBalance> {
+  return apiClient.post<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/apply-to-debt`, {
+    amount: String(body.amount),
     reference: body.reference,
   });
 }

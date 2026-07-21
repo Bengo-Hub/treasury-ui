@@ -21,6 +21,7 @@ import {
   reconcileCustomerBalances,
   type ReconcileResult,
   payoutCustomerCredit,
+  applyCustomerCreditToDebt,
   setCustomerCreditTerms,
   syncCustomerToCRM,
   getQuotation,
@@ -251,6 +252,20 @@ export function usePayoutCustomerCredit(tenant: string) {
   return useMutation({
     mutationFn: ({ contactId, amount, payoutChannel, reference }: { contactId: string; amount: number; payoutChannel: string; reference?: string }) =>
       payoutCustomerCredit(tenant, contactId, { amount, payoutChannel, reference }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+    },
+  });
+}
+
+// Net a customer's existing stored credit against their OWN outstanding debit.
+export function useApplyCustomerCreditToDebt(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ contactId, amount, reference }: { contactId: string; amount: number; reference?: string }) =>
+      applyCustomerCreditToDebt(tenant, contactId, { amount, reference }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });

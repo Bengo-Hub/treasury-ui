@@ -61,7 +61,7 @@ export function ClientDetail({ tenant, client, invoices, onBack }: ClientDetailP
   const totalInvoiced = b ? parseFloat(b.total_invoiced) || 0
     : statement ? parseFloat(statement.total_invoiced) || 0 : client.totalAmount;
   const totalPaid = b ? parseFloat(b.total_paid) || 0 : client.paidAmount;
-  const outstanding = b ? parseFloat(b.balance_due) || 0
+  const outstanding = b ? parseFloat(b.outstanding_debit) || 0
     : statement ? parseFloat(statement.closing_balance) || 0 : client.outstanding;
 
   const lines = statement?.lines ?? [];
