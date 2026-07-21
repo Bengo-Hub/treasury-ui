@@ -2,9 +2,11 @@
 
 import { cn } from '@/lib/utils';
 
-export type RangeKey = 'month' | '30d' | '90d' | '12m';
+export type RangeKey = 'day' | 'week' | 'month' | '30d' | '90d' | '12m';
 
 const PRESETS: { key: RangeKey; label: string }[] = [
+  { key: 'day', label: 'Day' },
+  { key: 'week', label: 'Week' },
   { key: 'month', label: 'This month' },
   { key: '30d', label: '30 days' },
   { key: '90d', label: '90 days' },
@@ -17,6 +19,12 @@ export function rangeFor(key: RangeKey): { from: string; to: string } {
   const to = now.toISOString().slice(0, 10);
   let from = new Date(now);
   switch (key) {
+    case 'day': from = new Date(now.getFullYear(), now.getMonth(), now.getDate()); break; // today
+    case 'week': { // current calendar week to date (Monday start), matching POS "This Week"
+      const dow = (now.getDay() + 6) % 7; // Mon=0 … Sun=6
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
+      break;
+    }
     case 'month': from = new Date(now.getFullYear(), now.getMonth(), 1); break;
     case '30d': from.setDate(from.getDate() - 30); break;
     case '90d': from.setDate(from.getDate() - 90); break;
