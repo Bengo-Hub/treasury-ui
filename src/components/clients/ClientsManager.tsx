@@ -31,6 +31,7 @@ import { ClientDetail } from './ClientDetail';
 import { CreditTermsDialog } from './CreditTermsDialog';
 import { ReceivePaymentModal } from './ReceivePaymentModal';
 import { PayoutCreditModal } from './PayoutCreditModal';
+import { ApplyCreditToDebtModal } from './ApplyCreditToDebtModal';
 import { SyncToCrmDialog } from './SyncToCrmDialog';
 
 /** Account-relationship filter: who owes me money vs whom I owe (store credit / overpayment). */
@@ -88,6 +89,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [openingClient, setOpeningClient] = useState<ClientRecord | null>(null);
   const [payTarget, setPayTarget] = useState<CustomerBalance | null>(null);
   const [payoutTarget, setPayoutTarget] = useState<CustomerBalance | null>(null);
+  const [applyToDebtTarget, setApplyToDebtTarget] = useState<CustomerBalance | null>(null);
   const [creditTermsClient, setCreditTermsClient] = useState<ClientRecord | null>(null);
   const [syncingKey, setSyncingKey] = useState<string | null>(null);
   const [syncDialogClient, setSyncDialogClient] = useState<ClientRecord | null>(null);
@@ -164,10 +166,13 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
     return Array.from(set).sort();
   }, [clients]);
 
-  // "I owe" = the customer holds value against me: store credit issued, or an
-  // overpaid/negative balance (they paid more than they were invoiced).
+  // "I owe" = the customer holds value against me: currently-drawable stored credit (tracked
+  // independently of balance_due — see store_credit_balance), or an overpaid/negative balance
+  // (they paid more than they were invoiced). NOT total_credits, which is a cumulative
+  // ever-granted counter that stays elevated even after the credit has already been netted away
+  // by an unrelated payment — reading it here was the exact "Pay out credit" dead-button bug.
   const owedToCustomer = (c: ClientRecord) => {
-    const storeCredit = parseFloat(c.balance?.total_credits ?? '0') || 0;
+    const storeCredit = parseFloat(c.balance?.store_credit_balance ?? '0') || 0;
     const due = parseFloat(c.balance?.balance_due ?? '0') || 0;
     return storeCredit > 0.0001 || due < -0.0001;
   };
@@ -376,6 +381,12 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                 Pay out
               </Button>
             )}
+            {b && (parseFloat(b.store_credit_balance) || 0) > 0.0001 && (parseFloat(b.outstanding_debit) || 0) > 0.0001 && (
+              <Button size="sm" variant="outline" title="Net the customer's stored credit against their outstanding debit"
+                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setApplyToDebtTarget(b); }}>
+                Apply to debt
+              </Button>
+            )}
             {(c.customerId || b) && (
               <Button variant="outline" size="sm" title="Credit terms (limit & payment period)"
                 onClick={(e: React.MouseEvent) => { e.stopPropagation(); setCreditTermsClient(c); }}>
@@ -445,6 +456,9 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
 
       {payoutTarget && (
         <PayoutCreditModal tenant={tenant} target={payoutTarget} onClose={() => setPayoutTarget(null)} />
+      )}
+      {applyToDebtTarget && (
+        <ApplyCreditToDebtModal tenant={tenant} target={applyToDebtTarget} onClose={() => setApplyToDebtTarget(null)} />
       )}
 
       <Card>

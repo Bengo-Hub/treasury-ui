@@ -29,7 +29,10 @@ const PAYOUT_CHANNELS: { value: string; label: string }[] = [
  */
 export function PayoutCreditModal({ tenant, target, onClose }: PayoutCreditModalProps) {
   const payout = usePayoutCustomerCredit(tenant);
-  const available = Math.abs(parseFloat(target.balance_due) || 0);
+  // Reads store_credit_balance — tracked independently of balance_due — NOT
+  // Math.abs(balance_due). A cash payment that drives balance_due to zero must never make this
+  // button (or the amount it offers) silently disappear; that was the boi-enterprises bug.
+  const available = parseFloat(target.store_credit_balance) || 0;
   const [amount, setAmount] = useState(String(available));
   const [channel, setChannel] = useState('cash');
   const [reference, setReference] = useState('');

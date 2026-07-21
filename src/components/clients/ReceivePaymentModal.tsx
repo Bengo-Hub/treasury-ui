@@ -37,7 +37,9 @@ export const AR_PAYMENT_METHODS: { value: string; label: string }[] = [
  */
 export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentModalProps) {
   const recordPay = useRecordCustomerPayment(tenant);
-  const [amount, setAmount] = useState(target.balance_due);
+  // Loads outstanding_debit — the gross amount owed, independent of any stored credit the
+  // customer might separately hold — never the netted balance_due.
+  const [amount, setAmount] = useState(target.outstanding_debit);
   const [method, setMethod] = useState('cash');
   const [reference, setReference] = useState('');
   const [error, setError] = useState('');
@@ -75,7 +77,7 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
             <div className="rounded-lg bg-accent/20 px-3 py-2 text-sm">
               <p className="font-semibold">{target.customer_name || target.customer_identifier || 'Customer'}</p>
               <p className="text-xs text-muted-foreground">
-                Balance due: {formatCurrency(parseFloat(target.balance_due) || 0, target.currency)}
+                Balance due: {formatCurrency(parseFloat(target.outstanding_debit) || 0, target.currency)}
               </p>
             </div>
             <div>
