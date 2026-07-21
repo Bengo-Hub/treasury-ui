@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { toLocalDateString } from '@/lib/utils/date';
 
 export type RangeKey = 'day' | 'week' | 'month' | '30d' | '90d' | '12m';
 
@@ -13,10 +14,12 @@ const PRESETS: { key: RangeKey; label: string }[] = [
   { key: '12m', label: '12 months' },
 ];
 
-// rangeFor returns ISO from/to dates for a preset (single source of truth for the dashboard range).
+// rangeFor returns local from/to dates for a preset (single source of truth for the dashboard
+// range). Dates are formatted via the centralized toLocalDateString (local, not UTC) so no window
+// start/end is shifted a day by timezone.
 export function rangeFor(key: RangeKey): { from: string; to: string } {
   const now = new Date();
-  const to = now.toISOString().slice(0, 10);
+  const to = toLocalDateString(now);
   let from = new Date(now);
   switch (key) {
     case 'day': from = new Date(now.getFullYear(), now.getMonth(), now.getDate()); break; // today
@@ -30,7 +33,7 @@ export function rangeFor(key: RangeKey): { from: string; to: string } {
     case '90d': from.setDate(from.getDate() - 90); break;
     case '12m': from.setFullYear(from.getFullYear() - 1); break;
   }
-  return { from: from.toISOString().slice(0, 10), to };
+  return { from: toLocalDateString(from), to };
 }
 
 /** RangePicker — compact preset selector for the dashboard period. */
