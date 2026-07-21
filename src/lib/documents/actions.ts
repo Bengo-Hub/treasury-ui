@@ -29,9 +29,13 @@ export type ActionKey =
   | 'view_payments'
   | 'mark_paid'
   | 'generate_delivery_note'
+  | 'view_delivery_note'
   | 'create_credit_note'
+  | 'view_credit_note'
   | 'create_debit_note'
+  | 'view_debit_note'
   | 'generate_receipt'
+  | 'view_receipt'
   | 'convert_to_invoice'
   | 'convert_to_proforma'
   | 'convert_to_sales_order'
@@ -45,6 +49,17 @@ export type ActionKey =
 export interface DocContext {
   status: string;
   payment_status?: string;
+  /** Whether one or more credit notes already exist against this document (RelatedDocuments). */
+  hasCreditNote?: boolean;
+  /** Whether the credited amount already covers the full invoice total — payment/mark-paid
+   *  no longer make sense once the supply has been fully reversed. */
+  fullyCredited?: boolean;
+  /** Whether a debit note already exists against this document. */
+  hasDebitNote?: boolean;
+  /** Whether a delivery note has already been generated for this document. */
+  hasDeliveryNote?: boolean;
+  /** Whether a payment receipt has already been generated for this document. */
+  hasReceipt?: boolean;
 }
 
 const isVoided = (s: string) => s === 'void' || s === 'cancelled';
@@ -84,12 +99,29 @@ export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
       if (draft) out.push('submit_for_approval');
       if (pendingApproval) out.push('approve', 'reject');
       if (canSendInvoice) out.push('send');
-      if (isPayable(ctx)) out.push('record_payment', 'mark_paid');
-      // Recorded-payments history (view/edit/void per payment) once anything was collected.
-      if (ctx.payment_status === 'partial' || ctx.payment_status === 'paid' || ctx.status === 'paid') out.push('view_payments');
-      if (!isVoided(ctx.status)) out.push('generate_delivery_note');
-      if (isFinalized(ctx.status)) out.push('create_credit_note', 'create_debit_note');
-      if (ctx.payment_status === 'paid' || ctx.status === 'paid') out.push('generate_receipt');
+      // A fully-credited invoice has had its entire supply reversed — collecting or marking a
+      // reversed supply as paid would let the customer be charged for goods/services already
+      // credited back. Never allowed regardless of status/payment_status.
+      if (isPayable(ctx) && !ctx.fullyCredited) out.push('record_payment', 'mark_paid');
+      // Recorded-payments history (view/edit/void per payment) once anything was collected —
+      // but not on a voided document, which never held a real collectible payment worth viewing.
+      if (!isVoided(ctx.status) && (ctx.payment_status === 'partial' || ctx.payment_status === 'paid' || ctx.status === 'paid')) {
+        out.push('view_payments');
+      }
+      if (!isVoided(ctx.status)) {
+        out.push(ctx.hasDeliveryNote ? 'view_delivery_note' : 'generate_delivery_note');
+      }
+      if (isFinalized(ctx.status)) {
+        // A credit note already exists: link to it instead of re-offering "Create Credit Note",
+        // UNLESS the prior credit note(s) didn't cover the full total (backend's own remainder
+        // guard still enforces the cap — this just keeps the button visible while a remainder
+        // exists so a genuine partial credit can still be raised).
+        out.push(ctx.hasCreditNote && ctx.fullyCredited ? 'view_credit_note' : 'create_credit_note');
+        out.push(ctx.hasDebitNote ? 'view_debit_note' : 'create_debit_note');
+      }
+      if (ctx.payment_status === 'paid' || ctx.status === 'paid') {
+        out.push(ctx.hasReceipt ? 'view_receipt' : 'generate_receipt');
+      }
       out.push('duplicate');
       if (!isVoided(ctx.status) && ctx.status !== 'paid') out.push('void');
       break;

@@ -94,8 +94,21 @@ export interface Invoice {
   outlet_id?: string;
   lines?: InvoiceLine[];
   metadata?: Record<string, unknown>;
+  /** Read-only summary of documents already generated FROM this invoice (credit/debit notes,
+   *  delivery note, payment receipt) — drives "View existing" links instead of re-offering
+   *  Generate/Create for a document that already exists. Computed server-side, never persisted. */
+  related_documents?: RelatedDocuments;
   created_at: string;
   updated_at: string;
+}
+
+export interface RelatedDocuments {
+  credit_note_ids?: string[];
+  credited_amount?: string;
+  fully_credited?: boolean;
+  debit_note_ids?: string[];
+  delivery_note_id?: string;
+  receipt_id?: string;
 }
 
 export interface CreateInvoiceRequest {
