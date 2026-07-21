@@ -143,6 +143,7 @@ export default function InvoicesPage() {
     } : {}),
     send: { label: 'Send / Resend', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => setConfirmDialog({ kind: 'send', tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) },
     generate_delivery_note: { label: 'Generate Delivery Note', icon: <Truck className="h-3.5 w-3.5" />, onClick: (r) => run(() => generateDeliveryNote(src.rowTenant(r), r.id), `Delivery note generated for ${r.doc_number}`) },
+    view_delivery_note: { label: 'View Delivery Note', icon: <Truck className="h-3.5 w-3.5" />, onClick: (r) => r.related_documents?.delivery_note_id && router.push(`/${src.detailHrefTenant(r)}/invoices/${r.related_documents.delivery_note_id}`) },
     record_payment: { label: 'Record Payment', icon: <DollarSign className="h-3.5 w-3.5" />, onClick: (r) => setPaymentFor({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceTotal: r.total_amount, currency: r.currency }) },
     view_payments: {
       label: 'View Payments', icon: <Receipt className="h-3.5 w-3.5" />,
@@ -150,8 +151,11 @@ export default function InvoicesPage() {
     },
     mark_paid: { label: 'Mark as Paid', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (r) => run(() => markPaid(src.rowTenant(r), r.id), `Invoice ${r.doc_number} marked paid`) },
     create_credit_note: { label: 'Create Credit Note', icon: <FileMinus className="h-3.5 w-3.5" />, onClick: (r) => run(() => createCreditNote(src.rowTenant(r), r.id), `Credit note created for ${r.doc_number}`) },
+    view_credit_note: { label: 'View Credit Note', icon: <FileMinus className="h-3.5 w-3.5" />, onClick: (r) => r.related_documents?.credit_note_ids?.[0] && router.push(`/${src.detailHrefTenant(r)}/invoices/${r.related_documents.credit_note_ids[0]}`) },
     create_debit_note: { label: 'Create Debit Note', icon: <FilePlus className="h-3.5 w-3.5" />, onClick: (r) => run(() => createDebitNote(src.rowTenant(r), r.id), `Debit note created for ${r.doc_number}`) },
+    view_debit_note: { label: 'View Debit Note', icon: <FilePlus className="h-3.5 w-3.5" />, onClick: (r) => r.related_documents?.debit_note_ids?.[0] && router.push(`/${src.detailHrefTenant(r)}/invoices/${r.related_documents.debit_note_ids[0]}`) },
     generate_receipt: { label: 'Generate Receipt', icon: <Receipt className="h-3.5 w-3.5" />, onClick: (r) => run(() => generateReceiptFromInvoice(src.rowTenant(r), r.id), `Receipt generated for ${r.doc_number}`) },
+    view_receipt: { label: 'View Receipt', icon: <Receipt className="h-3.5 w-3.5" />, onClick: (r) => r.related_documents?.receipt_id && router.push(`/${src.detailHrefTenant(r)}/invoices/${r.related_documents.receipt_id}`) },
     void: { label: 'Void Invoice', icon: <Ban className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => voidInvoice(src.rowTenant(r), r.id), `Invoice ${r.doc_number} voided`) },
   };
   const actions = useDocumentActions('invoice', runners);

@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { allowedActions, type DocType } from '@/lib/documents/actions';
+import { docContextFromRow } from '@/hooks/use-document-actions';
 import {
   useInvoice,
   useSendInvoice,
@@ -231,13 +232,17 @@ export default function InvoiceDetailPage() {
   // Gate the action buttons via the centralized per-document-type policy, since this detail
   // view is reached from every document family (credit notes, delivery challans, …) — not
   // just standard invoices. This keeps the buttons consistent with the list action menus.
-  const acts = allowedActions(invoice.invoice_type as DocType, { status: invoice.status, payment_status: invoice.payment_status });
+  const acts = allowedActions(invoice.invoice_type as DocType, docContextFromRow(invoice));
   const canSend        = acts.includes('send');
   const canVoid        = acts.includes('void');
   const canRecordPay   = acts.includes('record_payment');
   const canMarkPaid    = acts.includes('mark_paid');
   const canCreditDebit = acts.includes('create_credit_note');
+  const canViewCreditNote = acts.includes('view_credit_note');
+  const canDebitNote    = acts.includes('create_debit_note');
+  const canViewDebitNote = acts.includes('view_debit_note');
   const canDeliveryNote = acts.includes('generate_delivery_note');
+  const canViewDeliveryNote = acts.includes('view_delivery_note');
   const canSubmitApproval = canApprove && acts.includes('submit_for_approval');
   const canApproveNow     = canApprove && acts.includes('approve');
   const canRejectNow      = canApprove && acts.includes('reject');
@@ -370,22 +375,38 @@ export default function InvoiceDetailPage() {
             </button>
           )}
           {canCreditDebit && (
-            <>
-              <button
-                onClick={() => { setCreditNoteError(''); setShowCreditNote(true); }}
-                disabled={creditNoteMut.isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
-              >
-                <FileMinus className="h-3.5 w-3.5" /> Credit Note
-              </button>
-              <button
-                onClick={() => debitNoteMut.mutate(invoiceId)}
-                disabled={debitNoteMut.isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
-              >
-                <FilePlus className="h-3.5 w-3.5" /> Debit Note
-              </button>
-            </>
+            <button
+              onClick={() => { setCreditNoteError(''); setShowCreditNote(true); }}
+              disabled={creditNoteMut.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              <FileMinus className="h-3.5 w-3.5" /> Credit Note
+            </button>
+          )}
+          {canViewCreditNote && invoice.related_documents?.credit_note_ids?.[0] && (
+            <button
+              onClick={() => router.push(`/${orgSlug}/invoices/${invoice.related_documents!.credit_note_ids![0]}`)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors"
+            >
+              <FileMinus className="h-3.5 w-3.5" /> View Credit Note
+            </button>
+          )}
+          {canDebitNote && (
+            <button
+              onClick={() => debitNoteMut.mutate(invoiceId)}
+              disabled={debitNoteMut.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              <FilePlus className="h-3.5 w-3.5" /> Debit Note
+            </button>
+          )}
+          {canViewDebitNote && invoice.related_documents?.debit_note_ids?.[0] && (
+            <button
+              onClick={() => router.push(`/${orgSlug}/invoices/${invoice.related_documents!.debit_note_ids![0]}`)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors"
+            >
+              <FilePlus className="h-3.5 w-3.5" /> View Debit Note
+            </button>
           )}
           {canDeliveryNote && (
             <button
@@ -397,6 +418,14 @@ export default function InvoiceDetailPage() {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
             >
               {deliveryNoteMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />} Delivery Note
+            </button>
+          )}
+          {canViewDeliveryNote && invoice.related_documents?.delivery_note_id && (
+            <button
+              onClick={() => router.push(`/${orgSlug}/invoices/${invoice.related_documents!.delivery_note_id}`)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-accent transition-colors"
+            >
+              <Truck className="h-3.5 w-3.5" /> View Delivery Note
             </button>
           )}
           {canDispatch && (

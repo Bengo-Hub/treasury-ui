@@ -7,7 +7,7 @@
 import { Button } from '@/components/ui/base';
 import { AlertCircle, FileText, Plus } from 'lucide-react';
 import type { RowAction } from '@/components/ui/action-menu';
-import type { Invoice, Quotation } from '@/lib/api/invoices';
+import type { Invoice, Quotation, RelatedDocuments } from '@/lib/api/invoices';
 
 // ---- Types ----
 
@@ -40,6 +40,9 @@ export interface DocumentRow {
   secondary_date?: string;
   public_token?: string;
   lines?: DocumentLine[];
+  /** Documents already generated FROM this row (credit/debit notes, delivery note, receipt) —
+   *  lets the action-gating policy link to what exists instead of re-offering "Generate". */
+  related_documents?: RelatedDocuments;
 }
 
 export interface DocStats {
@@ -212,6 +215,7 @@ export function invoiceToDocumentRow(inv: Invoice): DocumentRow {
     doc_date: inv.invoice_date,
     due_date: inv.due_date,
     public_token: inv.public_token,
+    related_documents: inv.related_documents,
     lines: inv.lines?.map(l => ({
       description: l.description,
       tax_code: l.tax_code,
