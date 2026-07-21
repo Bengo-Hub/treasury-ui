@@ -7,18 +7,36 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'r
 
 interface Props { tenant: string; from: string; to: string }
 
+type TsPoint = { date: string; revenue: number | string; expenses: number | string; net_profit: number | string };
+type ChartPoint = { date: string; revenue: number; expenses: number; net: number };
+
+// A long window (e.g. 12 months) of daily points is unreadable — collapse to monthly totals once
+// the series spans more than ~2 months. Short windows keep daily granularity.
+function toChartSeries(rows: TsPoint[]): ChartPoint[] {
+  if (rows.length <= 62) {
+    return rows.map((p) => ({ date: p.date.slice(5), revenue: Number(p.revenue), expenses: Number(p.expenses), net: Number(p.net_profit) }));
+  }
+  const buckets = new Map<string, ChartPoint>();
+  for (const p of rows) {
+    const key = p.date.slice(0, 7); // YYYY-MM
+    const label = new Date(`${p.date}T00:00:00`).toLocaleDateString('en', { month: 'short', year: '2-digit' });
+    const b = buckets.get(key) ?? { date: label, revenue: 0, expenses: 0, net: 0 };
+    b.revenue += Number(p.revenue);
+    b.expenses += Number(p.expenses);
+    b.net += Number(p.net_profit);
+    buckets.set(key, b);
+  }
+  return [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
+}
+
 /**
- * FinancialPerformanceChart — daily revenue / expenses / net profit from the real timeseries
- * endpoint (replaces the old chart derived from the last 6 transactions). Reuses ChartCard.
+ * FinancialPerformanceChart — revenue / expenses / net profit from the real timeseries endpoint.
+ * Daily for short windows; auto-collapsed to monthly totals for long (multi-month) windows so a
+ * year of data stays legible. Reuses ChartCard.
  */
 export function FinancialPerformanceChart({ tenant, from, to }: Props) {
   const { data, isLoading } = useTimeseries(tenant, { from, to });
-  const series = (data?.series ?? []).map((p) => ({
-    date: p.date.slice(5),
-    revenue: Number(p.revenue),
-    expenses: Number(p.expenses),
-    net: Number(p.net_profit),
-  }));
+  const series = toChartSeries(data?.series ?? []);
 
   return (
     <ChartCard
