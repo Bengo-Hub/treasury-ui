@@ -339,7 +339,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
           const storeCr = parseFloat(b?.total_credits ?? '0') || 0;
           const overpaid = Math.max(-(parseFloat(b?.balance_due ?? '0') || 0), 0);
           return (
-            <span title="Value the customer holds against you (store credit / overpayment)">
+            <span title="This is store credit or extra money the customer paid — you owe them this back, or they can spend it on their next visit here.">
               <Badge variant="success">Owed {formatCurrency(storeCr + overpaid, c.currency)}</Badge>
             </span>
           );
@@ -371,18 +371,21 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
         return (
           <div className="flex items-center justify-end gap-1.5">
             {b && c.outstanding > 0 && (
-              <Button size="sm" onClick={(e: React.MouseEvent) => { e.stopPropagation(); setPayTarget(b); }}>
+              <Button size="sm" title="Record money the customer pays you to reduce what they owe"
+                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setPayTarget(b); }}>
                 Receive
               </Button>
             )}
             {b && owedToCustomer(c) && (
-              <Button size="sm" variant="outline" title="Pay out the customer's stored credit"
+              <Button size="sm" variant="outline"
+                title="Give the customer back the store credit or extra money you owe them (cash, M-Pesa, bank, etc.)"
                 onClick={(e: React.MouseEvent) => { e.stopPropagation(); setPayoutTarget(b); }}>
                 Pay out
               </Button>
             )}
             {b && (parseFloat(b.store_credit_balance) || 0) > 0.0001 && (parseFloat(b.outstanding_debit) || 0) > 0.0001 && (
-              <Button size="sm" variant="outline" title="Net the customer's stored credit against their outstanding debit"
+              <Button size="sm" variant="outline"
+                title="Use the store credit you owe this customer to lower what they currently owe you, instead of paying it out"
                 onClick={(e: React.MouseEvent) => { e.stopPropagation(); setApplyToDebtTarget(b); }}>
                 Apply to debt
               </Button>
