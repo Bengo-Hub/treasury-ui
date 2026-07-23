@@ -106,7 +106,9 @@ export interface ProfitLossSummaryReport extends ReportFiscalContext {
    * the two views agree. All fixed-2 decimal strings.
    */
   gl_revenue: string;
-  gl_expenses: string;
+  gl_expenses: string; // operating expenses ONLY -- excludes cost of goods sold (see gl_cogs)
+  gl_cogs: string;
+  gl_gross_profit: string;
   gl_net_profit: string;
   reconciliation_variance: string;
 
