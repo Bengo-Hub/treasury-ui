@@ -52,7 +52,7 @@ const CLIENT_SORT_ACCESSORS: Record<string, (c: ClientRecord) => unknown> = {
   contact_id: (c) => c.customerId ?? '',
   credit_limit: (c) => numAcc(c.balance?.credit_limit),
   opening_balance: (c) => numAcc(c.balance?.opening_balance),
-  store_credit: (c) => numAcc(c.balance?.total_credits),
+  store_credit: (c) => numAcc(c.balance?.store_credit_balance),
   balance_due: (c) => c.outstanding,
   last_paid: (c) => (c.balance?.last_payment_date ? new Date(c.balance.last_payment_date).getTime() : 0),
 };
@@ -304,7 +304,11 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
       key: 'store_credit', header: 'Store Credit', align: 'right', sortable: true,
       accessor: CLIENT_SORT_ACCESSORS.store_credit,
       render: (c) => {
-        const storeCredit = c.balance?.total_credits ? parseFloat(c.balance.total_credits) || 0 : 0;
+        // Drawable store credit ONLY (store_credit_balance) — NOT total_credits, which is a
+        // cumulative AR-credit-note counter that also includes ordinary offset_invoice returns
+        // (a return that reduces balance_due, not a spendable credit grant). Conflating the two
+        // is exactly what made a debt-reducing return look like a phantom "Store Credit" grant.
+        const storeCredit = c.balance?.store_credit_balance ? parseFloat(c.balance.store_credit_balance) || 0 : 0;
         return (
           <span className={cn('tabular-nums', storeCredit > 0 && 'text-emerald-600 font-semibold')}>
             {storeCredit ? formatCurrency(storeCredit, c.currency) : '—'}
@@ -336,7 +340,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
           );
         }
         if (owedToCustomer(c)) {
-          const storeCr = parseFloat(b?.total_credits ?? '0') || 0;
+          const storeCr = parseFloat(b?.store_credit_balance ?? '0') || 0;
           const overpaid = Math.max(-(parseFloat(b?.balance_due ?? '0') || 0), 0);
           return (
             <span title="This is store credit or extra money the customer paid — you owe them this back, or they can spend it on their next visit here.">
