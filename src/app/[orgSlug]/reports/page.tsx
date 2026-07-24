@@ -474,13 +474,19 @@ function ProfitLossSummaryTab({ tenantSlug, window }: { tenantSlug: string; wind
             const cur = data.currency || 'KES';
             const periodLabel = reportPeriodLabel(data as unknown as FinancialReport & ReportFiscalContext);
             const suffix = windowSuffix(data, data.from, data.to);
-            // Headline figures are GL-sourced (complete — includes POS sales that post to the
-            // ledger without an invoice). Source-doc COGS is kept for context; the source-doc net
-            // profit + variance are shown on the reconciliation card below.
+            // Headline figures are ALL GL-sourced (complete — includes POS sales that post to the
+            // ledger without an invoice) so the row is internally consistent: Revenue − COGS =
+            // Gross Profit, Gross Profit − Expenses = Net Profit, always. This used to mix
+            // source-doc COGS/Gross-Profit (derived from INVOICE-based accrual revenue) into a
+            // row of otherwise-GL figures — for any tenant whose sales are mostly POS (no
+            // invoices), source-doc revenue was near-zero while vendor-bill COGS was real, so
+            // "Gross Profit" showed as a large NEGATIVE number with no coherent meaning (observed
+            // live: revenue 176,320 GL vs Gross Profit −83,630, i.e. 0 − COGS). The source-doc net
+            // profit + variance are still shown separately on the reconciliation card below.
             const kpis: ReportKpi[] = [
               { label: 'Revenue (GL)', value: money(data.gl_revenue, cur), tone: 'success' },
-              { label: 'COGS', value: money(data.cost_of_goods, cur), tone: 'warning' },
-              { label: 'Gross Profit', value: money(data.gross_profit, cur), tone: num(data.gross_profit) >= 0 ? 'success' : 'destructive' },
+              { label: 'COGS (GL)', value: money(data.gl_cogs, cur), tone: 'warning' },
+              { label: 'Gross Profit (GL)', value: money(data.gl_gross_profit, cur), tone: num(data.gl_gross_profit) >= 0 ? 'success' : 'destructive' },
               { label: 'Expenses (GL)', value: money(data.gl_expenses, cur), tone: 'warning' },
               { label: 'Net Profit (GL)', value: money(data.gl_net_profit, cur), tone: num(data.gl_net_profit) >= 0 ? 'success' : 'destructive' },
             ];
