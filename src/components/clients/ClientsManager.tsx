@@ -55,6 +55,13 @@ const CLIENT_SORT_ACCESSORS: Record<string, (c: ClientRecord) => unknown> = {
   store_credit: (c) => numAcc(c.balance?.store_credit_balance),
   balance_due: (c) => c.outstanding,
   last_paid: (c) => (c.balance?.last_payment_date ? new Date(c.balance.last_payment_date).getTime() : 0),
+  // Default-sort key (not its own column): most-recent of last invoice OR last payment, so a
+  // customer with fresh activity surfaces at the top even if today's activity was only an
+  // invoice with no payment yet (last_paid alone would miss that).
+  recent_activity: (c) => Math.max(
+    c.lastInvoiceDate ? new Date(c.lastInvoiceDate).getTime() : 0,
+    c.balance?.last_payment_date ? new Date(c.balance.last_payment_date).getTime() : 0,
+  ),
 };
 
 const BALANCE_FILTERS: { key: BalanceFilter; label: string; active: string }[] = [
@@ -151,7 +158,10 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [creditFilter, setCreditFilter] = useState<CreditFilter>('all');
   const [methodFilter, setMethodFilter] = useState('all');
   // Sort + pagination now driven by the shared DataTable (sortable headers + entries selector).
-  const [sort, setSort] = useState<SortState | null>(null);
+  // Default: most-recent-activity-first (not alphabetical) — a customer who transacted today
+  // should surface at the top of the book, not wherever their name falls. Clicking any column
+  // header still overrides this via the shared DataTable's own sort state.
+  const [sort, setSort] = useState<SortState | null>({ key: 'recent_activity', dir: 'desc' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
