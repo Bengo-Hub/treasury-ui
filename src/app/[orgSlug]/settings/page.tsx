@@ -20,6 +20,7 @@ import {
   Save,
   Settings2,
   Shield,
+  ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -195,6 +196,27 @@ export default function SettingsPage() {
                       <p className="font-semibold text-sm">Document Numbering</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Configure prefixes, separators, date formats and reset rules for invoices, receipts, quotations and all other document types.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0 ml-4">Configure →</span>
+                </CardContent>
+              </Card>
+            </Link>
+
+            {/* Insurance Connectors shortcut (DAWA pharmacy) */}
+            <Link href={`/${orgSlug}/settings/insurance`}>
+              <Card className="cursor-pointer hover:border-primary/50 transition-colors">
+                <CardContent className="p-5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <ShieldCheck className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">Insurance Connectors</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Configure payer APIs (SHA and others) — base URL, operation paths, credentials, and
+                        request/response field mapping for pharmacy claims and co-pay.
                       </p>
                     </div>
                   </div>
