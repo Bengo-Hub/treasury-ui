@@ -19,7 +19,7 @@ import type { GatewayConfig } from '@/lib/api/gateways';
 import type { FeeRule, CreateFeeRuleRequest } from '@/lib/api/fee-rules';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api/client';
-import { fetchTenantDefaults } from '@/lib/api/tenant';
+import { fetchTenantDefaults, listPlatformTenants, type TenantResponse } from '@/lib/api/tenant';
 import { PaymentAccountFields, EMPTY_PAYMENT_ACCOUNT, type PaymentAccount } from '@/components/payments/payment-account-form';
 import {
   Banknote,
@@ -34,6 +34,7 @@ import {
   Info,
   KeyRound,
   Loader2,
+  Megaphone,
   MoreVertical,
   Pencil,
   Plus,
@@ -208,7 +209,7 @@ export default function PlatformPage() {
   const { data: user } = useMe();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
-  const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims' | 'payments' | 'encryption' | 'backups'>('gateways');
+  const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims' | 'payments' | 'encryption' | 'backups' | 'documents'>('gateways');
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [registeringC2bId, setRegisteringC2bId] = useState<string | null>(null);
@@ -324,6 +325,13 @@ export default function PlatformPage() {
         >
           <Database className="h-4 w-4 inline mr-2" />
           Backups
+        </button>
+        <button
+          onClick={() => setActiveTab('documents')}
+          className={cn("px-6 py-2 rounded-md text-sm font-medium transition-all", activeTab === 'documents' ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+        >
+          <Megaphone className="h-4 w-4 inline mr-2" />
+          Documents
         </button>
       </div>
 
@@ -693,6 +701,199 @@ export default function PlatformPage() {
       {activeTab === 'backups' && (
         <BackupDestinationSection />
       )}
+
+      {activeTab === 'documents' && (
+        <ProviderFooterSection />
+      )}
+    </div>
+  );
+}
+
+// ── Documents — the "Developed & maintained by CodeVertex" advertisement footer printed on
+// invoices/quotations/receipts/reports. Platform default + per-tenant override, platform-owner
+// only — never a tenant self-service setting.
+const PROVIDER_FOOTER_KEY = 'provider_footer_enabled';
+
+function ProviderFooterSection() {
+  const [platformEnabled, setPlatformEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [tenants, setTenants] = useState<TenantResponse[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState('');
+  const [overrideValue, setOverrideValue] = useState<'true' | 'false' | null>(null);
+  const [overrideLoading, setOverrideLoading] = useState(false);
+  const [overrideSaving, setOverrideSaving] = useState(false);
+
+  const loadPlatformDefault = async () => {
+    try {
+      const data = await apiClient.get<{ settings?: { config_key: string; config_value: string }[] }>('/api/v1/platform/settings');
+      const entry = (data.settings ?? []).find((c) => c.config_key === PROVIDER_FOOTER_KEY);
+      setPlatformEnabled(entry ? entry.config_value === 'true' : true);
+    } catch {
+      setPlatformEnabled(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPlatformDefault();
+    listPlatformTenants().then(setTenants).catch(() => setTenants([]));
+  }, []);
+
+  const handleTogglePlatform = async () => {
+    setSaving(true);
+    try {
+      await apiClient.put(`/api/v1/platform/settings/${PROVIDER_FOOTER_KEY}`, {
+        config_value: platformEnabled ? 'false' : 'true',
+        config_type: 'bool',
+        description: 'Show the CodeVertex platform advertisement footer on generated documents',
+      });
+      await loadPlatformDefault();
+      toast.success('Platform default saved');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e?.message || 'Failed to save platform default');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loadOverride = async (tenantID: string) => {
+    if (!tenantID) { setOverrideValue(null); return; }
+    setOverrideLoading(true);
+    try {
+      const data = await apiClient.get<{ data?: { config_key: string; config_value: string }[] }>(`/api/v1/platform/tenants/${tenantID}/settings`);
+      const entry = (data.data ?? []).find((c) => c.config_key === PROVIDER_FOOTER_KEY);
+      setOverrideValue(entry ? (entry.config_value as 'true' | 'false') : null);
+    } catch {
+      setOverrideValue(null);
+    } finally {
+      setOverrideLoading(false);
+    }
+  };
+
+  const handleSelectTenant = (id: string) => {
+    setSelectedTenantId(id);
+    void loadOverride(id);
+  };
+
+  const setOverride = async (value: 'true' | 'false') => {
+    if (!selectedTenantId) return;
+    setOverrideSaving(true);
+    try {
+      await apiClient.put(`/api/v1/platform/tenants/${selectedTenantId}/settings/${PROVIDER_FOOTER_KEY}`, {
+        config_value: value,
+        config_type: 'bool',
+      });
+      await loadOverride(selectedTenantId);
+      toast.success('Tenant override saved');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e?.message || 'Failed to save tenant override');
+    } finally {
+      setOverrideSaving(false);
+    }
+  };
+
+  const clearOverride = async () => {
+    if (!selectedTenantId) return;
+    setOverrideSaving(true);
+    try {
+      await apiClient.delete(`/api/v1/platform/tenants/${selectedTenantId}/settings/${PROVIDER_FOOTER_KEY}`);
+      await loadOverride(selectedTenantId);
+      toast.success('Tenant override cleared — reverted to platform default');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e?.message || 'Failed to clear tenant override');
+    } finally {
+      setOverrideSaving(false);
+    }
+  };
+
+  const selectedTenant = tenants.find((t) => t.id === selectedTenantId);
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 py-4">
+          <Megaphone className="h-4 w-4 text-primary" />
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-tight">Provider Footer</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              The &quot;Developed &amp; maintained by CodeVertex&quot; line printed on invoices,
+              quotations, receipts and reports. Shows by default unless turned off — platform-wide
+              or for one specific tenant.
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6 pb-6">
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <label className="text-sm font-semibold block mb-1">Platform default</label>
+                <p className="text-xs text-muted-foreground">Applies to every tenant with no override.</p>
+              </div>
+              <Button size="sm" variant="outline" disabled={saving} onClick={handleTogglePlatform}>
+                {platformEnabled ? 'Shown — click to hide' : 'Hidden — click to show'}
+              </Button>
+            </div>
+          )}
+
+          <div className="border-t border-border pt-5 space-y-3">
+            <div>
+              <label className="text-sm font-semibold block mb-1">Tenant exception</label>
+              <p className="text-xs text-muted-foreground">
+                Grant one tenant an override that differs from the platform default.
+              </p>
+            </div>
+            <select
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              value={selectedTenantId}
+              onChange={(e) => handleSelectTenant(e.target.value)}
+            >
+              <option value="">Select a tenant…</option>
+              {tenants.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} ({t.slug})</option>
+              ))}
+            </select>
+
+            {selectedTenantId && (
+              <div className="rounded-lg border border-border p-3 space-y-2">
+                {overrideLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading override…
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedTenant?.name}:{' '}
+                      {overrideValue != null
+                        ? `override — footer ${overrideValue === 'true' ? 'shown' : 'hidden'}`
+                        : `no override — inherits platform default (${platformEnabled ? 'shown' : 'hidden'})`}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" disabled={overrideSaving} onClick={() => setOverride('true')}>
+                        Show for this tenant
+                      </Button>
+                      <Button size="sm" variant="outline" disabled={overrideSaving} onClick={() => setOverride('false')}>
+                        Hide for this tenant
+                      </Button>
+                      {overrideValue != null && (
+                        <Button size="sm" variant="ghost" disabled={overrideSaving} onClick={clearOverride}>
+                          <X className="h-3.5 w-3.5 mr-1" /> Clear override
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
