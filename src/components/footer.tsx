@@ -20,7 +20,7 @@ export function Footer() {
             
             <div className="flex items-center gap-2">
               <a
-                href="https://codevertexitsolutions.com"
+                href="https://codevertexafrica.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 transition-all hover:ring-4 hover:ring-primary/20"

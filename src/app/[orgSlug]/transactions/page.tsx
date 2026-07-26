@@ -28,7 +28,7 @@ import { useGenerateReceiptFromIntent } from '@/hooks/use-invoices';
 import { DocPreview } from '@/components/documents/DocPreview';
 import { toast } from 'sonner';
 
-const MARKETFLOW_UI_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexitsolutions.com';
+const MARKETFLOW_UI_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexafrica.com';
 
 const ITEMS_PER_PAGE = 20;
 

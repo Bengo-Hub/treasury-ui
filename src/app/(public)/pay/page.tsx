@@ -16,11 +16,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'rea
 
 const TREASURY_API_URL =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL) ||
-  'https://booksapi.codevertexitsolutions.com';
+  'https://booksapi.codevertexafrica.com';
 
 const TREASURY_UI_URL =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_UI_URL) ||
-  'https://books.codevertexitsolutions.com';
+  'https://books.codevertexafrica.com';
 
 function parseGateways(param: string | null): GatewayType[] {
   if (!param) return [];

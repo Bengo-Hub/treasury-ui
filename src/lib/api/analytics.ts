@@ -90,7 +90,7 @@ export function exportTransactionsCSV(
   tenantIdOrSlug: string,
   params?: TransactionsParams & { tenantId?: string },
 ): void {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexitsolutions.com';
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexafrica.com';
   const qs = new URLSearchParams();
   if (params?.from) qs.set('from', params.from);
   if (params?.to) qs.set('to', params.to);

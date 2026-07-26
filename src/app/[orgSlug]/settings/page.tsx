@@ -411,8 +411,8 @@ export default function SettingsPage() {
 
 // ── Integrations Tab ─────────────────────────────────────────────────────────
 
-const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || 'https://sso.codevertexitsolutions.com';
-const TREASURY_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexitsolutions.com';
+const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || 'https://sso.codevertexafrica.com';
+const TREASURY_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexafrica.com';
 
 function IntegrationsTab({ tenantSlug }: { tenantSlug: string }) {
   const updateSetting = useUpdateSetting(tenantSlug);

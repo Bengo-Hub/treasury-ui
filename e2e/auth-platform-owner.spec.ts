@@ -1,10 +1,10 @@
 import { expect, Page, test } from '@playwright/test';
 
-const PLATFORM_EMAIL = process.env.E2E_PLATFORM_EMAIL || 'admin@codevertexitsolutions.com';
+const PLATFORM_EMAIL = process.env.E2E_PLATFORM_EMAIL || 'admin@codevertexafrica.com';
 const PLATFORM_PASSWORD = process.env.E2E_PLATFORM_PASSWORD || 'Vertex2020!';
 const TENANT_EMAIL = process.env.E2E_LOGIN_EMAIL || 'demo@bengobox.dev';
 const TENANT_PASSWORD = process.env.E2E_LOGIN_PASSWORD || 'DemoUser2024!';
-const SSO_HOST = 'accounts.codevertexitsolutions.com';
+const SSO_HOST = 'accounts.codevertexafrica.com';
 const ORG_SLUG = process.env.E2E_ORG_SLUG || 'urban-loft';
 
 async function loginAs(page: Page, email: string, password: string) {
