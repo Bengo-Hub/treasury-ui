@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const MARKETFLOW_API_URL =
-  process.env.MARKETFLOW_API_URL || 'https://marketflowapi.codevertexitsolutions.com';
+  process.env.MARKETFLOW_API_URL || 'https://marketflowapi.codevertexafrica.com';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -19,7 +19,7 @@ Treasury UI is the central financial portal. It integrates with:
 
 ## Auth Service (SSO)
 
-- **Login**: Redirect to auth-ui (accounts.codevertexitsolutions.com) with client_id, redirect_uri, PKCE.
+- **Login**: Redirect to auth-ui (accounts.codevertexafrica.com) with client_id, redirect_uri, PKCE.
 - **Callback**: `/[orgSlug]/auth/callback` exchanges code for tokens; store in Zustand; redirect to dashboard.
 - **Profile**: Call **SSO (auth-api)** `GET /api/v1/auth/me` with Bearer token — not treasury-api. Implemented in `lib/auth/api.ts` (`fetchProfile(accessToken)`) and `hooks/useMe.ts` (TanStack Query). Use for sidebar (platform section for super_admin).
 - **Logout**: Clear local state; redirect to auth logout or landing.
@@ -28,7 +28,7 @@ Treasury UI is the central financial portal. It integrates with:
 
 ## Treasury API
 
-- **Base URL**: `NEXT_PUBLIC_API_URL` or `NEXT_PUBLIC_TREASURY_API_URL` (default: `https://booksapi.codevertexitsolutions.com`).
+- **Base URL**: `NEXT_PUBLIC_API_URL` or `NEXT_PUBLIC_TREASURY_API_URL` (default: `https://booksapi.codevertexafrica.com`).
 - **Auth**: Bearer token from auth-service JWT. S2S calls from other services use `X-API-Key: {INTERNAL_SERVICE_KEY}`.
 - **Gateways**: Platform gateways (super_admin) and tenant gateways; CRUD via treasury-api endpoints (`/api/v1/platform/gateways`, `/{tenant}/gateways`).
 - **Transactions**: List/filter payment transactions via `GET /api/v1/{tenant}/analytics/transactions`; summary via `GET /api/v1/{tenant}/analytics/summary`.

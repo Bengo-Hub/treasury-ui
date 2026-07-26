@@ -61,7 +61,7 @@ type NavEntry = NavItem | NavGroup;
 
 // Cross-service ERP UI (linked, never duplicated). Code fallback is the safety net since
 // NEXT_PUBLIC URLs are baked at build time.
-const ERP_UI_URL = process.env.NEXT_PUBLIC_ERP_UI_URL || 'https://erp.codevertexitsolutions.com';
+const ERP_UI_URL = process.env.NEXT_PUBLIC_ERP_UI_URL || 'https://erp.codevertexafrica.com';
 
 function isNavGroup(entry: NavEntry): entry is NavGroup {
   return 'children' in entry;

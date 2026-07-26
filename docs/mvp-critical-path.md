@@ -9,7 +9,7 @@
 
 | Item | Status |
 |------|--------|
-| **Production domain** | `books.codevertexitsolutions.com` |
+| **Production domain** | `books.codevertexafrica.com` |
 | **Auth-ui redirect** | `/dashboard/platform/gateways` → treasury-ui (gateway config owned here) |
 | **SSO** | OIDC/PKCE via auth-ui; GET /me for roles (e.g. super_admin for platform section) |
 | **Gateway CRUD** | Implemented in treasury-api; UI in treasury-ui (platform + tenant gateways) |

@@ -10,7 +10,7 @@ import type { PaymentDetails } from './types';
 
 const TREASURY_UI_URL =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_UI_URL) ||
-  'https://books.codevertexitsolutions.com';
+  'https://books.codevertexafrica.com';
 
 // Paystack Kenya fee: 1.5% of transaction amount, capped at KES 2,000.
 // International cards carry an additional KES 100 flat fee (not applied here — local only).

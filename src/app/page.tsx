@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
-const ACCOUNTS_URL = process.env.NEXT_PUBLIC_AUTH_UI_URL || 'https://accounts.codevertexitsolutions.com';
+const ACCOUNTS_URL = process.env.NEXT_PUBLIC_AUTH_UI_URL || 'https://accounts.codevertexafrica.com';
 
 /**
  * Bare-root landing. There is no tenant in the URL here, so route to the

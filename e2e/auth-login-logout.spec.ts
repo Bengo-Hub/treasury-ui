@@ -2,7 +2,7 @@ import { expect, test, Page } from '@playwright/test';
 
 const EMAIL = process.env.E2E_LOGIN_EMAIL || 'demo@bengobox.dev';
 const PASSWORD = process.env.E2E_LOGIN_PASSWORD || 'DemoUser2024!';
-const SSO_HOST = 'accounts.codevertexitsolutions.com';
+const SSO_HOST = 'accounts.codevertexafrica.com';
 
 /** Helper: perform SSO login. */
 async function ssoLogin(page: Page) {
@@ -44,7 +44,7 @@ test.describe('Login Flow', () => {
     const meResponse = await page.evaluate(async () => {
       const token = JSON.parse(localStorage.getItem('treasury-auth-storage') || '{}')?.state?.session?.accessToken;
       if (!token) return null;
-      const ssoUrl = (window as any).__NEXT_DATA__?.runtimeConfig?.NEXT_PUBLIC_SSO_URL || 'https://sso.codevertexitsolutions.com';
+      const ssoUrl = (window as any).__NEXT_DATA__?.runtimeConfig?.NEXT_PUBLIC_SSO_URL || 'https://sso.codevertexafrica.com';
       const res = await fetch(`${ssoUrl}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
       return res.ok ? res.json() : null;
     });

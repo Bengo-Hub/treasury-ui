@@ -22,7 +22,7 @@ export interface MeResponse {
 const ME_QUERY_KEY = ['auth', 'me'] as const;
 const ME_STALE_MS = 5 * 60 * 1000; // 5 min TTL
 
-const TREASURY_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexitsolutions.com';
+const TREASURY_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexafrica.com';
 
 /** Merge arrays, deduplicating values. */
 function mergeUnique(a: string[], b: string[]): string[] {
