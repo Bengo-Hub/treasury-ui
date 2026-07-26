@@ -14,19 +14,19 @@
 // codevertex-website/src/config/services.ts (POWER_SUITE) and auth-ui
 // PRODUCTION_DOMAINS. Keep in sync with those sources; do not invent hosts.
 const PRODUCTS: { label: string; href: string }[] = [
-  { label: 'Accounting & Books', href: 'https://books.codevertexitsolutions.com' },
-  { label: 'Ordering Platform', href: 'https://ordersapp.codevertexitsolutions.com' },
-  { label: 'POS System', href: 'https://pos.codevertexitsolutions.com' },
-  { label: 'ERP Suite', href: 'https://erp.codevertexitsolutions.com' },
-  { label: 'CRM, Helpdesk & AI Marketing Platforms', href: 'https://marketflow.codevertexitsolutions.com' },
-  { label: 'Weighing & Logistics Systems', href: 'https://truload.codevertexitsolutions.com' },
-  { label: 'Hotspot Billing Systems', href: 'https://ispbilling.codevertexitsolutions.com' },
-  { label: 'Shipping & Delivery Logistics Systems', href: 'https://logistics.codevertexitsolutions.com' },
-  { label: 'AI & Automation', href: 'https://codevertexitsolutions.com/contact' },
+  { label: 'Accounting & Books', href: 'https://books.codevertexafrica.com' },
+  { label: 'Ordering Platform', href: 'https://ordering.codevertexafrica.com' },
+  { label: 'POS System', href: 'https://pos.codevertexafrica.com' },
+  { label: 'ERP Suite', href: 'https://erp.codevertexafrica.com' },
+  { label: 'CRM, Helpdesk & AI Marketing Platforms', href: 'https://marketflow.codevertexafrica.com' },
+  { label: 'Weighing & Logistics Systems', href: 'https://truload.codevertexafrica.com' },
+  { label: 'Hotspot Billing Systems', href: 'https://ispbilling.codevertexafrica.com' },
+  { label: 'Shipping & Delivery Logistics Systems', href: 'https://logistics.codevertexafrica.com' },
+  { label: 'AI & Automation', href: 'https://codevertexafrica.com/contact' },
 ];
 
-const VERA_WIDGET_SRC = 'https://marketflow.codevertexitsolutions.com/widget/chat.js';
-const VERA_API_URL = 'https://marketflowapi.codevertexitsolutions.com';
+const VERA_WIDGET_SRC = 'https://marketflow.codevertexafrica.com/widget/chat.js';
+const VERA_API_URL = 'https://marketflowapi.codevertexafrica.com';
 
 interface PublicDocFooterProps {
   /** Issuing tenant slug — drives the Vera widget tenant context. */

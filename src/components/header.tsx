@@ -15,14 +15,14 @@ import { useBranding } from '@/providers/branding-provider';
 import { TenantFilter } from './tenant-filter';
 import { OutletFilter } from './outlet-filter';
 
-const POS_URL = process.env.NEXT_PUBLIC_POS_UI_URL ?? 'https://pos.codevertexitsolutions.com';
-const INVENTORY_URL = process.env.NEXT_PUBLIC_INVENTORY_UI_URL ?? 'https://inventory.codevertexitsolutions.com';
-const LOGISTICS_URL = process.env.NEXT_PUBLIC_LOGISTICS_UI_URL ?? 'https://logistics.codevertexitsolutions.com';
-const MARKETFLOW_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexitsolutions.com';
-const ERP_URL = process.env.NEXT_PUBLIC_ERP_UI_URL ?? 'https://erp.codevertexitsolutions.com';
-const ORDERING_URL = process.env.NEXT_PUBLIC_ORDERING_UI_URL ?? 'https://ordersapp.codevertexitsolutions.com';
-const PRICING_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL ?? 'https://pricing.codevertexitsolutions.com';
-const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_UI_URL ?? 'https://accounts.codevertexitsolutions.com';
+const POS_URL = process.env.NEXT_PUBLIC_POS_UI_URL ?? 'https://pos.codevertexafrica.com';
+const INVENTORY_URL = process.env.NEXT_PUBLIC_INVENTORY_UI_URL ?? 'https://inventory.codevertexafrica.com';
+const LOGISTICS_URL = process.env.NEXT_PUBLIC_LOGISTICS_UI_URL ?? 'https://logistics.codevertexafrica.com';
+const MARKETFLOW_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexafrica.com';
+const ERP_URL = process.env.NEXT_PUBLIC_ERP_UI_URL ?? 'https://erp.codevertexafrica.com';
+const ORDERING_URL = process.env.NEXT_PUBLIC_ORDERING_UI_URL ?? 'https://ordering.codevertexafrica.com';
+const PRICING_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL ?? 'https://pricing.codevertexafrica.com';
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_UI_URL ?? 'https://accounts.codevertexafrica.com';
 
 // Cross-service LINKS (never duplicated pages). Each target service enforces its own
 // RBAC + subscription gating on arrival; `manageOnly` additionally hides admin-flavored
