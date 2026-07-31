@@ -497,8 +497,13 @@ export function duplicateInvoice(tenant: string, invoiceId: string): Promise<Inv
   return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/duplicate`, {});
 }
 
-export function sendInvoice(tenant: string, invoiceId: string): Promise<{ status: string }> {
-  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/send`, {});
+// syncEtims mirrors the Send modal's explicit choice: undefined preserves the existing default
+// (fiscalise only if the tenant's automatic-sync setting is on); true forces an eTIMS sync now
+// regardless of that setting; false sends WITHOUT syncing eTIMS for this document.
+export function sendInvoice(tenant: string, invoiceId: string, syncEtims?: boolean): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/send`, {
+    ...(syncEtims !== undefined ? { sync_etims: syncEtims } : {}),
+  });
 }
 
 export function voidInvoice(tenant: string, invoiceId: string): Promise<{ status: string }> {

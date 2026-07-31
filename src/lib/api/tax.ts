@@ -505,6 +505,10 @@ export interface TaxProfile {
   etims_activated: boolean;
   registered_obligations?: { id: string; name: string; type: string }[];
   obligations_synced_at?: string;
+  // Generic settings bag — auto_sync_etims (whether sales/invoices/receipts fiscalise to KRA
+  // eTIMS AUTOMATICALLY) lives here rather than its own column. Absent/undefined means the
+  // default (true, today's always-on behaviour) — only an explicit `false` turns it off.
+  metadata?: { auto_sync_etims?: boolean; [key: string]: unknown };
 }
 
 export function getEligibilityPosition(tenantSlug: string): Promise<EligibilityPosition> {
@@ -517,13 +521,35 @@ export function getTaxProfile(tenantSlug: string): Promise<TaxProfile> {
 
 export function updateTaxProfile(
   tenantSlug: string,
-  body: Partial<Pick<TaxProfile, 'kra_pin' | 'vat_registered' | 'tot_registered' | 'auto_charge_vat'>>,
+  body: Partial<Pick<TaxProfile, 'kra_pin' | 'vat_registered' | 'tot_registered' | 'auto_charge_vat'>> & { auto_sync_etims?: boolean },
 ): Promise<TaxProfile> {
   return apiClient.put(`${BASE}/${tenantSlug}/tax/profile`, body);
 }
 
 export function syncTaxObligations(tenantSlug: string): Promise<TaxProfile> {
   return apiClient.post(`${BASE}/${tenantSlug}/tax/profile/sync-obligations`, {});
+}
+
+// ---- Manual ETR receipt (POS sale) ----
+
+export interface FiscalInfo {
+  kra_pin: string;
+  branch_id: string;
+  device_serial: string;
+  receipt_no: string;
+  cu_invoice_no: string;
+  internal_data: string;
+  signature: string;
+  invc_no: number;
+  qr_url: string;
+  transmitted_at?: string;
+}
+
+// Manual "Generate ETR Receipt" for a POS sale (treasury-ui transactions drawer) — transmits the
+// sale's already-queued eTIMS record now, regardless of the tenant's auto-sync setting. orderID
+// is the PaymentIntent's reference_id for a source_service:"pos" transaction.
+export function transmitPosSaleNow(tenantSlug: string, orderID: string): Promise<FiscalInfo> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/pos-sale/${orderID}/transmit`, {});
 }
 
 export interface ObligationPosition {
