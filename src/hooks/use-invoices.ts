@@ -357,8 +357,14 @@ export function useDuplicateInvoice(tenant: string) {
 export function useSendInvoice(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (invoiceId: string) => sendInvoice(tenant, invoiceId),
-    onSuccess: (_data, invoiceId) => {
+    // syncEtims mirrors the Send modal's "sync to eTIMS now" / "send without eTIMS sync" choice;
+    // undefined preserves today's default (sync only if the tenant's auto-sync setting is on).
+    mutationFn: (vars: string | { invoiceId: string; syncEtims?: boolean }) => {
+      const { invoiceId, syncEtims } = typeof vars === 'string' ? { invoiceId: vars, syncEtims: undefined } : vars;
+      return sendInvoice(tenant, invoiceId, syncEtims);
+    },
+    onSuccess: (_data, vars) => {
+      const invoiceId = typeof vars === 'string' ? vars : vars.invoiceId;
       queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
     },

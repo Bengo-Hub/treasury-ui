@@ -10,6 +10,14 @@ export function useTaxCodes(tenantSlug: string) {
   });
 }
 
+// Manual "Generate ETR Receipt" for a POS sale (transactions drawer). Always attempts
+// transmission regardless of the tenant's auto-sync setting — an explicit user action.
+export function useTransmitPosSaleNow(tenantSlug: string) {
+  return useMutation({
+    mutationFn: (orderID: string) => taxApi.transmitPosSaleNow(tenantSlug, orderID),
+  });
+}
+
 export function useCreateTaxCode() {
   const qc = useQueryClient();
   return useMutation({
@@ -312,7 +320,7 @@ export function useTaxProfile(tenantSlug: string) {
 export function useUpdateTaxProfile(tenantSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Partial<{ kra_pin: string; vat_registered: boolean; tot_registered: boolean; auto_charge_vat: boolean }>) =>
+    mutationFn: (body: Partial<{ kra_pin: string; vat_registered: boolean; tot_registered: boolean; auto_charge_vat: boolean; auto_sync_etims: boolean }>) =>
       taxApi.updateTaxProfile(tenantSlug, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tax-profile', tenantSlug] });

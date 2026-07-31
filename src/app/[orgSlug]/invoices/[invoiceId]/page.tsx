@@ -144,6 +144,9 @@ export default function InvoiceDetailPage() {
   // Confirm gate for the fiscal-consequence actions (Approve fiscalises on the final step; Send
   // fiscalises + delivers) — the shared ConfirmDialog warns about the KRA eTIMS sync.
   const [confirmAction, setConfirmAction] = useState<null | 'approve' | 'send'>(null);
+  // Send modal's explicit per-send eTIMS choice — defaults to syncing (today's behaviour);
+  // unchecking sends the invoice WITHOUT queuing an eTIMS sync for this document.
+  const [sendSyncEtims, setSendSyncEtims] = useState(true);
   const [showDeliverModal, setShowDeliverModal] = useState(false);
   const [receivedBy, setReceivedBy]       = useState('');
   const [deliverNote, setDeliverNote]     = useState('');
@@ -867,7 +870,7 @@ export default function InvoiceDetailPage() {
         title={confirmAction === 'approve' ? 'Approve this document?' : 'Send this document?'}
         description={confirmAction === 'approve'
           ? 'Approving advances the workflow. On the FINAL approval step the document becomes a fiscal supply and is transmitted to KRA eTIMS (fiscalised) — after which it can no longer be edited. Continue?'
-          : 'This will transmit the document to KRA eTIMS (fiscalised) and deliver it to the customer. Continue?'}
+          : 'This will deliver the document to the customer.'}
         confirmLabel={confirmAction === 'approve' ? 'Approve' : 'Send'}
         isPending={confirmAction === 'approve' ? approveMut.isPending : sendMutation.isPending}
         onConfirm={() => {
@@ -877,13 +880,33 @@ export default function InvoiceDetailPage() {
               onError: (err: any) => { toast.error(err?.response?.data?.error ?? 'Failed to approve invoice'); setConfirmAction(null); },
             });
           } else if (confirmAction === 'send') {
-            sendMutation.mutate(invoiceId, {
+            sendMutation.mutate({ invoiceId, syncEtims: sendSyncEtims }, {
               onSuccess: () => setConfirmAction(null),
               onError: () => setConfirmAction(null),
             });
           }
         }}
-      />
+      >
+        {confirmAction === 'send' && (
+          <label className="flex items-start gap-2 text-sm rounded border border-border/60 bg-muted/30 p-3">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={sendSyncEtims}
+              onChange={(e) => setSendSyncEtims(e.target.checked)}
+            />
+            <span>
+              <span className="font-medium">Sync to KRA eTIMS</span>
+              <br />
+              <span className="text-muted-foreground">
+                {sendSyncEtims
+                  ? 'This document will be transmitted to KRA eTIMS (fiscalised) when sent.'
+                  : "This document will be sent WITHOUT syncing to eTIMS. You can fiscalise it later from the transaction's \"Generate ETR Receipt\" action."}
+              </span>
+            </span>
+          </label>
+        )}
+      </ConfirmDialog>
     </div>
   );
 }

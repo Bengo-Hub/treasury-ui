@@ -186,6 +186,19 @@ export function TaxProfileTab({ tenantSlug }: Props) {
           </label>
         </div>
 
+        <div className="rounded border border-border/60 bg-muted/30 p-3 pt-2">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={profile?.metadata?.auto_sync_etims !== false}
+              onChange={(e) => update.mutate({ auto_sync_etims: e.target.checked })} />
+            Automatically sync sales, invoices &amp; receipts to KRA eTIMS
+          </label>
+          <p className={`${label} pl-6`}>
+            When on (default), every POS sale, invoice send, payment and credit note fiscalises
+            with KRA automatically. Turn off to fiscalise only when you explicitly choose to —
+            via &quot;Generate ETR Receipt&quot; on a transaction, or the send-invoice sync option.
+          </p>
+        </div>
+
         {profile?.registered_obligations && profile.registered_obligations.length > 0 && (
           <div className="pt-2">
             <p className={label}>KRA obligations</p>

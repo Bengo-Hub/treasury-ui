@@ -25,7 +25,9 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useGenerateReceiptFromIntent } from '@/hooks/use-invoices';
+import { useTransmitPosSaleNow } from '@/hooks/use-tax';
 import { DocPreview } from '@/components/documents/DocPreview';
+import { EtimsResponseModal, type EtimsResponseRow } from '@/components/tax/etims-response-modal';
 import { toast } from 'sonner';
 
 const MARKETFLOW_UI_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexafrica.com';
@@ -75,6 +77,10 @@ export default function TransactionsPage() {
     ? (tenantQueryParam ?? undefined)
     : ((user as any)?.tenantId ?? (user as any)?.tenant_id ?? undefined);
   const generateReceiptMutation = useGenerateReceiptFromIntent(receiptTenant, receiptTenantId);
+  // Manual "Generate ETR Receipt" — fiscalises a POS sale's already-queued eTIMS record now,
+  // regardless of the tenant's automatic-sync setting (an explicit user action).
+  const transmitPosSaleMutation = useTransmitPosSaleNow(receiptTenant);
+  const [etrResult, setEtrResult] = useState<{ rows: EtimsResponseRow[]; payload: unknown } | null>(null);
   const [previewReceiptId, setPreviewReceiptId] = useState<string | null>(null);
   const [detailTxn, setDetailTxn] = useState<TransactionItem | null>(null);
   const [checkingStatusId, setCheckingStatusId] = useState<string | null>(null);
@@ -361,6 +367,17 @@ export default function TransactionsPage() {
         />
       )}
 
+      {/* ETR receipt result — KRA eTIMS fiscal evidence for a manually-generated POS receipt */}
+      {etrResult && (
+        <EtimsResponseModal
+          open={!!etrResult}
+          onClose={() => setEtrResult(null)}
+          title="ETR Receipt (KRA eTIMS)"
+          rows={etrResult.rows}
+          payload={etrResult.payload}
+        />
+      )}
+
       {/* Transaction detail drawer */}
       {detailTxn && (
         <div className="fixed inset-y-0 right-0 z-50 w-[380px] bg-card shadow-2xl border-l border-border flex flex-col">
@@ -463,6 +480,45 @@ export default function TransactionsPage() {
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <Receipt className="h-4 w-4" />}
                 {generateReceiptMutation.isPending ? 'Generating…' : 'Generate & View Receipt'}
+              </Button>
+            </div>
+          )}
+
+          {/* Generate ETR Receipt (KRA eTIMS) — manual, on-demand, POS sales only. Works
+              regardless of the tenant's automatic-sync setting; reuses the same queued eTIMS
+              record the sale created (or would have created) at checkout. */}
+          {(detailTxn.status === 'succeeded' || detailTxn.status === 'refunded') &&
+            detailTxn.source_service === 'pos' && detailTxn.reference_id && receiptTenant && (
+            <div className="border-t border-border p-4">
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                disabled={transmitPosSaleMutation.isPending}
+                onClick={() => {
+                  transmitPosSaleMutation.mutate(detailTxn.reference_id, {
+                    onSuccess: (info) => {
+                      setDetailTxn(null);
+                      setEtrResult({
+                        rows: [
+                          { label: 'CU Invoice No.', value: info.cu_invoice_no, mono: true },
+                          { label: 'Receipt No.', value: info.receipt_no, mono: true },
+                          { label: 'KRA PIN', value: info.kra_pin, mono: true },
+                          { label: 'Branch', value: info.branch_id, mono: true },
+                          { label: 'Device Serial', value: info.device_serial, mono: true },
+                          { label: 'Signature', value: info.signature, mono: true },
+                          { label: 'Transmitted at', value: info.transmitted_at },
+                        ],
+                        payload: info,
+                      });
+                    },
+                    onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to generate ETR receipt'),
+                  });
+                }}
+              >
+                {transmitPosSaleMutation.isPending
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <FileText className="h-4 w-4" />}
+                {transmitPosSaleMutation.isPending ? 'Generating…' : 'Generate ETR Receipt'}
               </Button>
             </div>
           )}
