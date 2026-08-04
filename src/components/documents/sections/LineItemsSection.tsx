@@ -227,101 +227,169 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
   return (
     <div className="space-y-4">
     <div className="space-y-0 rounded-xl overflow-hidden border border-border">
-      {/* Header */}
-      <div className="px-4 py-2.5 grid grid-cols-12 gap-2 text-xs font-bold bg-primary text-primary-foreground">
-        <div className="col-span-4">Item</div>
-        <div className="col-span-1 text-center">Qty</div>
-        <div className="col-span-1 text-center">Rate</div>
-        <div className="col-span-1 text-center">Tax%</div>
-        <div className="col-span-1 text-center">Disc</div>
-        <div className="col-span-1 text-right">Amount</div>
-        <div className="col-span-1 text-right">Tax</div>
-        <div className="col-span-2 text-right">Total</div>
-      </div>
+      {/* Desktop/tablet: the original grid, ≥ md. Below md a per-line card layout (below) takes
+          over — a 12-column grid with 8 narrow columns is unusable at phone width (sub-30px tap
+          targets), not just visually cramped, so this isn't a cosmetic hide/show: the two modes
+          render genuinely different DOM for the same data. */}
+      <div className="hidden md:block">
+        <div className="px-4 py-2.5 grid grid-cols-12 gap-2 text-xs font-bold bg-primary text-primary-foreground">
+          <div className="col-span-4">Item</div>
+          <div className="col-span-1 text-center">Qty</div>
+          <div className="col-span-1 text-center">Rate</div>
+          <div className="col-span-1 text-center">Tax%</div>
+          <div className="col-span-1 text-center">Disc</div>
+          <div className="col-span-1 text-right">Amount</div>
+          <div className="col-span-1 text-right">Tax</div>
+          <div className="col-span-2 text-right">Total</div>
+        </div>
 
-      {/* Lines */}
-      <div className="divide-y divide-border bg-background">
-        {lines.map((line, idx) => (
-          <div key={line._key} className="grid grid-cols-12 gap-2 px-4 py-3 items-start">
-            <div className="col-span-4 space-y-1">
-              <div className="text-[10px] font-bold text-muted-foreground">{idx + 1}.</div>
-              <ItemCombobox
-                tenant={tenant}
-                line={line}
-                onUpdate={patch => updateLine(idx, patch)}
-                onRequestCreate={q => onRequestCreateItem?.(q, idx)}
-              />
-              <div className="flex items-center gap-2 flex-wrap">
-                {line.unit && <div className="text-[10px] text-muted-foreground">Unit: {line.unit}</div>}
-                {/* Business-only buying price (cost) — drives the internal margin panel, never on the PDF. */}
-                <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                  <span className="font-bold">Cost</span>
-                  <input
-                    type="number" min="0" step="0.01"
-                    value={line.unit_cost ?? ''}
-                    placeholder="—"
-                    onChange={e => {
-                      const v = e.target.value;
-                      updateLine(idx, { unit_cost: v === '' ? undefined : (parseFloat(v) || 0) });
-                    }}
-                    className="w-20 rounded-md py-1 px-1.5 text-[10px] text-right font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                    title="Buying price per unit (internal only)"
-                  />
-                </label>
-                {/* Progress/milestone billing — bill a % of qty×rate. Highlighted when < 100. */}
-                <label className="flex items-center gap-1 text-[10px] text-muted-foreground" title="Bill only this % of the line (progress / milestone billing). Blank or 100 = full line.">
-                  <span className="font-bold">% Complete</span>
-                  <input
-                    type="number" min="0" max="100" step="0.01"
-                    value={line.completion_percent ?? ''}
-                    placeholder="100"
-                    onChange={e => {
-                      const v = e.target.value;
-                      updateLine(idx, { completion_percent: v === '' ? undefined : (parseFloat(v) || 0) });
-                    }}
-                    className={`w-16 rounded-md py-1 px-1.5 text-[10px] text-right font-mono border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring ${
-                      line.completion_percent != null && line.completion_percent < 100
-                        ? 'border-primary/60 text-primary font-bold'
-                        : 'border-input'
-                    }`}
-                  />
-                </label>
-                {line.completion_percent != null && line.completion_percent < 100 && (
-                  <span className="text-[10px] text-primary font-semibold">
-                    Billing {line.completion_percent}% of {currency} {fmt(line.quantity * line.unit_price)}
-                  </span>
+        <div className="divide-y divide-border bg-background">
+          {lines.map((line, idx) => (
+            <div key={line._key} className="grid grid-cols-12 gap-2 px-4 py-3 items-start">
+              <div className="col-span-4 space-y-1">
+                <div className="text-[10px] font-bold text-muted-foreground">{idx + 1}.</div>
+                <ItemCombobox
+                  tenant={tenant}
+                  line={line}
+                  onUpdate={patch => updateLine(idx, patch)}
+                  onRequestCreate={q => onRequestCreateItem?.(q, idx)}
+                />
+                <div className="flex items-center gap-2 flex-wrap">
+                  {line.unit && <div className="text-[10px] text-muted-foreground">Unit: {line.unit}</div>}
+                  {/* Business-only buying price (cost) — drives the internal margin panel, never on the PDF. */}
+                  <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <span className="font-bold">Cost</span>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={line.unit_cost ?? ''}
+                      placeholder="—"
+                      onChange={e => {
+                        const v = e.target.value;
+                        updateLine(idx, { unit_cost: v === '' ? undefined : (parseFloat(v) || 0) });
+                      }}
+                      className="w-20 rounded-md py-1 px-1.5 text-[10px] text-right font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      title="Buying price per unit (internal only)"
+                    />
+                  </label>
+                  {/* Progress/milestone billing — bill a % of qty×rate. Highlighted when < 100. */}
+                  <label className="flex items-center gap-1 text-[10px] text-muted-foreground" title="Bill only this % of the line (progress / milestone billing). Blank or 100 = full line.">
+                    <span className="font-bold">% Complete</span>
+                    <input
+                      type="number" min="0" max="100" step="0.01"
+                      value={line.completion_percent ?? ''}
+                      placeholder="100"
+                      onChange={e => {
+                        const v = e.target.value;
+                        updateLine(idx, { completion_percent: v === '' ? undefined : (parseFloat(v) || 0) });
+                      }}
+                      className={`w-16 rounded-md py-1 px-1.5 text-[10px] text-right font-mono border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring ${
+                        line.completion_percent != null && line.completion_percent < 100
+                          ? 'border-primary/60 text-primary font-bold'
+                          : 'border-input'
+                      }`}
+                    />
+                  </label>
+                  {line.completion_percent != null && line.completion_percent < 100 && (
+                    <span className="text-[10px] text-primary font-semibold">
+                      Billing {line.completion_percent}% of {currency} {fmt(line.quantity * line.unit_price)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="col-span-1 pt-5">
+                <input type="number" min="0.01" step="0.01" value={line.quantity}
+                  onChange={e => updateLine(idx, { quantity: parseFloat(e.target.value) || 1 })}
+                  className="w-full rounded-lg py-1.5 px-1 text-xs text-center font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              </div>
+              <div className="col-span-1 pt-5">
+                <input type="number" min="0" step="0.01" value={line.unit_price || ''}
+                  onChange={e => updateLine(idx, { unit_price: parseFloat(e.target.value) || 0 })}
+                  className="w-full rounded-lg py-1.5 px-1 text-xs text-center font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              </div>
+              <div className="col-span-1 pt-5">
+                <input type="number" min="0" max="100" step="0.1" value={line.tax_rate || ''}
+                  onChange={e => updateLine(idx, { tax_rate: parseFloat(e.target.value) || 0 })}
+                  className="w-full rounded-lg py-1.5 px-1 text-xs text-center font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              </div>
+              <div className="col-span-1 pt-5">
+                <input type="number" min="0" step="0.01" value={line.discount_amount || ''}
+                  onChange={e => updateLine(idx, { discount_amount: parseFloat(e.target.value) || 0 })}
+                  className="w-full rounded-lg py-1.5 px-1 text-xs text-center font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              </div>
+              <div className="col-span-1 pt-6 text-right font-mono text-xs text-muted-foreground">{fmt(computed[idx].net)}</div>
+              <div className="col-span-1 pt-6 text-right font-mono text-xs text-muted-foreground">{fmt(computed[idx].tax)}</div>
+              <div className="col-span-2 pt-6 text-right font-mono font-black text-xs text-foreground flex items-center justify-end gap-1">
+                <span>{currency} {fmt(computed[idx].total)}</span>
+                {lines.length > 1 && (
+                  <button type="button" onClick={() => removeLine(idx)} className="p-1 text-muted-foreground hover:text-destructive transition-colors ml-1">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 )}
               </div>
             </div>
-            <div className="col-span-1 pt-5">
-              <input type="number" min="0.01" step="0.01" value={line.quantity}
-                onChange={e => updateLine(idx, { quantity: parseFloat(e.target.value) || 1 })}
-                className="w-full rounded-lg py-1.5 px-1 text-xs text-center font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
-            </div>
-            <div className="col-span-1 pt-5">
-              <input type="number" min="0" step="0.01" value={line.unit_price || ''}
-                onChange={e => updateLine(idx, { unit_price: parseFloat(e.target.value) || 0 })}
-                className="w-full rounded-lg py-1.5 px-1 text-xs text-center font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
-            </div>
-            <div className="col-span-1 pt-5">
-              <input type="number" min="0" max="100" step="0.1" value={line.tax_rate || ''}
-                onChange={e => updateLine(idx, { tax_rate: parseFloat(e.target.value) || 0 })}
-                className="w-full rounded-lg py-1.5 px-1 text-xs text-center font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
-            </div>
-            <div className="col-span-1 pt-5">
-              <input type="number" min="0" step="0.01" value={line.discount_amount || ''}
-                onChange={e => updateLine(idx, { discount_amount: parseFloat(e.target.value) || 0 })}
-                className="w-full rounded-lg py-1.5 px-1 text-xs text-center font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
-            </div>
-            <div className="col-span-1 pt-6 text-right font-mono text-xs text-muted-foreground">{fmt(computed[idx].net)}</div>
-            <div className="col-span-1 pt-6 text-right font-mono text-xs text-muted-foreground">{fmt(computed[idx].tax)}</div>
-            <div className="col-span-2 pt-6 text-right font-mono font-black text-xs text-foreground flex items-center justify-end gap-1">
-              <span>{currency} {fmt(computed[idx].total)}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Phone: one card per line, full-width stacked fields with ≥44px touch targets. */}
+      <div className="md:hidden divide-y divide-border bg-background">
+        {lines.map((line, idx) => (
+          <div key={line._key} className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-muted-foreground">Item {idx + 1}</span>
               {lines.length > 1 && (
-                <button type="button" onClick={() => removeLine(idx)} className="p-1 text-muted-foreground hover:text-destructive transition-colors ml-1">
-                  <X className="h-3.5 w-3.5" />
+                <button
+                  type="button"
+                  onClick={() => removeLine(idx)}
+                  className="flex items-center justify-center h-9 w-9 -mr-2 text-muted-foreground hover:text-destructive transition-colors"
+                  aria-label="Remove line"
+                >
+                  <X className="h-4 w-4" />
                 </button>
               )}
+            </div>
+
+            <ItemCombobox
+              tenant={tenant}
+              line={line}
+              onUpdate={patch => updateLine(idx, patch)}
+              onRequestCreate={q => onRequestCreateItem?.(q, idx)}
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="space-y-1">
+                <span className="text-[11px] font-bold text-muted-foreground">Qty</span>
+                <input type="number" min="0.01" step="0.01" value={line.quantity}
+                  onChange={e => updateLine(idx, { quantity: parseFloat(e.target.value) || 1 })}
+                  className="w-full min-h-11 rounded-lg px-3 text-sm font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] font-bold text-muted-foreground">Rate</span>
+                <input type="number" min="0" step="0.01" value={line.unit_price || ''}
+                  onChange={e => updateLine(idx, { unit_price: parseFloat(e.target.value) || 0 })}
+                  className="w-full min-h-11 rounded-lg px-3 text-sm font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] font-bold text-muted-foreground">Tax %</span>
+                <input type="number" min="0" max="100" step="0.1" value={line.tax_rate || ''}
+                  onChange={e => updateLine(idx, { tax_rate: parseFloat(e.target.value) || 0 })}
+                  className="w-full min-h-11 rounded-lg px-3 text-sm font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] font-bold text-muted-foreground">Discount</span>
+                <input type="number" min="0" step="0.01" value={line.discount_amount || ''}
+                  onChange={e => updateLine(idx, { discount_amount: parseFloat(e.target.value) || 0 })}
+                  className="w-full min-h-11 rounded-lg px-3 text-sm font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              </label>
+            </div>
+
+            {line.unit && <div className="text-[11px] text-muted-foreground">Unit: {line.unit}</div>}
+
+            <div className="flex items-center justify-between pt-2 border-t border-border/60">
+              <span className="text-xs text-muted-foreground">
+                Amount {fmt(computed[idx].net)} + Tax {fmt(computed[idx].tax)}
+              </span>
+              <span className="text-sm font-black font-mono text-foreground">{currency} {fmt(computed[idx].total)}</span>
             </div>
           </div>
         ))}
