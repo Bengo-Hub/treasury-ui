@@ -47,10 +47,16 @@ export interface CreateBudgetRequest {
 
 // ---- API Functions ----
 
-export function listBudgets(
+/**
+ * treasury-api's list endpoints return the shared pagination envelope
+ * (`{ data, total, limit, page, hasMore }`); unwrap it the same way
+ * unwrapInvoiceList does in invoices.ts, tolerating the legacy `budgets` key too.
+ */
+export async function listBudgets(
   tenantSlug: string,
 ): Promise<{ budgets: Budget[]; total: number }> {
-  return apiClient.get(`${BASE}/${tenantSlug}/budgets`);
+  const raw = await apiClient.get<any>(`${BASE}/${tenantSlug}/budgets`);
+  return { budgets: raw?.budgets ?? raw?.data ?? [], total: Number(raw?.total ?? 0) };
 }
 
 export function createBudget(
