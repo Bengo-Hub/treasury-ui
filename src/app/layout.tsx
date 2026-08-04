@@ -1,4 +1,3 @@
-import { PWARegistration } from "@/components/pwa-registration";
 import { ThemeProvider } from "@/components/theme-provider";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -58,7 +57,6 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
-          <PWARegistration />
           <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>

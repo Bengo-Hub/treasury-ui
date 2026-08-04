@@ -474,15 +474,16 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
 
   return (
     <div className="min-h-screen pb-24 bg-background">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-50 border-b border-border px-6 py-4 flex items-center justify-between shadow-sm bg-card">
-        <div className="flex items-center gap-4">
-          <button onClick={onClose} className="p-2 rounded-xl text-muted-foreground hover:bg-accent transition-all">
+      {/* Sticky header — stacks title above actions below sm (a phone-width row with a title AND
+          two buttons has no room to breathe; the buttons also grow to full-width touch targets). */}
+      <div className="sticky top-0 z-50 border-b border-border px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm bg-card">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <button onClick={onClose} className="shrink-0 p-2 rounded-xl text-muted-foreground hover:bg-accent transition-all">
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <div className="h-6 w-px bg-border" />
-          <div>
-            <h1 className="text-base font-black text-foreground tracking-tight">
+          <div className="h-6 w-px bg-border shrink-0" />
+          <div className="min-w-0">
+            <h1 className="text-base font-black text-foreground tracking-tight truncate">
               {isEdit ? `Edit ${config.title}` : `Create ${config.title}`}
             </h1>
             <p className="text-[11px] font-medium text-muted-foreground">Step 1 of 2 — Document Details</p>
@@ -490,11 +491,11 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         </div>
         <div className="flex items-center gap-3">
           <button onClick={handleSave} disabled={isPending}
-            className="px-4 py-2 text-xs font-bold rounded-lg border border-border bg-muted text-muted-foreground hover:bg-accent transition-all">
+            className="flex-1 sm:flex-none min-h-11 px-4 text-xs font-bold rounded-lg border border-border bg-muted text-muted-foreground hover:bg-accent transition-all">
             Save As Draft
           </button>
           <button onClick={handleSave} disabled={isPending}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50">
+            className="flex-1 sm:flex-none min-h-11 inline-flex items-center justify-center gap-1.5 px-4 text-xs font-bold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50">
             {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {isPending ? 'Saving…' : 'Save & Continue'}
           </button>
