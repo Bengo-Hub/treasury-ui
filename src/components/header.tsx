@@ -2,8 +2,7 @@
 
 import { useAuthStore } from '@/store/auth';
 import {
-  Bell, BookOpen, ChevronDown, ExternalLink, Globe, LogOut, Menu, Package, Search,
-  Settings, ShoppingCart, Tag, Truck, User, UserSquare, Users,
+  Bell, ChevronDown, ExternalLink, LogOut, Menu, Search, Settings, User,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -14,29 +13,24 @@ import { userHasPermission } from '@/lib/auth/permissions';
 import { useBranding } from '@/providers/branding-provider';
 import { TenantFilter } from './tenant-filter';
 import { OutletFilter } from './outlet-filter';
-
-const POS_URL = process.env.NEXT_PUBLIC_POS_UI_URL ?? 'https://pos.codevertexafrica.com';
-const INVENTORY_URL = process.env.NEXT_PUBLIC_INVENTORY_UI_URL ?? 'https://inventory.codevertexafrica.com';
-const LOGISTICS_URL = process.env.NEXT_PUBLIC_LOGISTICS_UI_URL ?? 'https://logistics.codevertexafrica.com';
-const MARKETFLOW_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexafrica.com';
-const ERP_URL = process.env.NEXT_PUBLIC_ERP_UI_URL ?? 'https://erp.codevertexafrica.com';
-const ORDERING_URL = process.env.NEXT_PUBLIC_ORDERING_UI_URL ?? 'https://ordering.codevertexafrica.com';
-const PRICING_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL ?? 'https://pricing.codevertexafrica.com';
-const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_UI_URL ?? 'https://accounts.codevertexafrica.com';
+import { useVisibleServices, type ServiceKey } from '@bengo-hub/shared-ui-lib/app-switcher';
 
 // Cross-service LINKS (never duplicated pages). Each target service enforces its own
-// RBAC + subscription gating on arrival; `manageOnly` additionally hides admin-flavored
-// shortcuts (ERP/Logistics/CRM/Subscriptions) from non-manager principals here.
-const SERVICES = [
-  { label: 'POS', href: (slug: string) => `${POS_URL}/${slug}`, Icon: ShoppingCart, manageOnly: false },
-  { label: 'Inventory', href: (slug: string) => `${INVENTORY_URL}/${slug}`, Icon: Package, manageOnly: false },
-  { label: 'Logistics', href: (slug: string) => `${LOGISTICS_URL}/${slug}`, Icon: Truck, manageOnly: true },
-  { label: 'CRM (MarketFlow)', href: (slug: string) => `${MARKETFLOW_URL}/${slug}`, Icon: UserSquare, manageOnly: true },
-  { label: 'ERP', href: (slug: string) => `${ERP_URL}/${slug}`, Icon: Users, manageOnly: true },
-  { label: 'Online Store', href: (slug: string) => `${ORDERING_URL}/${slug}`, Icon: Globe, manageOnly: false },
-  { label: 'Subscriptions', href: (slug: string) => `${PRICING_URL}/${slug}`, Icon: Tag, manageOnly: true },
-  { label: 'Account Portal', href: (slug: string) => `${AUTH_URL}/${slug}`, Icon: BookOpen, manageOnly: false },
-] as const;
+// RBAC + subscription gating on arrival. The canonical service list (labels/icons/coverage,
+// including which are 'coming-soon') lives in shared-ui-lib's app-switcher so it no longer
+// drifts between treasury/pos/inventory/etc.'s headers — see useVisibleServices below.
+const SERVICE_URLS: Partial<Record<ServiceKey, string>> = {
+  pos: process.env.NEXT_PUBLIC_POS_UI_URL ?? 'https://pos.codevertexafrica.com',
+  inventory: process.env.NEXT_PUBLIC_INVENTORY_UI_URL ?? 'https://inventory.codevertexafrica.com',
+  logistics: process.env.NEXT_PUBLIC_LOGISTICS_UI_URL ?? 'https://logistics.codevertexafrica.com',
+  marketflow: process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexafrica.com',
+  erp: process.env.NEXT_PUBLIC_ERP_UI_URL ?? 'https://erp.codevertexafrica.com',
+  ordering: process.env.NEXT_PUBLIC_ORDERING_UI_URL ?? 'https://ordering.codevertexafrica.com',
+  subscriptions: process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL ?? 'https://pricing.codevertexafrica.com',
+  auth: process.env.NEXT_PUBLIC_AUTH_UI_URL ?? 'https://accounts.codevertexafrica.com',
+  projects: process.env.NEXT_PUBLIC_PROJECTS_UI_URL ?? 'https://projects.codevertexafrica.com',
+  afya: process.env.NEXT_PUBLIC_HOSPITAL_UI_URL ?? 'https://afya.codevertexafrica.com',
+};
 
 function displayName(user: { fullName?: string; name?: string; email?: string } | null): string {
   if (!user) return 'Account';
@@ -70,7 +64,11 @@ export function Header({ onMenuClick }: HeaderProps) {
       'treasury.banking.manage',
       'treasury.users.manage',
     ], 'or');
-  const services = SERVICES.filter((s) => !s.manageOnly || canManageLinks);
+  // activeServiceTags is deliberately omitted (undefined): no browser-safe endpoint currently
+  // returns a tenant's active subscription SERVICE TAGS (only feature codes, via useSubscription).
+  // useVisibleServices fails OPEN in that case — identical to today's un-gated behavior — until
+  // subscriptions-api exposes one under the tenant-scoped JWT route.
+  const services = useVisibleServices({ orgSlug, urls: SERVICE_URLS, canManageLinks: !!canManageLinks });
 
   return (
     <header className="sticky top-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between">
@@ -160,21 +158,33 @@ export function Header({ onMenuClick }: HeaderProps) {
                       two-column grid truncated CRM/Online Store/Subscriptions/Account Portal.
                       The panel itself scrolls when taller than the viewport. */}
                   <div className="grid gap-0.5">
-                    {services.map(({ label, href, Icon }) => (
-                      <a
-                        key={label}
-                        href={href(orgSlug)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => setProfileOpen(false)}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-colors group"
-                        title={`Open ${label}`}
-                      >
-                        <Icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-                        <span className="flex-1 whitespace-nowrap">{label}</span>
-                        <ExternalLink className="h-3 w-3 text-muted-foreground opacity-50 shrink-0" />
-                      </a>
-                    ))}
+                    {services.map(({ key, label, href, Icon }) =>
+                      href ? (
+                        <a
+                          key={key}
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-colors group"
+                          title={`Open ${label}`}
+                        >
+                          <Icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                          <span className="flex-1 whitespace-nowrap">{label}</span>
+                          <ExternalLink className="h-3 w-3 text-muted-foreground opacity-50 shrink-0" />
+                        </a>
+                      ) : (
+                        <div
+                          key={key}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium text-muted-foreground/60 cursor-default"
+                          title={`${label} — coming soon`}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span className="flex-1 whitespace-nowrap">{label}</span>
+                          <span className="text-[9px] font-bold uppercase tracking-wider bg-muted px-1.5 py-0.5 rounded-full shrink-0">Soon</span>
+                        </div>
+                      ),
+                    )}
                   </div>
 
                   <div className="h-px bg-border my-1" />

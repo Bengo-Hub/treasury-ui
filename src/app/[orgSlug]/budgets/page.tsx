@@ -13,17 +13,16 @@ import {
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { apiClient } from '@/lib/api/client';
 import type { Budget, BudgetLine } from '@/lib/api/budgets';
+import { buildBudgetColumns, statusVariant } from './budget-columns';
 import { cn } from '@/lib/utils';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { useQuery } from '@tanstack/react-query';
 import {
-  CheckCircle2,
-  ChevronRight,
+  Inbox,
   Loader2,
   Plus,
-  RefreshCw,
   Target,
   Trash2,
-  TrendingUp,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -33,13 +32,6 @@ interface LedgerAccount {
   name: string;
   type: string;
 }
-
-const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'secondary'> = {
-  draft: 'secondary',
-  approved: 'success',
-  active: 'default',
-  closed: 'outline' as any,
-};
 
 export default function BudgetsPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
@@ -51,6 +43,17 @@ export default function BudgetsPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const approveMutation = useApproveBudget();
   const recomputeMutation = useRecomputeBudgetActuals();
+
+  const columns = useMemo(
+    () =>
+      buildBudgetColumns({
+        onApprove: (b) => approveMutation.mutate({ tenantSlug: effectiveTenant, budgetID: b.id }),
+        onRecompute: (b) => recomputeMutation.mutate({ tenantSlug: effectiveTenant, budgetID: b.id }),
+        approvePendingId: approveMutation.isPending ? approveMutation.variables?.budgetID : undefined,
+        recomputePendingId: recomputeMutation.isPending ? recomputeMutation.variables?.budgetID : undefined,
+      }),
+    [effectiveTenant, approveMutation, recomputeMutation],
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -84,76 +87,27 @@ export default function BudgetsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading && (
-            <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" /> Loading budgets...
-            </div>
-          )}
-          {!isLoading && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Name</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Period</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Fiscal Year</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Total Planned</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {budgets.map((budget) => (
-                    <tr
-                      key={budget.id}
-                      className="hover:bg-accent/5 transition-colors cursor-pointer"
-                      onClick={() => setDetailId(budget.id)}
-                    >
-                      <td className="px-6 py-4 text-xs font-bold">{budget.name}</td>
-                      <td className="px-6 py-4 text-xs text-muted-foreground">
-                        {new Date(budget.start_date).toLocaleDateString()} - {new Date(budget.end_date).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-xs">{budget.fiscal_year || '---'}</td>
-                      <td className="px-6 py-4 text-right text-xs font-bold">
-                        {budget.currency} {Number(budget.total_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge variant={statusVariant[budget.status] ?? 'secondary'}>{budget.status}</Badge>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => recomputeMutation.mutate({ tenantSlug: effectiveTenant, budgetID: budget.id })}
-                            disabled={recomputeMutation.isPending}
-                            title="Recompute actuals from the ledger"
-                          >
-                            <RefreshCw className={`h-3.5 w-3.5 ${recomputeMutation.isPending ? 'animate-spin' : ''}`} />
-                          </Button>
-                          {budget.status === 'draft' && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => approveMutation.mutate({ tenantSlug: effectiveTenant, budgetID: budget.id })}
-                              disabled={approveMutation.isPending}
-                              title="Approve"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {!isLoading && budgets.length === 0 && (
-            <div className="p-12 text-center text-muted-foreground">No budgets created yet.</div>
-          )}
+          <div className="px-2 pb-2">
+            <DataTable<Budget>
+              columns={columns}
+              rows={budgets}
+              rowKey={(b) => b.id}
+              loading={isLoading}
+              error={!!error}
+              onRowClick={(b) => setDetailId(b.id)}
+              storageKey="budgets-table"
+              showExportCsv
+              exportFileName={`budgets-${orgSlug || 'export'}`}
+              emptyState={
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="h-16 w-16 rounded-full bg-accent/40 flex items-center justify-center mb-4 mx-auto">
+                    <Inbox className="h-7 w-7 text-muted-foreground" />
+                  </div>
+                  <p className="text-lg font-semibold text-foreground">No budgets created yet.</p>
+                </div>
+              }
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -407,7 +361,7 @@ function CreateBudgetDialog({
                         >
                           <option value="revenue">Revenue</option>
                           <option value="expense">Expense</option>
-                          <option value="capital">Capital</option>
+                          <option value="capex">Capital</option>
                           <option value="other">Other</option>
                         </select>
                       </td>
