@@ -141,6 +141,10 @@ export function useSubscription() {
     isDemo,
     hasFeature: (code: string) => isExempt || (info?.features?.includes(code) ?? false),
     getLimit: (key: string) => (isExempt ? Infinity : (info?.limits?.[key] ?? Infinity)),
+    // Product codes the tenant has actually self-activated (distinct from `features`, which is
+    // plan entitlement — a tenant can be entitled to a product and still have turned it off).
+    // Exempt tenants (platform owner/demo/service-charge) see every app.
+    activeProducts: isExempt ? undefined : (info?.activeProducts ?? []),
     store: subStore,
   };
 }

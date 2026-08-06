@@ -11,6 +11,7 @@ import { ThemeToggle } from './theme-toggle';
 
 import { userHasPermission } from '@/lib/auth/permissions';
 import { useBranding } from '@/providers/branding-provider';
+import { useSubscription } from '@/hooks/use-subscription';
 import { TenantFilter } from './tenant-filter';
 import { OutletFilter } from './outlet-filter';
 import { useVisibleServices, type ServiceKey } from '@bengo-hub/shared-ui-lib/app-switcher';
@@ -64,11 +65,11 @@ export function Header({ onMenuClick }: HeaderProps) {
       'treasury.banking.manage',
       'treasury.users.manage',
     ], 'or');
-  // activeServiceTags is deliberately omitted (undefined): no browser-safe endpoint currently
-  // returns a tenant's active subscription SERVICE TAGS (only feature codes, via useSubscription).
-  // useVisibleServices fails OPEN in that case — identical to today's un-gated behavior — until
-  // subscriptions-api exposes one under the tenant-scoped JWT route.
-  const services = useVisibleServices({ orgSlug, urls: SERVICE_URLS, canManageLinks: !!canManageLinks });
+  // activeProducts is undefined while the subscription lookup is in flight/unknown — fails open
+  // (shows everything) until it resolves, matching this codebase's existing "never block the UI
+  // on a subscription-fetch failure" convention.
+  const { activeProducts } = useSubscription();
+  const services = useVisibleServices({ orgSlug, urls: SERVICE_URLS, canManageLinks: !!canManageLinks, activeServiceTags: activeProducts });
 
   return (
     <header className="sticky top-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between">
