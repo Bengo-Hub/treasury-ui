@@ -126,6 +126,9 @@ export interface CreateInvoiceRequest {
   notes?: string;
   terms?: string;
   discount_mode?: string;
+  /** Document-level "Global Discount" — an absolute amount already resolved from the UI's
+   * flat/percent toggle (mirrors line-level discount_amount, never a raw percentage). */
+  discount_amount?: number | string;
   shipping_amount?: number | string;
   transport?: Record<string, any>;
   reference_id?: string;
@@ -148,6 +151,8 @@ export interface UpdateInvoiceRequest {
   currency?: string;
   notes?: string;
   terms?: string;
+  discount_mode?: string;
+  discount_amount?: number | string;
   shipping_amount?: number | string;
   transport?: Record<string, any>;
   /** Originating outlet/branch that made the sale (optional; null/omit = tenant-wide / HQ). */
