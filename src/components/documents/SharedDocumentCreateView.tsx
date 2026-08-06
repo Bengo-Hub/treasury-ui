@@ -291,6 +291,15 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       if (existingShipping > 0) setShippingAmount(existingShipping);
     }
 
+    // Rehydrate the document-level Global Discount on edit — as a flat amount (the stored value
+    // IS always an already-resolved amount; there's nothing to re-derive a percentage from), so
+    // re-saving an edited invoice without touching this field doesn't silently zero it out.
+    const existingDiscount = Number((existing as { discount_amount?: string }).discount_amount ?? 0);
+    if (!isQuotation && existingDiscount > 0) {
+      setGlobalDiscountMode('flat');
+      setGlobalDiscount(existingDiscount);
+    }
+
     setInitialized(true);
   }, [isEdit, existing, initialized, isQuotation, existingInvoice, existingQuotation, today, defaultSecondary]);
 
@@ -431,6 +440,12 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         (createMutation as ReturnType<typeof useCreateQuotation>).mutate(base, { onSuccess: onClose, onError: handleSaveError });
       }
     } else {
+      // Global Discount is entered as flat OR percent (TotalsSection's own toggle); the backend
+      // only ever accepts a resolved absolute amount (discount_amount), same convention as every
+      // per-line discount input — resolve it here rather than let the raw percentage leak
+      // through into a field the backend would otherwise treat as a KES amount.
+      const globalDiscountAmt =
+        globalDiscountMode === 'percent' ? (subtotal * globalDiscount) / 100 : globalDiscount;
       const base = {
         customer_id:     customerId ?? undefined,
         crm_customer_id: crmCustomerId ?? undefined,
@@ -446,6 +461,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         outlet_id:      outletId,
         metadata,
         lines:          linePayload,
+        discount_amount: globalDiscountAmt > 0 ? globalDiscountAmt : undefined,
+        discount_mode:   globalDiscountAmt > 0 ? 'total' : undefined,
         shipping_amount: addShipping && shippingAmount > 0 ? shippingAmount : undefined,
         transport:       addShipping && Object.keys(transport).length > 0 ? transport : undefined,
       };
@@ -458,7 +475,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         );
       }
     }
-  }, [form, customerDetails, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, handleSaveError, addShipping, shippingAmount, transport, selectedOutlet]);
+  }, [form, customerDetails, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, handleSaveError, addShipping, shippingAmount, transport, selectedOutlet, subtotal, globalDiscount, globalDiscountMode]);
 
   if (isEdit && existingLoading) {
     return (
