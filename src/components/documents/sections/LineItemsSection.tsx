@@ -1,9 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Package, Plus, Search, X } from 'lucide-react';
+import { SearchableCombobox, type ComboboxOption } from '@bengo-hub/shared-ui-lib';
 import { useInventoryItems } from '@/hooks/use-inventory';
 import type { InventoryItem } from '@/lib/api/inventory';
+import { useTaxCodes } from '@/hooks/use-tax';
+import type { TaxCode } from '@/lib/api/tax';
 import { MarginPanel } from '../MarginPanel';
 
 type SearchState = 'EMPTY' | 'SEARCHING' | 'RESULTS_FOUND' | 'LINKED';
@@ -191,6 +194,47 @@ function ItemCombobox({ tenant, line, onUpdate, onRequestCreate }: ComboboxProps
   );
 }
 
+interface TaxCodeCellProps {
+  line: LineRow;
+  options: ComboboxOption[];
+  codesByCode: Map<string, TaxCode>;
+  onUpdate: (patch: Partial<LineRow>) => void;
+  className?: string;
+}
+
+// TaxCodeCell replaces the old free-typed "Tax%" number input with a searchable combobox of the
+// tenant's actual tax codes — the applicable code is selected, not typed, so a line's tax rate can
+// never drift from a registered code (and, for eTIMS-activated tenants, the KRA band the item is
+// registered under). ItemCombobox's selectItem already stamps line.tax_code from the chosen
+// catalog item's own default; this just makes that pre-selection visible/editable instead of the
+// number input silently ignoring it. A legacy line that only ever carried a bare tax_rate (no
+// tax_code — an older draft, or a line typed before this fix shipped) is matched to the tax code
+// with the same rate for display, so it doesn't render as unset.
+function TaxCodeCell({ line, options, codesByCode, onUpdate, className }: TaxCodeCellProps) {
+  const displayValue = useMemo(() => {
+    if (line.tax_code) return line.tax_code;
+    const byRate = [...codesByCode.values()].find(tc => Number(tc.rate) === line.tax_rate);
+    return byRate?.code ?? '';
+  }, [line.tax_code, line.tax_rate, codesByCode]);
+
+  return (
+    <SearchableCombobox
+      options={options}
+      value={displayValue}
+      onChange={(code, opt) => {
+        const tc = code ? codesByCode.get(code) : undefined;
+        onUpdate({ tax_code: code || undefined, tax_rate: tc ? Number(tc.rate) : 0 });
+        void opt;
+      }}
+      placeholder="Tax code…"
+      searchPlaceholder="Search tax codes…"
+      emptyText="No tax codes configured"
+      clearable={false}
+      className={className}
+    />
+  );
+}
+
 interface LineItemsSectionProps {
   tenant: string;
   lines: LineRow[];
@@ -203,6 +247,24 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
   const updateLine = useCallback((idx: number, patch: Partial<LineRow>) => {
     onChange(lines.map((l, i) => i === idx ? { ...l, ...patch } : l));
   }, [lines, onChange]);
+
+  const { data: taxCodesData } = useTaxCodes(tenant);
+  const activeTaxCodes = useMemo(
+    () => (taxCodesData?.tax_codes ?? []).filter(tc => tc.is_active),
+    [taxCodesData],
+  );
+  const taxCodesByCode = useMemo(
+    () => new Map(activeTaxCodes.map(tc => [tc.code, tc])),
+    [activeTaxCodes],
+  );
+  const taxCodeOptions: ComboboxOption[] = useMemo(
+    () => activeTaxCodes.map(tc => ({
+      value: tc.code,
+      label: `${tc.name} (${Number(tc.rate)}%)`,
+      hint: tc.kra_code || undefined,
+    })),
+    [activeTaxCodes],
+  );
 
   const removeLine = (idx: number) => {
     if (lines.length > 1) onChange(lines.filter((_, i) => i !== idx));
@@ -307,9 +369,12 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
                   className="w-full rounded-lg py-1.5 px-1 text-xs text-center font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
               </div>
               <div className="col-span-1 pt-5">
-                <input type="number" min="0" max="100" step="0.1" value={line.tax_rate || ''}
-                  onChange={e => updateLine(idx, { tax_rate: parseFloat(e.target.value) || 0 })}
-                  className="w-full rounded-lg py-1.5 px-1 text-xs text-center font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+                <TaxCodeCell
+                  line={line}
+                  options={taxCodeOptions}
+                  codesByCode={taxCodesByCode}
+                  onUpdate={patch => updateLine(idx, patch)}
+                />
               </div>
               <div className="col-span-1 pt-5">
                 <input type="number" min="0" step="0.01" value={line.discount_amount || ''}
@@ -369,12 +434,15 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
                   onChange={e => updateLine(idx, { unit_price: parseFloat(e.target.value) || 0 })}
                   className="w-full min-h-11 rounded-lg px-3 text-sm font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
               </label>
-              <label className="space-y-1">
-                <span className="text-[11px] font-bold text-muted-foreground">Tax %</span>
-                <input type="number" min="0" max="100" step="0.1" value={line.tax_rate || ''}
-                  onChange={e => updateLine(idx, { tax_rate: parseFloat(e.target.value) || 0 })}
-                  className="w-full min-h-11 rounded-lg px-3 text-sm font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
-              </label>
+              <div className="space-y-1">
+                <span className="text-[11px] font-bold text-muted-foreground">Tax code</span>
+                <TaxCodeCell
+                  line={line}
+                  options={taxCodeOptions}
+                  codesByCode={taxCodesByCode}
+                  onUpdate={patch => updateLine(idx, patch)}
+                />
+              </div>
               <label className="space-y-1">
                 <span className="text-[11px] font-bold text-muted-foreground">Discount</span>
                 <input type="number" min="0" step="0.01" value={line.discount_amount || ''}
