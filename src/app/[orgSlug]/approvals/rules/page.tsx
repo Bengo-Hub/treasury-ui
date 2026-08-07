@@ -1,6 +1,8 @@
 'use client';
 
-import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildApprovalRuleColumns } from './approval-rule-columns';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
   useApprovalRules,
@@ -10,11 +12,11 @@ import {
 } from '@/hooks/useApprovals';
 import type { ApprovalModule, ApprovalRule, ApprovalStep } from '@/lib/api/approvals';
 import { userHasPermission, userHasRole } from '@/lib/auth/permissions';
-import { APPROVAL_MODULE_GROUPS, MODULE_LABEL, ROLE_OPTIONS, roleLabel } from '@/lib/documents/approvals';
+import { APPROVAL_MODULE_GROUPS, ROLE_OPTIONS } from '@/lib/documents/approvals';
 import { useAuthStore } from '@/store/auth';
-import { AlertTriangle, ArrowLeft, Minus, Plus, Shield, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Shield, X } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 interface StepDraft {
@@ -139,13 +141,19 @@ export default function ApprovalRulesPage() {
     });
   }
 
-  function band(rule: ApprovalRule) {
-    const min = rule.min_amount.toLocaleString();
-    return rule.max_amount != null ? `${min} – ${rule.max_amount.toLocaleString()}` : `${min} and above`;
-  }
-
   const rows = rules ?? [];
   const saving = createRule.isPending || updateRule.isPending;
+
+  const columns = useMemo(
+    () =>
+      buildApprovalRuleColumns({
+        onEdit: (rule) => startEdit(rule),
+        onDelete: (rule) => handleDelete(rule),
+        canChange,
+        canDelete,
+      }),
+    [canChange, canDelete],
+  );
 
   return (
     <>
@@ -167,67 +175,17 @@ export default function ApprovalRulesPage() {
 
         <Card>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground">Rule</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground">Module</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground">Amount Band</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground">Steps</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground">Active</th>
-                    <th className="px-6 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {isLoading ? (
-                    <tr><td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">Loading rules...</td></tr>
-                  ) : isError ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center">
-                        <AlertTriangle className="h-10 w-10 mx-auto text-destructive/60 mb-3" />
-                        <p className="text-muted-foreground">Couldn&apos;t load approval rules</p>
-                        <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>Retry</Button>
-                      </td>
-                    </tr>
-                  ) : rows.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center">
-                        <Shield className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-                        <p className="text-muted-foreground">No approval rules. Documents are processed without approval until a rule is added.</p>
-                      </td>
-                    </tr>
-                  ) : (
-                    rows.map((rule) => (
-                      <tr key={rule.id} className="hover:bg-accent/30 transition-colors">
-                        <td className="px-6 py-4 font-medium">{rule.name}</td>
-                        <td className="px-6 py-4">{MODULE_LABEL[rule.module] ?? rule.module}</td>
-                        <td className="px-6 py-4 tabular-nums">{band(rule)}</td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-1">
-                            {rule.steps.map((s) => (
-                              <Badge key={s.id ?? s.sequence} variant="outline">{s.sequence}. {roleLabel(s.approver_role)}</Badge>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <Badge variant={rule.is_active ? 'success' : 'outline'}>{rule.is_active ? 'Active' : 'Inactive'}</Badge>
-                        </td>
-                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                          {canChange && (
-                            <Button variant="ghost" size="sm" onClick={() => startEdit(rule)}>Edit</Button>
-                          )}
-                          {canDelete && (
-                            <Button variant="ghost" size="sm" aria-label="Delete rule" className="text-destructive hover:text-destructive" onClick={() => handleDelete(rule)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="px-2 pb-2">
+              <DataTable<ApprovalRule>
+                columns={columns}
+                rows={rows}
+                rowKey={(r) => r.id}
+                loading={isLoading}
+                error={isError}
+                onRetry={() => refetch()}
+                storageKey="approval-rules-table"
+                emptyText="No approval rules. Documents are processed without approval until a rule is added."
+              />
             </div>
           </CardContent>
         </Card>
