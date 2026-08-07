@@ -30,6 +30,10 @@ export interface TransactionItem {
   transaction_cost?: string;
   crm_contact_id?: string;
   provider_reference?: string;
+  /** Denormalized snapshot of which configured gateway/account this payment moved through (e.g.
+   *  "Equity Bank Uganda") — lets a tenant trace exactly how they were paid, not just the generic
+   *  method bucket. Empty for methods with no named config (cash) or predating this field. */
+  gateway_name?: string;
   /** Customer snapshot from the intent metadata (REQ-005) — empty when the source recorded none. */
   customer_name?: string;
   created_at: string;

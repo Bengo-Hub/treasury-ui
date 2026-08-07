@@ -5,6 +5,7 @@
 
 import { Badge, Button } from '@/components/ui/base';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
+import { getPaymentMethodLabel } from '@bengo-hub/shared-ui-lib';
 import type { TransactionItem } from '@/lib/api/analytics';
 import { ArrowUpRight, Eye, Loader2, RefreshCw, UserRound } from 'lucide-react';
 
@@ -80,9 +81,9 @@ export function buildTransactionColumns(cb: TransactionColumnCallbacks): DataTab
       accessor: (t) => t.payment_method,
       render: (t) => (
         <div>
-          <div>{t.payment_method}</div>
-          {t.provider_reference && t.payment_method?.includes('mpesa') && (
-            <div className="text-[10px] text-green-700 dark:text-green-400 font-mono mt-0.5" title="M-Pesa Receipt No.">
+          <div>{getPaymentMethodLabel(t.payment_method, t.gateway_name)}</div>
+          {t.provider_reference && (
+            <div className="text-[10px] text-muted-foreground font-mono mt-0.5" title="Provider reference">
               {t.provider_reference}
             </div>
           )}
