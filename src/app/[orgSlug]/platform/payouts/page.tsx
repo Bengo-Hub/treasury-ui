@@ -1,25 +1,18 @@
 'use client';
 
-import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
-import { Pagination } from '@/components/ui/pagination';
+import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { usePayoutHistory } from '@/hooks/use-analytics';
 import { usePlatformBalance, usePlatformBanks, useCreatePlatformRecipient } from '@/hooks/use-platform-payouts';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import type { PayoutRecord } from '@/lib/api/analytics';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildPlatformPayoutColumns } from './payout-history-columns';
 import { Building2, Calendar, Command, Filter, Landmark, Loader2, Plus, ArrowRight, Search, ShieldCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 const ITEMS_PER_PAGE = 20;
-
-const statusBadgeVariant: Record<string, 'success' | 'default' | 'error' | 'warning'> = {
-  completed: 'success',
-  processing: 'default',
-  failed: 'error',
-  pending: 'warning',
-};
 
 function defaultDateRange(): { from: string; to: string } {
   const to = new Date();
@@ -84,6 +77,7 @@ export default function PlatformPayoutsPage() {
   useMemo(() => { setPage(1); }, [searchQuery, statusFilter, dateFrom, dateTo]);
 
   const statusOptions = ['all', 'completed', 'processing', 'pending', 'failed'];
+  const payoutColumns = useMemo(() => buildPlatformPayoutColumns(), []);
 
   const handleCreateRecipient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -257,65 +251,31 @@ export default function PlatformPayoutsPage() {
         </div>
 
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            {loadingPayouts && (
-              <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" /> Loading payout history...
-              </div>
-            )}
-            {!loadingPayouts && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Reference</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Amount</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Fee</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Net Amount</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Transactions</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Period</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {paginatedItems.map((payout: PayoutRecord) => (
-                    <tr key={payout.id} className="hover:bg-accent/5 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs font-bold">{payout.reference}</td>
-                      <td className="px-6 py-4 text-right font-bold text-xs">{payout.currency} {payout.amount}</td>
-                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">
-                        {parseFloat(payout.fee) > 0 ? `${payout.currency} ${payout.fee}` : '\u2014'}
-                      </td>
-                      <td className="px-6 py-4 text-right font-bold text-xs">{payout.currency} {payout.net_amount}</td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge variant={statusBadgeVariant[payout.status] ?? 'outline'}>
-                          {payout.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-right text-xs">{payout.transaction_count}</td>
-                      <td className="px-6 py-4 text-xs text-muted-foreground">
-                        {new Date(payout.period_start).toLocaleDateString()} &ndash; {new Date(payout.period_end).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">{new Date(payout.created_at).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {!loadingPayouts && filtered.length === 0 && (
-              <div className="text-center py-12 border-t border-border">
-                <Building2 className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-                <h4 className="font-bold text-muted-foreground">No payouts found</h4>
-                <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
-                  {statusFilter !== 'all' || searchQuery
-                    ? 'Try adjusting your filters or search query.'
-                    : 'Trigger equity distribution or manual settlements to see activity here.'}
-                </p>
-              </div>
-            )}
+          <div className="px-2 pb-2">
+            <DataTable
+              columns={payoutColumns}
+              rows={paginatedItems}
+              rowKey={(p) => p.id}
+              loading={loadingPayouts}
+              storageKey="platform-payout-history-table"
+              emptyState={
+                <div className="text-center">
+                  <Building2 className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+                  <h4 className="font-bold text-muted-foreground">No payouts found</h4>
+                  <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
+                    {statusFilter !== 'all' || searchQuery
+                      ? 'Try adjusting your filters or search query.'
+                      : 'Trigger equity distribution or manual settlements to see activity here.'}
+                  </p>
+                </div>
+              }
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              total={filtered.length}
+              pageSize={ITEMS_PER_PAGE}
+            />
           </div>
-          {!loadingPayouts && filtered.length > 0 && (
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-          )}
         </CardContent>
       </Card>
 
