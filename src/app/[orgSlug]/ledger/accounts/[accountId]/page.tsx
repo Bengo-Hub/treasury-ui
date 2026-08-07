@@ -2,13 +2,16 @@
 
 import { Badge, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildLedgerLineColumns, type LedgerLineRow } from './ledger-line-columns';
 import { useAccountLedger } from '@/hooks/use-ledger';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
-import { ArrowLeft, BookOpen, Landmark, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, BookOpen, Landmark, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useMemo } from 'react';
 
 const typeColors: Record<string, string> = {
   asset: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
@@ -29,6 +32,12 @@ export default function AccountLedgerPage() {
   const { data, isLoading, isError, refetch, isFetching } = useAccountLedger(effectiveTenant, accountId);
 
   const currency = data?.lines?.[0]?.currency || 'KES';
+
+  const ledgerRows: LedgerLineRow[] = useMemo(
+    () => (data?.lines ?? []).map((line, i) => ({ ...line, _key: `${line.journal_entry_id ?? line.entry_number ?? 'line'}-${i}` })),
+    [data],
+  );
+  const ledgerColumns = useMemo(() => buildLedgerLineColumns(), []);
 
   return (
     <SubscriptionGate feature="ledger_posting">
@@ -124,52 +133,19 @@ export default function AccountLedgerPage() {
           )}
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading && (
-            <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" /> Loading account ledger...
-            </div>
-          )}
-          {!isLoading && !isError && data && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Entry #</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Reference</th>
-                    <th className="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Debit</th>
-                    <th className="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Credit</th>
-                    <th className="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Balance</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {(data.lines ?? []).map((line, i) => (
-                    <tr key={`${line.journal_entry_id ?? line.entry_number ?? 'line'}-${i}`} className="hover:bg-accent/5 transition-colors">
-                      <td className="px-6 py-3 text-xs">{new Date(line.transaction_date).toLocaleDateString()}</td>
-                      <td className="px-6 py-3 font-mono text-xs font-bold">{line.entry_number || '---'}</td>
-                      <td className="px-6 py-3 max-w-[240px] truncate text-xs">{line.description || '---'}</td>
-                      <td className="px-6 py-3 text-xs capitalize text-muted-foreground">{line.reference_type || '---'}</td>
-                      <td className="px-6 py-3 text-right text-xs font-bold">
-                        {Number(line.debit_amount) > 0 ? Number(line.debit_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 }) : ''}
-                      </td>
-                      <td className="px-6 py-3 text-right text-xs font-bold">
-                        {Number(line.credit_amount) > 0 ? Number(line.credit_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 }) : ''}
-                      </td>
-                      <td className="px-6 py-3 text-right text-xs font-bold tabular-nums">
-                        {Number(line.running_balance).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {!isLoading && !isError && data && (data.lines ?? []).length === 0 && (
-            <div className="p-12 text-center text-muted-foreground">
-              No transactions posted to this account yet.
-            </div>
-          )}
+          <div className="px-2 pb-2">
+            <DataTable<LedgerLineRow>
+              columns={ledgerColumns}
+              rows={ledgerRows}
+              rowKey={(l) => l._key}
+              loading={isLoading}
+              error={isError}
+              storageKey="account-ledger-table"
+              showExportCsv
+              exportFileName={`account-ledger-${data?.account_code || accountId}`}
+              emptyText="No transactions posted to this account yet."
+            />
+          </div>
         </CardContent>
       </Card>
     </div>

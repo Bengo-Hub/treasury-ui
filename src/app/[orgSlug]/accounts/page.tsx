@@ -1,11 +1,10 @@
 'use client';
 
-import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/utils/currency';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
   useAccounts,
@@ -14,25 +13,15 @@ import {
   useDeactivateAccount,
 } from '@/hooks/use-accounts';
 import type { Account } from '@/lib/api/accounts';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildAccountColumns } from './account-columns';
 import {
-  BookOpen,
-  Landmark,
   Loader2,
   Plus,
   Search,
-  Trash2,
 } from 'lucide-react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
-
-const typeColors: Record<string, string> = {
-  asset: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  liability: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
-  equity: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
-  revenue: 'bg-green-500/10 text-green-500 border-green-500/20',
-  expense: 'bg-red-500/10 text-red-500 border-red-500/20',
-};
+import { useMemo, useState } from 'react';
 
 const accountTypes = ['asset', 'liability', 'equity', 'revenue', 'expense'] as const;
 const currencies = ['KES', 'USD', 'EUR'] as const;
@@ -89,6 +78,16 @@ export default function AccountsPage() {
     const matchesType = typeFilter === 'all' || acc.account_type === typeFilter;
     return matchesSearch && matchesType;
   });
+
+  const columns = useMemo(
+    () =>
+      buildAccountColumns({
+        orgSlug,
+        isPlatformOwner,
+        onDeactivate: (account) => setDeleteAccount(account),
+      }),
+    [orgSlug, isPlatformOwner],
+  );
 
   function openCreate() {
     setFormData(emptyForm);
@@ -202,74 +201,20 @@ export default function AccountsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-12 flex justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {filtered.map((account) => (
-                <div
-                  key={account.id}
-                  className="px-6 py-4 flex items-center justify-between hover:bg-accent/5 transition-colors cursor-pointer group"
-                  onClick={() => openEdit(account)}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-xl bg-accent/30 flex items-center justify-center border border-border">
-                      <Landmark className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-muted-foreground">
-                          {account.account_code}
-                        </span>
-                        <h4 className="text-sm font-bold group-hover:text-primary transition-colors">
-                          {account.account_name}
-                        </h4>
-                      </div>
-                      <Badge className={cn('mt-1', typeColors[account.account_type])}>
-                        {account.account_type}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-sm font-bold tabular-nums">{formatCurrency(Number(account.balance), account.currency)}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        Balance
-                      </p>
-                    </div>
-                    {isPlatformOwner && (
-                      <button
-                        type="button"
-                        aria-label={`Deactivate account ${account.account_code} ${account.account_name}`}
-                        className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteAccount(account);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                    <Link
-                      href={`/${orgSlug}/ledger/accounts/${account.id}`}
-                      aria-label={`View ledger for ${account.account_code} ${account.account_name}`}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <BookOpen className="h-3.5 w-3.5" /> Ledger
-                    </Link>
-                  </div>
-                </div>
-              ))}
-              {filtered.length === 0 && (
-                <div className="p-12 text-center text-muted-foreground">
-                  No accounts match your search.
-                </div>
-              )}
-            </div>
-          )}
+          <div className="px-2 pb-2">
+            <DataTable<Account>
+              columns={columns}
+              rows={filtered}
+              rowKey={(a) => a.id}
+              loading={isLoading}
+              onRowClick={(a) => openEdit(a)}
+              rowClassName={() => 'group cursor-pointer'}
+              storageKey="accounts-table"
+              showExportCsv
+              exportFileName={`chart-of-accounts-${orgSlug || 'export'}`}
+              emptyText="No accounts match your search."
+            />
+          </div>
         </CardContent>
       </Card>
 
