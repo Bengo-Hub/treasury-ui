@@ -7,18 +7,16 @@ import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useAuthStore } from '@/store/auth';
 import { exportTransactionsCSV, type TransactionItem } from '@/lib/api/analytics';
 import { apiClient } from '@/lib/api/client';
-import { Pagination } from '@/components/ui/pagination';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildTransactionColumns } from './transaction-columns';
 import { cn } from '@/lib/utils';
 import {
-    ArrowUpRight,
     Calendar,
     Download,
-    Eye,
     FileText,
     Filter,
     Loader2,
     Receipt,
-    RefreshCw,
     Search,
     UserRound,
     X,
@@ -157,6 +155,26 @@ export default function TransactionsPage() {
   // Reset to page 1 when filters change
   useMemo(() => { setPage(1); }, [searchQuery, statusFilter, typeFilter, serviceFilter]);
 
+  const columns = useMemo(
+    () =>
+      buildTransactionColumns({
+        orgSlug,
+        onViewDetail: (txn) => setDetailTxn(txn),
+        onCheckStatus: (txn) => void handleCheckStatus(txn),
+        onStatementClick: (txn) => {
+          if (txn.crm_contact_id) {
+            setStatementTxn({
+              id: txn.crm_contact_id,
+              name: txn.customer_name || 'Customer',
+              tenant: txn.tenant_id || txnTenant || '',
+            });
+          }
+        },
+        checkingStatusId,
+      }),
+    [orgSlug, txnTenant, checkingStatusId],
+  );
+
   const statusOptions = ['all', 'succeeded', 'pending', 'processing', 'failed', 'cancelled'];
   const methodOptions = ['all', 'mpesa', 'card', 'cash', 'bank_transfer', 'cod'];
 
@@ -254,133 +272,23 @@ export default function TransactionsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            {isLoading && (
-              <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" /> Loading transactions…
-              </div>
-            )}
-            {!isLoading && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Reference</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Type</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Source</th>
-                    {/* REQ-005 audit: customer comes from the intent's metadata snapshot when
-                        the source recorded one; cashier is N/A on payment intents (it lives on
-                        the pos order / journal created_by). */}
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Customer</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Method</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Amount</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Fee</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Date</th>
-                    <th className="text-center px-3 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {paginatedItems.map((txn: TransactionItem) => (
-                    <tr key={txn.id} className="hover:bg-accent/5 transition-colors cursor-pointer">
-                      <td className="px-6 py-4 font-mono text-xs font-bold">{txn.reference_id}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <ArrowUpRight className="h-3.5 w-3.5 text-green-500" />
-                          <span className="capitalize text-xs font-medium">{txn.reference_type || 'payment'}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-xs">{txn.source_service || '—'}</td>
-                      <td className="px-6 py-4 text-xs">
-                        {txn.crm_contact_id ? (
-                          <button
-                            type="button"
-                            className="text-primary hover:underline underline-offset-2 text-left"
-                            title="View customer statement"
-                            onClick={(e: React.MouseEvent) => {
-                              e.stopPropagation();
-                              setStatementTxn({
-                                id: txn.crm_contact_id!,
-                                name: txn.customer_name || 'Customer',
-                                tenant: txn.tenant_id || txnTenant || '',
-                              });
-                            }}
-                          >
-                            {txn.customer_name || 'View statement'}
-                          </button>
-                        ) : (
-                          txn.customer_name || '—'
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-xs">
-                        <div>{txn.payment_method}</div>
-                        {txn.provider_reference && txn.payment_method?.includes('mpesa') && (
-                          <div className="text-[10px] text-green-700 dark:text-green-400 font-mono mt-0.5" title="M-Pesa Receipt No.">
-                            {txn.provider_reference}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right font-bold text-xs">{txn.currency} {txn.amount}</td>
-                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">{txn.transaction_cost && parseFloat(txn.transaction_cost) > 0 ? `${txn.currency} ${txn.transaction_cost}` : '—'}</td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge variant={txn.status === 'succeeded' ? 'success' : txn.status === 'pending' || txn.status === 'processing' ? 'warning' : 'error'}>
-                          {txn.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">{new Date(txn.created_at).toLocaleString()}</td>
-                      <td className="px-3 py-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {/* View details — all transactions */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            title="View transaction details"
-                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); setDetailTxn(txn); }}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
-                          {/* Check Status — M-Pesa processing transactions */}
-                          {txn.payment_method?.includes('mpesa') && txn.status === 'processing' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0"
-                              title="Query Daraja for current transaction status"
-                              disabled={checkingStatusId === txn.id}
-                              onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleCheckStatus(txn); }}
-                            >
-                              {checkingStatusId === txn.id
-                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                : <RefreshCw className="h-3.5 w-3.5" />}
-                            </Button>
-                          )}
-                          {/* CRM contact link */}
-                          {txn.crm_contact_id && (
-                            <a
-                              href={`${MARKETFLOW_UI_URL}/${orgSlug}/contacts/${txn.crm_contact_id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="View CRM contact"
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
-                            >
-                              <UserRound className="h-3.5 w-3.5" />
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {!isLoading && filtered.length === 0 && (
-              <div className="p-12 text-center text-muted-foreground">No transactions match your filters.</div>
-            )}
+          <div className="px-2 pb-2">
+            <DataTable<TransactionItem>
+              columns={columns}
+              rows={paginatedItems}
+              rowKey={(txn) => txn.id}
+              loading={isLoading}
+              storageKey="transactions-table"
+              showExportCsv
+              exportFileName="transactions"
+              emptyText="No transactions match your filters."
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              total={filtered.length}
+              pageSize={ITEMS_PER_PAGE}
+            />
           </div>
-          {!isLoading && filtered.length > 0 && (
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-          )}
         </CardContent>
       </Card>
 
