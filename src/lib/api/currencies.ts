@@ -52,3 +52,12 @@ export function setExchangeRate(tenant: string, body: SetRateRequest): Promise<E
 export function convertCurrency(tenant: string, from: string, to: string, amount: number | string): Promise<ConvertResponse> {
   return apiClient.get<ConvertResponse>(`${BASE}/${tenant}/exchange-rates/convert`, { from, to, amount: String(amount) });
 }
+
+/**
+ * Platform-owner only: trigger a live forex-rate fetch from the configured "forex_provider"
+ * gateway (see platform/page.tsx's gateway card). Doubles as a connectivity/API-key test — a bad
+ * key surfaces via `error`, same UX as a payment gateway's Test action.
+ */
+export function fetchLiveForexRates(): Promise<{ success: boolean; rates_upserted?: number; error?: string }> {
+  return apiClient.post(`${BASE}/platform/currency/fetch-now`, {});
+}

@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api/client';
 import { fetchTenantDefaults, listPlatformTenants, type TenantResponse } from '@/lib/api/tenant';
 import { PaymentAccountFields, EMPTY_PAYMENT_ACCOUNT, type PaymentAccount } from '@/components/payments/payment-account-form';
+import { fetchLiveForexRates } from '@/lib/api/currencies';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildFeeRuleColumns } from './fee-rule-columns';
 import {
@@ -33,8 +34,10 @@ import {
   DollarSign,
   Eye,
   EyeOff,
+  Globe,
   Info,
   KeyRound,
+  Landmark,
   Loader2,
   Megaphone,
   Pencil,
@@ -57,6 +60,10 @@ const GATEWAY_TYPES = [
   { value: 'mpesa_paybill', label: 'M-Pesa Paybill' },
   { value: 'mpesa_till', label: 'M-Pesa Till' },
   { value: 'cod', label: 'Cash on Delivery (COD)' },
+  { value: 'bank_transfer', label: 'Bank Transfer (e.g. Equity Bank Uganda)' },
+  { value: 'mtn_momo', label: 'MTN Mobile Money' },
+  { value: 'airtel_money', label: 'Airtel Money' },
+  { value: 'forex_provider', label: 'Forex Rate Provider (not a payment method)' },
 ] as const;
 
 const CREDENTIAL_KEYS: Record<string, string[]> = {
@@ -64,6 +71,16 @@ const CREDENTIAL_KEYS: Record<string, string[]> = {
   mpesa_paybill: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password'],
   mpesa_till: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password'],
   cod: [],
+  // No API credentials — the tenant's bank account is shown to payers via name/public_shortcode
+  // (edited from the gateway detail, not this creation modal); confirmation is manual.
+  bank_transfer: [],
+  mtn_momo: ['subscription_key', 'api_user', 'api_key', 'target_environment', 'base_url'],
+  airtel_money: ['client_id', 'client_secret', 'country', 'currency', 'base_url'],
+  // forex_provider is a platform-only pseudo-gateway: it stores the exchangerate-api.com API key
+  // via the SAME encrypted-credential storage as every payment gateway, so it shows up here
+  // instead of needing a bespoke secret-management screen. It never appears in a tenant's payment
+  // method list (see gateways.PaymentMethodToGatewayType — "forex_provider" maps to nothing).
+  forex_provider: ['api_key'],
 };
 
 const FEE_GATEWAY_OPTIONS = [
@@ -84,30 +101,46 @@ function getGatewayIcon(gatewayType: string) {
   if (gatewayType === 'paystack') {
     return <CreditCard className="h-5 w-5 text-blue-600" />;
   }
-  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till') {
+  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till' || gatewayType === 'mtn_momo' || gatewayType === 'airtel_money') {
     return <Smartphone className="h-5 w-5 text-green-600" />;
   }
   if (gatewayType === 'cod') {
     return <Banknote className="h-5 w-5 text-amber-600" />;
+  }
+  if (gatewayType === 'bank_transfer') {
+    return <Landmark className="h-5 w-5 text-indigo-600" />;
+  }
+  if (gatewayType === 'forex_provider') {
+    return <Globe className="h-5 w-5 text-teal-600" />;
   }
   return <CreditCard className="h-5 w-5 text-primary" />;
 }
 
 function getGatewayIconBg(gatewayType: string) {
   if (gatewayType === 'paystack') return 'bg-blue-100 dark:bg-blue-900/30';
-  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till') return 'bg-green-100 dark:bg-green-900/30';
+  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till' || gatewayType === 'mtn_momo' || gatewayType === 'airtel_money') return 'bg-green-100 dark:bg-green-900/30';
   if (gatewayType === 'cod') return 'bg-amber-100 dark:bg-amber-900/30';
+  if (gatewayType === 'bank_transfer') return 'bg-indigo-100 dark:bg-indigo-900/30';
+  if (gatewayType === 'forex_provider') return 'bg-teal-100 dark:bg-teal-900/30';
   return 'bg-primary/10';
 }
 
 function getIntegrationTip(gatewayType: string) {
   if (gatewayType === 'paystack') return 'Configure these URLs in your Paystack dashboard';
   if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till') return 'Configure these URLs in your Safaricom portal';
+  if (gatewayType === 'mtn_momo') return 'Configure these values from your MTN MoMo Developer Portal app';
+  if (gatewayType === 'airtel_money') return 'Configure these values from your Airtel Money OpenAPI dashboard';
+  if (gatewayType === 'bank_transfer') return 'No credentials needed — set the account name/number as the gateway Name and public shortcode';
+  if (gatewayType === 'forex_provider') return 'Get a free API key at exchangerate-api.com — used to auto-fetch live rates every 6h';
   return '';
 }
 
 function isMpesa(gatewayType: string) {
   return gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till';
+}
+
+function isForexProvider(gatewayType: string) {
+  return gatewayType === 'forex_provider';
 }
 
 function CopyableUrl({ label, url, onSave }: { label: string; url?: string; onSave?: (newUrl: string) => void }) {
@@ -199,6 +232,8 @@ export default function PlatformPage() {
   const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims' | 'payments' | 'encryption' | 'backups' | 'documents'>('gateways');
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
+  const [fetchingForexId, setFetchingForexId] = useState<string | null>(null);
+  const [forexFetchResults, setForexFetchResults] = useState<Record<string, { success: boolean; rates_upserted?: number; error?: string }>>({});
   const [registeringC2bId, setRegisteringC2bId] = useState<string | null>(null);
   const [showAddGateway, setShowAddGateway] = useState(false);
   const [editingGateway, setEditingGateway] = useState<GatewayConfig | null>(null);
@@ -253,6 +288,27 @@ export default function PlatformPage() {
       }));
     } finally {
       setTestingId(null);
+    }
+  };
+
+  const handleFetchForex = async (gw: GatewayConfig) => {
+    setFetchingForexId(gw.id);
+    setForexFetchResults((prev) => {
+      const next = { ...prev };
+      delete next[gw.id];
+      return next;
+    });
+    try {
+      const result = await fetchLiveForexRates();
+      setForexFetchResults((prev) => ({ ...prev, [gw.id]: result }));
+      if (result.success) toast.success(`Fetched ${result.rates_upserted ?? 0} live rates`);
+      else toast.error(result.error || 'Forex fetch failed');
+    } catch (e: any) {
+      const message = e?.response?.data?.error || e?.message || 'Forex fetch failed';
+      setForexFetchResults((prev) => ({ ...prev, [gw.id]: { success: false, error: message } }));
+      toast.error(message);
+    } finally {
+      setFetchingForexId(null);
     }
   };
 
@@ -400,17 +456,56 @@ export default function PlatformPage() {
                                 Register C2B
                               </Button>
                             )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={isTesting || testMutation.isPending}
-                              onClick={() => handleTestGateway(gw)}
-                            >
-                              {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                              Test
-                            </Button>
+                            {isForexProvider(gw.gateway_type) ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={fetchingForexId === gw.id}
+                                onClick={() => handleFetchForex(gw)}
+                                title="Test the API key and fetch live rates now (also runs automatically every 6h)"
+                              >
+                                {fetchingForexId === gw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+                                Fetch now
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={isTesting || testMutation.isPending}
+                                onClick={() => handleTestGateway(gw)}
+                              >
+                                {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                                Test
+                              </Button>
+                            )}
                           </div>
                         </div>
+
+                        {/* Forex fetch result feedback */}
+                        {isForexProvider(gw.gateway_type) && forexFetchResults[gw.id] && (
+                          <div className={cn(
+                            "rounded-lg border px-4 py-3",
+                            forexFetchResults[gw.id].success
+                              ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20"
+                              : "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20"
+                          )}>
+                            {forexFetchResults[gw.id].success ? (
+                              <div className="flex items-center gap-2">
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                                  {forexFetchResults[gw.id].rates_upserted ?? 0} rates fetched
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <XCircle className="h-4 w-4 text-red-600" />
+                                <span className="text-sm font-medium text-red-700 dark:text-red-400">
+                                  {forexFetchResults[gw.id].error || 'Fetch failed'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Test result feedback */}
                         {isTesting && (

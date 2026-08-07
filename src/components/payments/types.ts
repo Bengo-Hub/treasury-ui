@@ -30,11 +30,14 @@ export interface PaymentDetails {
   verify_url?: string;
 }
 
-export type GatewayType = 'paystack' | 'mpesa' | 'cod' | 'wallet';
+export type GatewayType = 'paystack' | 'mpesa' | 'cod' | 'wallet' | 'mtn_momo' | 'airtel_money' | 'bank_transfer';
 
 export const GATEWAY_LABELS: Record<GatewayType, string> = {
   paystack: 'Paystack',
   mpesa: 'M-Pesa',
   cod: 'Cash on Delivery',
   wallet: 'Pay with Wallet',
+  mtn_momo: 'MTN Mobile Money',
+  airtel_money: 'Airtel Money',
+  bank_transfer: 'Bank Transfer',
 };

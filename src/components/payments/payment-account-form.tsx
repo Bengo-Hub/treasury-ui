@@ -36,6 +36,10 @@ export interface PaymentAccount {
   mpesa_paybill: string;
   mpesa_paybill_account: string;
   mpesa_till: string;
+  // Uganda mobile money — same "merchant number payers dial/enter" shape as M-Pesa Till, just a
+  // different rail. Country-agnostic fields (a Kenyan MTN/Airtel number works the same way).
+  mtn_momo_number: string;
+  airtel_money_number: string;
   instructions: string;
 }
 
@@ -44,6 +48,7 @@ export const EMPTY_PAYMENT_ACCOUNT: PaymentAccount = {
   postal_code: '', country: '', address: '', tax_pin: '', vat_registered: false,
   vat_registered_on: '', bank_name: '', account_name: '', account_number: '',
   bank_branch: '', branch_code: '', mpesa_paybill: '', mpesa_paybill_account: '', mpesa_till: '',
+  mtn_momo_number: '', airtel_money_number: '',
   instructions: '',
 };
 
@@ -175,8 +180,10 @@ export function PaymentAccountFields({ acct, onChange, showVat = false, orgSlug 
           {field('M-Pesa Paybill No.', 'mpesa_paybill', 'e.g. 522533')}
           {field('Paybill Account No.', 'mpesa_paybill_account', 'e.g. your business ref')}
           {field('M-Pesa Till', 'mpesa_till', 'e.g. 5204512')}
+          {field('MTN Mobile Money No.', 'mtn_momo_number', 'e.g. 0771234567')}
+          {field('Airtel Money No.', 'airtel_money_number', 'e.g. 0701234567')}
         </div>
-        <p className="text-[11px] text-muted-foreground mt-2">For Paybill, payers enter the Paybill No. then the Account No. as the reference. Till is a single Buy-Goods number.</p>
+        <p className="text-[11px] text-muted-foreground mt-2">For Paybill, payers enter the Paybill No. then the Account No. as the reference. Till and the mobile money numbers are single merchant numbers payers pay directly.</p>
       </div>
 
       <div className="space-y-1.5">

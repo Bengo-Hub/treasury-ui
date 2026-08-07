@@ -1,16 +1,19 @@
 'use client';
 
+import { AirtelMoneyPaymentModal } from '@/components/payments/AirtelMoneyPaymentModal';
+import { BankTransferPaymentModal } from '@/components/payments/BankTransferPaymentModal';
 import { CodPaymentModal } from '@/components/payments/CodPaymentModal';
 import { CodLogo, MpesaLogo, PaystackLogo } from '@/components/payments/logos';
 import { WalletLogo } from '@/components/payments/logos/WalletLogo';
 import { MpesaPaymentModal } from '@/components/payments/MpesaPaymentModal';
+import { MTNMoMoPaymentModal } from '@/components/payments/MTNMoMoPaymentModal';
 import { PaystackPaymentModal } from '@/components/payments/PaystackPaymentModal';
 import { WalletPaymentModal } from '@/components/payments/WalletPaymentModal';
 import type { GatewayType, PaymentDetails } from '@/components/payments/types';
 import { GATEWAY_LABELS } from '@/components/payments/types';
 import { Card } from '@/components/ui/base';
 import { sendToParent } from '@/lib/embed-messages';
-import { ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronRight, Landmark, Loader2, Smartphone } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
 
@@ -30,6 +33,9 @@ function parseGateways(param: string | null): GatewayType[] {
   if (list.includes('mpesa')) allowed.push('mpesa');
   if (list.includes('wallet')) allowed.push('wallet');
   if (list.includes('cod')) allowed.push('cod');
+  if (list.includes('mtn_momo')) allowed.push('mtn_momo');
+  if (list.includes('airtel_money')) allowed.push('airtel_money');
+  if (list.includes('bank_transfer')) allowed.push('bank_transfer');
   return allowed;
 }
 
@@ -398,6 +404,54 @@ function PayPageContent() {
                     <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                   </button>
                 )}
+                {gateways.includes('mtn_momo') && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenGateway('mtn_momo')}
+                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                  >
+                    <div className="h-14 w-14 shrink-0 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                      <Smartphone className="h-6 w-6 text-amber-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.mtn_momo}</p>
+                      <p className="text-xs text-muted-foreground">Approve a prompt on your phone</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                  </button>
+                )}
+                {gateways.includes('airtel_money') && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenGateway('airtel_money')}
+                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                  >
+                    <div className="h-14 w-14 shrink-0 rounded-xl bg-red-500/10 flex items-center justify-center">
+                      <Smartphone className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.airtel_money}</p>
+                      <p className="text-xs text-muted-foreground">Approve a prompt on your phone</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                  </button>
+                )}
+                {gateways.includes('bank_transfer') && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenGateway('bank_transfer')}
+                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                  >
+                    <div className="h-14 w-14 shrink-0 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+                      <Landmark className="h-6 w-6 text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.bank_transfer}</p>
+                      <p className="text-xs text-muted-foreground">Transfer directly to the seller&apos;s bank account</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -431,6 +485,27 @@ function PayPageContent() {
       )}
       {openGateway === 'wallet' && (
         <WalletPaymentModal
+          details={effectiveDetails}
+          embed={embed}
+          onClose={() => setOpenGateway(null)}
+        />
+      )}
+      {openGateway === 'mtn_momo' && (
+        <MTNMoMoPaymentModal
+          details={effectiveDetails}
+          embed={embed}
+          onClose={() => setOpenGateway(null)}
+        />
+      )}
+      {openGateway === 'airtel_money' && (
+        <AirtelMoneyPaymentModal
+          details={effectiveDetails}
+          embed={embed}
+          onClose={() => setOpenGateway(null)}
+        />
+      )}
+      {openGateway === 'bank_transfer' && (
+        <BankTransferPaymentModal
           details={effectiveDetails}
           embed={embed}
           onClose={() => setOpenGateway(null)}
