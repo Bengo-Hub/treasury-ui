@@ -28,6 +28,7 @@ import { useGenerateReceiptFromIntent } from '@/hooks/use-invoices';
 import { useTransmitPosSaleNow } from '@/hooks/use-tax';
 import { DocPreview } from '@/components/documents/DocPreview';
 import { EtimsResponseModal, type EtimsResponseRow } from '@/components/tax/etims-response-modal';
+import { StatementDialog } from '@/components/statement-dialog';
 import { toast } from 'sonner';
 
 const MARKETFLOW_UI_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexafrica.com';
@@ -83,6 +84,12 @@ export default function TransactionsPage() {
   const [etrResult, setEtrResult] = useState<{ rows: EtimsResponseRow[]; payload: unknown } | null>(null);
   const [previewReceiptId, setPreviewReceiptId] = useState<string | null>(null);
   const [detailTxn, setDetailTxn] = useState<TransactionItem | null>(null);
+  // The AR statement is keyed on the CRM contact UUID (see StatementDialog / ClientsManager's
+  // identical pattern) — tenant resolves from the TRANSACTION's own tenant_id when present (the
+  // platform-owner all-tenants aggregate lists rows across many tenants) so a row for tenant B
+  // never queries tenant A's (the viewer's own org) AR data. Falls back to the page's resolved
+  // tenant for the ordinary single-tenant view, where tenant_id may be absent.
+  const [statementTxn, setStatementTxn] = useState<{ id: string; name: string; tenant: string } | null>(null);
   const [checkingStatusId, setCheckingStatusId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -283,7 +290,27 @@ export default function TransactionsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-xs">{txn.source_service || '—'}</td>
-                      <td className="px-6 py-4 text-xs">{txn.customer_name || '—'}</td>
+                      <td className="px-6 py-4 text-xs">
+                        {txn.crm_contact_id ? (
+                          <button
+                            type="button"
+                            className="text-primary hover:underline underline-offset-2 text-left"
+                            title="View customer statement"
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              setStatementTxn({
+                                id: txn.crm_contact_id!,
+                                name: txn.customer_name || 'Customer',
+                                tenant: txn.tenant_id || txnTenant || '',
+                              });
+                            }}
+                          >
+                            {txn.customer_name || 'View statement'}
+                          </button>
+                        ) : (
+                          txn.customer_name || '—'
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-xs">
                         <div>{txn.payment_method}</div>
                         {txn.provider_reference && txn.payment_method?.includes('mpesa') && (
@@ -364,6 +391,18 @@ export default function TransactionsPage() {
           docType="payment_receipt"
           tenant={receiptTenant}
           onClose={() => setPreviewReceiptId(null)}
+        />
+      )}
+
+      {/* Customer AR statement — opened from the Customer column, keyed on crm_contact_id */}
+      {statementTxn && statementTxn.tenant && (
+        <StatementDialog
+          kind="customer"
+          open={!!statementTxn}
+          onClose={() => setStatementTxn(null)}
+          tenant={statementTxn.tenant}
+          entityId={statementTxn.id}
+          name={statementTxn.name}
         />
       )}
 
