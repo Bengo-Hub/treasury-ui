@@ -1,11 +1,13 @@
 'use client';
 
-import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { BankAccountVerify } from '@/components/payments/bank-account-verify';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildBankAccountColumns, buildUnreconciledColumns } from './reconciliation-columns';
 import { cn } from '@/lib/utils';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
@@ -17,18 +19,16 @@ import {
   useUnreconciled,
   useLedgerTransactions,
 } from '@/hooks/use-reconciliation';
-import type { StatementLine } from '@/lib/api/reconciliation';
+import type { BankAccount, StatementLine } from '@/lib/api/reconciliation';
 import {
-  Building2,
   CheckCircle2,
-  FileSpreadsheet,
   Link2,
   Loader2,
   Plus,
   RefreshCw,
   Upload,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 const inputClasses =
   'w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none';
@@ -86,6 +86,7 @@ function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
   });
 
   const accounts = data?.accounts ?? [];
+  const columns = useMemo(() => buildBankAccountColumns(), []);
 
   function handleCreate() {
     createMutation.mutate(form, {
@@ -107,41 +108,17 @@ function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
 
       <Card>
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-12 flex justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : isError ? (
-            <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              Failed to load bank accounts. Check your connection and try again.
-            </div>
-          ) : accounts.length === 0 ? (
-            <div className="p-12 text-center text-muted-foreground">
-              No bank accounts yet. Add one to start reconciling.
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {accounts.map((acct) => (
-                <div
-                  key={acct.id}
-                  className="px-6 py-4 flex items-center justify-between hover:bg-accent/5 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-xl bg-accent/30 flex items-center justify-center border border-border">
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold">{acct.account_name}</h4>
-                      <p className="text-xs text-muted-foreground">
-                        {acct.bank_name} &middot; {acct.account_number}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="outline">{acct.currency}</Badge>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="px-2 pb-2">
+            <DataTable<BankAccount>
+              columns={columns}
+              rows={accounts}
+              rowKey={(a) => a.id}
+              loading={isLoading}
+              error={isError}
+              storageKey="reconciliation-bank-accounts-table"
+              emptyText="No bank accounts yet. Add one to start reconciling."
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -377,6 +354,8 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
     );
   }
 
+  const unreconciledColumns = useMemo(() => buildUnreconciledColumns(), []);
+
   return (
     <div className="space-y-6">
       {/* Auto Reconcile Section */}
@@ -428,59 +407,24 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-12 flex justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : isError ? (
-            <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              Failed to load unreconciled items. Check your connection and try again.
-            </div>
-          ) : lines.length === 0 ? (
-            <div className="p-12 text-center text-muted-foreground">
-              <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-green-500" />
-              All items are reconciled.
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {lines.map((line) => {
-                const isDebit = parseFloat(line.amount) < 0;
-                return (
-                  <div
-                    key={line.id}
-                    className={cn(
-                      'px-6 py-4 flex items-center justify-between hover:bg-accent/5 transition-colors cursor-pointer',
-                      selectedLine?.id === line.id && 'bg-primary/5 border-l-2 border-l-primary',
-                    )}
-                    onClick={() => setSelectedLine(selectedLine?.id === line.id ? null : line)}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-xl bg-accent/30 flex items-center justify-center border border-border">
-                        <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold">{line.description}</h4>
-                        <p className="text-xs text-muted-foreground">
-                          {line.transaction_date} &middot; Ref: {line.reference || 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p
-                        className={cn(
-                          'text-sm font-bold',
-                          isDebit ? 'text-red-500' : 'text-green-500',
-                        )}
-                      >
-                        {isDebit ? '' : '+'}{line.amount}
-                      </p>
-                      <Badge variant="warning">Unmatched</Badge>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <div className="px-2 pb-2">
+            <DataTable<StatementLine>
+              columns={unreconciledColumns}
+              rows={lines}
+              rowKey={(l) => l.id}
+              loading={isLoading}
+              error={isError}
+              onRowClick={(l) => setSelectedLine(selectedLine?.id === l.id ? null : l)}
+              rowClassName={(l) => cn('cursor-pointer', selectedLine?.id === l.id && 'bg-primary/5')}
+              storageKey="reconciliation-unreconciled-table"
+              emptyState={
+                <div className="text-center text-muted-foreground">
+                  <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-green-500" />
+                  All items are reconciled.
+                </div>
+              }
+            />
+          </div>
         </CardContent>
       </Card>
 
