@@ -1,21 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { EtimsResponseModal } from '@/components/tax/etims-response-modal';
+import { useMemo, useState } from 'react';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildTransmissionColumns, TransmissionExpanded } from './transmission-columns';
 import { useEtimsTransmissions, useRetryTransmission } from '@/hooks/use-tax';
-import type { EtimsTransmissionRecord } from '@/lib/api/tax';
-
-// localDocHref maps a transmission to its local treasury document, so download/print reuses the
-// document's own preview-PDF (which already renders the KRA fiscal strip + QR via FiscalInfoPanel).
-function localDocHref(tenantSlug: string, record: EtimsTransmissionRecord): string | null {
-  const id = record.invoice_id || record.source_id;
-  if (!id) return null;
-  // Only invoices have a treasury document detail page (preview-PDF + FiscalInfoPanel). POS/
-  // ordering sales fiscalise on their own receipt surface; vendor bills have no detail route.
-  if (record.source === 'invoice') return `/${tenantSlug}/invoices/${id}`;
-  return null;
-}
 
 interface Props { tenantSlug: string }
 
@@ -27,131 +15,6 @@ const STATUS_OPTIONS = [
   { value: 'dead_letter', label: 'Dead letter' },
 ];
 
-const STATUS_COLORS: Record<string, string> = {
-  transmitted: 'bg-primary/10 text-primary',
-  pending: 'bg-muted text-muted-foreground',
-  failed: 'bg-destructive/10 text-destructive',
-  retrying: 'bg-muted text-foreground',
-  dead_letter: 'border border-destructive/40 bg-destructive/5 text-destructive',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  dead_letter: 'dead letter',
-};
-
-const SOURCE_LABELS: Record<string, string> = {
-  invoice: 'Invoice',
-  pos_sale: 'POS Sale',
-  ordering_sale: 'Order',
-  vendor_bill: 'Purchase Bill',
-};
-
-function TransmissionRow({ record, tenantSlug, onRetry, retrying }: {
-  record: EtimsTransmissionRecord;
-  tenantSlug: string;
-  onRetry: (id: string) => void;
-  retrying: boolean;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-
-  return (
-    <>
-      <tr
-        className="border-t hover:bg-muted cursor-pointer"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{record.id.slice(0, 8)}…</td>
-        <td className="px-4 py-3 text-xs">
-          <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">
-            {SOURCE_LABELS[record.source] ?? record.source}
-          </span>
-        </td>
-        <td className="px-4 py-3 text-xs font-mono">{record.invc_no ? record.invc_no : '—'}</td>
-        <td className="px-4 py-3 text-xs font-mono">{record.etims_receipt_number || '—'}</td>
-        <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{record.etims_cu_number || '—'}</td>
-        <td className="px-4 py-3">
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[record.transmission_status] ?? 'bg-muted text-foreground'}`}>
-            {STATUS_LABELS[record.transmission_status] ?? record.transmission_status}
-          </span>
-        </td>
-        <td className="px-4 py-3 text-xs text-muted-foreground">
-          {record.transmitted_at
-            ? new Date(record.transmitted_at).toLocaleString()
-            : new Date(record.created_at).toLocaleString()}
-        </td>
-        <td className="px-4 py-3 text-right">
-          {(record.transmission_status === 'failed' || record.transmission_status === 'dead_letter') && (
-            <button
-              className="rounded border border-primary/40 px-2 py-1 text-xs text-primary hover:bg-primary/10 disabled:opacity-50"
-              disabled={retrying}
-              onClick={(e) => { e.stopPropagation(); onRetry(record.id); }}
-            >
-              {record.transmission_status === 'dead_letter' ? 'Requeue' : 'Retry'}
-            </button>
-          )}
-        </td>
-      </tr>
-      {expanded && (
-        <tr className="border-t bg-muted">
-          <td colSpan={8} className="px-4 py-3 text-xs space-y-1">
-            {record.error_message && (
-              <p className="text-destructive"><span className="font-medium">Error:</span> {record.error_message}</p>
-            )}
-            {record.rcpt_sign && (
-              <p className="font-mono text-muted-foreground break-all"><span className="font-medium">Receipt Signature:</span> {record.rcpt_sign}</p>
-            )}
-            <p className="text-muted-foreground">
-              <span className="font-medium">Retry count:</span> {record.retry_count} &nbsp;|&nbsp;
-              <span className="font-medium">Created:</span> {new Date(record.created_at).toLocaleString()}
-            </p>
-            <div className="mt-1 flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent"
-                onClick={(e) => { e.stopPropagation(); setShowDetails(true); }}
-              >
-                View details
-              </button>
-              {(() => {
-                const href = localDocHref(tenantSlug, record);
-                return href ? (
-                  <Link
-                    href={href}
-                    className="rounded border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Open document / print →
-                  </Link>
-                ) : null;
-              })()}
-            </div>
-          </td>
-        </tr>
-      )}
-      <EtimsResponseModal
-        open={showDetails}
-        onClose={() => setShowDetails(false)}
-        title={`eTIMS Transmission — ${SOURCE_LABELS[record.source] ?? record.source}`}
-        payload={record}
-        rows={[
-          { label: 'Record ID', value: record.id, mono: true },
-          { label: 'Source', value: SOURCE_LABELS[record.source] ?? record.source },
-          { label: 'Status', value: STATUS_LABELS[record.transmission_status] ?? record.transmission_status, danger: record.transmission_status === 'failed' || record.transmission_status === 'dead_letter' },
-          { label: 'eTIMS Invc No', value: record.invc_no || undefined, mono: true },
-          { label: 'KRA Receipt No', value: record.etims_receipt_number, mono: true },
-          { label: 'CU Number', value: record.etims_cu_number, mono: true },
-          { label: 'Receipt signature', value: record.rcpt_sign, mono: true },
-          { label: 'Error', value: record.error_message, danger: true },
-          { label: 'Retry count', value: record.retry_count },
-          { label: 'Transmitted at', value: record.transmitted_at ? new Date(record.transmitted_at).toLocaleString() : undefined },
-          { label: 'Created', value: new Date(record.created_at).toLocaleString() },
-        ]}
-      />
-    </>
-  );
-}
-
 export function TransmissionHistoryTab({ tenantSlug }: Props) {
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
@@ -162,11 +25,17 @@ export function TransmissionHistoryTab({ tenantSlug }: Props) {
 
   const transmissions = data?.transmissions ?? [];
   const total = data?.total ?? 0;
-  const pageCount = Math.ceil(total / limit);
+  const pageCount = Math.max(1, Math.ceil(total / limit));
 
   const handleRetry = (recordId: string) => {
     retry.mutate({ tenantSlug, recordId });
   };
+
+  const columns = useMemo(
+    () => buildTransmissionColumns({ tenantSlug, onRetry: handleRetry, retrying: retry.isPending }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tenantSlug, retry.isPending],
+  );
 
   return (
     <div className="space-y-4">
@@ -194,70 +63,20 @@ export function TransmissionHistoryTab({ tenantSlug }: Props) {
         </button>
       </div>
 
-      {isLoading && (
-        <div className="py-12 text-center text-sm text-muted-foreground">Loading transmissions…</div>
-      )}
-
-      {!isLoading && transmissions.length === 0 && (
-        <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
-          No eTIMS transmissions found{statusFilter ? ` with status "${statusFilter}"` : ''}.
-        </div>
-      )}
-
-      {!isLoading && transmissions.length > 0 && (
-        <>
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-left">
-                <tr>
-                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">ID</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Source</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Invc No</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Receipt #</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">CU Number</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Time</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transmissions.map((rec) => (
-                  <TransmissionRow
-                    key={rec.id}
-                    record={rec}
-                    tenantSlug={tenantSlug}
-                    onRetry={handleRetry}
-                    retrying={retry.isPending}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {pageCount > 1 && (
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{total} total</span>
-              <div className="flex gap-2">
-                <button
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => p - 1)}
-                  className="rounded border px-3 py-1 disabled:opacity-40 hover:bg-muted"
-                >
-                  Previous
-                </button>
-                <span className="px-2 py-1">Page {page + 1} of {pageCount}</span>
-                <button
-                  disabled={page >= pageCount - 1}
-                  onClick={() => setPage((p) => p + 1)}
-                  className="rounded border px-3 py-1 disabled:opacity-40 hover:bg-muted"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+      <DataTable
+        columns={columns}
+        rows={transmissions}
+        rowKey={(r) => r.id}
+        loading={isLoading}
+        storageKey="etims-transmissions-table"
+        emptyText={`No eTIMS transmissions found${statusFilter ? ` with status "${statusFilter}"` : ''}.`}
+        renderExpanded={(record) => <TransmissionExpanded record={record} tenantSlug={tenantSlug} />}
+        page={page + 1}
+        totalPages={pageCount}
+        onPageChange={(p) => setPage(p - 1)}
+        total={total}
+        pageSize={limit}
+      />
     </div>
   );
 }
