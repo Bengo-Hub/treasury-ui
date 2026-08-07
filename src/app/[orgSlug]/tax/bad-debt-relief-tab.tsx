@@ -5,21 +5,14 @@ import { StatCard } from '@/components/charts/StatCard';
 import { money } from '@/components/charts/chart-theme';
 import { useBadDebtRelief, useClaimVATRelief, useTaxProfile } from '@/hooks/use-tax';
 import { ObligationGate } from '@/components/tax/obligation-gate';
-import { AlertTriangle, CheckCircle2, Clock, Info, Loader2 } from 'lucide-react';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildBadDebtReliefColumns } from './bad-debt-relief-columns';
+import { Info } from 'lucide-react';
+import { useMemo } from 'react';
 
 interface Props { tenantSlug: string }
 
 const label = 'text-xs text-muted-foreground';
-
-function StatusPill({ status, days }: { status: string; days: number }) {
-  if (status === 'eligible') {
-    return <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-600"><CheckCircle2 className="h-3 w-3" />Eligible now</span>;
-  }
-  if (status === 'expired') {
-    return <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"><AlertTriangle className="h-3 w-3" />Past 10-yr deadline</span>;
-  }
-  return <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"><Clock className="h-3 w-3" />Eligible in {Math.max(0, days)}d</span>;
-}
 
 /**
  * BadDebtReliefTab — VAT bad-debt relief (VAT Act s.31). Output VAT is remitted on the invoice
@@ -30,6 +23,15 @@ export function BadDebtReliefTab({ tenantSlug }: Props) {
   const { data, isLoading } = useBadDebtRelief(tenantSlug);
   const { data: profile } = useTaxProfile(tenantSlug);
   const claim = useClaimVATRelief();
+  const columns = useMemo(
+    () =>
+      buildBadDebtReliefColumns({
+        onClaim: (c) => claim.mutate({ tenantSlug, invoiceID: c.invoice_id }),
+        claimPending: claim.isPending,
+        claimPendingInvoiceId: claim.variables?.invoiceID,
+      }),
+    [tenantSlug, claim],
+  );
 
   return (
     <ObligationGate
@@ -68,50 +70,14 @@ export function BadDebtReliefTab({ tenantSlug }: Props) {
       {/* Candidates */}
       <Card className="p-4 space-y-3">
         <h3 className="text-sm font-semibold">Unpaid VAT-bearing sales ({data?.candidates.length ?? 0})</h3>
-        {isLoading ? (
-          <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-9 animate-pulse rounded bg-muted" />)}</div>
-        ) : !data || data.candidates.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No unpaid VAT-bearing sales — nothing to reclaim.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-muted-foreground">
-                <tr className="border-b border-border">
-                  <th className="px-2 py-2 font-medium">Invoice</th>
-                  <th className="px-2 py-2 font-medium">Customer</th>
-                  <th className="px-2 py-2 font-medium">Date</th>
-                  <th className="px-2 py-2 font-medium text-right">Recoverable VAT</th>
-                  <th className="px-2 py-2 font-medium">Eligible from</th>
-                  <th className="px-2 py-2 font-medium">Status</th>
-                  <th className="px-2 py-2 font-medium text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.candidates.map((c) => (
-                  <tr key={c.invoice_id} className="border-b border-border/50 hover:bg-accent/5">
-                    <td className="px-2 py-2 font-mono text-xs">{c.invoice_number}</td>
-                    <td className="px-2 py-2">{c.customer_name || '—'}</td>
-                    <td className="px-2 py-2 whitespace-nowrap text-muted-foreground">{c.invoice_date}</td>
-                    <td className="px-2 py-2 text-right tabular-nums font-medium">{money(c.recoverable_vat)}</td>
-                    <td className="px-2 py-2 whitespace-nowrap text-muted-foreground">{c.eligible_from}</td>
-                    <td className="px-2 py-2"><StatusPill status={c.status} days={c.days_until_eligible} /></td>
-                    <td className="px-2 py-2 text-right">
-                      {c.status === 'eligible' && (
-                        <button
-                          onClick={() => claim.mutate({ tenantSlug, invoiceID: c.invoice_id })}
-                          disabled={claim.isPending}
-                          className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                          {claim.isPending && claim.variables?.invoiceID === c.invoice_id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                          Claim relief
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          columns={columns}
+          rows={data?.candidates ?? []}
+          rowKey={(c) => c.invoice_id}
+          loading={isLoading}
+          storageKey="bad-debt-relief-table"
+          emptyText="No unpaid VAT-bearing sales — nothing to reclaim."
+        />
         {data?.notes?.map((n, i) => <p key={i} className="text-xs text-muted-foreground">{n}</p>)}
       </Card>
     </div>
