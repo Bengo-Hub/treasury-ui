@@ -12,7 +12,7 @@ import {
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import type { AccountingPeriod } from '@/lib/api/ledger';
 import { cn } from '@/lib/utils';
-import { CalendarRange, Loader2, Lock, Plus } from 'lucide-react';
+import { CalendarRange, Loader2, Lock, Plus, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 
 const statusVariant: Record<string, 'default' | 'warning' | 'success' | 'error' | 'secondary'> = {
@@ -42,7 +42,7 @@ export default function AccountingPeriodsPage() {
   // Default to the platform owner's own tenant (codevertex); drill-down overrides.
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
-  const { data, isLoading, isError } = useAccountingPeriods(effectiveTenant);
+  const { data, isLoading, isError, refetch, isFetching } = useAccountingPeriods(effectiveTenant);
   const createMutation = useCreatePeriod();
   const closeMutation = useClosePeriod();
 
@@ -93,9 +93,14 @@ export default function AccountingPeriodsPage() {
             Define and close fiscal periods to lock posted entries.
           </p>
         </div>
-        <Button className="gap-2 shadow-lg shadow-primary/20" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> New Period
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" disabled={isFetching} onClick={() => refetch()} title="Refresh periods">
+            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+          </Button>
+          <Button className="gap-2 shadow-lg shadow-primary/20" onClick={openCreate}>
+            <Plus className="h-4 w-4" /> New Period
+          </Button>
+        </div>
       </div>
 
       {isPlatformOwner && !tenantQueryParam && (

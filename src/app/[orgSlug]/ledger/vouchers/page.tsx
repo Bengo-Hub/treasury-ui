@@ -6,7 +6,7 @@ import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/ba
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useJournalEntries } from '@/hooks/use-ledger';
 import { cn } from '@/lib/utils';
-import { BookOpen, Loader2, Plus, Receipt, Search } from 'lucide-react';
+import { BookOpen, Loader2, Plus, Receipt, RefreshCw, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const voucherTypes = ['payment', 'receipt', 'journal', 'sales', 'purchase'] as const;
@@ -28,7 +28,7 @@ export default function VouchersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data, isLoading, error } = useJournalEntries(
+  const { data, isLoading, error, refetch, isFetching } = useJournalEntries(
     effectiveTenant,
     statusFilter !== 'all' ? { status: statusFilter } : undefined,
   );
@@ -78,9 +78,19 @@ export default function VouchersPage() {
               </p>
             </div>
           </div>
-          <Button className="gap-2 shadow-lg shadow-primary/20" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> New Voucher
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={isFetching}
+              onClick={() => refetch()}
+              title="Refresh — pulls newly recorded vouchers if they haven't shown up yet"
+            >
+              <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+            </Button>
+            <Button className="gap-2 shadow-lg shadow-primary/20" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" /> New Voucher
+            </Button>
+          </div>
         </div>
       </div>
 

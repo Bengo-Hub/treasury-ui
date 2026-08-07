@@ -11,8 +11,9 @@ import {
   type ReportTableRow,
 } from '@/components/reports/ReportTable';
 import { Button } from '@/components/ui/base';
+import { cn } from '@/lib/utils';
 import { money } from '@/components/charts/chart-theme';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 
 const num = (v?: string) => (v ? parseFloat(v) || 0 : 0);
 
@@ -57,7 +58,7 @@ export default function CustomerStatementPage() {
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
-  const { data, isLoading, isError } = useCustomerStatement(
+  const { data, isLoading, isError, refetch, isFetching } = useCustomerStatement(
     effectiveTenant,
     contactId,
     undefined,
@@ -87,10 +88,19 @@ export default function CustomerStatementPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="print-hidden">
+      <div className="print-hidden flex items-center justify-between gap-2">
         <Button variant="ghost" size="sm" onClick={() => router.push(`/${orgSlug}/customers`)}>
           <ArrowLeft className="h-4 w-4 mr-1.5" />
           Back to Customers
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isFetching}
+          onClick={() => refetch()}
+          title="Refresh — pulls the latest statement if a payment made elsewhere hasn't shown up yet"
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} />
         </Button>
       </div>
 

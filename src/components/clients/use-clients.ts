@@ -63,13 +63,19 @@ const crmName = (c: CRMContact) =>
  *    CRM-only contacts are added as zero-balance clients.
  */
 export function useClients(tenant: string, search = '') {
-  const { data, isLoading, error } = useInvoices(tenant, {}, !!tenant);
+  const { data, isLoading, error, refetch: refetchInvoices, isFetching: fetchingInvoices } = useInvoices(tenant, {}, !!tenant);
   const invoices = useMemo(() => data?.invoices ?? [], [data]);
 
-  const { data: balances } = useCustomerBalances(tenant, !!tenant);
+  const { data: balances, refetch: refetchBalances, isFetching: fetchingBalances } = useCustomerBalances(tenant, !!tenant);
   // Drive the CRM lookup server-side: empty search loads the whole customer directory, a typed
   // query searches the ENTIRE book (not just the preloaded page) so any customer is findable.
-  const { data: crmContacts = [], isLoading: crmLoading } = useCRMContacts(tenant, search);
+  const { data: crmContacts = [], isLoading: crmLoading, refetch: refetchCrm, isFetching: fetchingCrm } = useCRMContacts(tenant, search);
+
+  // Manual refresh: re-pull all three sources this list is merged from. A fallback for when the
+  // customer_balance_changed/invoice_changed WS push (org-shell.tsx NotificationListener) doesn't
+  // reach the client — e.g. a payment recorded from POS while this tab's socket was reconnecting.
+  const refetch = () => { void refetchInvoices(); void refetchBalances(); void refetchCrm(); };
+  const isFetching = fetchingInvoices || fetchingBalances || fetchingCrm;
 
   const clients = useMemo<ClientRecord[]>(() => {
     const map = new Map<string, ClientRecord>();
@@ -229,5 +235,5 @@ export function useClients(tenant: string, search = '') {
     return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
   }, [invoices, balances, crmContacts]);
 
-  return { clients, invoices, isLoading: isLoading || crmLoading, error };
+  return { clients, invoices, isLoading: isLoading || crmLoading, error, refetch, isFetching };
 }
