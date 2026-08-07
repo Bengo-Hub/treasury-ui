@@ -19,6 +19,7 @@ import {
   FileText,
   Loader2,
   Mail,
+  RefreshCw,
   Search,
   User,
   Wallet,
@@ -90,7 +91,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [searchQuery, setSearchQuery] = useState('');
   // Search drives the CRM lookup server-side (whole directory), then the same query narrows the
   // merged rows client-side below — so a customer is findable even if beyond the preloaded page.
-  const { clients, invoices, isLoading, error } = useClients(tenant, searchQuery);
+  const { clients, invoices, isLoading, error, refetch, isFetching } = useClients(tenant, searchQuery);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [statementClient, setStatementClient] = useState<{ id: string; name: string } | null>(null);
   const [openingClient, setOpeningClient] = useState<ClientRecord | null>(null);
@@ -435,11 +436,23 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-lg font-black tracking-tight text-foreground">Clients</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Your clients merged from documents and the CRM, with balances and statements.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black tracking-tight text-foreground">Clients</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Your clients merged from documents and the CRM, with balances and statements.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isFetching}
+          onClick={() => refetch()}
+          title="Refresh — pulls the latest balances if a payment made elsewhere hasn't shown up yet"
+          className="shrink-0"
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} />
+        </Button>
       </div>
 
       {showOwnOrgHint && (

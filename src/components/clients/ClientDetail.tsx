@@ -4,9 +4,10 @@ import { Badge, Button, Card, CardContent } from '@/components/ui/base';
 import type { Invoice } from '@/lib/api/invoices';
 import { useCustomerStatement } from '@/hooks/use-arpa';
 import { formatCurrency } from '@/lib/utils/currency';
-import { ArrowLeft, Banknote, FileText, Loader2, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, Banknote, FileText, Loader2, Mail, Phone, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
 import type { ClientRecord } from './use-clients';
 import { ReceivePaymentModal } from './ReceivePaymentModal';
 
@@ -39,7 +40,7 @@ export function ClientDetail({ tenant, client, invoices, onBack }: ClientDetailP
   const orgSlug = (params?.orgSlug as string) ?? '';
   const [payOpen, setPayOpen] = useState(false);
 
-  const { data: statement, isLoading: stmtLoading } = useCustomerStatement(
+  const { data: statement, isLoading: stmtLoading, refetch: refetchStatement, isFetching: stmtFetching } = useCustomerStatement(
     tenant,
     client.customerId,
     undefined,
@@ -89,6 +90,15 @@ export function ClientDetail({ tenant, client, invoices, onBack }: ClientDetailP
             )}
           </div>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={stmtFetching}
+          onClick={() => refetchStatement()}
+          title="Refresh — pulls the latest activity if a payment made elsewhere hasn't shown up yet"
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', stmtFetching && 'animate-spin')} />
+        </Button>
         {b && outstanding > 0.0001 && (
           <Button size="sm" onClick={() => setPayOpen(true)}>
             <Banknote className="h-4 w-4 mr-1.5" />

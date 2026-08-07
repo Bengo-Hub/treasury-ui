@@ -6,7 +6,7 @@ import { useAccountLedger } from '@/hooks/use-ledger';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
-import { ArrowLeft, BookOpen, Landmark, Loader2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Landmark, Loader2, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
@@ -26,7 +26,7 @@ export default function AccountLedgerPage() {
   // Default to the platform owner's own tenant (codevertex); drill-down overrides.
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
-  const { data, isLoading, isError } = useAccountLedger(effectiveTenant, accountId);
+  const { data, isLoading, isError, refetch, isFetching } = useAccountLedger(effectiveTenant, accountId);
 
   const currency = data?.lines?.[0]?.currency || 'KES';
 
@@ -41,12 +41,21 @@ export default function AccountLedgerPage() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight">Account Ledger</h1>
           <p className="text-muted-foreground mt-1">
             Per-account transaction history with running balance.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          title="Refresh — pulls newly posted entries if they haven't shown up yet"
+          className="h-9 w-9 rounded-lg border border-border flex items-center justify-center hover:bg-accent/30 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+        </button>
       </div>
 
       {isPlatformOwner && !tenantQueryParam && (

@@ -21,6 +21,7 @@ import {
   FileText,
   Loader2,
   Plus,
+  RefreshCw,
   RotateCcw,
   Send,
   Stamp,
@@ -60,7 +61,7 @@ export default function JournalsPage() {
     return Object.keys(p).length ? p : undefined;
   }, [statusFilter, dateFrom, dateTo, refType]);
 
-  const { data, isLoading, isError } = useJournalEntries(effectiveTenant, listParams);
+  const { data, isLoading, isError, refetch, isFetching } = useJournalEntries(effectiveTenant, listParams);
   const entries = data?.entries ?? [];
 
   // Free-text search (entry #, description, reference id) is applied client-side over the
@@ -94,6 +95,16 @@ export default function JournalsPage() {
               <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
             </TabsList>
           </Tabs>
+          {view === 'entries' && (
+            <Button
+              variant="outline"
+              disabled={isFetching}
+              onClick={() => refetch()}
+              title="Refresh — pulls newly posted entries if they haven't shown up yet"
+            >
+              <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+            </Button>
+          )}
           {view === 'entries' && (
             <Button onClick={() => setCreateOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" /> New Entry
@@ -389,7 +400,7 @@ function JournalEntriesList({
 // ---- Trial Balance View ----
 
 function TrialBalanceView({ tenantSlug }: { tenantSlug: string }) {
-  const { data, isLoading, isError } = useTrialBalance(tenantSlug);
+  const { data, isLoading, isError, refetch, isFetching } = useTrialBalance(tenantSlug);
 
   return (
     <Card>
@@ -398,11 +409,22 @@ function TrialBalanceView({ tenantSlug }: { tenantSlug: string }) {
           <FileText className="h-4 w-4 text-primary" />
           <h3 className="font-bold text-sm uppercase tracking-tight">Trial Balance</h3>
         </div>
-        {data && (
-          <Badge variant={data.is_balanced ? 'success' : 'error'}>
-            {data.is_balanced ? 'Balanced' : 'Unbalanced'}
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {data && (
+            <Badge variant={data.is_balanced ? 'success' : 'error'}>
+              {data.is_balanced ? 'Balanced' : 'Unbalanced'}
+            </Badge>
+          )}
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            title="Refresh trial balance"
+            className="h-8 w-8 rounded-lg border border-border flex items-center justify-center hover:bg-accent/30 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} />
+          </button>
+        </div>
       </CardHeader>
       <CardContent className="p-0">
         {isLoading && (
