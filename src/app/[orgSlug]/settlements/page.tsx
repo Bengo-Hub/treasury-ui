@@ -1,17 +1,17 @@
 'use client';
 
-import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildPayoutColumns } from './payout-columns';
 import { usePayoutHistory } from '@/hooks/use-analytics';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import type { PayoutRecord } from '@/lib/api/analytics';
 import { cn } from '@/lib/utils';
 import {
-    ArrowUpRight,
     Calendar,
     CheckCircle2,
     Clock,
     Download,
-    Loader2,
     Wallet
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -65,6 +65,7 @@ export default function SettlementsPage() {
   }, [payouts]);
 
   const statusOptions = ['all', 'completed', 'settled', 'pending', 'processing', 'failed'];
+  const payoutColumns = useMemo(() => buildPayoutColumns(), []);
 
   return (
     <div className="p-6 space-y-6">
@@ -150,52 +151,17 @@ export default function SettlementsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            {isLoading && (
-              <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" /> Loading payouts…
-              </div>
-            )}
-            {!isLoading && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Reference</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Txns</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Amount</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Fees</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Net</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Period / Created</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {filtered.map((batch: PayoutRecord) => (
-                    <tr key={batch.id} className="hover:bg-accent/5 transition-colors cursor-pointer group">
-                      <td className="px-6 py-4 font-mono text-xs font-bold">{batch.reference}</td>
-                      <td className="px-6 py-4 text-center text-xs">{batch.transaction_count}</td>
-                      <td className="px-6 py-4 text-right text-xs">{batch.currency} {batch.amount}</td>
-                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">{batch.currency} {batch.fee}</td>
-                      <td className="px-6 py-4 text-right text-xs font-bold">{batch.currency} {batch.net_amount}</td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge variant={batch.status === 'completed' || batch.status === 'settled' ? 'success' : batch.status === 'pending' || batch.status === 'processing' ? 'warning' : 'error'}>
-                          {batch.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">
-                        <div className="flex items-center justify-end gap-2">
-                          {batch.period_start ? `${batch.period_start.slice(0, 10)} – ${batch.period_end?.slice(0, 10) ?? ''}` : new Date(batch.created_at).toLocaleString()}
-                          <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {!isLoading && filtered.length === 0 && (
-              <div className="p-12 text-center text-muted-foreground">No payout records match your filters.</div>
-            )}
+          <div className="px-2 pb-2">
+            <DataTable<PayoutRecord>
+              columns={payoutColumns}
+              rows={filtered}
+              rowKey={(b) => b.id}
+              loading={isLoading}
+              storageKey="settlements-table"
+              showExportCsv
+              exportFileName="settlements"
+              emptyText="No payout records match your filters."
+            />
           </div>
         </CardContent>
       </Card>
