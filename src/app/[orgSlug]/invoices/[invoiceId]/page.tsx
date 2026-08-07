@@ -150,6 +150,9 @@ export default function InvoiceDetailPage() {
   const [showDeliverModal, setShowDeliverModal] = useState(false);
   const [receivedBy, setReceivedBy]       = useState('');
   const [deliverNote, setDeliverNote]     = useState('');
+  // Confirm gate for the delivery-note stock actions (dispatch deducts stock; cancel voids the
+  // note) — same shared ConfirmDialog pattern as the approve/send fiscal gate above.
+  const [deliveryConfirm, setDeliveryConfirm] = useState<null | 'dispatch' | 'cancel'>(null);
   const [etimsResp, setEtimsResp]         = useState<any>(null);
   const transmitMut = useTransmitInvoice();
 
@@ -171,11 +174,11 @@ export default function InvoiceDetailPage() {
     );
   }, [invoiceId, rejectReason, rejectMut]);
 
-  const handleDispatch = useCallback(() => {
-    if (!window.confirm('Mark this delivery note as dispatched? This deducts stock (emits a goods-issue) for the delivered items.')) return;
+  const handleDispatch = useCallback(() => setDeliveryConfirm('dispatch'), []);
+  const confirmDispatch = useCallback(() => {
     dispatchMut.mutate(invoiceId, {
-      onSuccess: () => toast.success('Delivery note dispatched'),
-      onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to mark dispatched'),
+      onSuccess: () => { toast.success('Delivery note dispatched'); setDeliveryConfirm(null); },
+      onError: (err: any) => { toast.error(err?.response?.data?.error ?? 'Failed to mark dispatched'); setDeliveryConfirm(null); },
     });
   }, [invoiceId, dispatchMut]);
 
@@ -189,11 +192,11 @@ export default function InvoiceDetailPage() {
     );
   }, [invoiceId, receivedBy, deliverNote, deliverMut]);
 
-  const handleCancelDelivery = useCallback(() => {
-    if (!window.confirm('Cancel this delivery note? It will be marked cancelled.')) return;
+  const handleCancelDelivery = useCallback(() => setDeliveryConfirm('cancel'), []);
+  const confirmCancelDelivery = useCallback(() => {
     cancelDelivMut.mutate(invoiceId, {
-      onSuccess: () => toast.success('Delivery cancelled'),
-      onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to cancel delivery'),
+      onSuccess: () => { toast.success('Delivery cancelled'); setDeliveryConfirm(null); },
+      onError: (err: any) => { toast.error(err?.response?.data?.error ?? 'Failed to cancel delivery'); setDeliveryConfirm(null); },
     });
   }, [invoiceId, cancelDelivMut]);
 
@@ -907,6 +910,19 @@ export default function InvoiceDetailPage() {
           </label>
         )}
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={deliveryConfirm !== null}
+        onOpenChange={(o) => { if (!o) setDeliveryConfirm(null); }}
+        title={deliveryConfirm === 'dispatch' ? 'Mark this delivery note as dispatched?' : 'Cancel this delivery note?'}
+        description={deliveryConfirm === 'dispatch'
+          ? 'This deducts stock (emits a goods-issue) for the delivered items.'
+          : 'It will be marked cancelled.'}
+        confirmLabel={deliveryConfirm === 'dispatch' ? 'Dispatch' : 'Cancel Delivery'}
+        destructive={deliveryConfirm === 'cancel'}
+        isPending={deliveryConfirm === 'dispatch' ? dispatchMut.isPending : cancelDelivMut.isPending}
+        onConfirm={deliveryConfirm === 'dispatch' ? confirmDispatch : confirmCancelDelivery}
+      />
     </div>
   );
 }
