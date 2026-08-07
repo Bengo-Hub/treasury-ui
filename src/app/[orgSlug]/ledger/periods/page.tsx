@@ -1,9 +1,11 @@
 'use client';
 
-import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildPeriodColumns } from './period-columns';
 import {
   useAccountingPeriods,
   useCreatePeriod,
@@ -12,14 +14,8 @@ import {
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import type { AccountingPeriod } from '@/lib/api/ledger';
 import { cn } from '@/lib/utils';
-import { CalendarRange, Loader2, Lock, Plus, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
-
-const statusVariant: Record<string, 'default' | 'warning' | 'success' | 'error' | 'secondary'> = {
-  open: 'success',
-  closing: 'warning',
-  closed: 'secondary',
-};
+import { CalendarRange, Loader2, Plus, RefreshCw } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 const periodTypes = ['monthly', 'quarterly', 'yearly'] as const;
 
@@ -51,6 +47,7 @@ export default function AccountingPeriodsPage() {
   const [formData, setFormData] = useState<PeriodFormData>(emptyForm);
 
   const periods = data?.periods ?? [];
+  const columns = useMemo(() => buildPeriodColumns({ onClose: (period) => setClosePeriodTarget(period) }), []);
 
   const inputClasses =
     'w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none';
@@ -121,64 +118,17 @@ export default function AccountingPeriodsPage() {
           <h3 className="text-sm font-bold uppercase tracking-tight">Periods</h3>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading && (
-            <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" /> Loading accounting periods...
-            </div>
-          )}
-          {!isLoading && !isError && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Start</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">End</th>
-                    <th className="px-6 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {periods.map((period) => (
-                    <tr key={period.id} className="hover:bg-accent/5 transition-colors">
-                      <td className="px-6 py-4 text-sm font-bold">{period.name}</td>
-                      <td className="px-6 py-4 text-xs capitalize text-muted-foreground">{period.period_type}</td>
-                      <td className="px-6 py-4 text-xs">{new Date(period.start_date).toLocaleDateString()}</td>
-                      <td className="px-6 py-4 text-xs">{new Date(period.end_date).toLocaleDateString()}</td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge variant={statusVariant[period.status] ?? 'outline'} className="capitalize">
-                          {period.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {period.status !== 'closed' ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="gap-1.5"
-                            onClick={() => setClosePeriodTarget(period)}
-                            title="Close period"
-                          >
-                            <Lock className="h-3.5 w-3.5" /> Close
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Closed{period.closed_at ? ` · ${new Date(period.closed_at).toLocaleDateString()}` : ''}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {!isLoading && !isError && periods.length === 0 && (
-            <div className="p-12 text-center text-muted-foreground">
-              No accounting periods defined yet.
-            </div>
-          )}
+          <div className="px-2 pb-2">
+            <DataTable<AccountingPeriod>
+              columns={columns}
+              rows={periods}
+              rowKey={(p) => p.id}
+              loading={isLoading}
+              error={isError}
+              storageKey="accounting-periods-table"
+              emptyText="No accounting periods defined yet."
+            />
+          </div>
         </CardContent>
       </Card>
 
