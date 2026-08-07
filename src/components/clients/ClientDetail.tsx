@@ -57,15 +57,24 @@ export function ClientDetail({ tenant, client, invoices, onBack }: ClientDetailP
     [invoices, client],
   );
 
-  // Operational AR ledger first (matches the statement), doc-derived numbers as fallback.
-  const b = client.balance;
-  const totalInvoiced = b ? parseFloat(b.total_invoiced) || 0
-    : statement ? parseFloat(statement.total_invoiced) || 0 : client.totalAmount;
-  const totalPaid = b ? parseFloat(b.total_paid) || 0 : client.paidAmount;
-  const outstanding = b ? parseFloat(b.outstanding_debit) || 0
-    : statement ? parseFloat(statement.closing_balance) || 0 : client.outstanding;
-
+  // The statement (itemized ARTransaction lines) is now the richer source: it includes
+  // settled cash/mpesa/card/paystack sales (a net-zero debit+credit "pos_sale" line each) in
+  // ADDITION to real AR activity (credit sales, payments, credit notes) — CustomerBalance
+  // (`b`) deliberately never reflects settled sales, since they create no debt. Preferring `b`
+  // unconditionally (as before) left these tiles at 0/0/0 for a customer who paid cash in full,
+  // even though the activity table right below clearly showed the sale. Total Paid has no
+  // backend field at all (the statement DTO only exposes total_invoiced/closing_balance) — sum
+  // the lines' Credit column directly, so all three tiles are derived from the SAME data the
+  // table renders and always reconcile with each other.
   const lines = statement?.lines ?? [];
+  const b = client.balance;
+  const totalInvoiced = statement ? parseFloat(statement.total_invoiced) || 0
+    : b ? parseFloat(b.total_invoiced) || 0 : client.totalAmount;
+  const totalPaid = statement
+    ? lines.reduce((sum, l) => sum + (parseFloat(l.credit) || 0), 0)
+    : b ? parseFloat(b.total_paid) || 0 : client.paidAmount;
+  const outstanding = statement ? Math.max(0, parseFloat(statement.closing_balance) || 0)
+    : b ? parseFloat(b.outstanding_debit) || 0 : client.outstanding;
 
   return (
     <div className="p-6 space-y-6">
