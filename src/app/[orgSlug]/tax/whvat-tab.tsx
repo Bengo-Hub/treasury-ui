@@ -4,8 +4,10 @@ import { Card } from '@/components/ui/base';
 import { money } from '@/components/charts/chart-theme';
 import { useWHVATCertificates, useCreateWHVATCertificate, useDeleteWHVATCertificate, useTaxProfile } from '@/hooks/use-tax';
 import { ObligationGate } from '@/components/tax/obligation-gate';
-import { Loader2, Plus, ShieldCheck, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildWhvatColumns } from './whvat-columns';
+import { Loader2, Plus, ShieldCheck } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 interface Props { tenantSlug: string }
 
@@ -26,6 +28,10 @@ export function WHVATTab({ tenantSlug }: Props) {
 
   const certs = data?.certificates ?? [];
   const totalWithheld = certs.reduce((s, c) => s + Number(c.withheld_amount ?? 0), 0);
+  const columns = useMemo(
+    () => buildWhvatColumns({ onDelete: (cert) => del.mutate({ tenantSlug, certID: cert.id }), deletePending: del.isPending }),
+    [tenantSlug, del],
+  );
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,41 +92,14 @@ export function WHVATTab({ tenantSlug }: Props) {
             <h3 className="text-sm font-semibold">Certificates ({certs.length})</h3>
             <span className="text-sm text-muted-foreground">Total withheld credit: <span className="font-semibold text-foreground">{money(totalWithheld)}</span></span>
           </div>
-          {isLoading ? (
-            <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-9 animate-pulse rounded bg-muted" />)}</div>
-          ) : certs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No WHVAT certificates recorded.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left text-muted-foreground">
-                  <tr className="border-b border-border">
-                    <th className="px-2 py-2 font-medium">Certificate</th>
-                    <th className="px-2 py-2 font-medium">Withholder</th>
-                    <th className="px-2 py-2 font-medium">Date</th>
-                    <th className="px-2 py-2 font-medium text-right">Withheld</th>
-                    <th className="px-2 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {certs.map((c) => (
-                    <tr key={c.id} className="border-b border-border/50 hover:bg-accent/5">
-                      <td className="px-2 py-2 font-mono text-xs">{c.certificate_no}</td>
-                      <td className="px-2 py-2">{c.withholder_name || c.withholder_pin || '—'}</td>
-                      <td className="px-2 py-2 whitespace-nowrap text-muted-foreground">{c.cert_date ? new Date(c.cert_date).toLocaleDateString() : '—'}</td>
-                      <td className="px-2 py-2 text-right tabular-nums font-medium">{money(Number(c.withheld_amount))}</td>
-                      <td className="px-2 py-2 text-right">
-                        <button onClick={() => del.mutate({ tenantSlug, certID: c.id })} disabled={del.isPending}
-                          className="text-muted-foreground hover:text-destructive disabled:opacity-50" aria-label="Delete">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DataTable
+            columns={columns}
+            rows={certs}
+            rowKey={(c) => c.id}
+            loading={isLoading}
+            storageKey="whvat-certificates-table"
+            emptyText="No WHVAT certificates recorded."
+          />
         </Card>
       </div>
     </div>

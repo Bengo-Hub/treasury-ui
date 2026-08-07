@@ -3,6 +3,9 @@
 import { formatCurrency } from '@/lib/utils/currency';
 import { useDeductionsSummary, useTaxProfile } from '@/hooks/use-tax';
 import { formatDateRange } from '@/lib/utils/date';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildFlaggedExpenseColumns, type FlaggedExpenseRow } from './deduction-columns';
+import { useMemo } from 'react';
 
 interface Props { tenantSlug: string }
 
@@ -23,6 +26,11 @@ export function DeductionsTab({ tenantSlug }: Props) {
   const { data, isLoading } = useDeductionsSummary(tenantSlug);
   const { data: profile } = useTaxProfile(tenantSlug);
   const showVAT = profile?.vat_registered ?? true; // input-VAT recovery only matters if VAT-registered
+  const flaggedColumns = useMemo(() => buildFlaggedExpenseColumns(), []);
+  const flaggedRows: FlaggedExpenseRow[] = useMemo(
+    () => (data?.flagged ?? []).map((f, i) => ({ ...f, _key: `${f.reference}-${i}` })),
+    [data],
+  );
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (!data) return <p className="text-sm text-muted-foreground">No expense data for this period.</p>;
@@ -59,30 +67,7 @@ export function DeductionsTab({ tenantSlug }: Props) {
       {data.flagged.length > 0 && (
         <div className="rounded-lg border p-4 space-y-2">
           <h3 className="font-semibold text-sm">Flagged costs ({data.flagged.length})</h3>
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm border">
-            <thead className="bg-muted text-left">
-              <tr>
-                <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2">Reference</th>
-                <th className="px-3 py-2">Description</th>
-                <th className="px-3 py-2 text-right">Amount</th>
-                <th className="px-3 py-2">Issue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.flagged.map((f, i) => (
-                <tr key={i} className="border-t align-top">
-                  <td className="px-3 py-2 whitespace-nowrap">{f.date}</td>
-                  <td className="px-3 py-2">{f.reference}</td>
-                  <td className="px-3 py-2">{f.description}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">{money(f.amount)}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{f.reason}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
+          <DataTable columns={flaggedColumns} rows={flaggedRows} rowKey={(f) => f._key} storageKey="tax-deductions-flagged-table" />
         </div>
       )}
     </div>
