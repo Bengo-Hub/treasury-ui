@@ -1,18 +1,16 @@
 'use client';
 
-import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
-import { Pagination } from '@/components/ui/pagination';
+import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { PayBillDialog } from '@/components/bills/PayBillDialog';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildAgingColumns, buildBillColumns } from './bill-columns';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useBills, useAPAging } from '@/hooks/use-bills';
 import { useTransmitVendorBill } from '@/hooks/use-tax';
-import type { Bill, AgingRow } from '@/lib/api/bills';
+import type { Bill } from '@/lib/api/bills';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/utils/currency';
 import {
-  CreditCard,
   Filter,
-  Loader2,
   Plus,
   Receipt,
   Search,
@@ -23,14 +21,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
-
-const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
-  draft: 'secondary',
-  pending: 'warning',
-  paid: 'success',
-  overdue: 'error',
-  cancelled: 'outline',
-};
 
 export default function BillsPage() {
   const router = useRouter();
@@ -92,6 +82,18 @@ export default function BillsPage() {
   const payTarget = useMemo(() => list.find((b: Bill) => b.id === payBillId) ?? null, [list, payBillId]);
 
   const goToNewPurchase = () => router.push(`/${orgSlug}/bills/new`);
+
+  const billColumns = useMemo(
+    () =>
+      buildBillColumns({
+        onPay: (bill) => setPayBillId(bill.id),
+        onTransmit: (bill) => transmit.mutate({ tenantSlug: effectiveTenant, billId: bill.id }),
+        transmitPending: transmit.isPending,
+        transmitPendingBillId: transmit.variables?.billId,
+      }),
+    [effectiveTenant, transmit],
+  );
+  const agingColumns = useMemo(() => buildAgingColumns(), []);
 
   // The Refrens-style landing only shows before any bills exist — i.e. no bills
   // returned with the default (unfiltered) view.
@@ -173,33 +175,13 @@ export default function BillsPage() {
             <h3 className="text-sm font-bold">AP Aging Summary</h3>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Vendor</th>
-                    <th className="text-right px-4 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Current</th>
-                    <th className="text-right px-4 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">1-30</th>
-                    <th className="text-right px-4 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">31-60</th>
-                    <th className="text-right px-4 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">61-90</th>
-                    <th className="text-right px-4 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">90+</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {agingRows.map((row: AgingRow) => (
-                    <tr key={row.entity_id} className="hover:bg-accent/5 transition-colors">
-                      <td className="px-6 py-3 text-xs font-medium">{row.entity_name}</td>
-                      <td className="px-4 py-3 text-right text-xs tabular-nums">{formatCurrency(Number(row.current))}</td>
-                      <td className="px-4 py-3 text-right text-xs tabular-nums">{formatCurrency(Number(row.days_1_to_30))}</td>
-                      <td className="px-4 py-3 text-right text-xs tabular-nums">{formatCurrency(Number(row.days_31_to_60))}</td>
-                      <td className="px-4 py-3 text-right text-xs tabular-nums">{formatCurrency(Number(row.days_61_to_90))}</td>
-                      <td className="px-4 py-3 text-right text-xs tabular-nums">{formatCurrency(Number(row.over_90))}</td>
-                      <td className="px-6 py-3 text-right text-xs font-bold tabular-nums">{formatCurrency(Number(row.total))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="px-2 pb-2">
+              <DataTable
+                columns={agingColumns}
+                rows={agingRows}
+                rowKey={(r) => r.entity_id}
+                storageKey="bills-aging-table"
+              />
             </div>
           </CardContent>
         </Card>
@@ -252,89 +234,23 @@ export default function BillsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            {isLoading && (
-              <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" /> Loading bills...
-              </div>
-            )}
-            {!isLoading && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Bill #</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Vendor</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Amount</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Due Date</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Created</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {paginatedItems.map((bill: Bill) => (
-                    <tr key={bill.id} className="hover:bg-accent/5 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs font-bold">
-                        <div className="flex items-center gap-2">
-                          <span>{bill.bill_number}</span>
-                          {bill.document_type === 'credit_note' ? (
-                            <Badge variant="warning">Credit Note</Badge>
-                          ) : (
-                            <Badge variant="outline">Bill</Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-xs">{bill.vendor_name || '---'}</td>
-                      <td className="px-6 py-4 text-right font-bold text-xs tabular-nums">{formatCurrency(Number(bill.total_amount), bill.currency)}</td>
-                      <td className="px-6 py-4 text-xs">{new Date(bill.due_date).toLocaleDateString()}</td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge variant={statusVariant[bill.status] ?? 'outline'}>
-                          {bill.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-right text-xs text-muted-foreground">
-                        {new Date(bill.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {(bill.status === 'pending' || bill.status === 'overdue') && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-1 text-xs"
-                              onClick={() => setPayBillId(bill.id)}
-                            >
-                              <CreditCard className="h-3 w-3" /> Pay
-                            </Button>
-                          )}
-                          {bill.status !== 'draft' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-1 text-xs"
-                              title="Transmit this purchase to KRA eTIMS (buyer-initiated / self-billed for non-eTIMS suppliers)"
-                              disabled={transmit.isPending}
-                              onClick={() => transmit.mutate({ tenantSlug: effectiveTenant, billId: bill.id })}
-                            >
-                              {transmit.isPending && transmit.variables?.billId === bill.id
-                                ? <Loader2 className="h-3 w-3 animate-spin" />
-                                : <Upload className="h-3 w-3" />} eTIMS
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {!isLoading && filtered.length === 0 && (
-              <div className="p-12 text-center text-muted-foreground">No bills match your filters.</div>
-            )}
+          <div className="px-2 pb-2">
+            <DataTable<Bill>
+              columns={billColumns}
+              rows={paginatedItems}
+              rowKey={(b) => b.id}
+              loading={isLoading}
+              storageKey="bills-table"
+              showExportCsv
+              exportFileName="bills"
+              emptyText="No bills match your filters."
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              total={filtered.length}
+              pageSize={ITEMS_PER_PAGE}
+            />
           </div>
-          {!isLoading && filtered.length > 0 && (
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-          )}
         </CardContent>
       </Card>
       )}
