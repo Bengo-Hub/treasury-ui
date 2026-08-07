@@ -1,19 +1,12 @@
 ﻿'use client';
 
-import { Badge, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useAuditLogs } from '@/hooks/use-audit';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { Activity, Loader2, Shield } from 'lucide-react';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildAuditLogColumns } from './audit-log-columns';
+import { Shield } from 'lucide-react';
 import { useMemo, useState } from 'react';
-
-// Semantic-token tones per action (the codebase convention is semantic tokens, not raw colors).
-const actionColors: Record<string, string> = {
-  create: 'bg-primary/10 text-primary border-primary/20',
-  update: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
-  delete: 'bg-destructive/10 text-destructive border-destructive/20',
-  post: 'bg-green-500/10 text-green-600 border-green-500/20',
-  approve: 'bg-primary/10 text-primary border-primary/20',
-};
 
 export default function AuditHistoryPage() {
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
@@ -39,6 +32,7 @@ export default function AuditHistoryPage() {
       return [log.action, log.resource_type, log.user_email, log.changes].join(' ').toLowerCase().includes(query);
     });
   }, [logs, search]);
+  const columns = useMemo(() => buildAuditLogColumns(), []);
 
   return (
     <div className="p-6 space-y-6">
@@ -75,38 +69,17 @@ export default function AuditHistoryPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" /> Loading audit trail...
-            </div>
-          ) : error ? (
-            <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              Failed to load audit history.
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="p-12 text-center text-muted-foreground">No audit events recorded yet.</div>
-          ) : (
-            <div className="divide-y divide-border">
-              {filtered.map((log) => (
-                <div key={log.id} className="flex items-start justify-between gap-4 px-6 py-4 hover:bg-accent/5 transition-colors">
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-xl border border-border bg-accent/30 p-2">
-                      <Activity className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">{log.action}</p>
-                      <p className="text-xs text-muted-foreground">{log.user_email} · {log.resource_type}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{log.changes || 'No change details provided'}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <Badge className={actionColors[log.action.toLowerCase()] ?? 'bg-muted text-muted-foreground border-border'}>{log.action}</Badge>
-                    <p className="mt-2 text-xs text-muted-foreground">{new Date(log.created_at).toLocaleString()}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="px-2 pb-2">
+            <DataTable
+              columns={columns}
+              rows={filtered}
+              rowKey={(log) => log.id}
+              loading={isLoading}
+              error={!!error}
+              storageKey="audit-history-table"
+              emptyText="No audit events recorded yet."
+            />
+          </div>
         </CardContent>
       </Card>
     </div>
