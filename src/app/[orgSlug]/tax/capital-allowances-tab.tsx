@@ -1,8 +1,10 @@
 'use client';
 
 import { formatCurrency } from '@/lib/utils/currency';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useCapitalAllowanceSchedule, useCAAssets, useCreateCAAsset, useDeleteCAAsset, useUpdateCAAsset } from '@/hooks/use-tax';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildCAAssetColumns } from './ca-asset-columns';
 
 interface Props { tenantSlug: string }
 
@@ -32,6 +34,20 @@ export function CapitalAllowancesTab({ tenantSlug }: Props) {
   const [cost, setCost] = useState('');
 
   const classes = assetsData?.classes ?? [];
+
+  const assetColumns = useMemo(
+    () =>
+      buildCAAssetColumns({
+        classes,
+        onClassify: (asset, code) => {
+          const isBuilding = code === 'CA_IBA' || code === 'CA_COMMERCIAL_BLDG';
+          updateAsset.mutate({ id: asset.id, body: { ca_class_code: code, method: isBuilding ? 'straight_line' : 'reducing_balance' } });
+        },
+        classifyPending: updateAsset.isPending,
+        onRemove: (asset) => deleteAsset.mutate(asset.id),
+      }),
+    [classes, updateAsset, deleteAsset],
+  );
 
   const submit = () => {
     if (!name || !cls || !cost) return;
@@ -120,62 +136,13 @@ export function CapitalAllowancesTab({ tenantSlug }: Props) {
       {assetsData && assetsData.assets.length > 0 && (
         <div className="rounded-lg border p-4 space-y-2">
           <h3 className="font-semibold text-sm">Asset register ({assetsData.total})</h3>
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm border">
-            <thead className="bg-muted text-left">
-              <tr>
-                <th className="px-3 py-2">Name</th>
-                <th className="px-3 py-2">Class</th>
-                <th className="px-3 py-2 text-right">Cost</th>
-                <th className="px-3 py-2 text-right">WDV</th>
-                <th className="px-3 py-2">Purchased</th>
-                <th className="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {assetsData.assets.map((a) => {
-                const unclassified = a.ca_class_code === 'UNCLASSIFIED' || !a.ca_class_code;
-                return (
-                <tr key={a.id} className={`border-t ${a.disposed ? 'opacity-50' : ''}`}>
-                  <td className="px-3 py-2">
-                    {a.name}
-                    {a.source_asset_id && (
-                      <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">from inventory</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {/* Auto-synced inventory assets land UNCLASSIFIED — let the user assign a KRA class inline. */}
-                    {unclassified ? (
-                      <select
-                        className={`${field} py-1 ${unclassified ? 'border-yellow-500/60' : ''}`}
-                        defaultValue=""
-                        disabled={updateAsset.isPending}
-                        onChange={(e) => {
-                          const code = e.target.value;
-                          if (!code) return;
-                          const isBuilding = code === 'CA_IBA' || code === 'CA_COMMERCIAL_BLDG';
-                          updateAsset.mutate({ id: a.id, body: { ca_class_code: code, method: isBuilding ? 'straight_line' : 'reducing_balance' } });
-                        }}
-                      >
-                        <option value="">Classify…</option>
-                        {classes.map((c) => <option key={c.code} value={c.code}>{c.name} ({Number(c.rate)}%)</option>)}
-                      </select>
-                    ) : (
-                      a.ca_class_code
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-right">{money(a.cost)}</td>
-                  <td className="px-3 py-2 text-right">{money(a.written_down_value)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{a.purchase_date?.slice(0, 10)}</td>
-                  <td className="px-3 py-2 text-right">
-                    <button className="text-destructive hover:underline" onClick={() => deleteAsset.mutate(a.id)}>Remove</button>
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          </div>
+          <DataTable
+            columns={assetColumns}
+            rows={assetsData.assets}
+            rowKey={(a) => a.id}
+            rowClassName={(a) => (a.disposed ? 'opacity-50' : undefined)}
+            storageKey="ca-asset-register-table"
+          />
         </div>
       )}
     </div>
