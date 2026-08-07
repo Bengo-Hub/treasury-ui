@@ -21,6 +21,8 @@ import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api/client';
 import { fetchTenantDefaults, listPlatformTenants, type TenantResponse } from '@/lib/api/tenant';
 import { PaymentAccountFields, EMPTY_PAYMENT_ACCOUNT, type PaymentAccount } from '@/components/payments/payment-account-form';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildFeeRuleColumns } from './fee-rule-columns';
 import {
   Banknote,
   Check,
@@ -35,7 +37,6 @@ import {
   KeyRound,
   Loader2,
   Megaphone,
-  MoreVertical,
   Pencil,
   Plus,
   Receipt,
@@ -48,7 +49,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import { type ChangeEvent, useCallback, useEffect, useState } from 'react';
+import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 const GATEWAY_TYPES = [
@@ -63,20 +64,6 @@ const CREDENTIAL_KEYS: Record<string, string[]> = {
   mpesa_paybill: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password'],
   mpesa_till: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password'],
   cod: [],
-};
-
-const FEE_GATEWAY_LABELS: Record<string, string> = {
-  paystack: 'Paystack',
-  mpesa_paybill: 'M-Pesa Paybill',
-  mpesa_till: 'M-Pesa Till',
-  cod: 'Cash on Delivery',
-  all: 'All Gateways',
-};
-
-const FEE_TYPE_LABELS: Record<string, string> = {
-  percentage: 'Percentage',
-  fixed: 'Fixed',
-  tiered: 'Tiered',
 };
 
 const FEE_GATEWAY_OPTIONS = [
@@ -235,6 +222,16 @@ export default function PlatformPage() {
   const feeRules = feeRulesData?.fee_rules ?? [];
   const createFeeRule = useCreatePlatformFeeRule();
   const updateFeeRule = useUpdatePlatformFeeRule();
+  const feeRuleColumns = useMemo(
+    () =>
+      buildFeeRuleColumns({
+        feeMenuOpen,
+        onToggleMenu: setFeeMenuOpen,
+        onEdit: (rule) => { setEditingFeeRule(rule); setShowAddFeeRule(true); },
+        onToggleActive: (rule) => updateFeeRule.mutate({ id: rule.id, data: { is_active: !rule.is_active } }),
+      }),
+    [feeMenuOpen, updateFeeRule],
+  );
 
 
   const handleTestGateway = async (gw: GatewayConfig) => {
@@ -586,83 +583,16 @@ export default function PlatformPage() {
               </Button>
             </CardHeader>
             <CardContent className="p-0">
-              {loadingFeeRules ? (
-                <div className="px-6 py-8 flex items-center justify-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading fee rules...
-                </div>
-              ) : feeRules.length === 0 ? (
-                <div className="px-6 py-8 text-center text-sm text-muted-foreground">
-                  No fee rules configured yet. Use &quot;Add Fee Rule&quot; to define platform-wide fee structures.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase tracking-wider">
-                        <th className="px-6 py-3 font-medium">Gateway</th>
-                        <th className="px-6 py-3 font-medium">Fee Type</th>
-                        <th className="px-6 py-3 font-medium">Percentage</th>
-                        <th className="px-6 py-3 font-medium">Fixed Amount</th>
-                        <th className="px-6 py-3 font-medium">Min / Max</th>
-                        <th className="px-6 py-3 font-medium">Status</th>
-                        <th className="px-6 py-3 font-medium w-12"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {feeRules.map((rule) => (
-                        <tr key={rule.id} className="hover:bg-accent/5 transition-colors">
-                          <td className="px-6 py-4 font-medium text-xs">{FEE_GATEWAY_LABELS[rule.gateway_type] || rule.gateway_type}</td>
-                          <td className="px-6 py-4">
-                            <Badge variant="default">{FEE_TYPE_LABELS[rule.fee_type] || rule.fee_type}</Badge>
-                          </td>
-                          <td className="px-6 py-4 text-xs">{rule.percentage ? `${rule.percentage}%` : '-'}</td>
-                          <td className="px-6 py-4 text-xs">{rule.fixed_amount ? `${rule.currency} ${rule.fixed_amount}` : '-'}</td>
-                          <td className="px-6 py-4 text-xs text-muted-foreground">
-                            {rule.min_amount || rule.max_amount
-                              ? `${rule.min_amount ? `${rule.currency} ${rule.min_amount}` : '-'} / ${rule.max_amount ? `${rule.currency} ${rule.max_amount}` : '-'}`
-                              : '-'}
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge variant={rule.is_active ? 'success' : 'outline'}>{rule.is_active ? 'Active' : 'Inactive'}</Badge>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="relative">
-                              <button
-                                type="button"
-                                onClick={() => setFeeMenuOpen(feeMenuOpen === rule.id ? null : rule.id)}
-                                className="p-1 rounded hover:bg-accent"
-                              >
-                                <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                              </button>
-                              {feeMenuOpen === rule.id && (
-                                <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-lg z-10 py-1 min-w-[140px]">
-                                  <button
-                                    type="button"
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-accent"
-                                    onClick={() => { setEditingFeeRule(rule); setShowAddFeeRule(true); setFeeMenuOpen(null); }}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-accent"
-                                    onClick={() => {
-                                      updateFeeRule.mutate({ id: rule.id, data: { is_active: !rule.is_active } });
-                                      setFeeMenuOpen(null);
-                                    }}
-                                  >
-                                    {rule.is_active ? 'Deactivate' : 'Activate'}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <div className="px-2 pb-2">
+                <DataTable
+                  columns={feeRuleColumns}
+                  rows={feeRules}
+                  rowKey={(r) => r.id}
+                  loading={loadingFeeRules}
+                  storageKey="platform-fee-rules-table"
+                  emptyText='No fee rules configured yet. Use "Add Fee Rule" to define platform-wide fee structures.'
+                />
+              </div>
             </CardContent>
           </Card>
 
