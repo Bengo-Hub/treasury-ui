@@ -6,6 +6,8 @@ import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/ba
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { CapsuleTabs, CapsuleTabsContent, CapsuleTabsList, CapsuleTabsTrigger } from '@/components/ui/capsule-tabs';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildEtimsDeviceColumns, buildTaxCodeColumns, buildTaxPeriodColumns } from './tax-page-columns';
 import {
   useTaxCodes,
   useCreateTaxCode,
@@ -32,7 +34,6 @@ import { EtimsItemsTab } from './etims-items-tab';
 import { WHVATTab } from './whvat-tab';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSubscription } from '@/hooks/use-subscription';
-import type { TaxCode, TaxPeriod, EtimsDevice } from '@/lib/api/tax';
 import { cn } from '@/lib/utils';
 import {
   AlertTriangle,
@@ -60,23 +61,9 @@ import {
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 const SUBSCRIBE_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexafrica.com';
-
-const periodStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'secondary'> = {
-  open: 'warning',
-  filed: 'success',
-  calculated: 'default',
-  closed: 'secondary',
-};
-
-const deviceStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'secondary'> = {
-  pending: 'warning',
-  initialized: 'success',
-  active: 'success',
-  error: 'error',
-};
 
 function EtimsUpgradePrompt() {
   return (
@@ -210,6 +197,7 @@ function TaxCodesTab({ tenantSlug }: { tenantSlug: string }) {
   const { data, isLoading, isError } = useTaxCodes(tenantSlug);
   const codes = data?.tax_codes ?? [];
   const [createOpen, setCreateOpen] = useState(false);
+  const columns = useMemo(() => buildTaxCodeColumns(), []);
 
   return (
     <>
@@ -224,49 +212,17 @@ function TaxCodesTab({ tenantSlug }: { tenantSlug: string }) {
           </Button>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading && (
-            <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" /> Loading tax codes...
-            </div>
-          )}
-          {!isLoading && isError && (
-            <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              Failed to load tax codes. Check your connection and try again.
-            </div>
-          )}
-          {!isLoading && !isError && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Code</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Name</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Rate</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Type</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">KRA Code</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Default</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {codes.map((code) => (
-                    <tr key={code.id} className="hover:bg-accent/5 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs font-bold">{code.code}</td>
-                      <td className="px-6 py-4 text-xs">{code.name}</td>
-                      <td className="px-6 py-4 text-right text-xs font-bold">{Number(code.rate)}%</td>
-                      <td className="px-6 py-4 text-xs capitalize">{code.tax_type}</td>
-                      <td className="px-6 py-4 text-xs text-muted-foreground">{code.kra_code || '---'}</td>
-                      <td className="px-6 py-4 text-center">
-                        {code.is_default && <Badge variant="success">Default</Badge>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {!isLoading && !isError && codes.length === 0 && (
-            <div className="p-12 text-center text-muted-foreground">No tax codes configured.</div>
-          )}
+          <div className="px-2 pb-2">
+            <DataTable
+              columns={columns}
+              rows={codes}
+              rowKey={(c) => c.id}
+              loading={isLoading}
+              error={isError}
+              storageKey="tax-codes-table"
+              emptyText="No tax codes configured."
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -390,6 +346,14 @@ function TaxPeriodsTab({ tenantSlug }: { tenantSlug: string }) {
   const { data, isLoading, isError } = useTaxPeriods(tenantSlug);
   const periods = data?.periods ?? [];
   const calculateMutation = useCalculateTaxLiability();
+  const columns = useMemo(
+    () =>
+      buildTaxPeriodColumns({
+        onCalculate: (period) => calculateMutation.mutate({ tenantSlug, periodID: period.id }),
+        calculatePending: calculateMutation.isPending,
+      }),
+    [tenantSlug, calculateMutation],
+  );
 
   return (
     <Card>
@@ -400,69 +364,17 @@ function TaxPeriodsTab({ tenantSlug }: { tenantSlug: string }) {
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {isLoading && (
-          <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" /> Loading tax periods...
-          </div>
-        )}
-        {!isLoading && isError && (
-          <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Failed to load tax periods. Check your connection and try again.
-          </div>
-        )}
-        {!isLoading && !isError && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-accent/5">
-                  <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Type</th>
-                  <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Period</th>
-                  <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Collected</th>
-                  <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Payable</th>
-                  <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                  <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Sync</th>
-                  <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {periods.map((period) => (
-                  <tr key={period.id} className="hover:bg-accent/5 transition-colors">
-                    <td className="px-6 py-4 text-xs capitalize">{period.period_type}</td>
-                    <td className="px-6 py-4 text-xs">
-                      {new Date(period.start_date).toLocaleDateString()} - {new Date(period.end_date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-right text-xs font-bold">
-                      {Number(period.total_collected).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-6 py-4 text-right text-xs font-bold">
-                      {Number(period.total_payable).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <Badge variant={periodStatusVariant[period.status] ?? 'outline'}>{period.status}</Badge>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <Badge variant={period.sync_status === 'synced' ? 'success' : 'secondary'}>{period.sync_status}</Badge>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => calculateMutation.mutate({ tenantSlug, periodID: period.id })}
-                        disabled={calculateMutation.isPending}
-                        title="Calculate tax liability"
-                      >
-                        <Calculator className="h-3.5 w-3.5" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {!isLoading && !isError && periods.length === 0 && (
-          <div className="p-12 text-center text-muted-foreground">No tax periods found.</div>
-        )}
+        <div className="px-2 pb-2">
+          <DataTable
+            columns={columns}
+            rows={periods}
+            rowKey={(p) => p.id}
+            loading={isLoading}
+            error={isError}
+            storageKey="tax-periods-table"
+            emptyText="No tax periods found."
+          />
+        </div>
       </CardContent>
     </Card>
   );
@@ -519,21 +431,6 @@ function KraActivationCard({ tenantSlug }: { tenantSlug: string }) {
   );
 }
 
-// Shows the CONFIGURED integration and, when the mode that will actually sign differs, the
-// effective one — e.g. a device configured VSCU with no local vscu_url yet signs online via OSCU.
-function IntegrationBadge({ device }: { device: EtimsDevice }) {
-  const configured = device.integration_type || 'OSCU';
-  const effective = device.effective_integration || configured;
-  if (configured !== effective) {
-    return (
-      <span title={`Configured ${configured} but no local VSCU URL yet — signing online via ${effective} until provisioned.`}>
-        <Badge variant="warning">{configured} (using {effective} — no local URL)</Badge>
-      </span>
-    );
-  }
-  return <Badge variant="secondary">{configured}</Badge>;
-}
-
 function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
   const { data, isLoading, isError } = useEtimsDevices(tenantSlug);
   const devices = data?.devices ?? [];
@@ -542,6 +439,15 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
   const [codeListsOpen, setCodeListsOpen] = useState(false);
   const initDevice = useInitEtimsDevice();
   const refreshCodes = useRefreshCodeLists();
+  const etimsDeviceColumns = useMemo(
+    () =>
+      buildEtimsDeviceColumns({
+        onInit: (device) => initDevice.mutate({ tenantSlug, deviceId: device.id }),
+        onActivateWithCmc: (device) => setCmcDevice({ id: device.id, serial: device.device_serial, tin: device.tin || '' }),
+        initPending: initDevice.isPending,
+      }),
+    [tenantSlug, initDevice],
+  );
 
   return (
     <>
@@ -579,76 +485,17 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading && (
-            <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" /> Loading devices...
-            </div>
-          )}
-          {!isLoading && isError && (
-            <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              Failed to load eTIMS devices. Check your connection and try again.
-            </div>
-          )}
-          {!isLoading && !isError && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Serial</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">TIN (KRA PIN)</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Branch</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Env</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Invoice #</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {devices.map((device) => (
-                    <tr key={device.id} className="hover:bg-accent/5 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs font-bold">{device.device_serial}</td>
-                      <td className="px-6 py-4 text-xs font-mono">{device.tin || '—'}</td>
-                      <td className="px-6 py-4 text-xs">{device.branch_id || '00'}</td>
-                      <td className="px-6 py-4 text-xs">
-                        <div className="flex items-center gap-1">
-                          <Badge variant={device.environment === 'production' ? 'success' : 'secondary'}>{device.environment}</Badge>
-                          <IntegrationBadge device={device} />
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right text-xs font-mono">{device.last_invoice_no ?? 0}</td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge variant={deviceStatusVariant[device.status] ?? 'outline'}>{device.status}</Badge>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {device.status !== 'active' && (
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size="sm" variant="outline"
-                              disabled={initDevice.isPending}
-                              onClick={() => initDevice.mutate({ tenantSlug, deviceId: device.id })}
-                            >
-                              {initDevice.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Init'}
-                            </Button>
-                            <button
-                              type="button"
-                              className="text-[11px] text-muted-foreground underline hover:text-foreground"
-                              title="Activate a device already installed at KRA using its known CMC key"
-                              onClick={() => setCmcDevice({ id: device.id, serial: device.device_serial, tin: device.tin || '' })}
-                            >
-                              Activate with CMC key
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {!isLoading && !isError && devices.length === 0 && (
-            <div className="p-12 text-center text-muted-foreground">No eTIMS devices registered.</div>
-          )}
+          <div className="px-2 pb-2">
+            <DataTable
+              columns={etimsDeviceColumns}
+              rows={devices}
+              rowKey={(d) => d.id}
+              loading={isLoading}
+              error={isError}
+              storageKey="etims-devices-table"
+              emptyText="No eTIMS devices registered."
+            />
+          </div>
         </CardContent>
       </Card>
 
