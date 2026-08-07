@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader } from '@/components/ui/base';
 import { usePlatformByService, usePlatformByTenant, usePlatformOverview } from '@/hooks/use-platform-analytics';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useTenantFilterStore } from '@/store/tenant-filter';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildServiceRevenueColumns } from './service-revenue-columns';
 import { Activity, BarChart, Building2, Download, Layers, Printer, TrendingUp } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadPlatformRevenueReport } from '@/lib/api/documents';
 import { toast } from 'sonner';
@@ -18,6 +20,13 @@ export default function PlatformAnalyticsPage() {
   const { data: overview, isLoading: loadingOverview } = usePlatformOverview(from || undefined, to || undefined, tenantIds || undefined);
   const { data: byTenant, isLoading: loadingTenants, isError: tenantsError } = usePlatformByTenant(from || undefined, to || undefined, tenantIds || undefined);
   const { data: byService, isLoading: loadingServices, isError: servicesError } = usePlatformByService(from || undefined, to || undefined, tenantIds || undefined);
+
+  const serviceRevenueColumns = useMemo(() => buildServiceRevenueColumns(), []);
+  // Default order matches the previous hand-rolled table: biggest gross revenue first.
+  const sortedServiceRevenue = useMemo(
+    () => [...(byService?.breakdown ?? [])].sort((a, b) => parseFloat(b.gross_revenue) - parseFloat(a.gross_revenue)),
+    [byService],
+  );
 
   const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
   const previewPlatformReport = useCallback(() => {
@@ -196,47 +205,15 @@ export default function PlatformAnalyticsPage() {
           <p className="text-sm text-muted-foreground">Platform-wide revenue split across all Codevertex services.</p>
         </CardHeader>
         <CardContent>
-          {loadingServices ? (
-            <div className="min-h-50 flex items-center justify-center text-muted-foreground">Loading service breakdown...</div>
-          ) : servicesError ? (
-            <div className="min-h-50 flex items-center justify-center">
-              <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                Failed to load service revenue. Check your connection and try again.
-              </div>
-            </div>
-          ) : !byService?.breakdown?.length ? (
-            <div className="min-h-50 flex flex-col items-center justify-center text-muted-foreground">
-              <BarChart className="h-12 w-12 mb-4 opacity-20" />
-              <p>No service revenue in this period</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
-                    <th className="text-left py-3 pr-4 font-bold">Service</th>
-                    <th className="text-right py-3 px-4 font-bold">Gross Revenue</th>
-                    <th className="text-right py-3 px-4 font-bold">Fees</th>
-                    <th className="text-right py-3 px-4 font-bold">Net Revenue</th>
-                    <th className="text-right py-3 pl-4 font-bold">Transactions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {byService.breakdown
-                    .sort((a, b) => parseFloat(b.gross_revenue) - parseFloat(a.gross_revenue))
-                    .map((row) => (
-                      <tr key={row.source_service} className="hover:bg-accent/5 transition-colors">
-                        <td className="py-3 pr-4 font-medium capitalize">{row.source_service.replace(/_/g, ' ')}</td>
-                        <td className="py-3 px-4 text-right font-bold">{formatCurrency(parseFloat(row.gross_revenue), 'KES')}</td>
-                        <td className="py-3 px-4 text-right text-muted-foreground">{formatCurrency(parseFloat(row.transaction_costs), 'KES')}</td>
-                        <td className="py-3 px-4 text-right font-bold text-emerald-600">{formatCurrency(parseFloat(row.net_revenue), 'KES')}</td>
-                        <td className="py-3 pl-4 text-right text-muted-foreground">{row.transaction_count}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DataTable
+            columns={serviceRevenueColumns}
+            rows={sortedServiceRevenue}
+            rowKey={(r) => r.source_service}
+            loading={loadingServices}
+            error={servicesError}
+            storageKey="platform-service-revenue-table"
+            emptyText="No service revenue in this period"
+          />
         </CardContent>
       </Card>
     </div>

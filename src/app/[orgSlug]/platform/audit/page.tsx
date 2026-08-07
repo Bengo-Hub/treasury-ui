@@ -1,11 +1,12 @@
 'use client';
 
-import { Badge, Card, CardContent, CardHeader } from '@/components/ui/base';
-import { Pagination } from '@/components/ui/pagination';
+import { Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useAuditLogs } from '@/hooks/use-audit';
 import type { AuditLogEntry } from '@/lib/api/audit';
 import { cn } from '@/lib/utils';
-import { Filter, Loader2, Search, Shield } from 'lucide-react';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildPlatformAuditLogColumns } from './audit-log-columns';
+import { Filter, Search, Shield } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 50;
@@ -16,14 +17,6 @@ function defaultDateRange() {
   from.setDate(from.getDate() - 30);
   return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
 }
-
-const actionVariant: Record<string, 'success' | 'default' | 'error' | 'warning'> = {
-  create: 'success',
-  update: 'default',
-  delete: 'error',
-  approve: 'success',
-  reject: 'error',
-};
 
 const ACTION_OPTIONS = ['all', 'create', 'update', 'delete', 'approve', 'reject'];
 const RESOURCE_OPTIONS = [
@@ -67,6 +60,8 @@ export default function AuditLogPage() {
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   useMemo(() => { setPage(1); }, [searchQuery, actionFilter, resourceFilter]);
+
+  const columns = useMemo(() => buildPlatformAuditLogColumns(), []);
 
   return (
     <div className="p-6 space-y-6">
@@ -140,62 +135,21 @@ export default function AuditLogPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            {isLoading && (
-              <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" /> Loading audit logs…
-              </div>
-            )}
-            {!isLoading && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-accent/5">
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Time</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">User</th>
-                    <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Action</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Resource</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Resource ID</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">IP</th>
-                    <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Changes</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {paginated.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-accent/5 transition-colors">
-                      <td className="px-6 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(entry.created_at).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-3">
-                        <div className="text-xs font-medium">{entry.user_email}</div>
-                        <div className="text-xs text-muted-foreground font-mono">{entry.user_id.slice(0, 8)}…</div>
-                      </td>
-                      <td className="px-6 py-3 text-center">
-                        <Badge variant={actionVariant[entry.action] ?? 'default'}>
-                          {entry.action}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-3 text-xs capitalize">{entry.resource_type.replace(/_/g, ' ')}</td>
-                      <td className="px-6 py-3 font-mono text-xs text-muted-foreground">{entry.resource_id.slice(0, 16)}{entry.resource_id.length > 16 ? '…' : ''}</td>
-                      <td className="px-6 py-3 text-xs text-muted-foreground">{entry.ip_address ?? '—'}</td>
-                      <td className="px-6 py-3 text-xs text-muted-foreground max-w-xs truncate">
-                        {entry.changes ? (
-                          <span title={entry.changes} className="cursor-help">
-                            {entry.changes.slice(0, 60)}{entry.changes.length > 60 ? '…' : ''}
-                          </span>
-                        ) : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {!isLoading && filtered.length === 0 && (
-              <div className="p-12 text-center text-muted-foreground">No audit log entries match your filters.</div>
-            )}
+          <div className="px-2 pb-2">
+            <DataTable<AuditLogEntry>
+              columns={columns}
+              rows={paginated}
+              rowKey={(entry) => entry.id}
+              loading={isLoading}
+              storageKey="platform-audit-log-table"
+              emptyText="No audit log entries match your filters."
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              total={filtered.length}
+              pageSize={ITEMS_PER_PAGE}
+            />
           </div>
-          {!isLoading && filtered.length > 0 && (
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-          )}
         </CardContent>
       </Card>
     </div>
