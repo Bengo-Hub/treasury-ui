@@ -4,6 +4,8 @@ import { CreateLedgerEntryDialog } from '@/components/ledger/CreateLedgerEntryDi
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildJournalColumns } from './journal-entry-columns';
 import {
   useJournalEntries,
   useSubmitJournalEntry,
@@ -17,25 +19,13 @@ import type { JournalEntry } from '@/lib/api/ledger';
 import { cn } from '@/lib/utils';
 import {
   BookOpen,
-  CheckCircle2,
   FileText,
   Loader2,
   Plus,
   RefreshCw,
-  RotateCcw,
-  Send,
-  Stamp,
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
-
-const statusVariant: Record<string, 'default' | 'warning' | 'success' | 'error' | 'secondary'> = {
-  draft: 'secondary',
-  submitted: 'warning',
-  approved: 'default',
-  posted: 'success',
-  reversed: 'error',
-};
 
 export default function JournalsPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
@@ -197,12 +187,20 @@ function JournalEntriesList({
   const postMutation = usePostJournalEntry();
   const reverseMutation = useReverseJournalEntry();
 
-  function totalDebit(e: JournalEntry) {
-    return (e.lines ?? []).reduce((sum, l) => sum + Number(l.debit_amount || 0), 0);
-  }
-  function totalCredit(e: JournalEntry) {
-    return (e.lines ?? []).reduce((sum, l) => sum + Number(l.credit_amount || 0), 0);
-  }
+  const columns = useMemo(
+    () =>
+      buildJournalColumns({
+        onSubmit: (entry) => submitMutation.mutate({ tenantSlug, entryID: entry.id }),
+        onApprove: (entry) => approveMutation.mutate({ tenantSlug, entryID: entry.id }),
+        onPost: (entry) => postMutation.mutate({ tenantSlug, entryID: entry.id }),
+        onReverse: (entry) => reverseMutation.mutate({ tenantSlug, entryID: entry.id }),
+        submitPending: submitMutation.isPending,
+        approvePending: approveMutation.isPending,
+        postPending: postMutation.isPending,
+        reversePending: reverseMutation.isPending,
+      }),
+    [tenantSlug, submitMutation, approveMutation, postMutation, reverseMutation],
+  );
 
   return (
     <Card>
@@ -273,125 +271,19 @@ function JournalEntriesList({
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {isLoading && (
-          <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" /> Loading journal entries...
-          </div>
-        )}
-        {!isLoading && isError && (
-          <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Failed to load journal entries. Check your connection and try again.
-          </div>
-        )}
-        {!isLoading && !isError && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-accent/5">
-                  <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Entry #</th>
-                  <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Date</th>
-                  <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Description</th>
-                  <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Reference</th>
-                  {/* REQ-005 audit: journal entries record the posting USER (created_by = the
-                      cashier/accountant analog); a customer applies only via the referenced
-                      source document, so no Customer column is invented here. */}
-                  <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Recorded By</th>
-                  <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Debit</th>
-                  <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Credit</th>
-                  <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                  <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {entries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-accent/5 transition-colors">
-                    <td className="px-6 py-4 font-mono text-xs font-bold">{entry.entry_number}</td>
-                    <td className="px-6 py-4 text-xs">{new Date(entry.entry_date).toLocaleDateString()}</td>
-                    <td className="px-6 py-4 text-xs max-w-[200px] truncate">{entry.description || '---'}</td>
-                    <td className="px-6 py-4 text-xs">
-                      {entry.reference_type ? (
-                        <div className="flex flex-col">
-                          <span className="capitalize font-medium">{entry.reference_type.replace(/_/g, ' ')}</span>
-                          {entry.reference_id && (
-                            <span className="font-mono text-[10px] text-muted-foreground">{entry.reference_id.slice(0, 8)}</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-xs" title={entry.created_by}>
-                      {/* Person who recorded the entry (email from the users projection).
-                          Nil-UUID creators are automated postings → "System". */}
-                      {entry.created_by_email
-                        ? entry.created_by_email
-                        : (!entry.created_by || /^0+(-0+)*$/.test(entry.created_by.replace(/-/g, '')))
-                          ? <span className="text-muted-foreground italic">System</span>
-                          : entry.created_by.slice(0, 8)}
-                    </td>
-                    <td className="px-6 py-4 text-right text-xs font-bold">{totalDebit(entry).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</td>
-                    <td className="px-6 py-4 text-right text-xs font-bold">{totalCredit(entry).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</td>
-                    <td className="px-6 py-4 text-center">
-                      <Badge variant={statusVariant[entry.status] ?? 'outline'}>{entry.status}</Badge>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {entry.status === 'draft' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => submitMutation.mutate({ tenantSlug, entryID: entry.id })}
-                            disabled={submitMutation.isPending}
-                            title="Submit"
-                          >
-                            <Send className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {entry.status === 'submitted' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => approveMutation.mutate({ tenantSlug, entryID: entry.id })}
-                            disabled={approveMutation.isPending}
-                            title="Approve"
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {entry.status === 'approved' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => postMutation.mutate({ tenantSlug, entryID: entry.id })}
-                            disabled={postMutation.isPending}
-                            title="Post"
-                          >
-                            <Stamp className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {entry.status === 'posted' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive"
-                            onClick={() => reverseMutation.mutate({ tenantSlug, entryID: entry.id })}
-                            disabled={reverseMutation.isPending}
-                            title="Reverse"
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {!isLoading && !isError && entries.length === 0 && (
-          <div className="p-12 text-center text-muted-foreground">No journal entries found.</div>
-        )}
+        <div className="px-2 pb-2">
+          <DataTable<JournalEntry>
+            columns={columns}
+            rows={entries}
+            rowKey={(e) => e.id}
+            loading={isLoading}
+            error={isError}
+            storageKey="journal-entries-table"
+            showExportCsv
+            exportFileName="journal-entries"
+            emptyText="No journal entries found."
+          />
+        </div>
       </CardContent>
     </Card>
   );
