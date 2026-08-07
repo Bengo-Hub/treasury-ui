@@ -6,6 +6,7 @@ import { useDocumentListSource } from '@/hooks/use-document-list-source';
 import { useDocumentActions } from '@/hooks/use-document-actions';
 import { useDocRowAction } from '@/hooks/use-doc-row-action';
 import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   voidInvoice, duplicateInvoice, deleteInvoice,
   dispatchDeliveryNote, deliverDeliveryNote, cancelDeliveryNote,
@@ -30,6 +31,8 @@ export default function DeliveryChallansPage() {
   const [deliver, setDeliver] = useState<{ row: DocumentRow } | null>(null);
   const [receivedBy, setReceivedBy] = useState('');
   const [deliverNote, setDeliverNote] = useState('');
+  // Confirm gate for the stock-affecting delivery lifecycle row actions (dispatch/cancel).
+  const [rowConfirm, setRowConfirm] = useState<{ row: DocumentRow; kind: 'dispatch' | 'cancel' } | null>(null);
 
   const src = useDocumentListSource({ family: 'invoice', invoiceType: 'delivery_challan', status: statusFilter, page, limit: ITEMS_PER_PAGE });
   const { run, isPending } = useDocRowAction();
@@ -61,10 +64,7 @@ export default function DeliveryChallansPage() {
       label: 'Mark Dispatched',
       icon: <Truck className="h-3.5 w-3.5" />,
       visible: (r) => deliveryStateOf(r) === 'draft',
-      onClick: (r) => {
-        if (!window.confirm(`Mark ${r.doc_number} as dispatched? This deducts stock (emits a goods-issue) for the delivered items.`)) return;
-        run(() => dispatchDeliveryNote(src.rowTenant(r), r.id), `Delivery note ${r.doc_number} dispatched`);
-      },
+      onClick: (r) => setRowConfirm({ row: r, kind: 'dispatch' }),
     },
     {
       label: 'Mark Delivered',
@@ -77,12 +77,20 @@ export default function DeliveryChallansPage() {
       icon: <X className="h-3.5 w-3.5" />,
       destructive: true,
       visible: (r) => ['draft', 'dispatched'].includes(deliveryStateOf(r)),
-      onClick: (r) => {
-        if (!window.confirm(`Cancel delivery for ${r.doc_number}? It will be marked cancelled.`)) return;
-        run(() => cancelDeliveryNote(src.rowTenant(r), r.id), `Delivery ${r.doc_number} cancelled`);
-      },
+      onClick: (r) => setRowConfirm({ row: r, kind: 'cancel' }),
     },
   ];
+
+  const confirmRowAction = () => {
+    if (!rowConfirm) return;
+    const { row: r, kind } = rowConfirm;
+    if (kind === 'dispatch') {
+      run(() => dispatchDeliveryNote(src.rowTenant(r), r.id), `Delivery note ${r.doc_number} dispatched`);
+    } else {
+      run(() => cancelDeliveryNote(src.rowTenant(r), r.id), `Delivery ${r.doc_number} cancelled`);
+    }
+    setRowConfirm(null);
+  };
 
   const submitDeliver = () => {
     if (!deliver) return;
@@ -189,6 +197,21 @@ export default function DeliveryChallansPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!rowConfirm}
+        onOpenChange={(o) => { if (!o) setRowConfirm(null); }}
+        title={rowConfirm?.kind === 'dispatch'
+          ? `Mark ${rowConfirm.row.doc_number} as dispatched?`
+          : `Cancel delivery for ${rowConfirm?.row.doc_number}?`}
+        description={rowConfirm?.kind === 'dispatch'
+          ? 'This deducts stock (emits a goods-issue) for the delivered items.'
+          : 'It will be marked cancelled.'}
+        confirmLabel={rowConfirm?.kind === 'dispatch' ? 'Dispatch' : 'Cancel Delivery'}
+        destructive={rowConfirm?.kind === 'cancel'}
+        isPending={isPending}
+        onConfirm={confirmRowAction}
+      />
     </>
   );
 }
