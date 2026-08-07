@@ -1,7 +1,7 @@
 'use client';
 
 import { apiClient } from '@/lib/api/client';
-import { parseLimitInfo } from '@/lib/api/error-handler';
+import { parseLimitInfo, subscriptionErrorMessage } from '@/lib/api/error-handler';
 import { LimitReachedModal } from '@/components/subscription/limit-reached-modal';
 import { useLimitModal } from '@/store/limit-modal';
 import { useMe } from '@/hooks/useMe';
@@ -9,6 +9,10 @@ import { useAuthStore } from '@/store/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useEffect } from 'react';
+import { toast } from 'sonner';
+
+const SUBSCRIBE_URL =
+  process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexafrica.com';
 
 /** Uses TanStack Query (useMe) for auth GET /me with TTL; redirects unauthenticated to SSO, 401 to SSO, and platform routes without superuser/platform-owner to unauthorized. */
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -43,9 +47,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const info = parseLimitInfo(data);
       if (info) useLimitModal.getState().show(info);
     });
+    // Wire subscription 403 (feature lock / inactive plan) → toast with an upgrade action.
+    // Previously unwired: treasury-api already returns the canonical structured 403 body, but
+    // nothing surfaced it — a gated action just failed silently with no visible feedback.
+    apiClient.setOnSubscription403((data) => {
+      const message = subscriptionErrorMessage(data);
+      // Mirrors LimitReachedModal's target: treasury-ui has no local billing page, so
+      // "Upgrade plan" opens the subscriptions-ui subscribe flow in a new tab.
+      const upgradeUrl = (data as any)?.upgrade_url || `${SUBSCRIBE_URL}/subscribe`;
+      toast.error('Subscription limit reached', {
+        description: message,
+        duration: 8000,
+        action: {
+          label: 'Upgrade plan',
+          onClick: () => window.open(upgradeUrl, '_blank', 'noopener,noreferrer'),
+        },
+      });
+    });
     return () => {
       apiClient.setOn401(null);
       apiClient.setOnLimitReached(null);
+      apiClient.setOnSubscription403(null);
     };
   }, [queryClient, logout]);
 
