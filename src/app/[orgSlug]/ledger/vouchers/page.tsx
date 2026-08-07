@@ -2,21 +2,17 @@
 
 import { CreateLedgerEntryDialog } from '@/components/ledger/CreateLedgerEntryDialog';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
-import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildVoucherColumns, voucherLabels, voucherTypeOf } from './voucher-columns';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useJournalEntries } from '@/hooks/use-ledger';
+import type { JournalEntry } from '@/lib/api/ledger';
 import { cn } from '@/lib/utils';
-import { BookOpen, Loader2, Plus, Receipt, RefreshCw, Search } from 'lucide-react';
+import { BookOpen, Plus, Receipt, RefreshCw, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const voucherTypes = ['payment', 'receipt', 'journal', 'sales', 'purchase'] as const;
-const voucherLabels: Record<string, string> = {
-  payment: 'Payment Voucher',
-  receipt: 'Receipt Voucher',
-  journal: 'Journal Voucher',
-  sales: 'Sales Voucher',
-  purchase: 'Purchase Voucher',
-};
 
 export default function VouchersPage() {
   const { tenantPathId, tenantQueryParam, isPlatformOwner, orgSlug } = useResolvedTenant();
@@ -37,8 +33,7 @@ export default function VouchersPage() {
   const voucherEntries = useMemo(() => {
     const query = searchQuery.toLowerCase();
     return entries.filter((entry) => {
-      const meta = (entry.metadata as Record<string, unknown> | undefined) ?? {};
-      const voucherType = String(meta.voucher_type ?? entry.reference_type ?? '').toLowerCase();
+      const voucherType = voucherTypeOf(entry);
       const matchesType = typeFilter === 'all' || voucherType === typeFilter;
       const matchesSearch =
         entry.entry_number.toLowerCase().includes(query) ||
@@ -51,15 +46,17 @@ export default function VouchersPage() {
   const summaryByType = useMemo(() => {
     return voucherTypes.reduce(
       (acc, type) => {
-        acc[type] = entries.filter((entry) => {
-          const meta = (entry.metadata as Record<string, unknown> | undefined) ?? {};
-          return String(meta.voucher_type ?? entry.reference_type ?? '').toLowerCase() === type;
-        }).length;
+        acc[type] = entries.filter((entry) => voucherTypeOf(entry) === type).length;
         return acc;
       },
       {} as Record<string, number>,
     );
   }, [entries]);
+
+  const voucherColumns = useMemo(
+    () => buildVoucherColumns(voucherTypes.map((value) => ({ value, label: voucherLabels[value] }))),
+    [],
+  );
 
   return (
     <SubscriptionGate feature="ledger_posting">
@@ -153,48 +150,29 @@ export default function VouchersPage() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              {isLoading ? (
-                <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin" /> Loading vouchers...
-                </div>
-              ) : error ? (
-                <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  Failed to load vouchers. Check your connection and try again.
-                </div>
-              ) : voucherEntries.length === 0 ? (
-                <div className="p-12 text-center">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-accent/30">
-                    <BookOpen className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <h3 className="mt-4 text-base font-semibold">No vouchers found</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Create a new voucher to start building your voucher book.
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {voucherEntries.map((entry) => {
-                    const meta = (entry.metadata as Record<string, unknown> | undefined) ?? {};
-                    const voucherType = String(meta.voucher_type ?? entry.reference_type ?? '').toLowerCase();
-                    const totalDebit = (entry.lines ?? []).reduce((sum, line) => sum + Number(line.debit_amount || 0), 0);
-                    return (
-                      <div key={entry.id} className="flex items-center justify-between px-6 py-4 hover:bg-accent/5 transition-colors">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-muted-foreground">{entry.entry_number}</span>
-                            <Badge className="capitalize">{voucherLabels[voucherType] ?? (voucherType || 'Voucher')}</Badge>
-                          </div>
-                          <p className="mt-1 text-sm text-muted-foreground">{entry.description || 'No description'}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold tabular-nums">{totalDebit.toLocaleString('en-KE', { minimumFractionDigits: 2 })}</p>
-                          <p className="text-xs text-muted-foreground">{entry.status}</p>
-                        </div>
+              <div className="px-2 pb-2">
+                <DataTable<JournalEntry>
+                  columns={voucherColumns}
+                  rows={voucherEntries}
+                  rowKey={(e) => e.id}
+                  loading={isLoading}
+                  error={!!error}
+                  storageKey="vouchers-table"
+                  showExportCsv
+                  exportFileName="vouchers"
+                  emptyState={
+                    <div className="text-center">
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-accent/30">
+                        <BookOpen className="h-5 w-5 text-muted-foreground" />
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                      <h3 className="mt-4 text-base font-semibold">No vouchers found</h3>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Create a new voucher to start building your voucher book.
+                      </p>
+                    </div>
+                  }
+                />
+              </div>
             </CardContent>
           </Card>
         </>
