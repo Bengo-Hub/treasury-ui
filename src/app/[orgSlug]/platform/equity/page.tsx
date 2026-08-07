@@ -56,7 +56,9 @@ import {
 import { useParams, useRouter } from 'next/navigation';
 import { PaystackBalanceCard } from '@/components/platform/PaystackBalanceCard';
 import { HolderFormModal, SERVICE_OPTIONS } from '@/components/platform/equity-holder-form';
-import { type ReactNode, useEffect, useState } from 'react';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildEntitlementColumns } from './entitlement-columns';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 
 export default function EquityManagementPage() {
     const { data: user } = useMe();
@@ -736,6 +738,10 @@ function EntitlementsModal({ holderId, holderName, onClose }: { holderId: string
     const createEntitlement = useCreateEntitlement(holderId);
     const deactivateEntitlement = useDeactivateEntitlement(holderId);
     const entitlements = data?.entitlements ?? [];
+    const entitlementColumns = useMemo(
+        () => buildEntitlementColumns({ onDeactivate: (e) => deactivateEntitlement.mutate(e.id), deactivatePending: deactivateEntitlement.isPending }),
+        [deactivateEntitlement],
+    );
 
     const [showForm, setShowForm] = useState(false);
     const [serviceId, setServiceId] = useState('');
@@ -833,50 +839,19 @@ function EntitlementsModal({ holderId, holderName, onClose }: { holderId: string
                         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                             Failed to load entitlements. Check your connection and try again.
                         </div>
-                    ) : entitlements.length === 0 ? (
-                        <div className="py-8 text-center text-muted-foreground">
-                            <p className="text-sm">No entitlements defined.</p>
-                            <p className="text-xs mt-1">Legacy % share will be used as fallback.</p>
-                        </div>
                     ) : (
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="text-xs text-muted-foreground border-b border-border">
-                                    <th className="text-left py-2 font-medium">Service</th>
-                                    <th className="text-right py-2 font-medium">Equity %</th>
-                                    <th className="text-right py-2 font-medium">Vesting</th>
-                                    <th className="text-right py-2 font-medium">Status</th>
-                                    <th className="py-2" />
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {entitlements.map(e => (
-                                    <tr key={e.id} className="border-b border-border/50 last:border-0">
-                                        <td className="py-3 font-mono text-xs">{e.service_id}</td>
-                                        <td className="py-3 text-right font-bold">{parseFloat(e.equity_pct).toFixed(2)}%</td>
-                                        <td className="py-3 text-right text-xs text-muted-foreground">
-                                            {e.vesting_type} {e.cliff_months > 0 ? `(${e.cliff_months}m cliff)` : ''}
-                                        </td>
-                                        <td className="py-3 text-right">
-                                            <Badge variant={e.is_active ? 'success' : 'outline'}>{e.is_active ? 'Active' : 'Inactive'}</Badge>
-                                        </td>
-                                        <td className="py-3 text-right">
-                                            {e.is_active && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-7 text-xs text-destructive hover:text-destructive"
-                                                    onClick={() => deactivateEntitlement.mutate(e.id)}
-                                                    disabled={deactivateEntitlement.isPending}
-                                                >
-                                                    Deactivate
-                                                </Button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        <DataTable
+                            columns={entitlementColumns}
+                            rows={entitlements}
+                            rowKey={(e) => e.id}
+                            storageKey="equity-entitlements-table"
+                            emptyState={
+                                <div className="text-muted-foreground">
+                                    <p className="text-sm">No entitlements defined.</p>
+                                    <p className="text-xs mt-1">Legacy % share will be used as fallback.</p>
+                                </div>
+                            }
+                        />
                     )}
                 </div>
             </div>
