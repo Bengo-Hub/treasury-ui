@@ -5,7 +5,8 @@ import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { RowActionMenu, type RowAction } from '@/components/ui/action-menu';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildProgramColumns, buildReferralColumns } from './referral-columns';
 import { HolderFormModal } from '@/components/platform/equity-holder-form';
 import { useEquityHolders, useCreateEquityHolder } from '@/hooks/use-equity';
 import { usePlatformTenants } from '@/hooks/use-platform-tenants';
@@ -43,7 +44,7 @@ import {
   X,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const REWARD_TYPES = [
   { value: 'revenue_share', label: 'Revenue Share' },
@@ -100,6 +101,29 @@ export default function ReferralsPage() {
   const programs = programsData?.programs ?? [];
   const referrals = referralsData?.referrals ?? [];
 
+  const programColumns = useMemo(
+    () =>
+      buildProgramColumns({
+        onEdit: (p) => setEditingProgram(p),
+        onToggleActive: (p) => updateProgram.mutate({ id: p.id, data: { is_active: !p.is_active } }),
+        onDelete: (p) => deleteProgram.mutate(p.id),
+      }),
+    [updateProgram, deleteProgram],
+  );
+
+  const referralColumns = useMemo(
+    () =>
+      buildReferralColumns(programs, {
+        onIssueReward: (rf) => setShowIssueReward(rf.id),
+        onViewRewards: (rf) => setSelectedReferralId(rf.id),
+        onConvert: (rf) => convertToEquity.mutate({ referralId: rf.id, data: {} }),
+        convertPending: convertToEquity.isPending,
+        onActivate: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'active' } }),
+        onExpire: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'expired' } }),
+        onRevoke: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'revoked' } }),
+      }),
+    [programs, convertToEquity, updateReferral],
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -140,76 +164,17 @@ export default function ReferralsPage() {
               </Button>
             </CardHeader>
             <CardContent className="p-0">
-              {loadingPrograms ? (
-                <div className="px-6 py-8 flex items-center justify-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading programs...
-                </div>
-              ) : programsError ? (
-                <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  Failed to load referral programs. Check your connection and try again.
-                </div>
-              ) : programs.length === 0 ? (
-                <div className="px-6 py-8 text-center text-sm text-muted-foreground">
-                  No referral programs yet. Create one to get started.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase tracking-wider">
-                        <th className="px-6 py-3 font-medium">Name</th>
-                        <th className="px-6 py-3 font-medium">Reward Type</th>
-                        <th className="px-6 py-3 font-medium">Status</th>
-                        <th className="px-6 py-3 font-medium">Created</th>
-                        <th className="px-6 py-3 font-medium w-12"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {programs.map((program) => (
-                        <tr key={program.id} className="hover:bg-accent/5 transition-colors">
-                          <td className="px-6 py-4">
-                            <p className="font-medium">{program.name}</p>
-                            {program.description && (
-                              <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{program.description}</p>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge variant="default">{REWARD_TYPE_LABELS[program.reward_type] || program.reward_type}</Badge>
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge variant={program.is_active ? 'success' : 'outline'}>
-                              {program.is_active ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 text-muted-foreground text-xs">
-                            {formatDate(program.created_at)}
-                          </td>
-                          <td className="px-6 py-4">
-                            <RowActionMenu
-                              row={program}
-                              actions={[
-                                {
-                                  label: 'Edit',
-                                  onClick: (p) => setEditingProgram(p),
-                                },
-                                {
-                                  label: program.is_active ? 'Deactivate' : 'Activate',
-                                  onClick: (p) => updateProgram.mutate({ id: p.id, data: { is_active: !p.is_active } }),
-                                },
-                                {
-                                  label: 'Delete',
-                                  destructive: true,
-                                  onClick: (p) => deleteProgram.mutate(p.id),
-                                },
-                              ]}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <div className="px-2 pb-2">
+                <DataTable
+                  columns={programColumns}
+                  rows={programs}
+                  rowKey={(p) => p.id}
+                  loading={loadingPrograms}
+                  error={programsError}
+                  storageKey="referral-programs-table"
+                  emptyText="No referral programs yet. Create one to get started."
+                />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -227,109 +192,17 @@ export default function ReferralsPage() {
               </Button>
             </CardHeader>
             <CardContent className="p-0">
-              {loadingReferrals ? (
-                <div className="px-6 py-8 flex items-center justify-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading referrals...
-                </div>
-              ) : referralsError ? (
-                <div className="m-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  Failed to load referrals. Check your connection and try again.
-                </div>
-              ) : referrals.length === 0 ? (
-                <div className="px-6 py-8 text-center text-sm text-muted-foreground">
-                  No referrals yet. Create one to track a referral.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase tracking-wider">
-                        <th className="px-6 py-3 font-medium">Referral Code</th>
-                        <th className="px-6 py-3 font-medium">Referrer</th>
-                        <th className="px-6 py-3 font-medium">Referred</th>
-                        <th className="px-6 py-3 font-medium">Program</th>
-                        <th className="px-6 py-3 font-medium">Status</th>
-                        <th className="px-6 py-3 font-medium">Date</th>
-                        <th className="px-6 py-3 font-medium w-12"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {referrals.map((referral) => {
-                        const program = programs.find((p) => p.id === referral.program_id);
-                        return (
-                          <tr key={referral.id} className="hover:bg-accent/5 transition-colors">
-                            <td className="px-6 py-4 font-mono text-xs">{referral.referral_code}</td>
-                            <td className="px-6 py-4 text-xs text-muted-foreground truncate max-w-[140px]">
-                              {referral.referrer_name
-                                ? <span title={referral.referrer_email}>{referral.referrer_name} <span className="text-[10px] opacity-60">(external)</span></span>
-                                : <span className="font-mono">{referral.referrer_tenant_id}</span>}
-                            </td>
-                            <td className="px-6 py-4 text-xs text-muted-foreground font-mono truncate max-w-[120px]">
-                              {referral.referred_tenant_id}
-                            </td>
-                            <td className="px-6 py-4 text-xs">{program?.name || referral.program_id}</td>
-                            <td className="px-6 py-4">
-                              <Badge variant={STATUS_VARIANT[referral.status] || 'outline'}>{referral.status}</Badge>
-                            </td>
-                            <td className="px-6 py-4 text-muted-foreground text-xs">{formatDate(referral.created_at)}</td>
-                            <td className="px-6 py-4">
-                              {(() => {
-                                // An equity referral (type_b, or already linked to an equity holder) is
-                                // paid its revenue share via the equity-holder allocation (its percentage
-                                // share against the referred tenant's revenue), shown on the Equity tab /
-                                // Preview Payouts. Issuing an issue-reward here too would double-pay, so we
-                                // hide "Issue Reward" for equity referrals. Type-A (compensation) referrals
-                                // keep the full Issue Reward action. This mirrors the backend 400 guard.
-                                const isEquityReferral =
-                                  program?.referral_type === 'type_b' || !!referral.equity_holder_id;
-                                const canConvert =
-                                  program?.referral_type === 'type_b' &&
-                                  referral.status === 'active' &&
-                                  !referral.equity_holder_id;
-
-                                const actions: RowAction<Referral>[] = [
-                                  {
-                                    label: 'Activate',
-                                    onClick: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'active' } }),
-                                  },
-                                  {
-                                    label: 'Expire',
-                                    onClick: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'expired' } }),
-                                  },
-                                  {
-                                    label: 'Revoke',
-                                    destructive: true,
-                                    onClick: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'revoked' } }),
-                                  },
-                                ];
-                                // Issue Reward only for non-equity (type_a compensation) referrals.
-                                if (!isEquityReferral) {
-                                  actions.push({
-                                    label: 'Issue Reward',
-                                    onClick: (rf) => setShowIssueReward(rf.id),
-                                  });
-                                }
-                                actions.push({
-                                  label: 'View Rewards',
-                                  onClick: (rf) => setSelectedReferralId(rf.id),
-                                });
-                                if (canConvert) {
-                                  actions.push({
-                                    label: 'Convert to Equity →',
-                                    disabled: () => convertToEquity.isPending,
-                                    onClick: (rf) => convertToEquity.mutate({ referralId: rf.id, data: {} }),
-                                  });
-                                }
-                                return <RowActionMenu row={referral} actions={actions} />;
-                              })()}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <div className="px-2 pb-2">
+                <DataTable
+                  columns={referralColumns}
+                  rows={referrals}
+                  rowKey={(r) => r.id}
+                  loading={loadingReferrals}
+                  error={referralsError}
+                  storageKey="referrals-table"
+                  emptyText="No referrals yet. Create one to track a referral."
+                />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
