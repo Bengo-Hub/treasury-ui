@@ -122,6 +122,10 @@ class ApiClient {
     this.accessToken = token;
   }
 
+  public getAccessToken(): string | null {
+    return this.accessToken;
+  }
+
   public get<T>(url: string, params?: any): Promise<T> {
     return this.instance.get<T>(url, { params }).then((res: AxiosResponse<T>) => res.data);
   }

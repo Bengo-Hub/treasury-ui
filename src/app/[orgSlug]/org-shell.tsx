@@ -17,6 +17,16 @@ import { OfflineBar, PwaInstallPrompt } from '@bengo-hub/shared-ui-lib/offline';
 import { MobileBottomNav, type MobileNavTab } from '@bengo-hub/shared-ui-lib/navigation';
 import { LayoutDashboard, FileText, Users } from 'lucide-react';
 import { requestAppPermissions } from '@/hooks/use-app-permissions';
+import { useAuthStore } from '@/store/auth';
+import { useNotificationStream } from '@/hooks/use-notification-stream';
+
+// Real-time push (AR/invoice changes) — mounted once for the whole tenant session so a POS
+// credit sale (or an invoice being sent/paid) shows up live instead of only on a manual refresh.
+function NotificationListener() {
+  const tenantID = useAuthStore((s) => s.user?.tenantId ?? '');
+  useNotificationStream({ tenantID });
+  return null;
+}
 
 function makeQueryClient() {
   return new QueryClient({
@@ -94,6 +104,7 @@ export function OrgShell({ children }: { children: ReactNode }) {
         <BrandingProvider>
           <SubscriptionEntitlementsProvider>
           <ManifestInjector />
+          <NotificationListener />
           {/* Standard app shell. `fixed inset-0` (not h-screen) pins the shell to the true
               viewport rather than the layout viewport — mobile Safari's address-bar-inclusive
               100vh makes h-screen unreliable for a shell meant to feel like a native app
