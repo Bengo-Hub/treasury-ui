@@ -295,10 +295,13 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
           render genuinely different DOM for the same data. */}
       <div className="hidden md:block">
         <div className="px-4 py-2.5 grid grid-cols-12 gap-2 text-xs font-bold bg-primary text-primary-foreground">
-          <div className="col-span-4">Item</div>
+          <div className="col-span-3">Item</div>
           <div className="col-span-1 text-center">Qty</div>
           <div className="col-span-1 text-center">Rate</div>
-          <div className="col-span-1 text-center">Tax%</div>
+          {/* Tax% hosts a searchable combobox (e.g. "VAT (Standard 16%)") — a single 1/12 column
+              clips its label to a couple of characters, so it gets a second column here, taken
+              from Item (which already truncates its own name/SKU chip gracefully). */}
+          <div className="col-span-2 text-center">Tax%</div>
           <div className="col-span-1 text-center">Disc</div>
           <div className="col-span-1 text-right">Amount</div>
           <div className="col-span-1 text-right">Tax</div>
@@ -307,8 +310,8 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
 
         <div className="divide-y divide-border bg-background">
           {lines.map((line, idx) => (
-            <div key={line._key} className="grid grid-cols-12 gap-2 px-4 py-3 items-start">
-              <div className="col-span-4 space-y-1">
+            <div key={line._key} className="grid grid-cols-12 gap-2 px-4 py-3.5 items-start">
+              <div className="col-span-3 space-y-1">
                 <div className="text-[10px] font-bold text-muted-foreground">{idx + 1}.</div>
                 <ItemCombobox
                   tenant={tenant}
@@ -316,7 +319,9 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
                   onUpdate={patch => updateLine(idx, patch)}
                   onRequestCreate={q => onRequestCreateItem?.(q, idx)}
                 />
-                <div className="flex items-center gap-2 flex-wrap">
+                {/* Separated from the item picker above so the business-only Cost/%Complete
+                    metadata reads as its own row instead of blending into the item chip. */}
+                <div className="flex items-center gap-2 flex-wrap pt-1 mt-0.5 border-t border-border/60">
                   {line.unit && <div className="text-[10px] text-muted-foreground">Unit: {line.unit}</div>}
                   {/* Business-only buying price (cost) — drives the internal margin panel, never on the PDF. */}
                   <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -368,7 +373,7 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
                   onChange={e => updateLine(idx, { unit_price: parseFloat(e.target.value) || 0 })}
                   className="w-full rounded-lg py-1.5 px-1 text-xs text-center font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
               </div>
-              <div className="col-span-1 pt-5">
+              <div className="col-span-2 pt-5">
                 <TaxCodeCell
                   line={line}
                   options={taxCodeOptions}
