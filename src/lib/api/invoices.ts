@@ -880,6 +880,36 @@ export function reconcileCustomerBalances(tenant: string, dryRun = false): Promi
   return apiClient.post<ReconcileResult>(`${BASE}/${tenant}/ar/customers/reconcile`, { dry_run: dryRun });
 }
 
+// One CustomerBalance row within a detected duplicate group — see DuplicateCustomerGroup.
+export interface DuplicateCustomerRow {
+  id: string;
+  crm_contact_id?: string;
+  customer_identifier?: string;
+  customer_name: string;
+  balance_due: string;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// A set of ≥2 CustomerBalance rows sharing a normalized customer name, with a human-readable
+// reason and whether "Merge duplicates" (reconcileCustomerBalances with dry_run:false) will
+// actually collapse this specific group.
+export interface DuplicateCustomerGroup {
+  customer_name: string;
+  mergeable: boolean;
+  reason: string;
+  rows: DuplicateCustomerRow[];
+}
+
+// Read-only "why are these duplicated?" detail behind the Customers page's duplicate-count
+// banner — same grouping/ambiguity logic as reconcileCustomerBalances, so the two can never
+// disagree, but with full per-row detail for a review modal instead of just a count.
+export async function listDuplicateCustomerBalances(tenant: string): Promise<DuplicateCustomerGroup[]> {
+  const res = await apiClient.get<{ groups: DuplicateCustomerGroup[] }>(`${BASE}/${tenant}/ar/customers/duplicates`);
+  return res.groups ?? [];
+}
+
 // Pay out some/all of a customer's EXISTING stored credit (store_credit_balance) via a real
 // channel, independent of any return/sale — the inverse-direction sibling of recordCustomerPayment.
 export function payoutCustomerCredit(

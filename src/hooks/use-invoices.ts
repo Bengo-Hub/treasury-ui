@@ -20,6 +20,8 @@ import {
   recordCustomerPayment,
   reconcileCustomerBalances,
   type ReconcileResult,
+  listDuplicateCustomerBalances,
+  type DuplicateCustomerGroup,
   payoutCustomerCredit,
   applyCustomerCreditToDebt,
   setCustomerCreditTerms,
@@ -242,7 +244,20 @@ export function useReconcileCustomerBalances(tenant: string) {
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-duplicates', tenant] });
     },
+  });
+}
+
+// Read-only "why are these duplicated?" detail behind the Customers page's duplicate banner —
+// same grouping the Merge-duplicates mutation uses, with full per-row detail for a review modal.
+export function useDuplicateCustomerBalances(tenant: string, enabled = true) {
+  return useQuery<DuplicateCustomerGroup[]>({
+    queryKey: ['ar-customer-duplicates', tenant],
+    queryFn: () => listDuplicateCustomerBalances(tenant),
+    enabled: !!tenant && enabled,
+    staleTime: STALE_MS,
+    retry: false,
   });
 }
 

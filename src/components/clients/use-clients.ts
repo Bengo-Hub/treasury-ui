@@ -82,12 +82,29 @@ export function useClients(tenant: string, search = '') {
 
     // Index operational AR balances by crm id, identifier, and normalized name.
     const balanceByCrm = new Map<string, CustomerBalance>();
-    const balanceByName = new Map<string, CustomerBalance>();
+    const nameGroups = new Map<string, CustomerBalance[]>();
     (balances ?? []).forEach((b) => {
       if (b.crm_contact_id) balanceByCrm.set(b.crm_contact_id, b);
       if (b.customer_identifier) balanceByCrm.set(b.customer_identifier, b);
       const n = normName(b.customer_name);
-      if (n) balanceByName.set(n, b);
+      if (n) nameGroups.set(n, [...(nameGroups.get(n) ?? []), b]);
+    });
+    // A single-value Map keyed by name would let whichever balance row happens to be LAST in the
+    // array silently win when >1 row shares a name — exactly the split-row situation this whole
+    // page exists to detect, and picking the wrong one here could misattach an invoice/CRM
+    // client's outstanding figure to a DIFFERENT customer's balance row. Only resolve by name when
+    // it's unambiguous: a single row, or exactly one CRM-linked row among several (mirrors the
+    // backend's own preference for the crm-keyed row — see treasury-api's
+    // pickCanonicalCustomerBalance). Otherwise leave the name unmapped so callers fall back to the
+    // crm/identifier keys instead of guessing.
+    const balanceByName = new Map<string, CustomerBalance>();
+    nameGroups.forEach((rows, n) => {
+      if (rows.length === 1) {
+        balanceByName.set(n, rows[0]);
+        return;
+      }
+      const crmLinked = rows.filter((r) => r.crm_contact_id);
+      if (crmLinked.length === 1) balanceByName.set(n, crmLinked[0]);
     });
 
     const matchBalance = (crmId?: string, name?: string) =>
