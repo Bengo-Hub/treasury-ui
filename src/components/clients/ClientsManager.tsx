@@ -26,7 +26,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { useSyncCustomerToCRM, useReconcileCustomerBalances } from '@/hooks/use-invoices';
+import { useSyncCustomerToCRM, useDuplicateCustomerBalances } from '@/hooks/use-invoices';
+import { DuplicateCustomersModal } from './DuplicateCustomersModal';
 import { useClients, type ClientRecord } from './use-clients';
 import { ClientDetail } from './ClientDetail';
 import { CreditTermsDialog } from './CreditTermsDialog';
@@ -46,6 +47,34 @@ const numAcc = (v?: string | null) => parseFloat(v ?? '0') || 0;
  *  so its statement 400s. Gate the statement action on a real UUID (merge unifies the rest). */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hasUuidId = (c: ClientRecord) => !!c.customerId && UUID_RE.test(c.customerId);
+
+/** A value is trustworthy as a treasury AR key only if it's a real crm_contact_id UUID, an
+ *  email, or a phone-shaped string (≥7 digits) — NEVER a bare display name. Sending a customer's
+ *  NAME as `customer_identifier` is exactly how a phantom, disconnected CustomerBalance row gets
+ *  manufactured (the 2026-08-11 boi-enterprises "8 duplicate customer records" root cause) — a
+ *  name is neither stable nor unique, so every dialog that can create an AR row must refuse to
+ *  fall back to one. */
+const looksLikeArIdentifier = (v?: string | null) => {
+  const s = (v ?? '').trim();
+  if (!s) return false;
+  if (UUID_RE.test(s)) return true;
+  if (s.includes('@')) return true;
+  return s.replace(/\D/g, '').length >= 7;
+};
+
+/** Resolves the SAFE key to send a customer-AR-row-creating dialog (opening balance / credit
+ *  terms): a real crm_contact_id UUID when known, else a phone/email-shaped identifier — never a
+ *  raw CustomerBalance row id (internal PK, meaningless as an AR key) or a bare name. Returns
+ *  `undefined` when neither exists, so callers can disable the action instead of guessing. */
+const resolveArIdentifier = (c: ClientRecord): { crmContactId?: string; identifier?: string } => {
+  if (c.customerId && UUID_RE.test(c.customerId)) return { crmContactId: c.customerId };
+  const candidate = c.balance?.customer_identifier || c.phone || c.customerId;
+  return looksLikeArIdentifier(candidate) ? { identifier: candidate } : {};
+};
+const hasArIdentifier = (c: ClientRecord) => {
+  const r = resolveArIdentifier(c);
+  return !!(r.crmContactId || r.identifier);
+};
 
 /** Raw sort values per column key — shared by the DataTable headers and the host-side sort. */
 const CLIENT_SORT_ACCESSORS: Record<string, (c: ClientRecord) => unknown> = {
@@ -102,32 +131,16 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [syncingKey, setSyncingKey] = useState<string | null>(null);
   const [syncDialogClient, setSyncDialogClient] = useState<ClientRecord | null>(null);
   const syncCrm = useSyncCustomerToCRM(tenant);
-  const reconcile = useReconcileCustomerBalances(tenant);
+  const [showDuplicatesModal, setShowDuplicatesModal] = useState(false);
 
-  // Detect split-row duplicates: the SAME customer surfacing as >1 row (a phone-keyed AR row +
-  // a crm/name-keyed opening-balance row that never netted). Grouping on normalized name mirrors
-  // the treasury reconcile. When any exist, offer a one-click merge.
-  const duplicateCount = useMemo(() => {
-    const byName = new Map<string, number>();
-    clients.forEach((c) => {
-      const n = c.name.trim().toLowerCase().replace(/\s+/g, ' ');
-      if (n) byName.set(n, (byName.get(n) ?? 0) + 1);
-    });
-    let extra = 0;
-    byName.forEach((count) => { if (count > 1) extra += count - 1; });
-    return extra;
-  }, [clients]);
-
-  const handleMergeDuplicates = () => {
-    reconcile.mutate(false, {
-      onSuccess: (r) => toast.success(
-        r.rows_merged > 0
-          ? `Merged ${r.rows_merged} duplicate customer record${r.rows_merged === 1 ? '' : 's'}`
-          : 'No duplicates to merge',
-      ),
-      onError: () => toast.error('Failed to merge duplicate customers. Please try again.'),
-    });
-  };
+  // Duplicate detection is server-driven (GET /ar/customers/duplicates — the SAME grouping the
+  // actual merge uses, see DuplicateCustomersModal) rather than re-implemented here client-side,
+  // so the banner's count can never drift out of sync with what clicking through actually merges.
+  const { data: duplicateGroups = [] } = useDuplicateCustomerBalances(tenant);
+  const duplicateCount = useMemo(
+    () => duplicateGroups.reduce((sum, g) => sum + Math.max(g.rows.length - 1, 0), 0),
+    [duplicateGroups],
+  );
 
   // Run the actual sync mutation with the resolved contact details.
   const performSync = (c: ClientRecord, email?: string, phone?: string) => {
@@ -405,7 +418,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                 Apply to debt
               </Button>
             )}
-            {(c.customerId || b) && (
+            {hasArIdentifier(c) && (
               <Button variant="outline" size="sm" title="Credit terms (limit & payment period)"
                 onClick={(e: React.MouseEvent) => { e.stopPropagation(); setCreditTermsClient(c); }}>
                 <CreditCard className="h-3.5 w-3.5" />
@@ -417,10 +430,12 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                 {syncingKey === c.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
               </Button>
             )}
-            <Button variant="outline" size="sm" title="Set opening balance"
-              onClick={(e: React.MouseEvent) => { e.stopPropagation(); setOpeningClient(c); }}>
-              <Wallet className="h-3.5 w-3.5" />
-            </Button>
+            {hasArIdentifier(c) && (
+              <Button variant="outline" size="sm" title="Set opening balance"
+                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setOpeningClient(c); }}>
+                <Wallet className="h-3.5 w-3.5" />
+              </Button>
+            )}
             {hasUuidId(c) && (
               <Button variant="outline" size="sm" title="AR statement"
                 onClick={(e: React.MouseEvent) => { e.stopPropagation(); openStatement(c); }}>
@@ -474,11 +489,13 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
             — the same customer split across separate AR rows. Merge them into one so all their
             transactions and statement line up.
           </p>
-          <Button size="sm" onClick={handleMergeDuplicates} disabled={reconcile.isPending} className="shrink-0">
-            {reconcile.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Merge duplicates'}
+          <Button size="sm" onClick={() => setShowDuplicatesModal(true)} className="shrink-0">
+            Review duplicates
           </Button>
         </div>
       )}
+
+      <DuplicateCustomersModal tenant={tenant} open={showDuplicatesModal} onClose={() => setShowDuplicatesModal(false)} />
 
       {payTarget && (
         <ReceivePaymentModal tenant={tenant} target={payTarget} onClose={() => setPayTarget(null)} />
@@ -596,17 +613,17 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
           onClose={() => setOpeningClient(null)}
           tenant={tenant}
           name={openingClient.name}
-          crmContactId={openingClient.customerId}
-          // Key on the STABLE AR identifier (phone) the credit-sale path uses — NOT the name.
-          // Using the name here created a separate CustomerBalance row (the split-row dup source).
-          customerIdentifier={openingClient.phone || openingClient.balance?.customer_identifier || openingClient.name}
+          // Never a bare name — see resolveArIdentifier's doc comment for why that manufactures a
+          // phantom, disconnected CustomerBalance row (the 2026-08-11 boi-enterprises bug).
+          crmContactId={resolveArIdentifier(openingClient).crmContactId}
+          customerIdentifier={resolveArIdentifier(openingClient).identifier}
         />
       )}
 
       {creditTermsClient && (
         <CreditTermsDialog
           tenant={tenant}
-          contactId={creditTermsClient.customerId || creditTermsClient.balance?.customer_identifier || creditTermsClient.balance?.id || creditTermsClient.name}
+          contactId={resolveArIdentifier(creditTermsClient).crmContactId ?? resolveArIdentifier(creditTermsClient).identifier ?? ''}
           customerName={creditTermsClient.name}
           currency={creditTermsClient.currency}
           currentLimit={creditTermsClient.balance?.credit_limit ? parseFloat(creditTermsClient.balance.credit_limit) || 0 : null}

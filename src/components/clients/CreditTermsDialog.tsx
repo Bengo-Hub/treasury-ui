@@ -38,6 +38,17 @@ export function CreditTermsDialog({ tenant, contactId, customerName, currency = 
       setError('Enter valid non-negative values (empty or 0 clears a term).');
       return;
     }
+    // Nothing actually changed (both fields still at their loaded value, most commonly both
+    // still 0/empty on a customer who has no AR record yet) — don't call the API at all. The
+    // backend now rejects this exact request outright for a brand-new customer (it used to
+    // silently create an empty, CRM-disconnected AR row — the 2026-08-11 boi-enterprises bug),
+    // but skipping the no-op call here means the same accidental "Save" on an unmodified dialog
+    // never even reaches the server for an EXISTING customer either.
+    const before = { lim: currentLimit && currentLimit > 0 ? currentLimit : 0, days: currentPeriodDays && currentPeriodDays > 0 ? currentPeriodDays : 0 };
+    if (lim === before.lim && days === before.days) {
+      onClose();
+      return;
+    }
     setTerms.mutate(
       { contactId, creditLimit: lim, creditPeriodDays: days, customerName },
       {
