@@ -519,7 +519,11 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 mt-8 space-y-6">
+      {/* Widened from max-w-5xl: on a wide viewport the card left a huge empty gutter on both
+          sides while the sticky header above spans full width — max-w-7xl keeps a comfortable
+          reading width but reclaims most of that dead space and gives the line-items table (in
+          particular the Tax% column) real room to breathe. */}
+      <div className="max-w-7xl mx-auto px-4 mt-8 space-y-6">
         <div className="rounded-xl border border-border bg-card shadow-sm p-6 space-y-8">
 
           {/* Dates + Logo */}
