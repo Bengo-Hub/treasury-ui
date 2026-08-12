@@ -8,7 +8,7 @@ import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { useAccounts } from '@/hooks/use-accounts';
 import { useCreateExpense } from '@/hooks/use-expenses';
 import { useInvoices } from '@/hooks/use-invoices';
-import { useVendors } from '@/hooks/use-inventory';
+import { useVendors, useVendorSearch } from '@/hooks/use-inventory';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSupportedCurrencies } from '@/hooks/use-currencies';
 import { usePreviewNextNumber } from '@/hooks/use-sequences';
@@ -111,6 +111,7 @@ export default function NewExpenditurePage() {
 
   const createExpense = useCreateExpense(effectiveTenant);
   const { data: vendorData } = useVendors(effectiveTenant, undefined, !!effectiveTenant);
+  const searchVendors = useVendorSearch(effectiveTenant);
   const { data: accountsData } = useAccounts(effectiveTenant);
   const { data: currencyData } = useSupportedCurrencies();
   const { data: invoiceData } = useInvoices(effectiveTenant, undefined, !!effectiveTenant);
@@ -375,6 +376,7 @@ export default function NewExpenditurePage() {
                     placeholder="Select Vendor"
                     searchPlaceholder="Search vendors…"
                     emptyText="No vendors yet"
+                    onRemoteSearch={searchVendors}
                   />
                 </FormField>
 

@@ -1,6 +1,8 @@
 'use client';
 
+import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { ComboboxOption } from '@bengo-hub/shared-ui-lib/combobox';
 import {
   createInventoryCategory,
   createInventoryUnit,
@@ -118,6 +120,23 @@ export function useVendors(tenant: string, params?: ListVendorsParams, enabled =
     enabled: !!tenant && enabled,
     staleTime: STALE_MS,
   });
+}
+
+/**
+ * Stable `onRemoteSearch` callback for any vendor/supplier combobox (purchase bills,
+ * expenses, shipping/carrier picker) — GET /inventory/suppliers?search=…, the same
+ * paginated endpoint (backend default limit 20) `useVendors` prefetches page 1 of, so
+ * a vendor sorting past that first page is still found once typed. Mirrors the same
+ * fix shipped for inventory-ui's own Supplier combobox.
+ */
+export function useVendorSearch(tenant: string): (query: string) => Promise<ComboboxOption[]> {
+  return useCallback(
+    async (query: string) => {
+      const res = await listVendors(tenant, { q: query, limit: 20 });
+      return res.vendors.map((v) => ({ value: v.id, label: v.business_name, hint: v.phone || v.email || undefined }));
+    },
+    [tenant],
+  );
 }
 
 export function useVendor(tenant: string, vendorId: string, enabled = true) {

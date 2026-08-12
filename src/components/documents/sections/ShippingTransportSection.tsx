@@ -1,5 +1,7 @@
 'use client';
 
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
+
 /**
  * ShippingTransportSection — Refrens-style "Add Shipping Details" + Transport Details capture for a
  * document. Captures a customer-charged shipping amount (→ Shipping Recovery 4500 in the GL) and a
@@ -44,6 +46,12 @@ interface Props {
   currency?: string;
   /** Optional carrier/vendor list for the delivery-cost vendor picker (e.g. from useVendors). */
   vendors?: VendorOption[];
+  /**
+   * Debounced server-side vendor search (e.g. useVendorSearch(tenant)) — the vendor list can
+   * paginate past what a single prefetch returns, so without this a carrier whose name sorts
+   * past the first page is invisible even though the record exists.
+   */
+  onSearchVendors?: (query: string) => Promise<ComboboxOption[]>;
 }
 
 const inputCls =
@@ -51,7 +59,7 @@ const inputCls =
 const labelCls = 'text-xs font-medium text-muted-foreground mb-1 block';
 
 export function ShippingTransportSection({
-  enabled, onToggle, shippingAmount, onShippingAmountChange, transport, onTransportChange, currency = 'KES', vendors = [],
+  enabled, onToggle, shippingAmount, onShippingAmountChange, transport, onTransportChange, currency = 'KES', vendors = [], onSearchVendors,
 }: Props) {
   const set = (patch: Partial<TransportDetails>) => onTransportChange({ ...transport, ...patch });
 
@@ -154,20 +162,17 @@ export function ShippingTransportSection({
               <div>
                 <label className={labelCls}>Carrier / courier</label>
                 {vendors.length > 0 ? (
-                  <select
-                    className={inputCls}
+                  <Combobox
+                    options={vendors.map((v) => ({ value: v.id, label: v.name }))}
                     value={transport.delivery_cost_vendor_id ?? ''}
-                    onChange={(e) => {
-                      const id = e.target.value || undefined;
+                    onChange={(id) => {
                       const name = vendors.find((v) => v.id === id)?.name;
-                      set({ delivery_cost_vendor_id: id, delivery_cost_carrier: name ?? transport.delivery_cost_carrier });
+                      set({ delivery_cost_vendor_id: id || undefined, delivery_cost_carrier: name ?? transport.delivery_cost_carrier });
                     }}
-                  >
-                    <option value="">— Select carrier (optional) —</option>
-                    {vendors.map((v) => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
-                  </select>
+                    placeholder="— Select carrier (optional) —"
+                    searchPlaceholder="Search carriers…"
+                    onRemoteSearch={onSearchVendors}
+                  />
                 ) : (
                   <input
                     className={inputCls}

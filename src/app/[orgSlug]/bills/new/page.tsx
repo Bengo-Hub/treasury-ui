@@ -4,7 +4,7 @@ import { Button, Card, CardContent } from '@/components/ui/base';
 import { Combobox } from '@/components/ui/combobox';
 import { FormField } from '@/components/ui/form-field';
 import { useBills, useCreateBill } from '@/hooks/use-bills';
-import { useVendors } from '@/hooks/use-inventory';
+import { useVendors, useVendorSearch } from '@/hooks/use-inventory';
 import { useOrgBranding } from '@/hooks/use-org-branding';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSupportedCurrencies } from '@/hooks/use-currencies';
@@ -69,6 +69,7 @@ export default function NewPurchasePage() {
     () => (vendorData?.vendors ?? []).map((v) => ({ value: v.id, label: v.business_name, hint: v.country })),
     [vendorData],
   );
+  const searchVendors = useVendorSearch(effectiveTenant);
 
   const { data: currencyData } = useSupportedCurrencies();
   const currencyOptions = useMemo(() => {
@@ -282,6 +283,7 @@ export default function NewPurchasePage() {
                 placeholder="Select Vendor"
                 searchPlaceholder="Search vendors…"
                 emptyText="No vendors yet"
+                onRemoteSearch={searchVendors}
               />
               {errors.vendor && <p className="text-[11px] text-destructive font-medium mt-1">{errors.vendor}</p>}
               <div className="rounded-lg border border-border bg-accent/10 px-4 py-4 mt-3 text-center">
