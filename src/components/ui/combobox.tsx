@@ -28,6 +28,8 @@ export function Combobox({
   disabled = false,
   clearable = true,
   className,
+  onRemoteSearch,
+  remoteThreshold = 5,
 }: {
   options: ComboboxOption[];
   value: string | null | undefined;
@@ -39,9 +41,21 @@ export function Combobox({
   disabled?: boolean;
   clearable?: boolean;
   className?: string;
+  /**
+   * Debounced server-side fallback for lists whose backend paginates (e.g. vendors,
+   * default page size 20): fires when the prefetched `options` yield fewer than
+   * `remoteThreshold` local matches, so a record that exists but lives past page 1 is
+   * still found once typed. Omit for small, fully-prefetched lists.
+   */
+  onRemoteSearch?: (query: string) => Promise<ComboboxOption[]>;
+  remoteThreshold?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [remoteResults, setRemoteResults] = useState<ComboboxOption[]>([]);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestSeq = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -91,6 +105,7 @@ export function Combobox({
   useEffect(() => {
     if (open) {
       setQuery('');
+      setRemoteResults([]);
       // focus the search box when the menu opens
       requestAnimationFrame(() => inputRef.current?.focus());
     }
@@ -98,7 +113,7 @@ export function Combobox({
 
   const selected = options.find((o) => o.value === value) ?? null;
 
-  const filtered = useMemo(() => {
+  const localMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
     return options.filter(
@@ -108,6 +123,44 @@ export function Combobox({
         o.value.toLowerCase().includes(q),
     );
   }, [options, query]);
+
+  // Remote fallback: prefetched list first, API only when local search runs dry.
+  useEffect(() => {
+    if (!onRemoteSearch) return;
+    const q = query.trim();
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!q || localMatches.length >= remoteThreshold) {
+      setRemoteResults([]);
+      setRemoteLoading(false);
+      return;
+    }
+    setRemoteLoading(true);
+    const seq = ++requestSeq.current;
+    debounceRef.current = setTimeout(() => {
+      onRemoteSearch(q)
+        .then((results) => {
+          if (requestSeq.current !== seq) return; // stale response
+          setRemoteResults(results);
+        })
+        .catch(() => {
+          if (requestSeq.current === seq) setRemoteResults([]);
+        })
+        .finally(() => {
+          if (requestSeq.current === seq) setRemoteLoading(false);
+        });
+    }, 250);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query, localMatches.length, onRemoteSearch, remoteThreshold]);
+
+  const filtered = useMemo(() => {
+    if (remoteResults.length === 0) return localMatches;
+    const seen = new Set(localMatches.map((o) => o.value));
+    return [...localMatches, ...remoteResults.filter((o) => !seen.has(o.value))];
+  }, [localMatches, remoteResults]);
+
+  const busy = loading || remoteLoading;
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
@@ -170,6 +223,7 @@ export function Combobox({
               placeholder={searchPlaceholder}
               className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
+            {busy && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />}
           </div>
           <div className="overflow-y-auto py-1" style={{ maxHeight: menuPos.maxHeight }}>
             {loading ? (

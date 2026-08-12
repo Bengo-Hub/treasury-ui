@@ -12,7 +12,7 @@ import type {
 } from '@/lib/api/invoices';
 import { crmContactDisplayName, type CRMContact } from '@/lib/api/crm';
 import { useOutletFilterStore } from '@/store/outlet-filter';
-import { useVendors } from '@/hooks/use-inventory';
+import { useVendors, useVendorSearch } from '@/hooks/use-inventory';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, Loader2, Search, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -187,6 +187,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   // list just degrades the picker to a free-text carrier field in the section.
   const { data: vendorsResp } = useVendors(effectiveTenant, undefined, !isQuotation);
   const carrierVendors = (vendorsResp?.vendors ?? []).map((v) => ({ id: v.id, name: v.business_name }));
+  const searchCarrierVendors = useVendorSearch(effectiveTenant);
 
   const today = new Date().toISOString().slice(0, 10);
   const defaultSecondary = config.defaultSecondaryDays > 0
@@ -682,6 +683,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
               onTransportChange={setTransport}
               currency={form.currency}
               vendors={carrierVendors}
+              onSearchVendors={searchCarrierVendors}
             />
           )}
 
