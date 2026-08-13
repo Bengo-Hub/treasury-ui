@@ -7,6 +7,16 @@ import {
   useInvoicePayments, useUpdateInvoicePayment, useVoidInvoicePayment, useNotifyInvoicePayment,
 } from '@/hooks/use-invoices';
 import type { InvoicePayment } from '@/lib/api/invoices';
+import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
+
+/** Converts an ISO datetime string to the local value an `<input type="datetime-local">` expects. */
+function toDatetimeLocalValue(iso?: string): string {
+  if (!iso) return nowDatetimeLocal();
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return nowDatetimeLocal();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
 
 /** Minimal invoice shape the modal needs — satisfied by both Invoice and DocumentRow. */
 export interface ViewPaymentsInvoiceRef {
@@ -23,6 +33,12 @@ const METHOD_LABELS: Record<string, string> = {
 
 const fmtMoney = (v: string | number, cur = 'KES') =>
   `${cur} ${Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const fmtDateTime = (iso?: string) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
 
 /**
  * ViewPaymentsModal — the detailed recorded-payments view for an invoice: Date /
@@ -45,12 +61,12 @@ export function ViewPaymentsModal({ tenant, invoice, onClose, canManage = true }
   const voidPayment = useVoidInvoicePayment(tenant);
   const notifyPayment = useNotifyInvoicePayment(tenant);
 
-  const [editing, setEditing] = useState<{ id: string; reference: string; note: string; method: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: string; reference: string; note: string; method: string; paidAtLocal: string } | null>(null);
   const [voiding, setVoiding] = useState<InvoicePayment | null>(null);
 
   const printPayments = () => {
     const rows = payments.map((p) =>
-      `<tr><td>${p.paid_at?.slice(0, 10) ?? '—'}</td><td>${p.reference || p.id.slice(0, 8)}</td>` +
+      `<tr><td>${fmtDateTime(p.paid_at)}</td><td>${p.reference || p.id.slice(0, 8)}</td>` +
       `<td>${METHOD_LABELS[p.method] ?? p.method}</td><td>${p.note || ''}</td>` +
       `<td style="text-align:right">${fmtMoney(p.amount, p.currency)}</td><td>${p.status}</td></tr>`).join('');
     const w = window.open('', '_blank', 'width=760,height=560');
@@ -108,7 +124,7 @@ export function ViewPaymentsModal({ tenant, invoice, onClose, canManage = true }
                 <tbody>
                   {payments.map((p) => (
                     <tr key={p.id} className={p.status === 'voided' ? 'opacity-60' : ''}>
-                      <td className="py-2 px-2 border border-border/40">{p.paid_at?.slice(0, 10) ?? '—'}</td>
+                      <td className="py-2 px-2 border border-border/40">{fmtDateTime(p.paid_at)}</td>
                       <td className="py-2 px-2 border border-border/40 font-mono">{p.reference || p.id.slice(0, 8)}</td>
                       <td className="py-2 px-2 border border-border/40">{METHOD_LABELS[p.method] ?? p.method}</td>
                       <td className="py-2 px-2 border border-border/40 max-w-[160px] truncate" title={p.note}>{p.note || '—'}</td>
@@ -122,9 +138,9 @@ export function ViewPaymentsModal({ tenant, invoice, onClose, canManage = true }
                         <td className="py-2 px-2 border border-border/40">
                           {p.status === 'active' && (
                             <div className="flex items-center gap-1">
-                              <button title="Edit payment (reference/note/method — not the amount)"
+                              <button title="Edit payment (reference/note/method/date — not the amount)"
                                 className="h-6 w-6 rounded-md flex items-center justify-center hover:bg-accent"
-                                onClick={() => setEditing({ id: p.id, reference: p.reference ?? '', note: p.note ?? '', method: p.method })}>
+                                onClick={() => setEditing({ id: p.id, reference: p.reference ?? '', note: p.note ?? '', method: p.method, paidAtLocal: toDatetimeLocalValue(p.paid_at) })}>
                                 <Pencil className="h-3 w-3 text-muted-foreground" />
                               </button>
                               <button title="Void payment (reversing journal; totals recomputed)"
@@ -155,7 +171,7 @@ export function ViewPaymentsModal({ tenant, invoice, onClose, canManage = true }
           {editing && (
             <div className="rounded-xl border border-border p-3 space-y-2 bg-accent/10">
               <p className="text-[11px] font-bold">Edit payment — the amount is not editable (void &amp; re-record to change money)</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <label className="text-[10px] font-bold text-muted-foreground uppercase">Reference
                   <input className={inputCls} value={editing.reference} onChange={(e) => setEditing({ ...editing, reference: e.target.value })} />
                 </label>
@@ -167,13 +183,17 @@ export function ViewPaymentsModal({ tenant, invoice, onClose, canManage = true }
                     {Object.entries(METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                 </label>
+                <label className="text-[10px] font-bold text-muted-foreground uppercase">Date &amp; time
+                  <input type="datetime-local" className={inputCls} value={editing.paidAtLocal} max={nowDatetimeLocal()}
+                    onChange={(e) => setEditing({ ...editing, paidAtLocal: e.target.value })} />
+                </label>
               </div>
               <div className="flex justify-end gap-2">
                 <button className="px-3 py-1.5 text-xs font-bold rounded-lg border border-border hover:bg-accent" onClick={() => setEditing(null)}>Cancel</button>
                 <button className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   disabled={updatePayment.isPending}
                   onClick={() => updatePayment.mutate(
-                    { invoiceId: invoice.id, paymentId: editing.id, reference: editing.reference, note: editing.note, method: editing.method },
+                    { invoiceId: invoice.id, paymentId: editing.id, reference: editing.reference, note: editing.note, method: editing.method, paid_at: datetimeLocalToISO(editing.paidAtLocal) },
                     {
                       onSuccess: () => { toast.success('Payment updated'); setEditing(null); },
                       onError: (e: any) => toast.error(e?.response?.data?.error || 'Update failed'),

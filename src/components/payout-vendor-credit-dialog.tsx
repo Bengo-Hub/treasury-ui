@@ -5,6 +5,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/base';
 import { FormField } from '@/components/ui/form-field';
 import { usePayoutVendorCredit } from '@/hooks/use-arpa';
+import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
 import { Loader2 } from 'lucide-react';
 
 const inputClass =
@@ -46,6 +47,7 @@ export function PayoutVendorCreditDialog(props: PayoutVendorCreditDialogProps) {
   const [amount, setAmount] = useState(creditAvailable ? creditAvailable.toFixed(2) : '');
   const [channel, setChannel] = useState('cash');
   const [reference, setReference] = useState('');
+  const [paidAtLocal, setPaidAtLocal] = useState(nowDatetimeLocal());
   const [error, setError] = useState('');
 
   const submit = () => {
@@ -69,6 +71,7 @@ export function PayoutVendorCreditDialog(props: PayoutVendorCreditDialogProps) {
           amount: amt,
           payout_channel: channel,
           reference: reference.trim() || undefined,
+          paid_at: datetimeLocalToISO(paidAtLocal),
         },
       },
       { onSuccess: () => onClose() },
@@ -114,6 +117,16 @@ export function PayoutVendorCreditDialog(props: PayoutVendorCreditDialogProps) {
               value={reference}
               onChange={(e) => setReference(e.target.value)}
               placeholder="Optional"
+              className={inputClass}
+            />
+          </FormField>
+
+          <FormField label="Payment date & time" required>
+            <input
+              type="datetime-local"
+              value={paidAtLocal}
+              max={nowDatetimeLocal()}
+              onChange={(e) => setPaidAtLocal(e.target.value)}
               className={inputClass}
             />
           </FormField>

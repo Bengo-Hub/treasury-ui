@@ -11,6 +11,7 @@ import {
   type FilterMap,
   type SortState,
 } from '@bengo-hub/shared-ui-lib/data-table';
+import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
 import { EXPENSE_ACCESSORS, buildExpenseColumns } from './expense-columns';
 import { ExpensePaymentModal } from '@/components/expenses/ExpensePaymentModal';
 import { MarkExpensePaidModal } from '@/components/expenses/MarkExpensePaidModal';
@@ -79,6 +80,7 @@ export default function ExpensesPage() {
   const [markPaidExp, setMarkPaidExp] = useState<Expense | null>(null);
   const [reimburseExp, setReimburseExp] = useState<Expense | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState('');
+  const [reimbursePaidAtLocal, setReimbursePaidAtLocal] = useState(nowDatetimeLocal());
   const dateRange = useMemo(() => defaultDateRange(), []);
 
   const queryParams = useMemo(() => ({
@@ -204,10 +206,15 @@ export default function ExpensesPage() {
   const handleReimburse = async () => {
     if (!reimburseExp || !paymentIntentId.trim()) return;
     try {
-      await reimburseMutation.mutateAsync({ id: reimburseExp.id, paymentIntentId: paymentIntentId.trim() });
+      await reimburseMutation.mutateAsync({
+        id: reimburseExp.id,
+        paymentIntentId: paymentIntentId.trim(),
+        paidAt: datetimeLocalToISO(reimbursePaidAtLocal),
+      });
       toast.success(`Expense ${reimburseExp.expense_number} marked reimbursed`);
       setReimburseExp(null);
       setPaymentIntentId('');
+      setReimbursePaidAtLocal(nowDatetimeLocal());
     } catch (err: any) {
       toast.error(err?.response?.data?.error ?? 'Failed to mark reimbursed.');
     }
@@ -215,10 +222,10 @@ export default function ExpensesPage() {
 
   // Primary: settle a direct business expense from a chosen cash/bank account. The backend posts
   // DR Accounts Payable / CR that account and marks it paid.
-  const handleMarkPaid = async (paidFromAccountId: string) => {
+  const handleMarkPaid = async (paidFromAccountId: string, paidAt?: string) => {
     if (!markPaidExp) return;
     try {
-      await payMutation.mutateAsync({ id: markPaidExp.id, paidFromAccountId: paidFromAccountId || undefined });
+      await payMutation.mutateAsync({ id: markPaidExp.id, paidFromAccountId: paidFromAccountId || undefined, paidAt });
       toast.success(`Expense ${markPaidExp.expense_number} marked paid`);
       setMarkPaidExp(null);
     } catch (err: any) {
@@ -481,6 +488,15 @@ export default function ExpensesPage() {
             placeholder="UUID of the reimbursement payment intent"
             value={paymentIntentId}
             onChange={(e) => setPaymentIntentId(e.target.value)}
+          />
+        </FormField>
+        <FormField label="Payment date & time">
+          <input
+            type="datetime-local"
+            className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
+            value={reimbursePaidAtLocal}
+            max={nowDatetimeLocal()}
+            onChange={(e) => setReimbursePaidAtLocal(e.target.value)}
           />
         </FormField>
       </ConfirmDialog>

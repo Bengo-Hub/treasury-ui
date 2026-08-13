@@ -10,6 +10,7 @@ import { usePayBill } from '@/hooks/use-bills';
 import { ONLINE_PAYMENT_METHODS, type Bill, type PayBillRequest } from '@/lib/api/bills';
 import { listPaymentIntents } from '@/lib/api/payments';
 import { formatCurrency } from '@/lib/utils/currency';
+import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CreditCard, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -61,6 +62,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
   const [recipientAccountNumber, setRecipientAccountNumber] = useState('');
   const [recipientAccountName, setRecipientAccountName] = useState('');
   const [paymentIntentId, setPaymentIntentId] = useState('');
+  const [paidAtLocal, setPaidAtLocal] = useState(nowDatetimeLocal());
   const [error, setError] = useState('');
   const [approvalRequired, setApprovalRequired] = useState(false);
 
@@ -95,6 +97,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
     setRecipientAccountNumber('');
     setRecipientAccountName('');
     setPaymentIntentId('');
+    setPaidAtLocal(nowDatetimeLocal());
     setError('');
     setApprovalRequired(false);
   };
@@ -134,6 +137,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
         recipient_bank_code: recipientBankCode.trim() || undefined,
         recipient_account_number: recipientAccountNumber.trim() || undefined,
         recipient_account_name: recipientAccountName.trim() || undefined,
+        paid_at: datetimeLocalToISO(paidAtLocal),
       };
     } else {
       if (!reference.trim()) {
@@ -144,6 +148,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
         payment_method: method,
         paid_from_account_id: accountId || undefined,
         reference: reference.trim(),
+        paid_at: datetimeLocalToISO(paidAtLocal),
       };
     }
 
@@ -254,6 +259,16 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
                     value={reference}
                     onChange={(e) => setReference(e.target.value)}
                     placeholder={online ? 'Optional' : 'Required'}
+                    className={inputClass}
+                  />
+                </FormField>
+
+                <FormField label="Payment date & time" required>
+                  <input
+                    type="datetime-local"
+                    value={paidAtLocal}
+                    max={nowDatetimeLocal()}
+                    onChange={(e) => setPaidAtLocal(e.target.value)}
                     className={inputClass}
                   />
                 </FormField>

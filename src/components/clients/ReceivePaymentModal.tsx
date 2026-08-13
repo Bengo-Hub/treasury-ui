@@ -34,10 +34,10 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
       methods={RECEIVE_METHODS}
       isPending={recordPay.isPending}
       onClose={onClose}
-      onSubmit={({ amount, method, reference }) =>
+      onSubmit={({ amount, method, reference, effectiveAt }) =>
         new Promise((resolve, reject) => {
           recordPay.mutate(
-            { contactId, amount, paymentMethod: method, reference },
+            { contactId, amount, paymentMethod: method, reference, paidAt: effectiveAt },
             { onSuccess: () => { onClose(); resolve(); }, onError: reject },
           );
         })

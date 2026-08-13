@@ -34,10 +34,10 @@ export function PayoutCreditModal({ tenant, target, onClose }: PayoutCreditModal
       methods={PAYOUT_METHODS}
       isPending={payout.isPending}
       onClose={onClose}
-      onSubmit={({ amount, method, reference }) =>
+      onSubmit={({ amount, method, reference, effectiveAt }) =>
         new Promise((resolve, reject) => {
           payout.mutate(
-            { contactId, amount, payoutChannel: method ?? 'cash', reference },
+            { contactId, amount, payoutChannel: method ?? 'cash', reference, paidAt: effectiveAt },
             { onSuccess: () => { onClose(); resolve(); }, onError: reject },
           );
         })

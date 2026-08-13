@@ -39,10 +39,10 @@ export function ApplyCreditToDebtModal({ tenant, target, onClose }: ApplyCreditT
       methods={[]}
       isPending={applyToDebt.isPending}
       onClose={onClose}
-      onSubmit={({ amount, reference }) =>
+      onSubmit={({ amount, reference, effectiveAt }) =>
         new Promise((resolve, reject) => {
           applyToDebt.mutate(
-            { contactId, amount, reference },
+            { contactId, amount, reference, paidAt: effectiveAt },
             { onSuccess: () => { onClose(); resolve(); }, onError: reject },
           );
         })
