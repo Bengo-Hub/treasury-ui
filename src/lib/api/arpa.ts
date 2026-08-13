@@ -155,6 +155,8 @@ export interface PayoutVendorCreditRequest {
   payout_channel: string;
   reference?: string;
   user_id?: string;
+  /** ISO 8601 — when the money actually changed hands; omit to default to now (backdating support). */
+  paid_at?: string;
 }
 
 /** treasury-api list endpoints return a pagination envelope `{ data, total, page, limit }`. */

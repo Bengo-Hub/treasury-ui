@@ -225,8 +225,8 @@ export function useCustomerBalances(tenant: string, enabled = true) {
 export function useRecordCustomerPayment(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ contactId, amount, paymentMethod, reference }: { contactId: string; amount: number; paymentMethod?: string; reference?: string }) =>
-      recordCustomerPayment(tenant, contactId, { amount, payment_method: paymentMethod, reference }),
+    mutationFn: ({ contactId, amount, paymentMethod, reference, paidAt }: { contactId: string; amount: number; paymentMethod?: string; reference?: string; paidAt?: string }) =>
+      recordCustomerPayment(tenant, contactId, { amount, payment_method: paymentMethod, reference, paid_at: paidAt }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
@@ -265,8 +265,8 @@ export function useDuplicateCustomerBalances(tenant: string, enabled = true) {
 export function usePayoutCustomerCredit(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ contactId, amount, payoutChannel, reference }: { contactId: string; amount: number; payoutChannel: string; reference?: string }) =>
-      payoutCustomerCredit(tenant, contactId, { amount, payoutChannel, reference }),
+    mutationFn: ({ contactId, amount, payoutChannel, reference, paidAt }: { contactId: string; amount: number; payoutChannel: string; reference?: string; paidAt?: string }) =>
+      payoutCustomerCredit(tenant, contactId, { amount, payoutChannel, reference, paidAt }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
@@ -279,8 +279,8 @@ export function usePayoutCustomerCredit(tenant: string) {
 export function useApplyCustomerCreditToDebt(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ contactId, amount, reference }: { contactId: string; amount: number; reference?: string }) =>
-      applyCustomerCreditToDebt(tenant, contactId, { amount, reference }),
+    mutationFn: ({ contactId, amount, reference, paidAt }: { contactId: string; amount: number; reference?: string; paidAt?: string }) =>
+      applyCustomerCreditToDebt(tenant, contactId, { amount, reference, paidAt }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });

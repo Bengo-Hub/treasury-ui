@@ -7,14 +7,16 @@ import { FormField } from '@/components/ui/form-field';
 import { useAccounts } from '@/hooks/use-accounts';
 import type { Expense } from '@/lib/api/expenses';
 import { formatCurrency } from '@/lib/utils/currency';
+import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
 import { useMemo, useState } from 'react';
 
 interface Props {
   tenant: string;
   expense: Expense;
   onClose: () => void;
-  /** Fired with the chosen cash/bank account id (empty string = use tenant default). */
-  onConfirm: (paidFromAccountId: string) => void;
+  /** Fired with the chosen cash/bank account id (empty string = use tenant default) and the
+   *  payment's effective ISO date/time. */
+  onConfirm: (paidFromAccountId: string, paidAt?: string) => void;
   pending?: boolean;
 }
 
@@ -37,6 +39,7 @@ export function MarkExpensePaidModal({ tenant, expense, onClose, onConfirm, pend
     [accountsData],
   );
   const [accountId, setAccountId] = useState<string>('');
+  const [paidAtLocal, setPaidAtLocal] = useState(nowDatetimeLocal());
   const effective = accountId || defaultAccount;
 
   return (
@@ -62,11 +65,21 @@ export function MarkExpensePaidModal({ tenant, expense, onClose, onConfirm, pend
             />
           </FormField>
 
+          <FormField label="Payment date & time">
+            <input
+              type="datetime-local"
+              value={paidAtLocal}
+              max={nowDatetimeLocal()}
+              onChange={(e) => setPaidAtLocal(e.target.value)}
+              className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+            />
+          </FormField>
+
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="outline" size="sm" onClick={onClose} disabled={pending}>
               Cancel
             </Button>
-            <Button size="sm" onClick={() => onConfirm(effective)} disabled={pending}>
+            <Button size="sm" onClick={() => onConfirm(effective, datetimeLocalToISO(paidAtLocal))} disabled={pending}>
               {pending ? 'Posting…' : 'Mark paid'}
             </Button>
           </div>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { CheckCircle, ChevronRight, CreditCard, Loader2, Receipt, X } from 'lucide-react';
 import { useRecordPayment, useInvoices } from '@/hooks/use-invoices';
 import type { Invoice } from '@/lib/api/invoices';
+import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
 
 type PaymentMethod = 'cash' | 'bank_transfer' | 'cheque' | 'mpesa' | 'card' | 'other';
 
@@ -40,7 +41,7 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [s1, setS1] = useState<Step1State>({
     receipt_number: '',
-    payment_date: new Date().toISOString().slice(0, 10),
+    payment_date: nowDatetimeLocal(),
     reference: '',
   });
   const [s2, setS2] = useState<Step2State>({
@@ -79,7 +80,7 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
         method: s2.method,
         reference: s1.reference || s1.receipt_number || undefined,
         note: s1.receipt_number && s1.reference ? `Receipt ${s1.receipt_number}` : undefined,
-        paid_at: s1.payment_date ? new Date(`${s1.payment_date}T12:00:00Z`).toISOString() : undefined,
+        paid_at: datetimeLocalToISO(s1.payment_date),
       }, {
         onSuccess: () => {
           pending--;
@@ -131,8 +132,8 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
           {step === 1 && (
             <>
               <div>
-                <label className={labelCls}>Payment Date <span className="text-destructive">*</span></label>
-                <input type="date" className={inputCls} value={s1.payment_date}
+                <label className={labelCls}>Payment Date &amp; Time <span className="text-destructive">*</span></label>
+                <input type="datetime-local" className={inputCls} value={s1.payment_date} max={nowDatetimeLocal()}
                   onChange={e => setS1(p => ({ ...p, payment_date: e.target.value }))} />
               </div>
               <div>

@@ -98,6 +98,8 @@ export interface PayBillRequest {
   recipient_account_number?: string;
   recipient_account_name?: string;
   user_id?: string;
+  /** ISO 8601 — when the money actually changed hands; omit to default to now (backdating support). */
+  paid_at?: string;
 }
 
 /** payment_method values PayBill dispatches for real via the payout Dispatcher rather than merely recording. */

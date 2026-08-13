@@ -858,12 +858,13 @@ export async function getCustomerBalances(tenant: string): Promise<CustomerBalan
 export function recordCustomerPayment(
   tenant: string,
   contactId: string,
-  body: { amount: number; payment_method?: string; reference?: string },
+  body: { amount: number; payment_method?: string; reference?: string; paid_at?: string },
 ): Promise<CustomerBalance> {
   return apiClient.post<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/payment`, {
     amount: String(body.amount),
     payment_method: body.payment_method,
     reference: body.reference,
+    paid_at: body.paid_at,
   });
 }
 
@@ -915,12 +916,13 @@ export async function listDuplicateCustomerBalances(tenant: string): Promise<Dup
 export function payoutCustomerCredit(
   tenant: string,
   contactId: string,
-  body: { amount: number; payoutChannel: string; reference?: string },
+  body: { amount: number; payoutChannel: string; reference?: string; paidAt?: string },
 ): Promise<CustomerBalance> {
   return apiClient.post<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/payout-credit`, {
     amount: String(body.amount),
     payout_channel: body.payoutChannel,
     reference: body.reference,
+    paid_at: body.paidAt,
   });
 }
 
@@ -930,11 +932,12 @@ export function payoutCustomerCredit(
 export function applyCustomerCreditToDebt(
   tenant: string,
   contactId: string,
-  body: { amount: number; reference?: string },
+  body: { amount: number; reference?: string; paidAt?: string },
 ): Promise<CustomerBalance> {
   return apiClient.post<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/apply-to-debt`, {
     amount: String(body.amount),
     reference: body.reference,
+    paid_at: body.paidAt,
   });
 }
 

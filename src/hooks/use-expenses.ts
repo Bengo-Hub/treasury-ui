@@ -140,8 +140,8 @@ export function useRejectExpense(tenantIdOrSlug: string | undefined) {
 export function useReimburseExpense(tenantIdOrSlug: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, paymentIntentId }: { id: string; paymentIntentId: string }) =>
-      reimburseExpense(tenantIdOrSlug!, id, paymentIntentId),
+    mutationFn: ({ id, paymentIntentId, paidAt }: { id: string; paymentIntentId: string; paidAt?: string }) =>
+      reimburseExpense(tenantIdOrSlug!, id, paymentIntentId, paidAt),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
     },
@@ -151,8 +151,8 @@ export function useReimburseExpense(tenantIdOrSlug: string | undefined) {
 export function usePayExpense(tenantIdOrSlug: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, paidFromAccountId, paymentIntentId }: { id: string; paidFromAccountId?: string; paymentIntentId?: string }) =>
-      payExpense(tenantIdOrSlug!, id, { paid_from_account_id: paidFromAccountId, payment_intent_id: paymentIntentId }),
+    mutationFn: ({ id, paidFromAccountId, paymentIntentId, paidAt }: { id: string; paidFromAccountId?: string; paymentIntentId?: string; paidAt?: string }) =>
+      payExpense(tenantIdOrSlug!, id, { paid_from_account_id: paidFromAccountId, payment_intent_id: paymentIntentId, paid_at: paidAt }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
     },

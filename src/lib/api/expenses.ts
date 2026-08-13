@@ -207,17 +207,18 @@ export function rejectExpense(tenantIdOrSlug: string, id: string, reason?: strin
   return apiClient.post<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/${id}/reject`, { reason });
 }
 
-export function reimburseExpense(tenantIdOrSlug: string, id: string, paymentIntentId: string): Promise<{ status: string }> {
-  return apiClient.post<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/${id}/reimburse`, { payment_intent_id: paymentIntentId });
+export function reimburseExpense(tenantIdOrSlug: string, id: string, paymentIntentId: string, paidAt?: string): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/${id}/reimburse`, { payment_intent_id: paymentIntentId, paid_at: paidAt });
 }
 
 // payExpense settles a direct business expense: posts DR Accounts Payable / CR the chosen cash/bank
 // account and marks it paid. paid_from_account_id = the cash/bank GL account the money left (omit
-// for the tenant default); payment_intent_id = only when paid through a gateway.
+// for the tenant default); payment_intent_id = only when paid through a gateway; paid_at = when the
+// money actually changed hands (omit to default to now — backdating support).
 export function payExpense(
   tenantIdOrSlug: string,
   id: string,
-  body?: { paid_from_account_id?: string; payment_intent_id?: string },
+  body?: { paid_from_account_id?: string; payment_intent_id?: string; paid_at?: string },
 ): Promise<{ status: string }> {
   return apiClient.post<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/${id}/pay`, body ?? {});
 }
