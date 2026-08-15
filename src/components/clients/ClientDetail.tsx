@@ -62,16 +62,19 @@ export function ClientDetail({ tenant, client, invoices, onBack }: ClientDetailP
   // ADDITION to real AR activity (credit sales, payments, credit notes) — CustomerBalance
   // (`b`) deliberately never reflects settled sales, since they create no debt. Preferring `b`
   // unconditionally (as before) left these tiles at 0/0/0 for a customer who paid cash in full,
-  // even though the activity table right below clearly showed the sale. Total Paid has no
-  // backend field at all (the statement DTO only exposes total_invoiced/closing_balance) — sum
-  // the lines' Credit column directly, so all three tiles are derived from the SAME data the
-  // table renders and always reconcile with each other.
+  // even though the activity table right below clearly showed the sale. Total Paid comes from
+  // the statement's own `total_paid` field (backend-computed) rather than summing the lines'
+  // Credit column here: that naive sum double-counted credit_note/ar_writeoff lines (debt
+  // relief, not cash received) as if the customer had paid it — confirmed live on Hussein
+  // Friend Mbale's statement, where a 7,100 return credit inflated "Total Paid" to 367,100
+  // against a 277,900 invoiced total. The backend excludes those and sums only pos_sale/
+  // ar_receipt/payment lines, the txn_types that represent real money in.
   const lines = statement?.lines ?? [];
   const b = client.balance;
   const totalInvoiced = statement ? parseFloat(statement.total_invoiced) || 0
     : b ? parseFloat(b.total_invoiced) || 0 : client.totalAmount;
   const totalPaid = statement
-    ? lines.reduce((sum, l) => sum + (parseFloat(l.credit) || 0), 0)
+    ? parseFloat(statement.total_paid) || 0
     : b ? parseFloat(b.total_paid) || 0 : client.paidAmount;
   const outstanding = statement ? Math.max(0, parseFloat(statement.closing_balance) || 0)
     : b ? parseFloat(b.outstanding_debit) || 0 : client.outstanding;
