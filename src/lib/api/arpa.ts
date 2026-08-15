@@ -67,6 +67,7 @@ export interface CustomerStatement {
   from: string;
   to: string;
   total_invoiced: string;
+  total_paid: string;
   closing_balance: string;
   lines: StatementLine[];
 }
