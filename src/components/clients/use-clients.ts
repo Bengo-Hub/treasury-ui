@@ -249,6 +249,20 @@ export function useClients(tenant: string, search = '') {
       });
     });
 
+    // Final normalization: whenever a client ended up attached to a real AR balance row that
+    // itself carries a crm_contact_id, that crm_contact_id is the ONLY identifier treasury-api's
+    // AR endpoints (statement, credit terms, opening balance) will actually resolve — force
+    // customerId to match it. Without this, a client whose customerId got set from a DIFFERENT
+    // (name-matched, not crm-matched) CRM contact earlier in the merge above — e.g. a duplicate
+    // marketflow contact that itself has zero AR activity — silently queries treasury with an id
+    // no CustomerBalance row uses, producing an empty statement/dialog for a customer who
+    // demonstrably has real, non-zero activity in the very same row this client displays.
+    map.forEach((c) => {
+      if (c.balance?.crm_contact_id && c.customerId !== c.balance.crm_contact_id) {
+        c.customerId = c.balance.crm_contact_id;
+      }
+    });
+
     return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
   }, [invoices, balances, crmContacts]);
 
