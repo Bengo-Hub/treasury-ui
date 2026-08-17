@@ -389,6 +389,28 @@ export async function fetchPublicQuotation(token: string): Promise<PublicQuotati
   return res.json();
 }
 
+async function postPublicQuotationAction(token: string, action: 'accept' | 'decline'): Promise<void> {
+  const TREASURY_URL =
+    process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexafrica.com';
+  const res = await fetch(`${TREASURY_URL}/api/v1/public/quotations/${token}/${action}`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || `Failed to ${action} quotation: ${res.status}`);
+  }
+}
+
+/** Accept a quotation from its public share link — no auth required, no login. */
+export function acceptPublicQuotation(token: string): Promise<void> {
+  return postPublicQuotationAction(token, 'accept');
+}
+
+/** Decline a quotation from its public share link — no auth required, no login. */
+export function declinePublicQuotation(token: string): Promise<void> {
+  return postPublicQuotationAction(token, 'decline');
+}
+
 // ---- Invoice API Functions ----
 
 export async function listInvoices(tenant: string, filters?: InvoiceFilters): Promise<ListInvoicesResponse> {
