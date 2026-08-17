@@ -46,16 +46,16 @@ export default async function PublicQuotationPage({ params }: Props) {
     <div className="min-h-screen bg-slate-50">
       <QuotationActionBar token={token} quoteNumber={quote.quote_number} status={quote.status} />
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white shadow-sm rounded-xl p-8 print:shadow-none print:rounded-none">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        <div className="bg-white shadow-sm rounded-xl p-4 sm:p-8 print:shadow-none print:rounded-none">
 
           {/* Header */}
-          <div className="flex items-start justify-between mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-slate-800">Quotation</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Quotation</h1>
               <p className="text-slate-500 mt-1">{quote.quote_number}</p>
             </div>
-            <div className="text-right">
+            <div className="sm:text-right">
               <p className="font-semibold text-slate-800">{quote.tenant_name}</p>
             </div>
           </div>
@@ -81,7 +81,7 @@ export default async function PublicQuotationPage({ params }: Props) {
           </div>
 
           {/* From / For */}
-          <div className="grid grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
             <div className="bg-slate-50 rounded-lg p-4">
               <p className="text-xs uppercase tracking-wide text-slate-400 mb-2 font-medium">Quotation From</p>
               <p className="font-semibold text-slate-800">{quote.tenant_name}</p>
@@ -97,7 +97,7 @@ export default async function PublicQuotationPage({ params }: Props) {
 
           {/* Line items table */}
           <div className="mb-8 overflow-x-auto">
-            <table className="w-full text-sm no-grid">
+            <table className="w-full min-w-140 text-sm no-grid">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
                   <th className="text-left px-3 py-2 rounded-tl-md">#</th>
@@ -127,7 +127,7 @@ export default async function PublicQuotationPage({ params }: Props) {
 
           {/* Totals */}
           <div className="flex justify-end mb-8">
-            <div className="w-72 space-y-2 text-sm">
+            <div className="w-full sm:w-72 space-y-2 text-sm">
               <div className="flex justify-between text-slate-600">
                 <span>Subtotal</span>
                 <span>{quote.currency} {fmt(subtotal)}</span>
@@ -175,7 +175,7 @@ export default async function PublicQuotationPage({ params }: Props) {
           )}
 
           {/* Accept / Decline */}
-          {canAccept && <AcceptDeclineButtons />}
+          {canAccept && <AcceptDeclineButtons token={token} />}
         </div>
 
         {/* Vera AI support + all Codevertex services */}
