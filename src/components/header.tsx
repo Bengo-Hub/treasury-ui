@@ -2,11 +2,11 @@
 
 import { useAuthStore } from '@/store/auth';
 import {
-  Bell, ChevronDown, ExternalLink, LogOut, Menu, Search, Settings, User,
+  Bell, ChevronDown, Menu, Search, Settings, User,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { ThemeToggle } from './theme-toggle';
 
 import { userHasPermission } from '@/lib/auth/permissions';
@@ -14,7 +14,8 @@ import { useBranding } from '@/providers/branding-provider';
 import { useSubscription } from '@/hooks/use-subscription';
 import { TenantFilter } from './tenant-filter';
 import { OutletFilter } from './outlet-filter';
-import { useVisibleServices, type ServiceKey } from '@bengo-hub/shared-ui-lib/app-switcher';
+import { useVisibleServices, AppSwitcherGrid, type ServiceKey } from '@bengo-hub/shared-ui-lib/app-switcher';
+import { AccountPanel } from '@bengo-hub/shared-ui-lib/account-panel';
 
 // Cross-service LINKS (never duplicated pages). Each target service enforces its own
 // RBAC + subscription gating on arrival. The canonical service list (labels/icons/coverage,
@@ -50,7 +51,6 @@ export function Header({ onMenuClick }: HeaderProps) {
   const logout = useAuthStore((state) => state.logout);
   const { getServiceTitle } = useBranding();
   const [profileOpen, setProfileOpen] = useState(false);
-  const profileRef = useRef<HTMLDivElement>(null);
   const isAuthenticated = !!user && status === 'authenticated';
   const name = displayName(user);
   const role = (user as any)?.roles?.[0] || (user as any)?.role;
@@ -109,7 +109,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         <div className="h-6 w-px bg-border mx-1 hidden sm:block" />
 
         {isAuthenticated && (
-          <div className="relative" ref={profileRef}>
+          <div className="relative">
             <button
               type="button"
               onClick={() => setProfileOpen((v) => !v)}
@@ -127,83 +127,30 @@ export function Header({ onMenuClick }: HeaderProps) {
               </div>
               <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 hidden sm:block ${profileOpen ? 'rotate-180' : ''}`} />
             </button>
-            {profileOpen && (
-              <>
-                <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setProfileOpen(false)} />
-                {/* Responsive panel: wide enough for FULL service titles (never truncated),
-                    caps to the viewport on phones and scrolls internally only when the list
-                    outgrows the screen height. */}
-                <div className="absolute right-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-5rem)] overflow-y-auto rounded-2xl p-2 shadow-xl border border-border bg-popover">
-                  <div className="mb-1 px-3 py-2">
-                    <p className="text-sm font-bold text-foreground truncate">{name}</p>
-                    <p className="text-xs text-muted-foreground capitalize mt-0.5">{role || 'Accountant'}</p>
-                  </div>
 
-                  <div className="h-px bg-border my-1" />
-
-                  <div className="grid gap-0.5">
-                    <Link
-                      href={`/${orgSlug}/settings`}
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors"
-                    >
-                      <Settings className="h-4 w-4 text-muted-foreground" />
-                      Settings
-                    </Link>
-                  </div>
-
-                  <div className="h-px bg-border my-1" />
-
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-3 py-1">Services</p>
-                  {/* Single column so every external-link title renders IN FULL — the old
-                      two-column grid truncated CRM/Online Store/Subscriptions/Account Portal.
-                      The panel itself scrolls when taller than the viewport. */}
-                  <div className="grid gap-0.5">
-                    {services.map(({ key, label, href, Icon }) =>
-                      href ? (
-                        <a
-                          key={key}
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => setProfileOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-colors group"
-                          title={`Open ${label}`}
-                        >
-                          <Icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-                          <span className="flex-1 whitespace-nowrap">{label}</span>
-                          <ExternalLink className="h-3 w-3 text-muted-foreground opacity-50 shrink-0" />
-                        </a>
-                      ) : (
-                        <div
-                          key={key}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium text-muted-foreground/60 cursor-default"
-                          title={`${label} — coming soon`}
-                        >
-                          <Icon className="h-4 w-4 shrink-0" />
-                          <span className="flex-1 whitespace-nowrap">{label}</span>
-                          <span className="text-[9px] font-bold uppercase tracking-wider bg-muted px-1.5 py-0.5 rounded-full shrink-0">Soon</span>
-                        </div>
-                      ),
-                    )}
-                  </div>
-
-                  <div className="h-px bg-border my-1" />
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProfileOpen(false);
-                      void logout();
-                    }}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Sign out
-                  </button>
-                </div>
-              </>
-            )}
+            <AccountPanel
+              open={profileOpen}
+              onClose={() => setProfileOpen(false)}
+              user={{ name, email: (user as any)?.email ?? '' }}
+              onSignOut={() => {
+                setProfileOpen(false);
+                void logout();
+              }}
+            >
+              <div className="flex flex-col gap-3">
+                <p className="text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  {role || 'Accountant'}
+                </p>
+                <Link
+                  href={`/${orgSlug}/settings`}
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-secondary"
+                >
+                  <Settings className="h-4 w-4" /> Settings
+                </Link>
+                <AppSwitcherGrid services={services} onNavigate={() => setProfileOpen(false)} />
+              </div>
+            </AccountPanel>
           </div>
         )}
       </div>
