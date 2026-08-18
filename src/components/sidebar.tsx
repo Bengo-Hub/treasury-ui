@@ -59,10 +59,6 @@ interface NavGroup {
 
 type NavEntry = NavItem | NavGroup;
 
-// Cross-service ERP UI (linked, never duplicated). Code fallback is the safety net since
-// NEXT_PUBLIC URLs are baked at build time.
-const ERP_UI_URL = process.env.NEXT_PUBLIC_ERP_UI_URL || 'https://erp.codevertexafrica.com';
-
 function isNavGroup(entry: NavEntry): entry is NavGroup {
   return 'children' in entry;
 }
@@ -348,15 +344,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       href: `/${orgSlug}/approvals`,
       active: pathname.startsWith(`/${orgSlug}/approvals`),
       feature: 'treasury_approvals',
-    },
-    {
-      label: 'ERP',
-      icon: Users,
-      href: `${ERP_UI_URL}/${orgSlug}`,
-      active: false,
-      // Cross-service link (never duplicated here) — locked below tier 2 per the
-      // use-case PowerSuite matrix (no ERP access at Basic).
-      feature: 'hr_management',
     },
     {
       label: 'Settings',

@@ -14,7 +14,7 @@ import { useBranding } from '@/providers/branding-provider';
 import { useSubscription } from '@/hooks/use-subscription';
 import { TenantFilter } from './tenant-filter';
 import { OutletFilter } from './outlet-filter';
-import { useVisibleServices, AppSwitcherGrid, type ServiceKey } from '@bengo-hub/shared-ui-lib/app-switcher';
+import { useVisibleServices, AppSwitcherGrid, AppSwitcherTrigger, type ServiceKey } from '@bengo-hub/shared-ui-lib/app-switcher';
 import { AccountPanel } from '@bengo-hub/shared-ui-lib/account-panel';
 
 // Cross-service LINKS (never duplicated pages). Each target service enforces its own
@@ -105,6 +105,8 @@ export function Header({ onMenuClick }: HeaderProps) {
         </button>
 
         <ThemeToggle />
+
+        {canManageLinks && <AppSwitcherTrigger services={services} />}
 
         <div className="h-6 w-px bg-border mx-1 hidden sm:block" />
 
