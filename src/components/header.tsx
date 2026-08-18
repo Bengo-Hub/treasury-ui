@@ -9,9 +9,7 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { ThemeToggle } from './theme-toggle';
 
-import { userHasPermission } from '@/lib/auth/permissions';
 import { useBranding } from '@/providers/branding-provider';
-import { useSubscription } from '@/hooks/use-subscription';
 import { TenantFilter } from './tenant-filter';
 import { OutletFilter } from './outlet-filter';
 import { useVisibleServices, AppSwitcherGrid, AppSwitcherTrigger, type ServiceKey } from '@bengo-hub/shared-ui-lib/app-switcher';
@@ -55,21 +53,10 @@ export function Header({ onMenuClick }: HeaderProps) {
   const name = displayName(user);
   const role = (user as any)?.roles?.[0] || (user as any)?.role;
 
-  // Manager-flavored cross-service shortcuts (ERP/Logistics/CRM/Subscriptions) are hidden
-  // from plain accountants; settings/config managers, tenant admins and platform owners see all.
-  const canManageLinks =
-    user?.isPlatformOwner ||
-    (user as any)?.isSuperUser ||
-    userHasPermission(user as Parameters<typeof userHasPermission>[0], [
-      'treasury.ledger.manage',
-      'treasury.banking.manage',
-      'treasury.users.manage',
-    ], 'or');
-  // activeProducts is undefined while the subscription lookup is in flight/unknown — fails open
-  // (shows everything) until it resolves, matching this codebase's existing "never block the UI
-  // on a subscription-fetch failure" convention.
-  const { activeProducts } = useSubscription();
-  const services = useVisibleServices({ orgSlug, urls: SERVICE_URLS, canManageLinks: !!canManageLinks, activeServiceTags: activeProducts });
+  // The App Store shows every real service to every authenticated user in the tenant — each
+  // destination service already enforces its own RBAC + subscription gating on arrival, so
+  // pre-filtering the directory here just hid apps that were actually reachable.
+  const services = useVisibleServices({ orgSlug, urls: SERVICE_URLS, canManageLinks: true });
 
   return (
     <header className="sticky top-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between">
@@ -106,7 +93,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         <ThemeToggle />
 
-        {canManageLinks && <AppSwitcherTrigger services={services} />}
+        {isAuthenticated && <AppSwitcherTrigger services={services} />}
 
         <div className="h-6 w-px bg-border mx-1 hidden sm:block" />
 
