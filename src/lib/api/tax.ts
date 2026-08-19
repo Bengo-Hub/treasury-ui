@@ -46,6 +46,8 @@ export interface TaxPeriod {
 export interface EtimsDevice {
   id: string;
   tenant_id: string;
+  /** POS outlet this device/branch serves; absent/null = tenant-wide (the tenant's main/default device, serves ALL outlets). */
+  outlet_id?: string | null;
   device_serial: string;
   tin?: string;
   branch_id?: string;
@@ -62,6 +64,16 @@ export interface EtimsDevice {
   last_invoice_no: number;
   status: string;
   last_heartbeat?: string;
+  /**
+   * KRA-issued SCU identity from device initialization (data.info on /initialize) — sdc_id is
+   * the value ETR receipts must print as "SCU ID", NEVER device_serial (our own TIS serial).
+   * Empty when the device was initialized before these were captured, or when KRA's [902]
+   * "already installed" response omitted them (a real, confirmed case — no other API recovery
+   * exists then; see SetDeviceSCUDetails / the "Set SCU details" action).
+   */
+  sdc_id?: string;
+  mrc_no?: string;
+  dvc_id?: string;
 }
 
 export interface RegisterDeviceRequest {
@@ -376,6 +388,20 @@ export function remitTaxLiability(tenantSlug: string, liabilityID: string): Prom
 // returns 902 and won't re-issue the key) — supply the key from the original init.
 export function initEtimsDevice(tenantSlug: string, deviceId: string, cmcKey?: string): Promise<EtimsDevice> {
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/init`, cmcKey ? { cmc_key: cmcKey } : {});
+}
+
+/**
+ * Manually records a device's KRA SCU identity (sdc_id/mrc_no/dvc_id) when it couldn't be
+ * captured automatically from /initialize — the recovery path for an already-installed device
+ * whose [902] response omitted them. At least one field is required; blank fields are left
+ * untouched server-side.
+ */
+export function setDeviceScuDetails(
+  tenantSlug: string,
+  deviceId: string,
+  body: { sdc_id?: string; mrc_no?: string; dvc_id?: string },
+): Promise<EtimsDevice> {
+  return apiClient.patch(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/scu-details`, body);
 }
 
 export function listEtimsTransmissions(

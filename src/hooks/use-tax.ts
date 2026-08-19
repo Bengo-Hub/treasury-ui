@@ -202,6 +202,29 @@ export function useInitEtimsDevice() {
   });
 }
 
+// Manually records a device's KRA SCU identity (sdc_id/mrc_no/dvc_id) — the recovery path when
+// KRA's [902] "already installed" response didn't include them (a real, confirmed case with no
+// other API-side recovery).
+export function useSetDeviceScuDetails() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      tenantSlug,
+      deviceId,
+      body,
+    }: {
+      tenantSlug: string;
+      deviceId: string;
+      body: { sdc_id?: string; mrc_no?: string; dvc_id?: string };
+    }) => taxApi.setDeviceScuDetails(tenantSlug, deviceId, body),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['etims-devices', vars.tenantSlug] });
+      toast.success('SCU details saved');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to save SCU details'),
+  });
+}
+
 // ---- GavaConnect: PIN & Compliance Hooks ----
 
 export function useValidateKRAPIN() {
