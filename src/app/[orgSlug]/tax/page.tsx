@@ -16,9 +16,12 @@ import {
   useEtimsDevices,
   useRegisterEtimsDevice,
   useInitEtimsDevice,
+  useSetDeviceScuDetails,
   useRefreshCodeLists,
   useKraStatus,
 } from '@/hooks/use-tax';
+import type { EtimsDevice } from '@/lib/api/tax';
+import { useOutletFilterStore } from '@/store/outlet-filter';
 import { TaxProfileTab } from './tax-profile-tab';
 import { DeductionsTab } from './deductions-tab';
 import { CapitalAllowancesTab } from './capital-allowances-tab';
@@ -61,7 +64,7 @@ import {
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const SUBSCRIBE_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexafrica.com';
 
@@ -436,17 +439,25 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
   const devices = data?.devices ?? [];
   const [registerOpen, setRegisterOpen] = useState(false);
   const [cmcDevice, setCmcDevice] = useState<{ id: string; serial: string; tin: string } | null>(null);
+  const [scuDevice, setScuDevice] = useState<EtimsDevice | null>(null);
   const [codeListsOpen, setCodeListsOpen] = useState(false);
   const initDevice = useInitEtimsDevice();
   const refreshCodes = useRefreshCodeLists();
+  const outlets = useOutletFilterStore((s) => s.outlets);
+  const outletNameById = useMemo(
+    () => Object.fromEntries(outlets.map((o) => [o.id, o.name])),
+    [outlets],
+  );
   const etimsDeviceColumns = useMemo(
     () =>
       buildEtimsDeviceColumns({
         onInit: (device) => initDevice.mutate({ tenantSlug, deviceId: device.id }),
         onActivateWithCmc: (device) => setCmcDevice({ id: device.id, serial: device.device_serial, tin: device.tin || '' }),
+        onSetScuDetails: (device) => setScuDevice(device),
         initPending: initDevice.isPending,
+        outletNameById,
       }),
-    [tenantSlug, initDevice],
+    [tenantSlug, initDevice, outletNameById],
   );
 
   return (
@@ -503,6 +514,11 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
       <CmcKeyDialog
         device={cmcDevice}
         onClose={() => setCmcDevice(null)}
+        tenantSlug={tenantSlug}
+      />
+      <ScuDetailsDialog
+        device={scuDevice}
+        onClose={() => setScuDevice(null)}
         tenantSlug={tenantSlug}
       />
     </>
@@ -579,6 +595,120 @@ function CmcKeyDialog({
             <Button onClick={handleActivate} disabled={!key.trim() || initDevice.isPending}>
               {initDevice.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Activate
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ScuDetailsDialog records/edits a device's KRA-issued SCU identity (sdc_id/mrc_no/dvc_id) — the
+// recovery path for a device already installed at KRA whose [902] "already installed" response
+// didn't include them (a real, confirmed case with no other API-side recovery). Prefills from the
+// device's currently-recorded values when present (editable — a wrong value can be corrected),
+// and starts empty when none have been captured yet.
+function ScuDetailsDialog({
+  device,
+  onClose,
+  tenantSlug,
+}: {
+  device: EtimsDevice | null;
+  onClose: () => void;
+  tenantSlug: string;
+}) {
+  const setScuDetails = useSetDeviceScuDetails();
+  const [sdcId, setSdcId] = useState('');
+  const [mrcNo, setMrcNo] = useState('');
+  const [dvcId, setDvcId] = useState('');
+  const [error, setError] = useState('');
+
+  // Re-sync the form to whichever device the row action opened, prefilling its current values
+  // (or blank fields when none have been captured yet) each time a different device is targeted.
+  useEffect(() => {
+    setSdcId(device?.sdc_id ?? '');
+    setMrcNo(device?.mrc_no ?? '');
+    setDvcId(device?.dvc_id ?? '');
+    setError('');
+  }, [device?.id]);
+
+  function handleSave() {
+    if (!device) return;
+    if (!sdcId.trim() && !mrcNo.trim() && !dvcId.trim()) {
+      setError('Enter at least one of SCU ID, MRC No, or Device ID.');
+      return;
+    }
+    setError('');
+    setScuDetails.mutate(
+      {
+        tenantSlug,
+        deviceId: device.id,
+        body: { sdc_id: sdcId.trim(), mrc_no: mrcNo.trim(), dvc_id: dvcId.trim() },
+      },
+      {
+        onSuccess: () => onClose(),
+        onError: (e: unknown) => setError(e instanceof Error ? e.message : 'Failed to save SCU details.'),
+      },
+    );
+  }
+
+  return (
+    <Dialog open={!!device} onOpenChange={(o) => { if (!o) { setError(''); onClose(); } }}>
+      <DialogContent title="Device SCU details" onClose={() => { setError(''); onClose(); }}>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            KRA assigns the SCU ID (e.g. <span className="font-mono">KRACU0400001154</span>), MRC
+            number, and device ID once, at the device&apos;s original initialization. If KRA&apos;s
+            response didn&apos;t include them (common for a device already installed at KRA), enter
+            the values here — from KRA support, a portal export, or a record kept at the time of
+            initialization. This is what ETR receipts print as &quot;SCU ID&quot; instead of the
+            device serial.
+          </p>
+          <div className="grid grid-cols-1 gap-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-xs sm:grid-cols-2">
+            <div><span className="text-muted-foreground">Device serial:</span> <span className="font-mono font-medium">{device?.device_serial}</span></div>
+            <div><span className="text-muted-foreground">KRA PIN:</span> <span className="font-mono font-medium">{device?.tin || '—'}</span></div>
+          </div>
+          <FormField label="SCU ID (sdcId)">
+            <input
+              type="text"
+              value={sdcId}
+              onChange={(e) => setSdcId(e.target.value)}
+              placeholder="e.g. KRACU0400001154"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 font-mono text-sm"
+            />
+          </FormField>
+          <FormField label="MRC No (mrcNo)">
+            <input
+              type="text"
+              value={mrcNo}
+              onChange={(e) => setMrcNo(e.target.value)}
+              placeholder="e.g. KRA00379537"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 font-mono text-sm"
+            />
+          </FormField>
+          <FormField label="Device ID (dvcId)">
+            <input
+              type="text"
+              value={dvcId}
+              onChange={(e) => setDvcId(e.target.value)}
+              placeholder="e.g. 450049"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 font-mono text-sm"
+            />
+          </FormField>
+          {error && (
+            <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => { setError(''); onClose(); }}>Cancel</Button>
+            <Button onClick={handleSave} disabled={setScuDetails.isPending}>
+              {setScuDetails.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Save
             </Button>
           </div>
         </div>
