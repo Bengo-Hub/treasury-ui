@@ -71,10 +71,27 @@ export function useProfitLossSummary(
   tenantSlug: string,
   window: ReportWindow,
   currency?: string,
+  // outletId scopes the summary to one branch (OutletFilter dropdown); undefined/"" means "all
+  // outlets". Included in the query key so switching outlets refetches instead of showing a
+  // stale cached response for the previously selected outlet.
+  outletId?: string,
 ) {
   return useQuery({
-    queryKey: ['report-pl-summary', tenantSlug, ...windowKey(window), currency],
-    queryFn: () => reportsApi.getProfitLossSummary(tenantSlug, { ...window, currency }),
+    queryKey: ['report-pl-summary', tenantSlug, ...windowKey(window), currency, outletId ?? ''],
+    queryFn: () => reportsApi.getProfitLossSummary(tenantSlug, { ...window, currency, outlet_id: outletId }),
     enabled: !!tenantSlug && windowReady(window),
+  });
+}
+
+/**
+ * Revenue/COGS/gross-profit grouped by outlet — backs the Dashboard's "Revenue by Outlet" chart.
+ * Deliberately has no outletId param of its own: it exists precisely to show the per-outlet
+ * breakdown, so it's only meaningful (and only rendered) in the "All Outlets" view.
+ */
+export function useRevenueByOutlet(tenantSlug: string, window: ReportWindow, enabled = true) {
+  return useQuery({
+    queryKey: ['report-revenue-by-outlet', tenantSlug, ...windowKey(window)],
+    queryFn: () => reportsApi.getRevenueByOutlet(tenantSlug, window),
+    enabled: enabled && !!tenantSlug && windowReady(window),
   });
 }

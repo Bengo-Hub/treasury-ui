@@ -5,7 +5,7 @@ import { SERIES, compactNumber, money } from '@/components/charts/chart-theme';
 import { useTimeseries } from '@/hooks/use-analytics';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 
-interface Props { tenant: string; from: string; to: string }
+interface Props { tenant: string; from: string; to: string; outletId?: string }
 
 type TsPoint = { date: string; revenue: number | string; expenses: number | string; net_profit: number | string };
 type ChartPoint = { date: string; revenue: number; expenses: number; net: number };
@@ -34,8 +34,8 @@ function toChartSeries(rows: TsPoint[]): ChartPoint[] {
  * Daily for short windows; auto-collapsed to monthly totals for long (multi-month) windows so a
  * year of data stays legible. Reuses ChartCard.
  */
-export function FinancialPerformanceChart({ tenant, from, to }: Props) {
-  const { data, isLoading } = useTimeseries(tenant, { from, to });
+export function FinancialPerformanceChart({ tenant, from, to, outletId }: Props) {
+  const { data, isLoading } = useTimeseries(tenant, { from, to, outletId });
   const series = toChartSeries(data?.series ?? []);
 
   return (

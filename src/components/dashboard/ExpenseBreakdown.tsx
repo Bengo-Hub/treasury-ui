@@ -5,11 +5,11 @@ import { CHART_COLORS, money } from '@/components/charts/chart-theme';
 import { useProfitLossSummary } from '@/hooks/use-reports';
 import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 
-interface Props { tenant: string; from: string; to: string }
+interface Props { tenant: string; from: string; to: string; outletId?: string }
 
 /** ExpenseBreakdown — operating expenses by category as a donut, from the P&L summary. */
-export function ExpenseBreakdown({ tenant, from, to }: Props) {
-  const { data, isLoading } = useProfitLossSummary(tenant, { from, to });
+export function ExpenseBreakdown({ tenant, from, to, outletId }: Props) {
+  const { data, isLoading } = useProfitLossSummary(tenant, { from, to }, undefined, outletId);
   const rows = (data?.by_category ?? [])
     .map((b) => ({ name: b.name || 'Other', value: Number(b.amount) }))
     .filter((r) => r.value > 0)

@@ -58,10 +58,17 @@ export function usePayoutHistory(tenantIdOrSlug: string | undefined, enabled = t
   });
 }
 
-export function useTimeseries(tenant: string | undefined, params: { from: string; to: string }, enabled = true) {
+export function useTimeseries(
+  tenant: string | undefined,
+  // outletId scopes the series to one branch (OutletFilter dropdown); undefined/"" means "all
+  // outlets". Included in the query key so switching outlets refetches instead of showing a
+  // stale cached response for the previously selected outlet.
+  params: { from: string; to: string; outletId?: string },
+  enabled = true,
+) {
   return useQuery({
-    queryKey: ['analytics-timeseries', tenant, params.from, params.to],
-    queryFn: () => getTimeseries(tenant!, params),
+    queryKey: ['analytics-timeseries', tenant, params.from, params.to, params.outletId ?? ''],
+    queryFn: () => getTimeseries(tenant!, { from: params.from, to: params.to, outlet_id: params.outletId }),
     enabled: enabled && !!tenant,
     staleTime: 2 * 60 * 1000,
   });

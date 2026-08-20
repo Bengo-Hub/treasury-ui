@@ -162,7 +162,37 @@ export function getTaxSummary(
 
 export function getProfitLossSummary(
   tenantSlug: string,
-  params: ReportRangeParams & { currency?: string },
+  params: ReportRangeParams & { currency?: string; outlet_id?: string },
 ): Promise<ProfitLossSummaryReport> {
   return apiClient.get(`${BASE}/${tenantSlug}/reports/profit-loss-summary`, params);
+}
+
+/**
+ * One outlet's revenue/COGS/gross-profit bucket from `getRevenueByOutlet`. `outlet_id` is `""` for
+ * the "Unattributed" bucket (GL activity whose journal entry carries no outlet — e.g. an AR
+ * receipt or stock-value adjustment, which are legitimately tenant-wide, or a historical gap).
+ * Bare id, no name: treasury-api has no local Outlet model, so the caller resolves display names
+ * from the outlet list it already holds for the OutletFilter dropdown (useOutletFilterStore).
+ */
+export interface OutletRevenueRow {
+  outlet_id: string;
+  revenue: string;
+  cogs: string;
+  gross_profit: string;
+}
+
+export interface RevenueByOutletReport {
+  from: string;
+  to: string;
+  fiscal_year?: string;
+  period?: string;
+  outlets: OutletRevenueRow[];
+}
+
+/** GL revenue/COGS/gross-profit grouped by outlet — backs the Dashboard's "Revenue by Outlet" chart. */
+export function getRevenueByOutlet(
+  tenantSlug: string,
+  params: ReportRangeParams,
+): Promise<RevenueByOutletReport> {
+  return apiClient.get(`${BASE}/${tenantSlug}/reports/revenue-by-outlet`, params);
 }
