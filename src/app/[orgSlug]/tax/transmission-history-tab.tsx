@@ -68,6 +68,7 @@ export function TransmissionHistoryTab({ tenantSlug }: Props) {
         rows={transmissions}
         rowKey={(r) => r.id}
         loading={isLoading}
+        loadingRows={8}
         storageKey="etims-transmissions-table"
         emptyText={`No eTIMS transmissions found${statusFilter ? ` with status "${statusFilter}"` : ''}.`}
         renderExpanded={(record) => <TransmissionExpanded record={record} tenantSlug={tenantSlug} />}

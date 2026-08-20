@@ -210,6 +210,7 @@ export default function PlatformAnalyticsPage() {
             rows={sortedServiceRevenue}
             rowKey={(r) => r.source_service}
             loading={loadingServices}
+            loadingRows={8}
             error={servicesError}
             storageKey="platform-service-revenue-table"
             emptyText="No service revenue in this period"

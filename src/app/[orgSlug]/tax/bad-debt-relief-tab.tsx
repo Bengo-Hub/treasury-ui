@@ -75,6 +75,7 @@ export function BadDebtReliefTab({ tenantSlug }: Props) {
           rows={data?.candidates ?? []}
           rowKey={(c) => c.invoice_id}
           loading={isLoading}
+          loadingRows={8}
           storageKey="bad-debt-relief-table"
           emptyText="No unpaid VAT-bearing sales — nothing to reclaim."
         />

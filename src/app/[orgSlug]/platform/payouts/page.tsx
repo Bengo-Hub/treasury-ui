@@ -257,6 +257,7 @@ export default function PlatformPayoutsPage() {
               rows={paginatedItems}
               rowKey={(p) => p.id}
               loading={loadingPayouts}
+              loadingRows={8}
               storageKey="platform-payout-history-table"
               emptyState={
                 <div className="text-center">

@@ -576,6 +576,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
             rows={paged}
             rowKey={(c) => c.key}
             loading={isLoading}
+            loadingRows={8}
             onRowClick={(c) => setSelectedKey(c.key)}
             rowClassName={() => 'group cursor-pointer'}
             sort={sort}

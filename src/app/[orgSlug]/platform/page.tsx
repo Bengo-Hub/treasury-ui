@@ -684,6 +684,7 @@ export default function PlatformPage() {
                   rows={feeRules}
                   rowKey={(r) => r.id}
                   loading={loadingFeeRules}
+                  loadingRows={8}
                   storageKey="platform-fee-rules-table"
                   emptyText='No fee rules configured yet. Use "Add Fee Rule" to define platform-wide fee structures.'
                 />

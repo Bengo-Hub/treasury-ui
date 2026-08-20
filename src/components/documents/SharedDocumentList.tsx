@@ -245,6 +245,7 @@ export function SharedDocumentList({
         rows={rows}
         rowKey={(r) => r.id}
         loading={isLoading}
+        loadingRows={8}
         error={!!error}
         emptyState={
           <EmptyState

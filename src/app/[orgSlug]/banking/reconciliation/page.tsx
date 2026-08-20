@@ -114,6 +114,7 @@ function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
               rows={accounts}
               rowKey={(a) => a.id}
               loading={isLoading}
+              loadingRows={8}
               error={isError}
               storageKey="reconciliation-bank-accounts-table"
               emptyText="No bank accounts yet. Add one to start reconciling."
@@ -413,6 +414,7 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
               rows={lines}
               rowKey={(l) => l.id}
               loading={isLoading}
+              loadingRows={8}
               error={isError}
               onRowClick={(l) => setSelectedLine(selectedLine?.id === l.id ? null : l)}
               rowClassName={(l) => cn('cursor-pointer', selectedLine?.id === l.id && 'bg-primary/5')}

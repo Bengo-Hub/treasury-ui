@@ -156,6 +156,7 @@ export default function VouchersPage() {
                   rows={voucherEntries}
                   rowKey={(e) => e.id}
                   loading={isLoading}
+                  loadingRows={8}
                   error={!!error}
                   storageKey="vouchers-table"
                   showExportCsv

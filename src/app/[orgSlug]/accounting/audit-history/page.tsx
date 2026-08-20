@@ -75,6 +75,7 @@ export default function AuditHistoryPage() {
               rows={filtered}
               rowKey={(log) => log.id}
               loading={isLoading}
+              loadingRows={8}
               error={!!error}
               storageKey="audit-history-table"
               emptyText="No audit events recorded yet."

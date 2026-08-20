@@ -240,6 +240,7 @@ export default function BillsPage() {
               rows={paginatedItems}
               rowKey={(b) => b.id}
               loading={isLoading}
+              loadingRows={8}
               storageKey="bills-table"
               showExportCsv
               exportFileName="bills"

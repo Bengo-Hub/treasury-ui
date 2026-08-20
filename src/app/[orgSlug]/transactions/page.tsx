@@ -278,6 +278,7 @@ export default function TransactionsPage() {
               rows={paginatedItems}
               rowKey={(txn) => txn.id}
               loading={isLoading}
+              loadingRows={8}
               storageKey="transactions-table"
               showExportCsv
               exportFileName="transactions"

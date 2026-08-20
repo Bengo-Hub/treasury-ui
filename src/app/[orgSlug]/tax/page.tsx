@@ -221,6 +221,7 @@ function TaxCodesTab({ tenantSlug }: { tenantSlug: string }) {
               rows={codes}
               rowKey={(c) => c.id}
               loading={isLoading}
+              loadingRows={8}
               error={isError}
               storageKey="tax-codes-table"
               emptyText="No tax codes configured."
@@ -373,6 +374,7 @@ function TaxPeriodsTab({ tenantSlug }: { tenantSlug: string }) {
             rows={periods}
             rowKey={(p) => p.id}
             loading={isLoading}
+            loadingRows={8}
             error={isError}
             storageKey="tax-periods-table"
             emptyText="No tax periods found."
@@ -502,6 +504,7 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
               rows={devices}
               rowKey={(d) => d.id}
               loading={isLoading}
+              loadingRows={8}
               error={isError}
               storageKey="etims-devices-table"
               emptyText="No eTIMS devices registered."

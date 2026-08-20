@@ -403,6 +403,7 @@ export default function ExpensesPage() {
             rows={paginatedItems}
             rowKey={(exp) => exp.id}
             loading={isLoading}
+            loadingRows={8}
             error={!!error}
             emptyText="No expenses match your filters."
             sort={sort}

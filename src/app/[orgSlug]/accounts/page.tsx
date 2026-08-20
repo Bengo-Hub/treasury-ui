@@ -207,6 +207,7 @@ export default function AccountsPage() {
               rows={filtered}
               rowKey={(a) => a.id}
               loading={isLoading}
+              loadingRows={8}
               onRowClick={(a) => openEdit(a)}
               rowClassName={() => 'group cursor-pointer'}
               storageKey="accounts-table"

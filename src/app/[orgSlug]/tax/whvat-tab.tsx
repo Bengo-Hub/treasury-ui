@@ -97,6 +97,7 @@ export function WHVATTab({ tenantSlug }: Props) {
             rows={certs}
             rowKey={(c) => c.id}
             loading={isLoading}
+            loadingRows={8}
             storageKey="whvat-certificates-table"
             emptyText="No WHVAT certificates recorded."
           />

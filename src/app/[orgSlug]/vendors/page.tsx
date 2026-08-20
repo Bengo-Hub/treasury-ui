@@ -479,6 +479,7 @@ export default function VendorsPage() {
                 rows={pagedVendors}
                 rowKey={(v) => v.name}
                 loading={isLoading}
+                loadingRows={8}
                 onRowClick={(v) => setSelectedVendor(v.name)}
                 rowClassName={() => 'group'}
                 emptyState={

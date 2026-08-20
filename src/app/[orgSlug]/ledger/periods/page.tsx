@@ -124,6 +124,7 @@ export default function AccountingPeriodsPage() {
               rows={periods}
               rowKey={(p) => p.id}
               loading={isLoading}
+              loadingRows={8}
               error={isError}
               storageKey="accounting-periods-table"
               emptyText="No accounting periods defined yet."
