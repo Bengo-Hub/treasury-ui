@@ -1,9 +1,9 @@
 import { expect, test, Page } from '@playwright/test';
 
-const EMAIL = process.env.E2E_LOGIN_EMAIL || 'demo@bengobox.dev';
-const PASSWORD = process.env.E2E_LOGIN_PASSWORD || 'DemoUser2024!';
+const EMAIL = process.env.E2E_LOGIN_EMAIL || 'admin@demo.codevertexafrica.com';
+const PASSWORD = process.env.E2E_LOGIN_PASSWORD || 'DemoAdmin2024!';
 const SSO_HOST = 'accounts.codevertexafrica.com';
-const ORG_SLUG = process.env.E2E_ORG_SLUG || 'urban-loft';
+const ORG_SLUG = process.env.E2E_ORG_SLUG || 'codevertex-demo';
 
 async function login(page: Page) {
   await page.goto('/');

@@ -1,7 +1,7 @@
 import { expect, test, Page } from '@playwright/test';
 
-const EMAIL = process.env.E2E_LOGIN_EMAIL || 'demo@bengobox.dev';
-const PASSWORD = process.env.E2E_LOGIN_PASSWORD || 'DemoUser2024!';
+const EMAIL = process.env.E2E_LOGIN_EMAIL || 'admin@demo.codevertexafrica.com';
+const PASSWORD = process.env.E2E_LOGIN_PASSWORD || 'DemoAdmin2024!';
 const SSO_HOST = 'accounts.codevertexafrica.com';
 
 /** Helper: perform SSO login. */
