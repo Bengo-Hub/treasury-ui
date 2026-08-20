@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { createCRMContact, type CRMContact } from '@/lib/api/crm';
+import { PhoneInputField, CountrySelect, countryName } from '@bengo-hub/shared-ui-lib/contact';
 
 interface Props {
   tenant: string;
@@ -93,7 +94,7 @@ export function CreateClientModal({ tenant, initialName = '', onCreated, onClose
             </div>
             <div>
               <label className={labelCls}>Phone</label>
-              <input className={inputCls} value={form.phone} onChange={e => field('phone', e.target.value)} placeholder="+254 7xx xxx xxx" />
+              <PhoneInputField value={form.phone} onChange={v => field('phone', v)} className={inputCls} />
             </div>
           </div>
 
@@ -117,7 +118,9 @@ export function CreateClientModal({ tenant, initialName = '', onCreated, onClose
           </div>
           <div>
             <label className={labelCls}>Country</label>
-            <input className={inputCls} value={form.country} onChange={e => field('country', e.target.value)} placeholder="Kenya" />
+            {/* Stored as a free-text name in Contact.metadata (see file doc comment) — onChange
+                converts CountrySelect's ISO code back via countryName() to keep that format. */}
+            <CountrySelect value={form.country} onChange={iso => field('country', countryName(iso))} className={inputCls} />
           </div>
 
           {/* Notes */}

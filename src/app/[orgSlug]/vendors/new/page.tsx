@@ -1,25 +1,16 @@
 'use client';
 
 import { Button, Card, CardContent } from '@/components/ui/base';
-import { Combobox } from '@/components/ui/combobox';
 import { FormField } from '@/components/ui/form-field';
 import { useCreateVendor } from '@/hooks/use-inventory';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import type { CreateVendorRequest } from '@/lib/api/inventory';
 import { SupplierForm, type SupplierFormValues } from '@bengo-hub/shared-ui-lib/suppliers';
+import { CountrySelect, countryName } from '@bengo-hub/shared-ui-lib/contact';
 import { ArrowLeft } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
-
-// Static reference list (not sensitive config). The shared SupplierForm doesn't capture
-// a country, but treasury's vendor (inventory Supplier) create needs one, so we keep a
-// small selector here and merge it into the payload.
-const COUNTRIES = [
-  'Kenya', 'Uganda', 'Tanzania', 'Rwanda', 'Burundi', 'South Sudan',
-  'Ethiopia', 'Nigeria', 'Ghana', 'South Africa', 'Egypt',
-  'United Kingdom', 'United States', 'India', 'United Arab Emirates', 'China',
-];
 
 /**
  * Maps the shared SupplierForm payload onto treasury's CreateVendorRequest (the nested
@@ -90,12 +81,15 @@ export default function AddVendorPage() {
           </div>
 
           <FormField label="Country" required className="max-w-md">
-            <Combobox
-              options={COUNTRIES.map((c) => ({ value: c, label: c }))}
+            {/* CountrySelect's value/onChange are ISO codes; the vendor payload stores a full
+                country name (see toCreateVendorRequest), so onChange converts back via
+                countryName(). A legacy/current name value like "Kenya" doesn't match any ISO
+                option, so CountrySelect shows it via its own valueLabel fallback — still
+                correct, just not "selected" until the user actively re-picks. */}
+            <CountrySelect
               value={country}
-              onChange={setCountry}
+              onChange={(iso) => setCountry(countryName(iso))}
               placeholder="-Select a Country-"
-              clearable={false}
             />
           </FormField>
 
