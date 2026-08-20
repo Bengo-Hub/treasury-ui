@@ -181,6 +181,7 @@ export default function ApprovalRulesPage() {
                 rows={rows}
                 rowKey={(r) => r.id}
                 loading={isLoading}
+                loadingRows={8}
                 error={isError}
                 onRetry={() => refetch()}
                 storageKey="approval-rules-table"

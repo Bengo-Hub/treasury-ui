@@ -139,6 +139,7 @@ export default function AccountLedgerPage() {
               rows={ledgerRows}
               rowKey={(l) => l._key}
               loading={isLoading}
+              loadingRows={8}
               error={isError}
               storageKey="account-ledger-table"
               showExportCsv

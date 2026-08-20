@@ -277,6 +277,7 @@ function JournalEntriesList({
             rows={entries}
             rowKey={(e) => e.id}
             loading={isLoading}
+            loadingRows={8}
             error={isError}
             storageKey="journal-entries-table"
             showExportCsv

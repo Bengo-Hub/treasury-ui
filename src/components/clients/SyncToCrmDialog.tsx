@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/base';
 import { CloudUpload, Loader2 } from 'lucide-react';
+import { PhoneInputField } from '@bengo-hub/shared-ui-lib/contact';
 
 interface SyncToCrmDialogProps {
   /** Client display name being synced (for the header). */
@@ -66,12 +67,11 @@ export function SyncToCrmDialog({
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground">Phone (optional)</label>
-            <input
-              type="tel"
+            <PhoneInputField
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+254 7XX XXX XXX"
-              className="w-full mt-1 bg-accent/30 border-none rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary"
+              onChange={setPhone}
+              placeholder="7XX XXX XXX"
+              className="w-full mt-1"
             />
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}

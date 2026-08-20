@@ -157,6 +157,7 @@ export default function SettlementsPage() {
               rows={filtered}
               rowKey={(b) => b.id}
               loading={isLoading}
+              loadingRows={8}
               storageKey="settlements-table"
               showExportCsv
               exportFileName="settlements"

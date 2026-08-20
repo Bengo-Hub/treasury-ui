@@ -61,6 +61,7 @@ export function RatesCalendarTab({ tenantSlug }: Props) {
           rows={rateRows}
           rowKey={(r) => r._key}
           loading={ratesLoading}
+          loadingRows={8}
           storageKey="statutory-rates-table"
           emptyText="No statutory rates configured."
         />

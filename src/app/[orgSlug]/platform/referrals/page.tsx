@@ -170,6 +170,7 @@ export default function ReferralsPage() {
                   rows={programs}
                   rowKey={(p) => p.id}
                   loading={loadingPrograms}
+                  loadingRows={8}
                   error={programsError}
                   storageKey="referral-programs-table"
                   emptyText="No referral programs yet. Create one to get started."
@@ -198,6 +199,7 @@ export default function ReferralsPage() {
                   rows={referrals}
                   rowKey={(r) => r.id}
                   loading={loadingReferrals}
+                  loadingRows={8}
                   error={referralsError}
                   storageKey="referrals-table"
                   emptyText="No referrals yet. Create one to track a referral."

@@ -93,6 +93,7 @@ export default function BudgetsPage() {
               rows={budgets}
               rowKey={(b) => b.id}
               loading={isLoading}
+              loadingRows={8}
               error={!!error}
               onRowClick={(b) => setDetailId(b.id)}
               storageKey="budgets-table"

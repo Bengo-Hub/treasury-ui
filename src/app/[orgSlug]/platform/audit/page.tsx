@@ -141,6 +141,7 @@ export default function AuditLogPage() {
               rows={paginated}
               rowKey={(entry) => entry.id}
               loading={isLoading}
+              loadingRows={8}
               storageKey="platform-audit-log-table"
               emptyText="No audit log entries match your filters."
               page={page}
