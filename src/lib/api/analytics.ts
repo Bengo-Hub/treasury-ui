@@ -171,7 +171,10 @@ export interface TimeseriesResponse {
   to: string;
 }
 
-export function getTimeseries(tenant: string, params: { from: string; to: string }): Promise<TimeseriesResponse> {
+export function getTimeseries(
+  tenant: string,
+  params: { from: string; to: string; outlet_id?: string },
+): Promise<TimeseriesResponse> {
   return apiClient.get<TimeseriesResponse>(`/api/v1/${tenant}/analytics/timeseries`, params);
 }
 

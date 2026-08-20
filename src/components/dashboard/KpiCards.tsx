@@ -6,7 +6,7 @@ import { useProfitLossSummary } from '@/hooks/use-reports';
 import { useTaxPositionEstimate } from '@/hooks/use-tax';
 import { Banknote, Receipt, TrendingUp, Landmark, Clock } from 'lucide-react';
 
-interface Props { tenant: string; from: string; to: string }
+interface Props { tenant: string; from: string; to: string; outletId?: string }
 
 /**
  * KpiCards — the dashboard headline metrics, sourced from the P&L summary + tax position.
@@ -17,8 +17,8 @@ interface Props { tenant: string; from: string; to: string }
  * also accrual, `reconciliation_variance` only fires on GENUINE drift (e.g. a manual GL entry with
  * no source document), so the hint stays clean for ordinary unpaid invoices.
  */
-export function KpiCards({ tenant, from, to }: Props) {
-  const pl = useProfitLossSummary(tenant, { from, to });
+export function KpiCards({ tenant, from, to, outletId }: Props) {
+  const pl = useProfitLossSummary(tenant, { from, to }, undefined, outletId);
   const pos = useTaxPositionEstimate(tenant);
   const d = pl.data;
   const netProfit = Number(d?.gl_net_profit ?? 0);

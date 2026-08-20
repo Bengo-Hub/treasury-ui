@@ -3,10 +3,12 @@
 import { useCallback, useState } from 'react';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { usePlatformOverview } from '@/hooks/use-platform-analytics';
+import { useOutletFilterStore } from '@/store/outlet-filter';
 import { StatCard } from '@/components/charts/StatCard';
 import { money } from '@/components/charts/chart-theme';
 import { KpiCards } from '@/components/dashboard/KpiCards';
 import { FinancialPerformanceChart } from '@/components/dashboard/FinancialPerformanceChart';
+import { RevenueByOutlet } from '@/components/dashboard/RevenueByOutlet';
 import { ReceivablesPayables } from '@/components/dashboard/ReceivablesPayables';
 import { ExpenseBreakdown } from '@/components/dashboard/ExpenseBreakdown';
 import { ComplianceSnapshot } from '@/components/dashboard/ComplianceSnapshot';
@@ -31,6 +33,15 @@ export default function DashboardPage() {
     useResolvedTenant();
   const [rangeKey, setRangeKey] = useState<RangeKey>('30d');
   const { from, to } = rangeFor(rangeKey);
+  // OutletFilter (header dropdown, HQ/admin only): selectedOutlet null = "All Outlets". Widgets
+  // below get the outlet id so they scope to the chosen branch instead of always showing the
+  // tenant-wide aggregate; the "Revenue by Outlet" breakdown only makes sense in the "All
+  // Outlets" view, so it's shown only then (and only when there's more than one outlet to break
+  // down at all — matches outlets.length === 0 for regular staff, who never see the switcher).
+  const selectedOutlet = useOutletFilterStore((s) => s.selectedOutlet);
+  const outlets = useOutletFilterStore((s) => s.outlets);
+  const outletId = selectedOutlet?.id;
+  const showRevenueByOutlet = !selectedOutlet && outlets.length > 1;
 
   // Platform owner: only the explicit "All Tenants" selection shows the cross-tenant
   // aggregate. By default the owner sees their OWN treasury dashboard, like any tenant.
@@ -63,13 +74,14 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <KpiCards tenant={dashTenant} from={from} to={to} />
-      <FinancialPerformanceChart tenant={dashTenant} from={from} to={to} />
+      <KpiCards tenant={dashTenant} from={from} to={to} outletId={outletId} />
+      <FinancialPerformanceChart tenant={dashTenant} from={from} to={to} outletId={outletId} />
+      {showRevenueByOutlet && <RevenueByOutlet tenant={dashTenant} from={from} to={to} />}
       <ReceivablesPayables tenant={dashTenant} />
       <MoneyFlow tenant={dashTenant} from={from} to={to} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <ExpenseBreakdown tenant={dashTenant} from={from} to={to} />
+          <ExpenseBreakdown tenant={dashTenant} from={from} to={to} outletId={outletId} />
         </div>
         <div className="space-y-4">
           {/* Tax & Compliance card is a tier-2+ feature (smart_tax_compliance) per the
