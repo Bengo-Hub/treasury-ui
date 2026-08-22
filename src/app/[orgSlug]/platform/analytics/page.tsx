@@ -56,7 +56,7 @@ export default function PlatformAnalyticsPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="hover:shadow-md transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-tight">Payment Volume (GMV)</h3>
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-tight">Total Sales Volume</h3>
             <TrendingUp className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
@@ -65,7 +65,11 @@ export default function PlatformAnalyticsPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold">{formatCurrency(parseFloat(overview?.gmv || '0'), overview?.currency || 'KES')}</div>
-                <p className="text-xs text-muted-foreground mt-1">Collected on behalf of tenants</p>
+                <p className="text-xs text-muted-foreground mt-1" title="Only the platform-collected portion is a settlement liability the platform actually owes tenants — cash/manually-recorded sales never touch the platform's account.">
+                  {formatCurrency(parseFloat(overview?.platform_collected_gmv || '0'), overview?.currency || 'KES')} platform-collected
+                  {' · '}
+                  {formatCurrency(parseFloat(overview?.tenant_collected_gmv || '0'), overview?.currency || 'KES')} cash/manual
+                </p>
               </>
             )}
           </CardContent>

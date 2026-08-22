@@ -196,7 +196,11 @@ export function buildHolderColumns({ projections, resolveTenantName, cb }: Holde
         },
         {
             key: 'accrued_since_last_payout',
-            header: 'Accrued',
+            header: (
+                <span title="Cumulative balance since this holder's last payout (or since they were set up, if never paid) — independent of the date range below. This is what their NEXT scheduled/manual payout will be based on.">
+                    Accrued
+                </span>
+            ),
             align: 'right',
             sortable: true,
             cellClassName: 'tabular-nums text-xs',
@@ -204,17 +208,42 @@ export function buildHolderColumns({ projections, resolveTenantName, cb }: Holde
             render: (h) => {
                 const p = projections.get(h.id);
                 if (p?.accrued_since_last_payout == null) return <span className="text-muted-foreground">—</span>;
-                return <span className="font-semibold">{kes(p.accrued_since_last_payout)}</span>;
+                const accrued = Number(p.accrued_since_last_payout);
+                return (
+                    <span
+                        className="font-semibold"
+                        title={accrued > 0 ? 'Owed to this holder as of today — will be paid out once it clears the platform payout threshold, on their configured schedule.' : "No revenue attributable to this holder since their last payout — not an error if their linked tenant(s) had no qualifying activity in that window."}
+                    >
+                        {kes(p.accrued_since_last_payout)}
+                    </span>
+                );
             },
         },
         {
             key: 'projected_amount',
-            header: 'Projected',
+            header: (
+                <span title="Net-of-tax allocation for the date range selected above ONLY — a narrower window than Accrued. KES 0.00 here does not mean broken: it can simply mean no qualifying revenue fell inside this specific range even though the Accrued balance (a different, wider window) is non-zero.">
+                    This Period
+                </span>
+            ),
             align: 'right',
             sortable: true,
             cellClassName: 'tabular-nums text-xs font-bold',
             accessor: (h) => Number(projections.get(h.id)?.projected_amount ?? 0),
-            render: (h) => kes(projections.get(h.id)?.projected_amount),
+            render: (h) => {
+                const p = projections.get(h.id);
+                const projected = Number(p?.projected_amount ?? 0);
+                const accrued = Number(p?.accrued_since_last_payout ?? 0);
+                if (projected === 0 && accrued > 0) {
+                    return (
+                        <span title="Nothing new in this specific date range — see the Accrued column for their real outstanding balance.">
+                            <span>{kes(p?.projected_amount)}</span>
+                            <span className="block text-[10px] font-normal text-muted-foreground normal-case">see Accrued</span>
+                        </span>
+                    );
+                }
+                return <span>{kes(p?.projected_amount)}</span>;
+            },
         },
         {
             key: 'payout_frequency',
