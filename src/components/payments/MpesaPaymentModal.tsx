@@ -12,7 +12,7 @@ import type { PaymentDetails } from './types';
 // the MpesaLogo icon right beside it already carries.
 const MPESA_TITLE = (
   <span className="flex items-center gap-2">
-    <MpesaLogo className="h-6 w-6 rounded shrink-0" /> STK Push
+    <MpesaLogo className="h-6 w-11 rounded shrink-0" /> STK Push
   </span>
 );
 
