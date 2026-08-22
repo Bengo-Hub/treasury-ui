@@ -13,20 +13,15 @@ import {
   useCreateCreditNote,
   useCreateDebitNote,
   useGenerateDeliveryNote,
-  useSubmitInvoiceForApproval,
-  useApproveInvoice,
-  useRejectInvoice,
   useDispatchDeliveryNote,
   useDeliverDeliveryNote,
   useCancelDeliveryNote,
 } from '@/hooks/use-invoices';
-import { useAuthStore } from '@/store/auth';
 import { useOutletFilterStore } from '@/store/outlet-filter';
-import { userHasPermission } from '@/lib/auth/permissions';
 import { cn } from '@/lib/utils';
 import {
-  ArrowLeft, Ban, Check, CheckCircle, CheckCircle2, Copy, DollarSign, Download,
-  ExternalLink, FileMinus, FilePlus, Loader2, Send, ThumbsUp, Truck, X,
+  ArrowLeft, Ban, CheckCircle, CheckCircle2, Copy, DollarSign, Download,
+  ExternalLink, FileMinus, FilePlus, Loader2, Send, Truck, X,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -116,20 +111,9 @@ export default function InvoiceDetailPage() {
   const creditNoteMut  = useCreateCreditNote(effectiveTenant);
   const debitNoteMut   = useCreateDebitNote(effectiveTenant);
   const deliveryNoteMut = useGenerateDeliveryNote(effectiveTenant);
-  const submitMut       = useSubmitInvoiceForApproval(effectiveTenant);
-  const approveMut      = useApproveInvoice(effectiveTenant);
-  const rejectMut       = useRejectInvoice(effectiveTenant);
   const dispatchMut     = useDispatchDeliveryNote(effectiveTenant);
   const deliverMut      = useDeliverDeliveryNote(effectiveTenant);
   const cancelDelivMut  = useCancelDeliveryNote(effectiveTenant);
-
-  // Approve/reject/submit are privileged — gate on the backend's treasury.invoices.change|manage.
-  const user = useAuthStore((s) => s.user);
-  const canApprove = userHasPermission(
-    user as Parameters<typeof userHasPermission>[0],
-    ['treasury.invoices.change', 'treasury.invoices.manage'],
-    'or',
-  );
 
   // Resolve the originating outlet's display name from the loaded outlet list (set by the
   // header OutletFilter). Falls back to the raw id when the list isn't populated.
@@ -139,11 +123,11 @@ export default function InvoiceDetailPage() {
   const [showPayModal, setShowPayModal]   = useState(false);
   const [showCreditNote, setShowCreditNote] = useState(false);
   const [creditNoteError, setCreditNoteError] = useState('');
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectReason, setRejectReason]   = useState('');
-  // Confirm gate for the fiscal-consequence actions (Approve fiscalises on the final step; Send
-  // fiscalises + delivers) — the shared ConfirmDialog warns about the KRA eTIMS sync.
-  const [confirmAction, setConfirmAction] = useState<null | 'approve' | 'send'>(null);
+  // Confirm gate for the Send action (fiscalises + delivers) — the shared ConfirmDialog warns
+  // about the KRA eTIMS sync. Approve's own fiscal-consequence warning now lives in
+  // DocumentApprovalCard's confirmApprove prop (below) — the centralized approval flow is the
+  // only way to approve an invoice, so there is no separate legacy approve action here anymore.
+  const [confirmAction, setConfirmAction] = useState<null | 'send'>(null);
   // Send modal's explicit per-send eTIMS choice — defaults to syncing (today's behaviour);
   // unchecking sends the invoice WITHOUT queuing an eTIMS sync for this document.
   const [sendSyncEtims, setSendSyncEtims] = useState(true);
@@ -163,16 +147,6 @@ export default function InvoiceDetailPage() {
       { onSuccess: () => { setShowPayModal(false); setPaymentAmount(''); } },
     );
   }, [invoiceId, paymentAmount, recordPayMut]);
-
-  const handleReject = useCallback(() => {
-    rejectMut.mutate(
-      { invoiceId, reason: rejectReason || undefined },
-      {
-        onSuccess: () => { toast.success('Invoice rejected'); setShowRejectModal(false); setRejectReason(''); },
-        onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to reject invoice'),
-      },
-    );
-  }, [invoiceId, rejectReason, rejectMut]);
 
   const handleDispatch = useCallback(() => setDeliveryConfirm('dispatch'), []);
   const confirmDispatch = useCallback(() => {
@@ -249,9 +223,6 @@ export default function InvoiceDetailPage() {
   const canViewDebitNote = acts.includes('view_debit_note');
   const canDeliveryNote = acts.includes('generate_delivery_note');
   const canViewDeliveryNote = acts.includes('view_delivery_note');
-  const canSubmitApproval = canApprove && acts.includes('submit_for_approval');
-  const canApproveNow     = canApprove && acts.includes('approve');
-  const canRejectNow      = canApprove && acts.includes('reject');
 
   // Delivery-note goods-dispatch lifecycle — a separate axis from invoice.status, only
   // meaningful for delivery_challan / delivery_note documents. Buttons are gated to the
@@ -321,37 +292,6 @@ export default function InvoiceDetailPage() {
                 </button>
               )}
             </>
-          )}
-          {canSubmitApproval && (
-            <button
-              onClick={() => submitMut.mutate(invoiceId, {
-                onSuccess: () => toast.success('Invoice submitted for approval'),
-                onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Failed to submit for approval'),
-              })}
-              disabled={submitMut.isPending}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {submitMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ThumbsUp className="h-3.5 w-3.5" />}
-              Submit for Approval
-            </button>
-          )}
-          {canApproveNow && (
-            <button
-              onClick={() => setConfirmAction('approve')}
-              disabled={approveMut.isPending}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50"
-            >
-              {approveMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-              Approve
-            </button>
-          )}
-          {canRejectNow && (
-            <button
-              onClick={() => setShowRejectModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
-            >
-              <X className="h-3.5 w-3.5" /> Reject
-            </button>
           )}
           {canSend && (
             <button
@@ -526,6 +466,7 @@ export default function InvoiceDetailPage() {
             module={moduleForDocType(invoice.invoice_type as DocType)!}
             documentId={invoiceId}
             documentReference={invoice.invoice_number}
+            confirmApprove="Approving advances the workflow. On the FINAL approval step the document becomes a fiscal supply and is transmitted to KRA eTIMS (fiscalised) — after which it can no longer be edited. Continue?"
           />
         )}
 
@@ -747,54 +688,6 @@ export default function InvoiceDetailPage() {
         </div>
       )}
 
-      {/* Reject Approval Modal */}
-      {showRejectModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/75"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowRejectModal(false); }}
-        >
-          <div className="relative w-full max-w-sm rounded-2xl border border-border p-6 space-y-4 bg-card shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-foreground">Reject Invoice</h2>
-              <button onClick={() => setShowRejectModal(false)}>
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {invoice.invoice_number} will be sent back to draft for revision.
-            </p>
-            <div>
-              <label className="text-xs font-bold block mb-1 text-foreground">Reason</label>
-              <textarea
-                className="w-full rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-ring bg-background border border-input text-foreground min-h-20"
-                placeholder="Reason for rejection..."
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowRejectModal(false)}
-                className="px-4 py-2 rounded-lg text-xs font-medium hover:bg-accent transition-colors text-muted-foreground"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReject}
-                disabled={rejectMut.isPending}
-                className={cn(
-                  'px-5 py-2 rounded-lg text-xs font-bold transition-all bg-destructive text-destructive-foreground hover:bg-destructive/90',
-                  rejectMut.isPending && 'opacity-50 cursor-not-allowed',
-                )}
-              >
-                {rejectMut.isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
-                Reject Invoice
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Mark Delivered Modal — optional received-by + note (dispatched → delivered). */}
       {showDeliverModal && (
         <div
@@ -870,45 +763,34 @@ export default function InvoiceDetailPage() {
       <ConfirmDialog
         open={confirmAction !== null}
         onOpenChange={(o) => { if (!o) setConfirmAction(null); }}
-        title={confirmAction === 'approve' ? 'Approve this document?' : 'Send this document?'}
-        description={confirmAction === 'approve'
-          ? 'Approving advances the workflow. On the FINAL approval step the document becomes a fiscal supply and is transmitted to KRA eTIMS (fiscalised) — after which it can no longer be edited. Continue?'
-          : 'This will deliver the document to the customer.'}
-        confirmLabel={confirmAction === 'approve' ? 'Approve' : 'Send'}
-        isPending={confirmAction === 'approve' ? approveMut.isPending : sendMutation.isPending}
+        title="Send this document?"
+        description="This will deliver the document to the customer."
+        confirmLabel="Send"
+        isPending={sendMutation.isPending}
         onConfirm={() => {
-          if (confirmAction === 'approve') {
-            approveMut.mutate({ invoiceId }, {
-              onSuccess: () => { toast.success('Invoice approved'); setConfirmAction(null); },
-              onError: (err: any) => { toast.error(err?.response?.data?.error ?? 'Failed to approve invoice'); setConfirmAction(null); },
-            });
-          } else if (confirmAction === 'send') {
-            sendMutation.mutate({ invoiceId, syncEtims: sendSyncEtims }, {
-              onSuccess: () => setConfirmAction(null),
-              onError: () => setConfirmAction(null),
-            });
-          }
+          sendMutation.mutate({ invoiceId, syncEtims: sendSyncEtims }, {
+            onSuccess: () => setConfirmAction(null),
+            onError: () => setConfirmAction(null),
+          });
         }}
       >
-        {confirmAction === 'send' && (
-          <label className="flex items-start gap-2 text-sm rounded border border-border/60 bg-muted/30 p-3">
-            <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={sendSyncEtims}
-              onChange={(e) => setSendSyncEtims(e.target.checked)}
-            />
-            <span>
-              <span className="font-medium">Sync to KRA eTIMS</span>
-              <br />
-              <span className="text-muted-foreground">
-                {sendSyncEtims
-                  ? 'This document will be transmitted to KRA eTIMS (fiscalised) when sent.'
-                  : "This document will be sent WITHOUT syncing to eTIMS. You can fiscalise it later from the transaction's \"Generate ETR Receipt\" action."}
-              </span>
+        <label className="flex items-start gap-2 text-sm rounded border border-border/60 bg-muted/30 p-3">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={sendSyncEtims}
+            onChange={(e) => setSendSyncEtims(e.target.checked)}
+          />
+          <span>
+            <span className="font-medium">Sync to KRA eTIMS</span>
+            <br />
+            <span className="text-muted-foreground">
+              {sendSyncEtims
+                ? 'This document will be transmitted to KRA eTIMS (fiscalised) when sent.'
+                : "This document will be sent WITHOUT syncing to eTIMS. You can fiscalise it later from the transaction's \"Generate ETR Receipt\" action."}
             </span>
-          </label>
-        )}
+          </span>
+        </label>
       </ConfirmDialog>
 
       <ConfirmDialog

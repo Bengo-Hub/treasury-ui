@@ -46,11 +46,18 @@ interface Props {
   className?: string;
   /** Drop the outer card chrome when the card is embedded in another shell (e.g. a modal). */
   embedded?: boolean;
-  /** Invoked after a successful submit / approve / reject — lets a host modal close itself. */
+  /** Invoked after a successful approve / reject (a terminal action) — lets a host modal close
+   *  itself. NOT called after submit: the card stays open so the caller can see what submitting
+   *  actually resulted in (auto-approved, or now pending with an Approve button if they're the
+   *  approver) instead of the dialog vanishing on them. */
   onActed?: () => void;
+  /** Optional confirmation prompt shown before Approve is submitted — for modules where approving
+   *  has an extra, hard-to-reverse consequence (e.g. invoices fiscalise to KRA eTIMS on the final
+   *  step). Omit for modules with no such consequence. */
+  confirmApprove?: string;
 }
 
-export function DocumentApprovalCard({ tenant, module, documentId, className, embedded, onActed }: Props) {
+export function DocumentApprovalCard({ tenant, module, documentId, className, embedded, onActed, confirmApprove }: Props) {
   const { data: request, isLoading } = useApprovalForObject(tenant, documentId);
   const submit = useSubmitForApproval(tenant);
   const approve = useApproveRequest(tenant);
@@ -85,9 +92,12 @@ export function DocumentApprovalCard({ tenant, module, documentId, className, em
     submit.mutate(
       { module, objectId: documentId },
       {
+        // Deliberately does NOT call onActed — the card should stay open (or the host modal
+        // stay open) to show the actual result: either an auto-approved state, or a newly-pending
+        // request with its Approve/Reject buttons, immediately. useSubmitForApproval already
+        // invalidates the query this card reads, so it re-renders with the fresh state on its own.
         onSuccess: (res) => {
           toast.success(res.approval_required ? 'Submitted for approval' : (res.message ?? 'No approval required — auto-approved'));
-          onActed?.();
         },
         onError: (e) => toast.error(errMsg(e, 'Failed to submit for approval')),
       },
@@ -96,6 +106,7 @@ export function DocumentApprovalCard({ tenant, module, documentId, className, em
 
   function handleApprove() {
     if (!request) return;
+    if (confirmApprove && !window.confirm(confirmApprove)) return;
     approve.mutate(
       { id: request.id, comment: comment.trim() || undefined },
       {
@@ -117,6 +128,18 @@ export function DocumentApprovalCard({ tenant, module, documentId, className, em
   }
 
   if (isLoading) return null;
+
+  // Whether THIS user may act on the request's current step — mirrors the backend's actual
+  // enforcement (Approvals.approvalRoleCheck: platform owner/superuser/tenant admin always pass;
+  // everyone else must hold the step's approver_role) rather than the coarse `canAct` permission
+  // check above, which the approve/reject route doesn't even gate on server-side. Showing Approve
+  // to someone who merely holds `canAct` but not the step's role would offer a button that 403s.
+  // Not userHasRole/UserRole — approver_role is a treasury RBAC code (treasury_admin, accountant,
+  // approver, …), a different, wider role space than that generic staff/admin/superuser enum.
+  const userRoles = (user?.roles ?? []) as string[];
+  const isAdminBypass = !!user && (user.isSuperUser || user.isPlatformOwner || userRoles.includes('superuser'));
+  const canActOnCurrentStep =
+    !!request?.current_step && (isAdminBypass || userRoles.includes(request.current_step.approver_role));
 
   // Most recent approver, if the document has been approved.
   const approver =
@@ -194,7 +217,7 @@ export function DocumentApprovalCard({ tenant, module, documentId, className, em
             </ol>
           )}
 
-          {request.status === 'pending' && canAct && (
+          {request.status === 'pending' && canActOnCurrentStep && (
             <div className="space-y-2 pt-1">
               <textarea
                 placeholder="Optional comment..."
