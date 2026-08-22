@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useAuditLogs } from '@/hooks/use-audit';
+import { useDateRangeFilter } from '@/hooks/use-date-range-filter';
 import type { AuditLogEntry } from '@/lib/api/audit';
 import { cn } from '@/lib/utils';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
@@ -10,13 +11,6 @@ import { Filter, Search, Shield } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 50;
-
-function defaultDateRange() {
-  const to = new Date();
-  const from = new Date(to);
-  from.setDate(from.getDate() - 30);
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
-}
 
 const ACTION_OPTIONS = ['all', 'create', 'update', 'delete', 'approve', 'reject'];
 const RESOURCE_OPTIONS = [
@@ -30,15 +24,18 @@ export default function AuditLogPage() {
   const [actionFilter, setActionFilter] = useState('all');
   const [resourceFilter, setResourceFilter] = useState('all');
   const [page, setPage] = useState(1);
-  const dateRange = useMemo(() => defaultDateRange(), []);
+  // Part A: shared date-range filter (src/hooks/use-date-range-filter.ts) in place of this page's
+  // own defaultDateRange() helper. Same default (last 30 days) as before; no UI control here yet
+  // since this page never exposed one — from/to are used only as fixed query bounds.
+  const { from: dateRangeFrom, to: dateRangeTo } = useDateRangeFilter({ defaultPreset: 'last30' });
 
   const queryParams = useMemo(() => ({
-    from: dateRange.from,
-    to: dateRange.to,
+    from: dateRangeFrom,
+    to: dateRangeTo,
     limit: 200,
     ...(actionFilter !== 'all' ? { action: actionFilter } : {}),
     ...(resourceFilter !== 'all' ? { resource_type: resourceFilter } : {}),
-  }), [dateRange, actionFilter, resourceFilter]);
+  }), [dateRangeFrom, dateRangeTo, actionFilter, resourceFilter]);
 
   // Platform-owner cross-tenant audit log: no tenant scoping (empty tenant + platform flag).
   const { data, isLoading, error } = useAuditLogs('', true, queryParams);
@@ -57,9 +54,20 @@ export default function AuditLogPage() {
   }, [list, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
-  useMemo(() => { setPage(1); }, [searchQuery, actionFilter, resourceFilter]);
+  // Reset to page 1 when a filter changes — adjusted during render (React's documented pattern:
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
+  // rather than in a useEffect, which would cause an extra avoidable render/commit and is what the
+  // lint's `set-state-in-effect` rule flags. Was previously (incorrectly) a `useMemo` calling
+  // setState directly.
+  const filterKey = `${searchQuery}|${actionFilter}|${resourceFilter}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setPage(1);
+  }
+
+  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   const columns = useMemo(() => buildPlatformAuditLogColumns(), []);
 

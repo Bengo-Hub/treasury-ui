@@ -4,22 +4,17 @@ import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { usePayoutHistory } from '@/hooks/use-analytics';
 import { usePlatformBalance, usePlatformBanks, useCreatePlatformRecipient } from '@/hooks/use-platform-payouts';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
+import { useDateRangeFilter } from '@/hooks/use-date-range-filter';
+import { DateRangeFilter } from '@/components/filters/DateRangeFilter';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildPlatformPayoutColumns } from './payout-history-columns';
-import { Building2, Calendar, Command, Filter, Landmark, Loader2, Plus, ArrowRight, Search, ShieldCheck } from 'lucide-react';
+import { Building2, Command, Filter, Landmark, Loader2, Plus, ArrowRight, Search, ShieldCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 const ITEMS_PER_PAGE = 20;
-
-function defaultDateRange(): { from: string; to: string } {
-  const to = new Date();
-  const from = new Date(to);
-  from.setDate(from.getDate() - 90);
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
-}
 
 export default function PlatformPayoutsPage() {
   const { tenantPathId } = useResolvedTenant();
@@ -36,8 +31,9 @@ export default function PlatformPayoutsPage() {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [dateFrom, setDateFrom] = useState(() => defaultDateRange().from);
-  const [dateTo, setDateTo] = useState(() => defaultDateRange().to);
+  // Part A: shared date-range filter (src/hooks/use-date-range-filter.ts), replacing this page's
+  // own defaultDateRange()/useState pair. Same default (last 90 days) as before.
+  const { from: dateFrom, to: dateTo, setFrom: setDateFrom, setTo: setDateTo } = useDateRangeFilter({ defaultPreset: 'last90' });
   const [page, setPage] = useState(1);
 
   const payouts = payoutData?.payouts ?? [];
@@ -71,10 +67,20 @@ export default function PlatformPayoutsPage() {
   }, [payouts, dateFrom, dateTo, statusFilter, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginatedItems = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
-  // Reset to page 1 when filters change
-  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, dateFrom, dateTo]);
+  // Reset to page 1 when a filter changes — adjusted during render (React's documented pattern:
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
+  // rather than in a useEffect, which would cause an extra avoidable render/commit and is what the
+  // lint's `set-state-in-effect` rule flags. Was previously (incorrectly) a `useMemo` calling
+  // setState directly.
+  const filterKey = `${searchQuery}|${statusFilter}|${dateFrom}|${dateTo}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setPage(1);
+  }
+
+  const paginatedItems = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   const statusOptions = ['all', 'completed', 'processing', 'pending', 'failed'];
   const payoutColumns = useMemo(() => buildPlatformPayoutColumns(), []);
@@ -232,22 +238,9 @@ export default function PlatformPayoutsPage() {
           ))}
           <div className="w-px h-5 bg-border mx-2" />
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Calendar className="h-3.5 w-3.5" />
             <span className="font-semibold uppercase tracking-wider">Period:</span>
           </div>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="bg-accent/30 border-none rounded-lg px-3 py-1 text-xs focus:ring-1 focus:ring-primary"
-          />
-          <span className="text-xs text-muted-foreground">to</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="bg-accent/30 border-none rounded-lg px-3 py-1 text-xs focus:ring-1 focus:ring-primary"
-          />
+          <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
         </div>
 
         <CardContent className="p-0">

@@ -133,3 +133,132 @@ export function getTransactionsExportURL(from?: string, to?: string, status?: st
   if (tenant_ids) params.append('tenant_ids', tenant_ids);
   return `${BASE}/platform/analytics/transactions/export?${params.toString()}`;
 }
+
+// ── New platform-owner BI endpoints (timeseries / revenue-streams / equity-obligations /
+// referral-performance) — added for the Ecosystem Analytics BI redesign. Kept separate from the
+// overview/by-tenant/by-service section above (which stays untouched) so those existing
+// interfaces/hooks are never at risk of an accidental edit.
+
+export interface PlatformTimeseriesPoint {
+  date: string;
+  /** All money fields are decimal STRINGS — parseFloat/Number before formatting. */
+  gmv: string;
+  payg_commission: string;
+  platform_own_revenue: string;
+  platform_revenue: string;
+  net_profit: string;
+}
+
+export interface PlatformTimeseriesResponse {
+  series: PlatformTimeseriesPoint[];
+  from: string;
+  to: string;
+  total_gmv: string;
+  total_payg_commission: string;
+  total_platform_own_revenue: string;
+  total_platform_revenue: string;
+  total_net_profit: string;
+  currency: string;
+}
+
+/** Platform-wide revenue trend — GMV / PAYG commission / platform's own revenue / net profit per day (or bucket). */
+export function usePlatformTimeseries(from?: string, to?: string, tenantIds?: string) {
+  return useQuery({
+    queryKey: ['platform_analytics_timeseries', from, to, tenantIds],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (from) params.from = from;
+      if (to) params.to = to;
+      if (tenantIds) params.tenant_ids = tenantIds;
+      return api.get<PlatformTimeseriesResponse>(`${BASE}/platform/analytics/timeseries`, params);
+    },
+  });
+}
+
+export interface PlatformRevenueStreams {
+  period: string;
+  subscription_revenue: string;
+  platform_fee_revenue: string;
+  payment_processing_revenue: string;
+  payg_commission: string;
+  other_own_revenue: string;
+  /** Sum of the five streams above (subscriptions + fees + processing + PAYG + other). */
+  platform_own_revenue: string;
+  platform_revenue: string;
+  currency: string;
+}
+
+/** Composition of platform revenue by stream — subscriptions vs. fees vs. processing vs. PAYG vs. other. */
+export function usePlatformRevenueStreams(from?: string, to?: string, tenantIds?: string) {
+  return useQuery({
+    queryKey: ['platform_analytics_revenue_streams', from, to, tenantIds],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (from) params.from = from;
+      if (to) params.to = to;
+      if (tenantIds) params.tenant_ids = tenantIds;
+      return api.get<PlatformRevenueStreams>(`${BASE}/platform/analytics/revenue-streams`, params);
+    },
+  });
+}
+
+export interface PlatformEquityObligations {
+  period: string;
+  currency: string;
+  /** Owed to royalty/revenue-share holders but not yet paid out. OMITTED (not "0.00") when the
+   *  equity handler isn't wired — treat `undefined` as "unknown", never as zero. */
+  accrued_non_dividend_obligations?: string;
+  /** Already disbursed this period to royalty/revenue-share holders. Always present ("0.00" if none). */
+  paid_to_non_dividend_holders: string;
+  /** Net profit remaining for dividends. OMITTED unless exactly one umbrella dividend holder
+   *  resolves for the period — never fabricate a fallback value when this is absent. */
+  available_for_dividend?: string;
+  /** Present only alongside `available_for_dividend`. */
+  dividend_umbrella_holder_id?: string;
+  dividend_umbrella_holder_name?: string;
+}
+
+/** Dividend-availability panel data: what's already spoken for vs. what's free to declare. Platform-wide only — no tenant_ids param on this endpoint. */
+export function usePlatformEquityObligations(from?: string, to?: string) {
+  return useQuery({
+    queryKey: ['platform_analytics_equity_obligations', from, to],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (from) params.from = from;
+      if (to) params.to = to;
+      return api.get<PlatformEquityObligations>(`${BASE}/platform/analytics/equity-obligations`, params);
+    },
+  });
+}
+
+export interface ReferralTopEarner {
+  holder_id: string;
+  holder_name: string;
+  referral_id?: string;
+  referred_tenant_id?: string;
+  referred_tenant_name?: string;
+  gross: string;
+  tax_withheld: string;
+  net: string;
+}
+
+export interface PlatformReferralPerformance {
+  period: string;
+  currency: string;
+  active_programs: number;
+  top_earners: ReferralTopEarner[];
+}
+
+/** Referral-program leaderboard: active program count + top-earning referrers for the period. */
+export function usePlatformReferralPerformance(from?: string, to?: string, limit?: number) {
+  return useQuery({
+    queryKey: ['platform_analytics_referral_performance', from, to, limit],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (from) params.from = from;
+      if (to) params.to = to;
+      if (limit != null) params.limit = String(limit);
+      return api.get<PlatformReferralPerformance>(`${BASE}/platform/analytics/referral-performance`, params);
+    },
+  });
+}
