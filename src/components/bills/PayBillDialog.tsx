@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/base';
+import { BankAccountVerify } from '@/components/payments/bank-account-verify';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
@@ -64,6 +65,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
   const [recipientPhone, setRecipientPhone] = useState('');
   const [recipientShortcode, setRecipientShortcode] = useState('');
   const [recipientIsTill, setRecipientIsTill] = useState(false);
+  const [recipientBankName, setRecipientBankName] = useState('');
   const [recipientBankCode, setRecipientBankCode] = useState('');
   const [recipientAccountNumber, setRecipientAccountNumber] = useState('');
   const [recipientAccountName, setRecipientAccountName] = useState('');
@@ -101,6 +103,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
     setRecipientPhone('');
     setRecipientShortcode('');
     setRecipientIsTill(false);
+    setRecipientBankName('');
     setRecipientBankCode('');
     setRecipientAccountNumber('');
     setRecipientAccountName('');
@@ -281,29 +284,21 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
                 )}
 
                 {online && method === 'paystack_bank' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField label="Bank code" required>
-                      <input
-                        value={recipientBankCode}
-                        onChange={(e) => setRecipientBankCode(e.target.value)}
-                        className={inputClass}
-                      />
-                    </FormField>
-                    <FormField label="Account number" required>
-                      <input
-                        value={recipientAccountNumber}
-                        onChange={(e) => setRecipientAccountNumber(e.target.value)}
-                        className={inputClass}
-                      />
-                    </FormField>
-                    <FormField label="Account name" className="col-span-2">
-                      <input
-                        value={recipientAccountName}
-                        onChange={(e) => setRecipientAccountName(e.target.value)}
-                        className={inputClass}
-                      />
-                    </FormField>
-                  </div>
+                  <BankAccountVerify
+                    tenantSlug={tenant}
+                    value={{
+                      bank_name: recipientBankName,
+                      bank_code: recipientBankCode,
+                      account_number: recipientAccountNumber,
+                      account_name: recipientAccountName,
+                    }}
+                    onChange={(patch) => {
+                      if (patch.bank_name !== undefined) setRecipientBankName(patch.bank_name);
+                      if (patch.bank_code !== undefined) setRecipientBankCode(patch.bank_code);
+                      if (patch.account_number !== undefined) setRecipientAccountNumber(patch.account_number);
+                      if (patch.account_name !== undefined) setRecipientAccountName(patch.account_name);
+                    }}
+                  />
                 )}
 
                 <FormField

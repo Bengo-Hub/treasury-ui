@@ -27,6 +27,7 @@ import { useTransmitPosSaleNow } from '@/hooks/use-tax';
 import { DocPreview } from '@/components/documents/DocPreview';
 import { EtimsResponseModal, type EtimsResponseRow } from '@/components/tax/etims-response-modal';
 import { StatementDialog } from '@/components/statement-dialog';
+import { ManualConfirmModal } from '@/components/transactions/manual-confirm-modal';
 import { toast } from 'sonner';
 
 const MARKETFLOW_UI_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexafrica.com';
@@ -89,7 +90,7 @@ export default function TransactionsPage() {
   // tenant for the ordinary single-tenant view, where tenant_id may be absent.
   const [statementTxn, setStatementTxn] = useState<{ id: string; name: string; tenant: string } | null>(null);
   const [checkingStatusId, setCheckingStatusId] = useState<string | null>(null);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [manualConfirmTxn, setManualConfirmTxn] = useState<TransactionItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -155,19 +156,11 @@ export default function TransactionsPage() {
     }
   };
 
-  const handleConfirmManual = async (txn: TransactionItem) => {
-    const tenantId = txn.tenant_id;
-    if (!tenantId) { toast.error('Tenant ID not available for this transaction'); return; }
-    if (!window.confirm('This marks the transaction as paid WITHOUT verifying it against M-Pesa — only use this if you have already confirmed the payment yourself (e.g. checked the statement). Continue?')) return;
-    setConfirmingId(txn.id);
-    try {
-      await apiClient.post(`/api/v1/${tenantId}/payments/intents/${txn.id}/confirm-manual`, {});
-      toast.success('Transaction manually confirmed as paid');
-    } catch (e: any) {
-      toast.error(e?.response?.data?.error || e?.message || 'Manual confirm failed');
-    } finally {
-      setConfirmingId(null);
-    }
+  // Opens ManualConfirmModal, which tries the real Transaction Status Query with a
+  // staff-provided code FIRST, and only offers the unverified manual override as a fallback.
+  const handleConfirmManual = (txn: TransactionItem) => {
+    if (!txn.tenant_id) { toast.error('Tenant ID not available for this transaction'); return; }
+    setManualConfirmTxn(txn);
   };
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
@@ -193,9 +186,8 @@ export default function TransactionsPage() {
           }
         },
         checkingStatusId,
-        confirmingId,
       }),
-    [orgSlug, txnTenant, checkingStatusId, confirmingId],
+    [orgSlug, txnTenant, checkingStatusId],
   );
 
   const statusOptions = ['all', 'succeeded', 'pending', 'processing', 'failed', 'cancelled'];
@@ -323,6 +315,17 @@ export default function TransactionsPage() {
           docType="payment_receipt"
           tenant={receiptTenant}
           onClose={() => setPreviewReceiptId(null)}
+        />
+      )}
+
+      {/* Confirm M-Pesa payment — verify-first, manual-override-fallback modal */}
+      {manualConfirmTxn && manualConfirmTxn.tenant_id && (
+        <ManualConfirmModal
+          open={!!manualConfirmTxn}
+          onClose={() => setManualConfirmTxn(null)}
+          tenant={manualConfirmTxn.tenant_id}
+          intentId={manualConfirmTxn.id}
+          onConfirmed={() => setManualConfirmTxn(null)}
         />
       )}
 

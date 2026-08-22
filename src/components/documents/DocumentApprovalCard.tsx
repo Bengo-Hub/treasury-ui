@@ -58,8 +58,13 @@ export function DocumentApprovalCard({ tenant, module, documentId, className, em
   const [comment, setComment] = useState('');
 
   const user = useAuthStore((s) => s.user) as Parameters<typeof userHasPermission>[0];
-  // Submitting / acting on approvals is gated on the same permission the backend
-  // requires: approvals.* (with .change/.manage) or invoices.change.
+  // Submitting / acting on approvals is gated on the same permission the backend requires:
+  // approvals.* (with .change/.manage), OR whichever document permission actually covers this
+  // module. Originally hardcoded to invoices.* only (this card's first caller) — vendor_bill's own
+  // route group is gated on invoices.* OR payments.* (see arpaRouter in router.go), so an admin
+  // with payments permissions but not invoices ones would see zero action buttons here at all, on
+  // a module the backend itself already lets them act on. Kept invoices.* for backward
+  // compatibility with the existing Invoices usage.
   const canAct = userHasPermission(
     user,
     [
@@ -68,6 +73,8 @@ export function DocumentApprovalCard({ tenant, module, documentId, className, em
       'treasury.approvals.add',
       'treasury.invoices.change',
       'treasury.invoices.manage',
+      'treasury.payments.change',
+      'treasury.payments.manage',
     ],
     'or',
   );
