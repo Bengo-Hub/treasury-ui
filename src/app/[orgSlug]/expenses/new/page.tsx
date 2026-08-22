@@ -316,7 +316,7 @@ export default function NewExpenditurePage() {
                 <CategoryCombobox tenantIdOrSlug={effectiveTenant} value={categoryId} onChange={setCategoryId} />
               </FormField>
 
-              <FormField label="Expense Number" required>
+              <FormField label="Expense Number" description="Auto-generated per your document-numbering settings — only fill this in to override it.">
                 <input value={expenseNo} onChange={(e) => setExpenseNo(e.target.value)} placeholder={suggestedExpenseNo} className={inputClass} />
               </FormField>
 
