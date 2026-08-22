@@ -2,19 +2,27 @@
 
 import { Card, CardContent, CardHeader } from '@/components/ui/base';
 import { usePlatformByService, usePlatformByTenant, usePlatformOverview } from '@/hooks/use-platform-analytics';
+import { useDateRangeFilter } from '@/hooks/use-date-range-filter';
+import { DateRangeFilter } from '@/components/filters/DateRangeFilter';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useTenantFilterStore } from '@/store/tenant-filter';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildServiceRevenueColumns } from './service-revenue-columns';
+import { PlatformRevenueTrendChart } from './platform-revenue-trend-chart';
+import { RevenueStreamMixChart } from './revenue-stream-mix-chart';
+import { EquityObligationsPanel } from './equity-obligations-panel';
+import { ReferralPerformancePanel } from './referral-performance-panel';
 import { Activity, BarChart, Building2, Download, Layers, Printer, TrendingUp } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadPlatformRevenueReport } from '@/lib/api/documents';
 import { toast } from 'sonner';
 
 export default function PlatformAnalyticsPage() {
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // Part A: the shared date-range filter (src/hooks/use-date-range-filter.ts), replacing this
+  // page's old bare `useState('')` pair — this is the first (and so far only) consumer of the
+  // extracted hook/component; see the report for which other pages were/weren't migrated.
+  const { from, to, setFrom, setTo, applyPreset, activePreset } = useDateRangeFilter();
   const tenantIds = useTenantFilterStore((s) => s.tenantIdsParam)();
 
   const { data: overview, isLoading: loadingOverview } = usePlatformOverview(from || undefined, to || undefined, tenantIds || undefined);
@@ -52,6 +60,16 @@ export default function PlatformAnalyticsPage() {
         </button>
       </div>
       <PdfPreview {...previewProps} />
+
+      <DateRangeFilter
+        from={from}
+        to={to}
+        onFromChange={setFrom}
+        onToChange={setTo}
+        presets={['last30', 'last90', 'thisMonth', 'thisYear', 'allTime']}
+        activePreset={activePreset}
+        onPresetSelect={applyPreset}
+      />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="hover:shadow-md transition-all">
@@ -129,6 +147,18 @@ export default function PlatformAnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Platform-wide revenue trend — GMV / PAYG commission / platform's own revenue / net profit over time. */}
+      <PlatformRevenueTrendChart from={from || undefined} to={to || undefined} tenantIds={tenantIds || undefined} />
+
+      {/* Revenue composition + dividend-availability reasoning, side by side. */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <RevenueStreamMixChart from={from || undefined} to={to || undefined} tenantIds={tenantIds || undefined} />
+        <EquityObligationsPanel from={from || undefined} to={to || undefined} />
+      </div>
+
+      {/* Referral program leaderboard. */}
+      <ReferralPerformancePanel from={from || undefined} to={to || undefined} />
 
       <div className="grid gap-6 md:grid-cols-7">
         <Card className="md:col-span-4">
