@@ -6,7 +6,13 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
-import { buildProgramColumns, buildReferralColumns } from './referral-columns';
+import {
+  buildProgramColumns,
+  buildReferralColumns,
+  buildRewardColumns,
+  buildRewardsByReferralColumns,
+} from './referral-columns';
+import { ReferralProgramDetailModal } from './program-detail-modal';
 import { HolderFormModal } from '@/components/platform/equity-holder-form';
 import { useEquityHolders, useCreateEquityHolder } from '@/hooks/use-equity';
 import { usePlatformTenants } from '@/hooks/use-platform-tenants';
@@ -28,11 +34,9 @@ import type {
   CreateReferralProgramRequest,
   Referral,
   CreateReferralRequest,
-  ReferralReward,
   IssueRewardRequest,
 } from '@/lib/api/referrals';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
 import {
   Award,
   ChevronDown,
@@ -44,7 +48,7 @@ import {
   X,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const REWARD_TYPES = [
   { value: 'revenue_share', label: 'Revenue Share' },
@@ -54,24 +58,8 @@ const REWARD_TYPES = [
   { value: 'coupon', label: 'Coupon' },
 ] as const;
 
-const REWARD_TYPE_LABELS: Record<string, string> = {
-  revenue_share: 'Revenue Share',
-  fixed_monetary: 'Fixed Monetary',
-  discount: 'Discount',
-  gift_card: 'Gift Card',
-  coupon: 'Coupon',
-};
-
-const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'outline' | 'default'> = {
-  active: 'success',
-  pending: 'warning',
-  expired: 'outline',
-  revoked: 'error',
-  converted: 'success',
-  issued: 'default',
-  redeemed: 'success',
-  cancelled: 'error',
-};
+// Reward-type labels and status variants live in referral-columns.tsx now — the
+// tables there own every badge, so the duplicates that used to sit here are gone.
 
 export default function ReferralsPage() {
   const { data: user } = useMe();
@@ -84,6 +72,8 @@ export default function ReferralsPage() {
   const [showCreateReferral, setShowCreateReferral] = useState(false);
   const [selectedReferralId, setSelectedReferralId] = useState<string | null>(null);
   const [showIssueReward, setShowIssueReward] = useState<string | null>(null);
+  // The shared program-detail modal, opened from either table's Program column.
+  const [programDetail, setProgramDetail] = useState<{ program: ReferralProgram | null; referral: Referral | null } | null>(null);
 
   // isSuperUser is a TENANT-scoped role, not platform-wide — excluded here too.
   const isPlatformOwner = user?.isPlatformOwner || orgSlug === 'codevertex';
@@ -101,12 +91,20 @@ export default function ReferralsPage() {
   const programs = programsData?.programs ?? [];
   const referrals = referralsData?.referrals ?? [];
 
+  // Opens the program-detail modal for a referral, pairing the referral with its
+  // (possibly missing) program record.
+  const openProgramForReferral = useCallback(
+    (rf: Referral) => setProgramDetail({ program: programs.find((p) => p.id === rf.program_id) ?? null, referral: rf }),
+    [programs],
+  );
+
   const programColumns = useMemo(
     () =>
       buildProgramColumns({
         onEdit: (p) => setEditingProgram(p),
         onToggleActive: (p) => updateProgram.mutate({ id: p.id, data: { is_active: !p.is_active } }),
         onDelete: (p) => deleteProgram.mutate(p.id),
+        onViewDetails: (p) => setProgramDetail({ program: p, referral: null }),
       }),
     [updateProgram, deleteProgram],
   );
@@ -121,8 +119,9 @@ export default function ReferralsPage() {
         onActivate: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'active' } }),
         onExpire: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'expired' } }),
         onRevoke: (rf) => updateReferral.mutate({ id: rf.id, data: { status: 'revoked' } }),
+        onViewProgram: openProgramForReferral,
       }),
-    [programs, convertToEquity, updateReferral],
+    [programs, convertToEquity, updateReferral, openProgramForReferral],
   );
 
   return (
@@ -211,7 +210,13 @@ export default function ReferralsPage() {
 
         {/* Rewards Tab */}
         <TabsContent value="rewards" className="mt-6">
-          <RewardsPanel referrals={referrals} programs={programs} />
+          <RewardsPanel
+            referrals={referrals}
+            programs={programs}
+            loading={loadingReferrals}
+            error={referralsError}
+            onViewProgram={openProgramForReferral}
+          />
         </TabsContent>
       </Tabs>
 
@@ -281,6 +286,15 @@ export default function ReferralsPage() {
           />
         )}
       </Dialog>
+
+      {/* Shared program-detail modal (Programs table name, Referrals table Program column) */}
+      {programDetail && (
+        <ReferralProgramDetailModal
+          program={programDetail.program}
+          referral={programDetail.referral}
+          onClose={() => setProgramDetail(null)}
+        />
+      )}
     </div>
   );
 }
@@ -887,39 +901,22 @@ function RewardsDetailDialog({
   referralId: string;
   onClose: () => void;
 }) {
-  const { data, isLoading } = useReferralRewards(referralId);
+  const { data, isLoading, isError } = useReferralRewards(referralId);
   const rewards = data?.rewards ?? [];
+  const columns = useMemo(() => buildRewardColumns(), []);
 
   return (
-    <DialogContent title="Rewards" onClose={onClose} className="max-w-lg">
-      {isLoading ? (
-        <div className="py-6 flex items-center justify-center gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading rewards...
-        </div>
-      ) : rewards.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-4 text-center">No rewards issued for this referral yet.</p>
-      ) : (
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-          {rewards.map((reward) => (
-            <div key={reward.id} className="border border-border rounded-lg p-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <Badge variant="default">{REWARD_TYPE_LABELS[reward.reward_type] || reward.reward_type}</Badge>
-                <Badge variant={STATUS_VARIANT[reward.status] || 'outline'}>{reward.status}</Badge>
-              </div>
-              {reward.amount && (
-                <p className="text-sm font-medium">{reward.currency} {reward.amount}</p>
-              )}
-              {reward.description && (
-                <p className="text-xs text-muted-foreground">{reward.description}</p>
-              )}
-              <div className="flex gap-4 text-[11px] text-muted-foreground">
-                {reward.issued_at && <span>Issued: {formatDate(reward.issued_at)}</span>}
-                {reward.redeemed_at && <span>Redeemed: {formatDate(reward.redeemed_at)}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+    <DialogContent title="Rewards" onClose={onClose} className="max-w-2xl">
+      <DataTable
+        columns={columns}
+        rows={rewards}
+        rowKey={(r) => r.id}
+        loading={isLoading}
+        loadingRows={3}
+        error={isError}
+        storageKey="referral-rewards-dialog-table"
+        emptyText="No rewards issued for this referral yet."
+      />
     </DialogContent>
   );
 }
@@ -928,29 +925,28 @@ function RewardsDetailDialog({
 /* Rewards Panel (Tab)                                                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * RewardsPanel lists every referral in the shared DataTable and expands a row
+ * into that referral's rewards (also a DataTable) — replacing the hand-rolled
+ * accordion + bespoke <table> this panel used to render.
+ */
 function RewardsPanel({
   referrals,
   programs,
+  loading,
+  error,
+  onViewProgram,
 }: {
   referrals: Referral[];
   programs: ReferralProgram[];
+  loading?: boolean;
+  error?: boolean;
+  onViewProgram: (referral: Referral) => void;
 }) {
-  // We aggregate rewards by fetching for each referral with rewards
-  // For simplicity, show a per-referral expandable list
-  const [expandedReferral, setExpandedReferral] = useState<string | null>(null);
-
-  if (referrals.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Award className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No referrals exist yet. Rewards will appear here once referrals are created.</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const columns = useMemo(
+    () => buildRewardsByReferralColumns(programs, onViewProgram),
+    [programs, onViewProgram],
+  );
 
   return (
     <Card>
@@ -960,99 +956,48 @@ function RewardsPanel({
           <h3 className="font-bold text-sm uppercase tracking-tight">Rewards by Referral</h3>
         </div>
       </CardHeader>
-      <CardContent className="p-0 divide-y divide-border">
-        {referrals.map((referral) => {
-          const program = programs.find((p) => p.id === referral.program_id);
-          const isExpanded = expandedReferral === referral.id;
-          return (
-            <div key={referral.id}>
-              <button
-                type="button"
-                onClick={() => setExpandedReferral(isExpanded ? null : referral.id)}
-                className="w-full px-6 py-4 flex items-center justify-between hover:bg-accent/5 transition-colors text-left"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="min-w-0">
-                    <p className="text-sm font-mono">{referral.referral_code}</p>
-                    <p className="text-xs text-muted-foreground">{program?.name || 'Unknown program'}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={STATUS_VARIANT[referral.status] || 'outline'}>{referral.status}</Badge>
-                  <X className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded ? 'rotate-0' : 'rotate-45')} />
-                </div>
-              </button>
-              {isExpanded && <ReferralRewardsList referralId={referral.id} />}
-            </div>
-          );
-        })}
+      <CardContent className="p-0">
+        <div className="px-2 pb-2">
+          <DataTable
+            columns={columns}
+            rows={referrals}
+            rowKey={(r) => r.id}
+            loading={loading}
+            loadingRows={6}
+            error={error}
+            storageKey="referral-rewards-by-referral-table"
+            renderExpanded={(r) => <ReferralRewardsList referralId={r.id} />}
+            emptyState={
+              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <Award className="h-10 w-10 opacity-30" />
+                <p className="text-sm">No referrals exist yet. Rewards will appear here once referrals are created.</p>
+              </div>
+            }
+          />
+        </div>
       </CardContent>
     </Card>
   );
 }
 
 function ReferralRewardsList({ referralId }: { referralId: string }) {
-  const { data, isLoading } = useReferralRewards(referralId);
+  const { data, isLoading, isError } = useReferralRewards(referralId);
   const rewards = data?.rewards ?? [];
-
-  if (isLoading) {
-    return (
-      <div className="px-6 py-4 flex items-center gap-2 text-muted-foreground bg-accent/5">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading rewards...
-      </div>
-    );
-  }
-
-  if (rewards.length === 0) {
-    return (
-      <div className="px-6 py-4 text-sm text-muted-foreground bg-accent/5">
-        No rewards issued for this referral.
-      </div>
-    );
-  }
+  const columns = useMemo(() => buildRewardColumns(), []);
 
   return (
-    <div className="bg-accent/5 px-6 py-3">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs text-muted-foreground uppercase tracking-wider">
-            <th className="py-2 pr-4 font-medium">Type</th>
-            <th className="py-2 pr-4 font-medium">Amount</th>
-            <th className="py-2 pr-4 font-medium">Status</th>
-            <th className="py-2 pr-4 font-medium">Issued</th>
-            <th className="py-2 font-medium">Redeemed</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/50">
-          {rewards.map((reward) => (
-            <tr key={reward.id}>
-              <td className="py-2 pr-4">
-                <Badge variant="default">{REWARD_TYPE_LABELS[reward.reward_type] || reward.reward_type}</Badge>
-              </td>
-              <td className="py-2 pr-4 font-medium">
-                {reward.amount ? `${reward.currency} ${reward.amount}` : '-'}
-              </td>
-              <td className="py-2 pr-4">
-                <Badge variant={STATUS_VARIANT[reward.status] || 'outline'}>{reward.status}</Badge>
-              </td>
-              <td className="py-2 pr-4 text-xs text-muted-foreground">{reward.issued_at ? formatDate(reward.issued_at) : '-'}</td>
-              <td className="py-2 text-xs text-muted-foreground">{reward.redeemed_at ? formatDate(reward.redeemed_at) : '-'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="bg-accent/5 px-4 py-3">
+      <DataTable
+        columns={columns}
+        rows={rewards}
+        rowKey={(r) => r.id}
+        loading={isLoading}
+        loadingRows={2}
+        error={isError}
+        gridLines="rows"
+        dense
+        emptyText="No rewards issued for this referral."
+      />
     </div>
   );
-}
-
-/* ------------------------------------------------------------------ */
-/* Helpers                                                             */
-/* ------------------------------------------------------------------ */
-
-function formatDate(dateStr: string) {
-  try {
-    return format(new Date(dateStr), 'MMM d, yyyy');
-  } catch {
-    return dateStr;
-  }
 }

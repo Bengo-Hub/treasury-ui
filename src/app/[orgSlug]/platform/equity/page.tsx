@@ -27,8 +27,9 @@ import {
     useGeneratePortalLink,
 } from '@/hooks/use-equity-entitlements';
 import { usePlatformBalance } from '@/hooks/use-gateways';
+import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import { useMe } from '@/hooks/useMe';
-import type { CreateEquityHolderRequest, EquityHolder, EquityPayout, EquityPayoutSchedule, RunPayoutResponse, RunPayoutResult } from '@/lib/api/equity';
+import type { CreateEquityHolderRequest, EquityHolder, EquityPayout, EquityPayoutSchedule, HolderProjection, RunPayoutResponse, RunPayoutResult } from '@/lib/api/equity';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
@@ -36,15 +37,10 @@ import {
     ArrowRight,
     Calendar,
     CheckCircle2,
-    ChevronLeft,
-    ChevronRight,
     DollarSign,
     Eye,
     Info,
-    Landmark,
-    Link2,
     Loader2,
-    MoreVertical,
     Percent,
     PieChart,
     Plus,
@@ -57,8 +53,13 @@ import {
 import { useParams, useRouter } from 'next/navigation';
 import { PaystackBalanceCard } from '@/components/platform/PaystackBalanceCard';
 import { HolderFormModal, SERVICE_OPTIONS } from '@/components/platform/equity-holder-form';
+import {
+    EquityHolderDocumentsModal,
+    HolderDocumentStatusBadges,
+} from '@/components/platform/equity-holder-documents';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildEntitlementColumns } from './entitlement-columns';
+import { buildHolderColumns } from './holder-columns';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 
 export default function EquityManagementPage() {
@@ -79,25 +80,66 @@ export default function EquityManagementPage() {
     const [showAddHolder, setShowAddHolder] = useState(false);
     const [holderSearch, setHolderSearch] = useState('');
     const [holderPage, setHolderPage] = useState(1);
-    const HOLDERS_PER_PAGE = 2;
+    const [holdersPerPage, setHoldersPerPage] = useState(10);
     const [editingHolder, setEditingHolder] = useState<EquityHolder | null>(null);
     const [historyHolderId, setHistoryHolderId] = useState<string | null>(null);
     const [entitlementsHolderId, setEntitlementsHolderId] = useState<string | null>(null);
+    const [documentsHolder, setDocumentsHolder] = useState<EquityHolder | null>(null);
     const [freqConfigHolder, setFreqConfigHolder] = useState<EquityHolder | null>(null);
     const generatePortalLink = useGeneratePortalLink();
 
     const { data: holdersData, isLoading: loadingHolders, isError: holdersError } = useEquityHolders();
     const { data: summaryData, isLoading: loadingSummary } = useEquitySummary(dateRange.from, dateRange.to);
     const { data: balanceData, isLoading: loadingBalance } = usePlatformBalance();
+    // The holders endpoint returns bare linked-tenant UUIDs, so names are resolved
+    // against the platform tenant directory rather than invented client-side.
+    const { data: platformTenants } = usePlatformTenants();
     const triggerPayout = useTriggerEquityPayout();
     const createHolder = useCreateEquityHolder();
     const updateHolder = useUpdateEquityHolder();
 
+    const projections = useMemo(() => {
+        const map = new Map<string, HolderProjection>();
+        (summaryData?.holders ?? []).forEach((p) => map.set(p.holder_id, p));
+        return map;
+    }, [summaryData]);
+
+    const tenantNames = useMemo(() => {
+        const map = new Map<string, string>();
+        (platformTenants ?? []).forEach((t) => map.set(t.id, t.name || t.slug));
+        return map;
+    }, [platformTenants]);
+
+    const holderColumns = useMemo(
+        () =>
+            buildHolderColumns({
+                projections,
+                resolveTenantName: (id) => tenantNames.get(id),
+                cb: {
+                    onOpen: (h) => router.push(`/${orgSlug}/platform/equity/${h.id}`),
+                    onHistory: (h) => setHistoryHolderId(h.id),
+                    onEntitlements: (h) => setEntitlementsHolderId(h.id),
+                    onDocuments: (h) => setDocumentsHolder(h),
+                    onTriggerPayout: (h) =>
+                        triggerPayout.mutate({
+                            holderId: h.id,
+                            data: { period_start: dateRange.from, period_end: dateRange.to },
+                        }),
+                    onEdit: (h) => setEditingHolder(h),
+                    onPortalLink: (h) => generatePortalLink.mutate(h.id),
+                    payingHolderId: triggerPayout.isPending ? triggerPayout.variables?.holderId ?? null : null,
+                    linkingHolderId: generatePortalLink.isPending ? generatePortalLink.variables ?? null : null,
+                },
+            }),
+        [projections, tenantNames, router, orgSlug, dateRange, triggerPayout, generatePortalLink],
+    );
+
     const holders = holdersData?.holders ?? [];
     const summary = summaryData;
 
-    // Client-side search + pagination over the holders list. Paginated at 2/page so the page
-    // doesn't stretch; the search resets to page 1 (handled on input change).
+    // Client-side search + pagination over the holders list. The search resets to
+    // page 1 (handled on input change); the DataTable renders the current slice and
+    // drives page changes through its footer.
     const filteredHolders = holders.filter((h) => {
         const q = holderSearch.trim().toLowerCase();
         if (!q) return true;
@@ -107,11 +149,11 @@ export default function EquityManagementPage() {
             h.holder_type.toLowerCase().includes(q)
         );
     });
-    const holderTotalPages = Math.max(1, Math.ceil(filteredHolders.length / HOLDERS_PER_PAGE));
+    const holderTotalPages = Math.max(1, Math.ceil(filteredHolders.length / holdersPerPage));
     const currentHolderPage = Math.min(holderPage, holderTotalPages);
     const pagedHolders = filteredHolders.slice(
-        (currentHolderPage - 1) * HOLDERS_PER_PAGE,
-        currentHolderPage * HOLDERS_PER_PAGE,
+        (currentHolderPage - 1) * holdersPerPage,
+        currentHolderPage * holdersPerPage,
     );
 
     // isSuperUser is a TENANT-scoped role, not platform-wide — excluded so a tenant's own
@@ -230,8 +272,10 @@ export default function EquityManagementPage() {
                 </TabsList>
 
                 <TabsContent value="holders" className="space-y-6 mt-6">
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Stats + balance share one band so the holders table below can use the FULL
+                page width — the old 2/3-table + 1/3-sidebar split left the right side sparse. */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:col-span-2">
                 <StatsCard
                     title="Total Gross Revenue"
                     value={`KES ${Number(summary?.financial_summary.gross_revenue ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 2 })}`}
@@ -262,119 +306,75 @@ export default function EquityManagementPage() {
                 />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Holders List */}
-                <div className="lg:col-span-2 space-y-6">
-                    <Card className="border-none shadow-xl shadow-black/5 bg-gradient-to-b from-card to-card/50">
-                        <CardHeader className="flex flex-row items-center justify-between bg-transparent border-none py-6 px-8">
+            {/* Paystack balance sits beside the stat cards (the payout-schedule projection
+                lives in the Payout Schedule tab). */}
+            <PaystackBalanceCard
+                balance={balanceData}
+                loading={loadingBalance}
+                className="border-none shadow-xl shadow-black/5"
+            />
+            </div>
+
+            {/* Holders — the shared DataTable, full page width. */}
+            <div className="space-y-6">
+                    <Card className="border-none shadow-xl shadow-black/5">
+                        <CardHeader className="flex flex-col gap-3 bg-transparent border-none py-5 px-6 sm:flex-row sm:items-center sm:justify-between">
                             <h3 className="text-xl font-bold flex items-center gap-3">
                                 <Users className="h-5 w-5 text-primary" />
                                 Equity Holders
                             </h3>
-                            <div className="flex items-center gap-2">
-                                <div className="relative">
-                                    <input
-                                        type="text"
-                                        value={holderSearch}
-                                        onChange={(e) => { setHolderSearch(e.target.value); setHolderPage(1); }}
-                                        placeholder="Search holders..."
-                                        className="h-9 w-48 sm:w-64 rounded-full bg-accent/30 border-none px-4 text-xs focus:ring-1 focus:ring-primary/20 outline-none"
-                                    />
-                                </div>
-                            </div>
+                            <Button size="sm" className="gap-2 self-start sm:self-auto" onClick={() => setShowAddHolder(true)}>
+                                <Plus className="h-3.5 w-3.5" /> Add Holder
+                            </Button>
                         </CardHeader>
                         <CardContent className="p-0">
-                            {loadingHolders ? (
-                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center gap-3">
-                                    <Loader2 className="h-8 w-8 animate-spin opacity-20" />
-                                    <p className="text-sm">Loading holders...</p>
-                                </div>
-                            ) : holdersError ? (
-                                <div className="p-8">
-                                    <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                                        Failed to load equity holders. Check your connection and try again.
-                                    </div>
-                                </div>
-                            ) : holders.length === 0 ? (
-                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center gap-3">
-                                    <div className="h-12 w-12 rounded-full bg-accent flex items-center justify-center opacity-30">
-                                        <Users className="h-6 w-6" />
-                                    </div>
-                                    <p className="text-sm">No equity holders found.</p>
-                                    <Button variant="outline" size="sm" onClick={() => setShowAddHolder(true)}>Create First Holder</Button>
-                                </div>
-                            ) : filteredHolders.length === 0 ? (
-                                <div className="p-12 text-center text-muted-foreground flex flex-col items-center gap-3">
-                                    <div className="h-12 w-12 rounded-full bg-accent flex items-center justify-center opacity-30">
-                                        <Users className="h-6 w-6" />
-                                    </div>
-                                    <p className="text-sm">No holders match &ldquo;{holderSearch}&rdquo;.</p>
-                                    <Button variant="outline" size="sm" onClick={() => setHolderSearch('')}>Clear search</Button>
-                                </div>
-                            ) : (
-                                <>
-                                    <div className="divide-y divide-border/50">
-                                        {pagedHolders.map((holder) => (
-                                            <HolderRow
-                                                key={holder.id}
-                                                holder={holder}
-                                                projection={summary?.holders.find(p => p.holder_id === holder.id)}
-                                                onTriggerPayout={() => {
-                                                    triggerPayout.mutate({
-                                                        holderId: holder.id,
-                                                        data: {
-                                                            period_start: dateRange.from,
-                                                            period_end: dateRange.to,
-                                                        }
-                                                    });
-                                                }}
-                                                onEdit={() => setEditingHolder(holder)}
-                                                onHistory={() => setHistoryHolderId(holder.id)}
-                                                onEntitlements={() => setEntitlementsHolderId(holder.id)}
-                                                onPortalLink={() => generatePortalLink.mutate(holder.id)}
-                                                onOpen={() => router.push(`/${orgSlug}/platform/equity/${holder.id}`)}
-                                                isTriggering={triggerPayout.isPending && triggerPayout.variables?.holderId === holder.id}
-                                                isGeneratingLink={generatePortalLink.isPending && generatePortalLink.variables === holder.id}
-                                            />
-                                        ))}
-                                    </div>
-                                    {/* Pager — shows even with one page so the total count stays visible. */}
-                                    <div className="flex items-center justify-between gap-3 px-8 py-4 border-t border-border/50">
-                                        <p className="text-xs text-muted-foreground">
-                                            Showing{' '}
-                                            <span className="font-semibold text-foreground">
-                                                {(currentHolderPage - 1) * HOLDERS_PER_PAGE + 1}–{Math.min(currentHolderPage * HOLDERS_PER_PAGE, filteredHolders.length)}
-                                            </span>{' '}
-                                            of <span className="font-semibold text-foreground">{filteredHolders.length}</span>
-                                        </p>
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-8 w-8 p-0"
-                                                disabled={currentHolderPage <= 1}
-                                                onClick={() => setHolderPage((p) => Math.max(1, p - 1))}
-                                                aria-label="Previous page"
-                                            >
-                                                <ChevronLeft className="h-4 w-4" />
-                                            </Button>
-                                            <span className="text-xs font-medium tabular-nums text-muted-foreground">
-                                                Page {currentHolderPage} / {holderTotalPages}
-                                            </span>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-8 w-8 p-0"
-                                                disabled={currentHolderPage >= holderTotalPages}
-                                                onClick={() => setHolderPage((p) => Math.min(holderTotalPages, p + 1))}
-                                                aria-label="Next page"
-                                            >
-                                                <ChevronRight className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
+                            <div className="px-2 pb-2">
+                                <DataTable
+                                    columns={holderColumns}
+                                    rows={pagedHolders}
+                                    rowKey={(h) => h.id}
+                                    loading={loadingHolders}
+                                    loadingRows={6}
+                                    error={holdersError}
+                                    storageKey="equity-holders-table"
+                                    toolbar={
+                                        <input
+                                            type="text"
+                                            value={holderSearch}
+                                            onChange={(e) => { setHolderSearch(e.target.value); setHolderPage(1); }}
+                                            placeholder="Search holders by name, email or type..."
+                                            className="h-9 w-full sm:w-72 rounded-full bg-accent/30 border-none px-4 text-xs focus:ring-1 focus:ring-primary/20 outline-none"
+                                        />
+                                    }
+                                    page={currentHolderPage}
+                                    totalPages={holderTotalPages}
+                                    onPageChange={setHolderPage}
+                                    total={filteredHolders.length}
+                                    pageSize={holdersPerPage}
+                                    onPageSizeChange={(n) => { setHoldersPerPage(n); setHolderPage(1); }}
+                                    pageSizeOptions={[10, 25, 50, 100]}
+                                    showExportCsv
+                                    exportFileName="equity-holders"
+                                    // Export every match, not just the visible page.
+                                    onExportAll={async () => filteredHolders}
+                                    emptyState={
+                                        holderSearch ? (
+                                            <div className="text-muted-foreground flex flex-col items-center gap-3">
+                                                <p className="text-sm">No holders match &ldquo;{holderSearch}&rdquo;.</p>
+                                                <Button variant="outline" size="sm" onClick={() => setHolderSearch('')}>Clear search</Button>
+                                            </div>
+                                        ) : (
+                                            <div className="text-muted-foreground flex flex-col items-center gap-3">
+                                                <div className="h-12 w-12 rounded-full bg-accent flex items-center justify-center opacity-30">
+                                                    <Users className="h-6 w-6" />
+                                                </div>
+                                                <p className="text-sm">No equity holders found.</p>
+                                                <Button variant="outline" size="sm" onClick={() => setShowAddHolder(true)}>Create First Holder</Button>
+                                            </div>
+                                        )
+                                    }
+                                />
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -400,6 +400,14 @@ export default function EquityManagementPage() {
                             setEditingHolder(null);
                         }}
                         isSubmitting={updateHolder.isPending}
+                        // Non-dividend holders configure earnings through entitlements only —
+                        // the form hands off to the entitlements manager instead of editing
+                        // the dead percentage_share / source_services fields.
+                        onManageEntitlements={() => {
+                            const id = editingHolder?.id;
+                            setEditingHolder(null);
+                            if (id) setEntitlementsHolderId(id);
+                        }}
                     />
                     {historyHolderId && (
                         <PayoutHistoryModal
@@ -428,16 +436,6 @@ export default function EquityManagementPage() {
                         isSubmitting={updateHolder.isPending}
                     />
                 )}
-
-                {/* Sidebar — Paystack balance (the payout-schedule projection lives in the Payout Schedule tab) */}
-                <div className="space-y-6">
-                    <PaystackBalanceCard
-                        balance={balanceData}
-                        loading={loadingBalance}
-                        className="border-none shadow-xl shadow-black/5"
-                    />
-                </div>
-            </div>
                 </TabsContent>
 
                 <TabsContent value="referrals" className="mt-6">
@@ -456,7 +454,7 @@ export default function EquityManagementPage() {
                 </TabsContent>
 
                 <TabsContent value="agreements" className="mt-6">
-                    <AgreementsPanel holders={holders} />
+                    <AgreementsPanel holders={holders} onOpenDocuments={setDocumentsHolder} />
                 </TabsContent>
             </Tabs>
 
@@ -471,6 +469,15 @@ export default function EquityManagementPage() {
                 <PreviewPayoutModal
                     defaultRange={dateRange}
                     onClose={() => setShowPreviewPayout(false)}
+                />
+            )}
+
+            {/* Documents modal lives at page level — it's opened from both the Holders
+                table's row menu and the Agreements tab. */}
+            {documentsHolder && (
+                <EquityHolderDocumentsModal
+                    holder={documentsHolder}
+                    onClose={() => setDocumentsHolder(null)}
                 />
             )}
         </div>
@@ -570,136 +577,6 @@ function StatsCard({ title, value, subtext, icon, loading }: { title: string, va
         </Card>
     );
 }
-
-function HolderRow({
-    holder,
-    projection,
-    onTriggerPayout,
-    onEdit,
-    onHistory,
-    onEntitlements,
-    onPortalLink,
-    onOpen,
-    isTriggering,
-    isGeneratingLink,
-}: {
-    holder: EquityHolder;
-    projection: { projected_amount?: number } | undefined;
-    onTriggerPayout: () => void;
-    onEdit: () => void;
-    onHistory: () => void;
-    onEntitlements: () => void;
-    onPortalLink: () => void;
-    onOpen: () => void;
-    isTriggering?: boolean;
-    isGeneratingLink?: boolean;
-}) {
-    const isDividendModel = holder.compensation_model === 'dividend';
-    return (
-        <div className="group flex flex-col sm:flex-row sm:items-center justify-between py-6 px-8 hover:bg-accent/5 transition-all">
-            <div className="flex items-center gap-4 mb-4 sm:mb-0">
-                <div className={cn(
-                    "h-12 w-12 rounded-2xl flex items-center justify-center border border-border shadow-sm group-hover:scale-105 transition-transform",
-                    isDividendModel ? "bg-purple-500/5 text-purple-600" : holder.holder_type === 'shareholder' ? "bg-primary/5 text-primary" : "bg-orange-500/5 text-orange-500"
-                )}>
-                    {isDividendModel ? <Landmark className="h-5 w-5" /> : holder.holder_type === 'shareholder' ? <Shield className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
-                </div>
-                <div>
-                    <h4 className="font-bold text-sm flex items-center gap-2">
-                        <button type="button" onClick={onOpen} className="hover:text-primary hover:underline transition-colors text-left">
-                            {holder.name}
-                        </button>
-                        {holder.is_active ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <AlertCircle className="h-3 w-3 text-red-500" />}
-                    </h4>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        {isDividendModel ? (
-                            <>
-                                <span className="text-xs font-mono font-medium">{holder.percentage_share}% Share</span>
-                                <span className="h-1 w-1 rounded-full bg-border" />
-                                <span className="text-[10px] text-purple-600 uppercase font-bold tracking-widest">
-                                    {holder.parent_holder_id ? 'Company Shareholder' : 'Umbrella (Company)'}
-                                </span>
-                                <span className="h-1 w-1 rounded-full bg-border" />
-                                <span className="text-[10px] text-muted-foreground">Paid via Dividend Declaration — not the automatic revenue-share engine</span>
-                            </>
-                        ) : (
-                            <>
-                                <span className="text-xs font-mono font-medium">{holder.percentage_share}% Share</span>
-                                <span className="h-1 w-1 rounded-full bg-border" />
-                                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{holder.holder_type}</span>
-                                {holder.linked_tenant_ids && holder.linked_tenant_ids.length > 0 && (
-                                    <>
-                                        <span className="h-1 w-1 rounded-full bg-border" />
-                                        <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
-                                            {holder.linked_tenant_ids.length} tenant{holder.linked_tenant_ids.length !== 1 ? 's' : ''}
-                                        </span>
-                                    </>
-                                )}
-                                {holder.source_services && holder.source_services.length > 0 && (
-                                    <>
-                                        <span className="h-1 w-1 rounded-full bg-border" />
-                                        <span className="text-[10px] text-muted-foreground">{holder.source_services.join(', ')}</span>
-                                    </>
-                                )}
-                            </>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex items-center gap-8">
-                <div className="text-right hidden sm:block">
-                    <p className="text-xs text-muted-foreground font-medium mb-1">Projected Payout</p>
-                    <p className="text-sm font-black">
-                        KES {Number(projection?.projected_amount ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 2 })}
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-[11px] font-bold border-none bg-accent/30 hover:bg-accent/50 transition-colors"
-                        onClick={onHistory}
-                    >
-                        History
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-[11px] font-bold border-none bg-accent/30 hover:bg-accent/50 transition-colors"
-                        onClick={onEntitlements}
-                    >
-                        Entitlements
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0 border-none bg-accent/30 hover:bg-accent/50 transition-colors"
-                        onClick={onPortalLink}
-                        disabled={isGeneratingLink}
-                        title="Copy portal link"
-                    >
-                        {isGeneratingLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
-                    </Button>
-                    <Button
-                        size="sm"
-                        className="h-8 text-[11px] font-bold px-4 gap-2 shadow-lg shadow-primary/10"
-                        onClick={onTriggerPayout}
-                        disabled={isTriggering}
-                    >
-                        {isTriggering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}
-                        Pay Now
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onEdit} aria-label="Edit holder">
-                        <MoreVertical className="h-4 w-4" />
-                    </Button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 
 function PayoutHistoryModal({ holderId, holderName, onClose }: { holderId: string; holderName: string; onClose: () => void }) {
     const { data, isLoading, isError } = useHolderPayouts(holderId);
@@ -1175,7 +1052,13 @@ function GlobalPayoutScheduleCard() {
  * onboarded through the auth-service application workflow (KYC + signed EPA) or quick-added,
  * plus the KRA tax treatment that governs their payouts.
  */
-function AgreementsPanel({ holders }: { holders: EquityHolder[] }) {
+function AgreementsPanel({
+    holders,
+    onOpenDocuments,
+}: {
+    holders: EquityHolder[];
+    onOpenDocuments: (holder: EquityHolder) => void;
+}) {
     const treatmentLabel = (h: EquityHolder) => {
         const t = h.payout_tax_treatment && h.payout_tax_treatment !== 'auto'
             ? h.payout_tax_treatment
@@ -1185,7 +1068,7 @@ function AgreementsPanel({ holders }: { holders: EquityHolder[] }) {
     };
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6">
             <Card className="border-none shadow-xl shadow-black/5 bg-primary/5">
                 <CardContent className="p-6 space-y-4">
                     <h3 className="text-lg font-bold flex items-center gap-2">
@@ -1209,7 +1092,10 @@ function AgreementsPanel({ holders }: { holders: EquityHolder[] }) {
 
             <Card className="border-none shadow-xl shadow-black/5">
                 <CardHeader className="bg-transparent border-none">
-                    <h3 className="font-bold">Holder Onboarding &amp; Tax Status</h3>
+                    <h3 className="font-bold">Holder Onboarding &amp; Document Status</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                        Real per-holder paperwork, read from each holder&apos;s stored documents — not a blanket label.
+                    </p>
                 </CardHeader>
                 <CardContent className="p-0">
                     {holders.length === 0 ? (
@@ -1217,16 +1103,22 @@ function AgreementsPanel({ holders }: { holders: EquityHolder[] }) {
                     ) : (
                         <div className="divide-y divide-border/50">
                             {holders.map((h) => (
-                                <div key={h.id} className="flex items-center justify-between px-6 py-4">
-                                    <div>
+                                <div key={h.id} className="flex flex-col gap-3 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+                                    <div className="min-w-0">
                                         <p className="font-semibold text-sm">{h.name}</p>
                                         <p className="text-xs text-muted-foreground">{treatmentLabel(h)} · KRA withholding applied at payout</p>
                                     </div>
-                                    {h.application_id ? (
-                                        <Badge variant="success" className="gap-1"><CheckCircle2 className="h-3 w-3" /> EPA onboarded</Badge>
-                                    ) : (
-                                        <Badge variant="outline" className="gap-1"><AlertCircle className="h-3 w-3" /> Quick-add (internal)</Badge>
-                                    )}
+                                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                                        <HolderDocumentStatusBadges holder={h} />
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 text-[11px]"
+                                            onClick={() => onOpenDocuments(h)}
+                                        >
+                                            Manage Documents
+                                        </Button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
