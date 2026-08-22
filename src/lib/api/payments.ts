@@ -46,3 +46,32 @@ export function listPaymentIntents(
     `${BASE}/${tenantIdOrSlug}/payments/intents${qs}`,
   );
 }
+
+/** Fetch a single payment intent — used to poll status after triggering a status check. */
+export function getPaymentIntent(tenantIdOrSlug: string, intentId: string): Promise<PaymentIntentSummary> {
+  return apiClient.get<PaymentIntentSummary>(`${BASE}/${tenantIdOrSlug}/payments/intents/${intentId}`);
+}
+
+/**
+ * Submit a real Daraja Transaction Status Query for transactionId (a code the caller typed, or the
+ * intent's own stored receipt if omitted). Async — the result lands via webhook; poll getPaymentIntent
+ * for the status to actually change.
+ */
+export function checkIntentStatus(tenantIdOrSlug: string, intentId: string, transactionId?: string) {
+  return apiClient.post<{ success: boolean; error?: string; transaction_id?: string; message?: string }>(
+    `${BASE}/${tenantIdOrSlug}/payments/intents/${intentId}/check-status`,
+    transactionId ? { transaction_id: transactionId } : {},
+  );
+}
+
+/**
+ * Manual override — marks the intent paid WITHOUT verifying against M-Pesa. Only call this after a
+ * real check-status attempt has failed to confirm the payment; reference (the M-Pesa code) is
+ * recorded for audit but not verified.
+ */
+export function confirmManualPayment(tenantIdOrSlug: string, intentId: string, reference?: string) {
+  return apiClient.post<{ message: string }>(
+    `${BASE}/${tenantIdOrSlug}/payments/intents/${intentId}/confirm-manual`,
+    reference ? { reference } : {},
+  );
+}

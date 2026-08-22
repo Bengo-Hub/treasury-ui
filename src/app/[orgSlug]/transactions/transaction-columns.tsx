@@ -22,7 +22,6 @@ export interface TransactionColumnCallbacks {
   onConfirmManual: (txn: TransactionItem) => void;
   onStatementClick: (txn: TransactionItem) => void;
   checkingStatusId: string | null;
-  confirmingId: string | null;
 }
 
 // Both actions apply to a stuck M-Pesa payment intent (pending or still-processing) — Check Status
@@ -166,18 +165,18 @@ export function buildTransactionColumns(cb: TransactionColumnCallbacks): DataTab
               {cb.checkingStatusId === txn.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             </Button>
           )}
-          {/* Confirm — manual override, NO verification against M-Pesa. Only for staff who have
-              already confirmed the payment themselves some other way. */}
+          {/* Confirm — opens a modal that tries the real Transaction Status Query with a
+              staff-provided code first, falling back to a manual (unverified) override only if
+              that can't confirm it. */}
           {isStuckMpesaTxn(txn) && (
             <Button
               variant="ghost"
               size="sm"
               className="h-7 w-7 p-0"
-              title="Manually mark as paid — does NOT verify against M-Pesa, only use if you've already confirmed it yourself"
-              disabled={cb.confirmingId === txn.id}
+              title="Confirm this payment — verifies the M-Pesa code against Safaricom first"
               onClick={() => cb.onConfirmManual(txn)}
             >
-              {cb.confirmingId === txn.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              <CheckCircle2 className="h-3.5 w-3.5" />
             </Button>
           )}
           {/* CRM contact link */}
