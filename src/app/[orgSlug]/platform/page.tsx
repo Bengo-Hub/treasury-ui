@@ -68,8 +68,12 @@ const GATEWAY_TYPES = [
 
 const CREDENTIAL_KEYS: Record<string, string[]> = {
   paystack: ['secret_key', 'public_key', 'webhook_secret'],
-  mpesa_paybill: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password'],
-  mpesa_till: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password'],
+  // cert_pem: Daraja's public certificate (PEM), used to RSA-encrypt initiator_password into the
+  // SecurityCredential every initiator-authenticated command needs (B2C, B2B, account balance,
+  // transaction status, reversal). Without it, MpesaGateway falls back to sending the initiator
+  // password unencrypted (base64 only) — sandbox tolerates this, production rejects it outright.
+  mpesa_paybill: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password', 'cert_pem'],
+  mpesa_till: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password', 'cert_pem'],
   cod: [],
   // No API credentials — the tenant's bank account is shown to payers via name/public_shortcode
   // (edited from the gateway detail, not this creation modal); confirmation is manual.
@@ -1936,36 +1940,56 @@ function GatewayCredentialsModal({
               {keys.map((k) => {
                 const sensitive = isSensitiveField(k);
                 const isVisible = visibleFields[k] ?? false;
+                const isPem = k === 'cert_pem';
 
                 return (
                   <div key={k}>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">
                       {k.replace(/_/g, ' ')}
                     </label>
-                    <div className="relative">
-                      <input
-                        type={sensitive && !isVisible ? 'password' : 'text'}
+                    {isPem && (
+                      <p className="text-[11px] text-muted-foreground mb-1">
+                        Daraja&apos;s public certificate (PEM) — RSA-encrypts the initiator password for
+                        B2C, B2B, balance, transaction status and reversal. Not a secret (it&apos;s
+                        Safaricom&apos;s own public key); left blank, these fall back to an unencrypted
+                        password, which sandbox tolerates but production rejects.
+                      </p>
+                    )}
+                    {isPem ? (
+                      <textarea
                         value={credentialValues[k] ?? ''}
                         onChange={(e) => setCredentialValues({ ...credentialValues, [k]: e.target.value })}
-                        placeholder={editMode ? 'Leave blank to keep current' : ''}
-                        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono pr-10"
+                        placeholder={editMode ? 'Leave blank to keep current' : '-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
+                        rows={6}
+                        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-mono resize-y"
                         autoComplete="off"
                       />
-                      {sensitive && (
-                        <button
-                          type="button"
-                          onClick={() => toggleFieldVisibility(k)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-accent"
-                          tabIndex={-1}
-                        >
-                          {isVisible ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </button>
-                      )}
-                    </div>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type={sensitive && !isVisible ? 'password' : 'text'}
+                          value={credentialValues[k] ?? ''}
+                          onChange={(e) => setCredentialValues({ ...credentialValues, [k]: e.target.value })}
+                          placeholder={editMode ? 'Leave blank to keep current' : ''}
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono pr-10"
+                          autoComplete="off"
+                        />
+                        {sensitive && (
+                          <button
+                            type="button"
+                            onClick={() => toggleFieldVisibility(k)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-accent"
+                            tabIndex={-1}
+                          >
+                            {isVisible ? (
+                              <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
