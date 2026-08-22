@@ -2,6 +2,7 @@
 
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { PayBillDialog } from '@/components/bills/PayBillDialog';
+import { DocumentApprovalModal } from '@/components/documents/DocumentApprovalModal';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildAgingColumns, buildBillColumns } from './bill-columns';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
@@ -32,6 +33,7 @@ export default function BillsPage() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'bill' | 'credit_note'>('all');
   const [page, setPage] = useState(1);
   const [payBillId, setPayBillId] = useState<string | null>(null);
+  const [approvalFor, setApprovalFor] = useState<{ tenant: string; billId: string; billNumber: string } | null>(null);
   // Deep link from the dashboard payables list: /bills?pay=<billID> opens the Pay dialog.
   const searchParams = useSearchParams();
   useEffect(() => {
@@ -87,6 +89,9 @@ export default function BillsPage() {
     () =>
       buildBillColumns({
         onPay: (bill) => setPayBillId(bill.id),
+        // Centralized approval (submit / approve / reject) — reused from the same
+        // DocumentApprovalModal invoices uses, module="vendor_bill".
+        onApprove: (bill) => setApprovalFor({ tenant: effectiveTenant, billId: bill.id, billNumber: bill.bill_number }),
         onTransmit: (bill) => transmit.mutate({ tenantSlug: effectiveTenant, billId: bill.id }),
         transmitPending: transmit.isPending,
         transmitPendingBillId: transmit.variables?.billId,
@@ -262,6 +267,17 @@ export default function BillsPage() {
         bill={payTarget}
         onClose={() => setPayBillId(null)}
       />
+
+      {approvalFor && (
+        <DocumentApprovalModal
+          open
+          onClose={() => setApprovalFor(null)}
+          tenant={approvalFor.tenant}
+          module="vendor_bill"
+          documentId={approvalFor.billId}
+          documentReference={approvalFor.billNumber}
+        />
+      )}
     </div>
   );
 }

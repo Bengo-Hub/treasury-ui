@@ -92,8 +92,13 @@ export interface PayBillRequest {
   /** cash|bank|card (offline, requires reference) or mpesa_b2b|mpesa_b2c|paystack_bank|paystack_mobile (online, dispatched for real). */
   payment_method?: string;
   reference?: string;
-  /** Recipient* are only used for online payment methods — the supplier's payout destination. */
+  /** Recipient* are only used for online payment methods — the supplier's payout destination.
+   * recipient_phone is an MSISDN (mpesa_b2c/paystack_mobile only). For mpesa_b2b, use
+   * recipient_shortcode instead — a B2B payment goes to another organization's paybill/till,
+   * not a person's phone. */
   recipient_phone?: string;
+  recipient_shortcode?: string;
+  recipient_is_till?: boolean;
   recipient_bank_code?: string;
   recipient_account_number?: string;
   recipient_account_name?: string;
