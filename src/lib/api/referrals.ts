@@ -45,10 +45,13 @@ export interface CreateReferralProgramRequest {
 export interface Referral {
   id: string;
   program_id: string;
-  referrer_tenant_id?: string; // Type-A: referring tenant
+  program_name?: string;
+  referrer_tenant_id?: string;   // Type-A: referring tenant
+  referrer_tenant_name?: string; // Type-A: referring tenant's resolved display name
   referrer_name?: string;      // Type-B: external referrer
   referrer_email?: string;     // Type-B: external referrer
   referred_tenant_id: string;
+  referred_tenant_name?: string; // resolved tenant display name — prefer this over the bare UUID
   referral_code: string;
   status: string;
   notes?: string;

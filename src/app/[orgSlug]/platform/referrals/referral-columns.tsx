@@ -112,11 +112,13 @@ export function buildReferralColumns(programs: ReferralProgram[], cb: ReferralCo
     {
       key: 'referrer', header: 'Referrer', mobileHidden: true, cellClassName: 'text-xs text-muted-foreground truncate max-w-[140px]',
       accessor: (r) => r.referrer_name || r.referrer_tenant_id || '',
-      render: (r) => (r.referrer_name ? <span title={r.referrer_email}>{r.referrer_name} <span className="text-[10px] opacity-60">(external)</span></span> : <span className="font-mono">{r.referrer_tenant_id}</span>),
+      render: (r) => (r.referrer_name ? <span title={r.referrer_email}>{r.referrer_name} <span className="text-[10px] opacity-60">(external)</span></span> : <span>{r.referrer_tenant_name || r.referrer_tenant_id}</span>),
     },
     {
-      key: 'referred_tenant_id', header: 'Referred', mobileHidden: true, cellClassName: 'text-xs text-muted-foreground font-mono truncate max-w-[120px]',
-      accessor: (r) => r.referred_tenant_id,
+      key: 'referred_tenant_id', header: 'Referred', mobileHidden: true, cellClassName: 'text-xs truncate max-w-[160px]',
+      // Never show the bare UUID when a resolved tenant name is available.
+      accessor: (r) => r.referred_tenant_name || r.referred_tenant_id,
+      render: (r) => <span title={r.referred_tenant_id}>{r.referred_tenant_name || <span className="font-mono text-muted-foreground">{r.referred_tenant_id}</span>}</span>,
     },
     {
       key: 'program', header: 'Program', accessor: (r) => programOf(r)?.name || r.program_id,
