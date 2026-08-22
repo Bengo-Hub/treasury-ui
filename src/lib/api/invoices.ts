@@ -550,23 +550,6 @@ export function adminSetInvoiceStatus(tenant: string, invoiceId: string, status:
   return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/set-status`, { status });
 }
 
-// ---- Invoice approval (shared approval engine, entity_type="invoice") ----
-// submit -> backend sets status "pending_approval" (or auto-approves below the tenant
-// workflow threshold). approve advances the multi-step chain (final step -> "approved").
-// reject sends the invoice back to "draft" so it can be revised and re-submitted.
-
-export function submitInvoiceForApproval(tenant: string, invoiceId: string): Promise<{ status: string }> {
-  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/submit-for-approval`, {});
-}
-
-export function approveInvoice(tenant: string, invoiceId: string, comment?: string): Promise<{ status: string }> {
-  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/approve`, { comment });
-}
-
-export function rejectInvoice(tenant: string, invoiceId: string, reason?: string): Promise<{ status: string }> {
-  return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/reject`, { reason });
-}
-
 /** One recorded payment against an invoice (View Payments modal row). Soft-voided, never deleted. */
 export interface InvoicePayment {
   id: string;
