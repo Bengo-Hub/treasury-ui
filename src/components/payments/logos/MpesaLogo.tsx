@@ -1,34 +1,11 @@
-'use client';
-
 /**
- * M-Pesa (Safaricom) official-style logo – green brand.
- * Use for gateway selection on the unified pay page.
+ * Official M-Pesa (Safaricom) mark — served as a static asset (public/mpesa-logo.svg, sourced from
+ * Wikimedia Commons: https://commons.wikimedia.org/wiki/File:M-PESA_LOGO-01.svg, public domain per
+ * Commons — below the threshold of originality). Used for gateway selection on the unified pay page
+ * and inside MpesaPaymentModal. The identical file is duplicated 1:1 into pos-ui's public/ folder
+ * (see pos-ui/src/components/pos/mpesa-logo.tsx) so both apps render the same mark.
  */
 export function MpesaLogo({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 120 120"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-label="M-Pesa"
-    >
-      <rect width="120" height="120" rx="24" fill="#00A651" />
-      <path
-        d="M32 44h56c2.2 0 4 1.8 4 4v24c0 2.2-1.8 4-4 4H32c-2.2 0-4-1.8-4-4V48c0-2.2 1.8-4 4-4z"
-        fill="white"
-      />
-      <text
-        x="60"
-        y="68"
-        textAnchor="middle"
-        fill="#00A651"
-        fontSize="22"
-        fontWeight="bold"
-        fontFamily="Arial, sans-serif"
-      >
-        M-PESA
-      </text>
-    </svg>
-  );
+  // eslint-disable-next-line @next/next/no-img-element -- tiny static icon, no next/image needed
+  return <img src="/mpesa-logo.svg" alt="M-Pesa" className={className} />;
 }

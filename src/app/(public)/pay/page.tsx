@@ -268,6 +268,14 @@ function PayPageContent() {
         if (!cancelled) {
           setGateways(list);
           setGatewayError(list.length === 0);
+          // Embedded (POS/ordering iframe) with exactly one gateway available — usually
+          // because the caller's allowedMethods already narrowed it to one (e.g. the POS
+          // "M-Pesa STK Push" tender) — skip the "choose how you want to pay" list and go
+          // straight to that gateway's form. Picking the one item the list would show is a
+          // redundant extra step for a flow that's already committed to a single method.
+          if (embed && list.length === 1) {
+            setOpenGateway(list[0]);
+          }
         }
       } catch {
         if (!cancelled) {
@@ -371,7 +379,11 @@ function PayPageContent() {
                     <MpesaLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-foreground">{GATEWAY_LABELS.mpesa}</p>
-                      <p className="text-xs text-muted-foreground">M-Pesa STK Push on your phone</p>
+                      <p className="text-xs text-muted-foreground">
+                        {effectiveDetails.phone_number
+                          ? `Prompt sent to ${effectiveDetails.phone_number}`
+                          : 'Prompt sent to your phone'}
+                      </p>
                     </div>
                     <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                   </button>
