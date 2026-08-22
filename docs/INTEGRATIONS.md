@@ -1,7 +1,17 @@
 # Treasury UI - Service Integrations
 
-**Last Updated**: 2026-05-09  
+**Last Updated**: 2026-08-22
 **Purpose**: Document integration points for Codevertex Books (treasury-ui) with auth-service, treasury-api, and other Codevertex services.
+
+**2026-08-22:** Fixed a treasury-api gateway-resolution bug where a tenant/platform on a **Till**
+gateway (`mpesa_till`) showed "mpesa" as available (`PublicListActiveGateways` treats
+`mpesa_paybill`/`mpesa_till` as interchangeable) but every `initiate` call failed with `no gateway
+available for method: mpesa` (the resolver only ever looked up `GatewayMpesaPaybill`) — see
+`gateways.MpesaGatewayTypeCandidates()`. Also: the `/pay` page's M-Pesa gateway card and
+`MpesaPaymentModal` now render the official M-Pesa mark (`public/mpesa-logo.svg`, same file as
+pos-ui's copy) and no longer repeat "M-Pesa" in the label ("STK Push" instead) since the icon
+already carries the brand; the STK form now shows the exact phone number the prompt will be sent
+to (live, as it's typed) instead of a generic "on your phone".
 
 ---
 

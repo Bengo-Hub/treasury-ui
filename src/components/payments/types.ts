@@ -34,7 +34,9 @@ export type GatewayType = 'paystack' | 'mpesa' | 'cod' | 'wallet' | 'mtn_momo' |
 
 export const GATEWAY_LABELS: Record<GatewayType, string> = {
   paystack: 'Paystack',
-  mpesa: 'M-Pesa',
+  // "STK Push" not "M-Pesa STK Push" — the MpesaLogo icon rendered next to this label already
+  // carries the brand.
+  mpesa: 'STK Push',
   cod: 'Cash on Delivery',
   wallet: 'Pay with Wallet',
   mtn_momo: 'MTN Mobile Money',

@@ -11,7 +11,7 @@ export function PaymentModal({
   className,
   embed = false,
 }: {
-  title: string;
+  title: ReactNode;
   children: ReactNode;
   onClose: () => void;
   className?: string;

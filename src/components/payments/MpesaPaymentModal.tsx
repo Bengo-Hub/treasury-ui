@@ -5,7 +5,16 @@ import { sendToParent } from '@/lib/embed-messages';
 import { Banknote, CheckCircle2, Loader2, Phone, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PaymentModal } from './PaymentModal';
+import { MpesaLogo } from './logos';
 import type { PaymentDetails } from './types';
+
+// Icon + "STK Push" — not "Pay with M-Pesa" — so the modal title doesn't repeat the brand name
+// the MpesaLogo icon right beside it already carries.
+const MPESA_TITLE = (
+  <span className="flex items-center gap-2">
+    <MpesaLogo className="h-6 w-6 rounded shrink-0" /> STK Push
+  </span>
+);
 
 function mpesaPayload(details: PaymentDetails, phoneNumber: string): Record<string, unknown> {
   const body: Record<string, unknown> = {
@@ -226,7 +235,7 @@ export function MpesaPaymentModal({
 
   if (stkSent) {
     return (
-      <PaymentModal title="Pay with M-Pesa" onClose={onClose} embed={embed}>
+      <PaymentModal title={MPESA_TITLE} onClose={onClose} embed={embed}>
         <div className="space-y-4 text-center py-2">
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
           <div className="space-y-1">
@@ -254,7 +263,7 @@ export function MpesaPaymentModal({
   }
 
   return (
-    <PaymentModal title="Pay with M-Pesa" onClose={onClose} embed={embed}>
+    <PaymentModal title={MPESA_TITLE} onClose={onClose} embed={embed}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="p-4 rounded-lg bg-muted/50 space-y-2">
           <div className="flex justify-between text-sm">
@@ -283,7 +292,11 @@ export function MpesaPaymentModal({
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <p className="text-xs text-muted-foreground">
-          You will receive an M-Pesa prompt on your phone. Or pay at an M-Pesa till and confirm below.
+          {phone.trim() ? (
+            <>The prompt will be sent to <span className="font-semibold text-foreground">{normalizePhone(phone)}</span> — check the number before sending.</>
+          ) : (
+            'Enter the customer’s number above to receive the prompt.'
+          )}{' '}Or pay at an M-Pesa till and confirm below.
         </p>
         <div className="flex flex-col gap-2 pt-2">
           <div className="flex gap-2 justify-end">
