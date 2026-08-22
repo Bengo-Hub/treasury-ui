@@ -13,7 +13,13 @@ import {
   useUpsertTenantPayoutConfig,
 } from '@/hooks/use-gateways';
 import { useMe } from '@/hooks/useMe';
-import { getTenantMpesaConfig, updateTenantMpesaConfig, type UpdateTenantMpesaConfigRequest } from '@/lib/api/revenue';
+import {
+  getTenantMpesaConfig,
+  updateTenantMpesaConfig,
+  registerMpesaC2BURLs,
+  getTenantMpesaQR,
+  type UpdateTenantMpesaConfigRequest,
+} from '@/lib/api/revenue';
 import { cn } from '@/lib/utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -25,6 +31,7 @@ import {
   Plus,
   Power,
   PowerOff,
+  QrCode,
   Save,
   Smartphone,
   XCircle,
@@ -131,6 +138,26 @@ export function PaymentsTab({
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || e?.message || 'Failed to save'),
   });
+  // Register C2B: tells Safaricom where to POST confirmations for this shortcode — required
+  // once before "customer paid the till directly" (C2B) reconciliation can work at all.
+  const registerC2B = useMutation({
+    mutationFn: () => registerMpesaC2BURLs(orgSlug),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mpesa-config', orgSlug] });
+      toast.success('C2B URLs registered with Safaricom');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message || e?.message || 'C2B registration failed'),
+  });
+  // Static merchant QR — customer scans it in the M-Pesa app to pay this shortcode directly.
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  const generateQr = useMutation({
+    mutationFn: () => getTenantMpesaQR(orgSlug),
+    onSuccess: (data) => {
+      setQrImage(data.image_base64);
+      toast.success('QR code generated');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message || e?.message || 'QR generation failed'),
+  });
 
   const [payoutForm, setPayoutForm] = useState({
     recipient_type: payoutConfig?.recipient_type ?? 'nuban',
@@ -154,6 +181,8 @@ export function PaymentsTab({
 
   useEffect(() => {
     if (payoutConfig) {
+      // One-time hydration of local editable form state from an async query result (not a sync loop).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPayoutForm((f) => ({
         ...f,
         recipient_type: payoutConfig.recipient_type ?? 'nuban',
@@ -174,6 +203,8 @@ export function PaymentsTab({
 
   useEffect(() => {
     if (mpesaConfig) {
+      // One-time hydration of local editable form state from an async query result (not a sync loop).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMpesaForm((f) => ({ ...f, shortcode: mpesaConfig.shortcode ?? '', initiator_name: mpesaConfig.initiator_name ?? '', environment: mpesaConfig.environment ?? 'sandbox' }));
     }
   }, [mpesaConfig]);
@@ -688,6 +719,51 @@ export function PaymentsTab({
                             Save M-Pesa config
                           </Button>
                         </form>
+                      )}
+
+                      {!loadingMpesa && (
+                        <div className="max-w-md space-y-4 border-t border-border pt-6">
+                          <div className="flex items-center gap-4 text-xs">
+                            <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium', mpesaConfig?.c2b_registered ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground')}>
+                              {mpesaConfig?.c2b_registered ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+                              C2B {mpesaConfig?.c2b_registered ? 'registered' : 'not registered'}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={registerC2B.isPending}
+                              onClick={() => registerC2B.mutate()}
+                              className="gap-2"
+                            >
+                              {registerC2B.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
+                              Register C2B URLs
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={generateQr.isPending}
+                              onClick={() => generateQr.mutate()}
+                              className="gap-2"
+                            >
+                              {generateQr.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+                              Generate merchant QR
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Register C2B once so Safaricom knows where to send confirmations when a customer pays this
+                            shortcode directly (till/paybill, no STK prompt). The QR code lets a customer scan-to-pay
+                            in the M-Pesa app instead of typing the shortcode.
+                          </p>
+                          {qrImage && (
+                            <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-background p-4">
+                              {/* eslint-disable-next-line @next/next/no-img-element -- data: URI, no next/image benefit */}
+                              <img src={`data:image/png;base64,${qrImage}`} alt="M-Pesa merchant QR code" className="h-40 w-40" />
+                              <p className="text-[11px] text-muted-foreground">Scan with the M-Pesa app to pay this shortcode</p>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </CardContent>
                   </Card>
