@@ -9,11 +9,15 @@ export interface PlatformOverview {
   gmv: string;
   /** Alias of gmv. */
   payment_volume: string;
-  /** Platform revenue = commission only (sum of per-intent service charge). */
+  /** PAYG per-transaction commission only (sum of per-intent service charge), from non-platform tenants. */
+  payg_commission: string;
+  /** Platform's own GL revenue: subscription fees, platform fees, payment processing, direct sales. */
+  platform_own_revenue: string;
+  /** TOTAL platform income = payg_commission + platform_own_revenue. This is the headline figure. */
   platform_revenue: string;
-  /** Owed to tenants (gmv − platform_revenue). */
+  /** Owed to tenants (gmv − payg_commission) — NOT platform_revenue, which includes non-GMV-linked streams. */
   tenant_net: string;
-  /** @deprecated now equals platform_revenue (commission). Use platform_revenue/gmv. */
+  /** Alias of platform_revenue. */
   total_revenue: string;
   total_transactions: number;
   succeeded_count: number;
