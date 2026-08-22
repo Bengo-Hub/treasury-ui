@@ -29,6 +29,8 @@ import {
 import { usePlatformBalance } from '@/hooks/use-gateways';
 import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import { useMe } from '@/hooks/useMe';
+import { useDateRangeFilter } from '@/hooks/use-date-range-filter';
+import { DateRangeFilter } from '@/components/filters/DateRangeFilter';
 import type { CreateEquityHolderRequest, EquityHolder, EquityPayout, EquityPayoutSchedule, HolderProjection, RunPayoutResponse, RunPayoutResult } from '@/lib/api/equity';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -60,7 +62,8 @@ import {
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildEntitlementColumns } from './entitlement-columns';
 import { buildHolderColumns } from './holder-columns';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { APP_STATUS_FLOW, buildApplicationColumns, buildHolderDocumentColumns } from './agreements-columns';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 
 export default function EquityManagementPage() {
     const { data: user } = useMe();
@@ -68,12 +71,11 @@ export default function EquityManagementPage() {
     const params = useParams();
     const orgSlug = params?.orgSlug as string;
 
-    const [dateRange, setDateRange] = useState(() => {
-        const to = new Date();
-        const from = new Date(to);
-        from.setDate(from.getDate() - 30);
-        return { from: format(from, 'yyyy-MM-dd'), to: format(to, 'yyyy-MM-dd') };
-    });
+    // Centralized date-range filter (src/hooks/use-date-range-filter.ts), shared with the
+    // Ecosystem Analytics/Payouts/Audit pages rather than hand-rolled local state.
+    const { from: rangeFrom, to: rangeTo, setFrom: setRangeFrom, setTo: setRangeTo, applyPreset, activePreset } =
+        useDateRangeFilter({ defaultPreset: 'last30' });
+    const dateRange = { from: rangeFrom, to: rangeTo };
     const [activeTab, setActiveTab] = useState('holders');
     const [showRunPayout, setShowRunPayout] = useState(false);
     const [showPreviewPayout, setShowPreviewPayout] = useState(false);
@@ -123,7 +125,7 @@ export default function EquityManagementPage() {
                     onTriggerPayout: (h) =>
                         triggerPayout.mutate({
                             holderId: h.id,
-                            data: { period_start: dateRange.from, period_end: dateRange.to },
+                            data: { period_start: rangeFrom, period_end: rangeTo },
                         }),
                     onEdit: (h) => setEditingHolder(h),
                     onPortalLink: (h) => generatePortalLink.mutate(h.id),
@@ -131,7 +133,7 @@ export default function EquityManagementPage() {
                     linkingHolderId: generatePortalLink.isPending ? generatePortalLink.variables ?? null : null,
                 },
             }),
-        [projections, tenantNames, router, orgSlug, dateRange, triggerPayout, generatePortalLink],
+        [projections, tenantNames, router, orgSlug, rangeFrom, rangeTo, triggerPayout, generatePortalLink],
     );
 
     const holders = holdersData?.holders ?? [];
@@ -171,26 +173,6 @@ export default function EquityManagementPage() {
         );
     }
 
-    // Active date-range preset, so the segmented control can reflect the current selection.
-    const activeRangePreset: 'last30' | 'thisMonth' | null = (() => {
-        const to = new Date();
-        const last30From = new Date(to);
-        last30From.setDate(last30From.getDate() - 30);
-        const monthFrom = new Date(to.getFullYear(), to.getMonth(), 1);
-        const toStr = format(to, 'yyyy-MM-dd');
-        if (dateRange.to === toStr && dateRange.from === format(last30From, 'yyyy-MM-dd')) return 'last30';
-        if (dateRange.to === toStr && dateRange.from === format(monthFrom, 'yyyy-MM-dd')) return 'thisMonth';
-        return null;
-    })();
-
-    const applyRange = (preset: 'last30' | 'thisMonth') => {
-        const to = new Date();
-        const from = preset === 'last30'
-            ? (() => { const d = new Date(to); d.setDate(d.getDate() - 30); return d; })()
-            : new Date(to.getFullYear(), to.getMonth(), 1);
-        setDateRange({ from: format(from, 'yyyy-MM-dd'), to: format(to, 'yyyy-MM-dd') });
-    };
-
     return (
         <div className="p-4 sm:p-6 md:p-6 space-y-6">
             {/* Header */}
@@ -211,39 +193,15 @@ export default function EquityManagementPage() {
                     payout actions, so the primary CTA never crowds the title and the whole
                     cluster wraps cleanly on narrow widths. */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
-                    <div
-                        role="group"
-                        aria-label="Date range"
-                        className="inline-flex items-center rounded-full border border-border/60 bg-muted/40 p-1 shadow-inner"
-                    >
-                        <button
-                            type="button"
-                            aria-pressed={activeRangePreset === 'last30'}
-                            onClick={() => applyRange('last30')}
-                            className={cn(
-                                'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                                activeRangePreset === 'last30'
-                                    ? 'bg-primary text-primary-foreground shadow-sm'
-                                    : 'text-muted-foreground hover:text-foreground',
-                            )}
-                        >
-                            <Calendar className="h-3.5 w-3.5" />
-                            Last 30 Days
-                        </button>
-                        <button
-                            type="button"
-                            aria-pressed={activeRangePreset === 'thisMonth'}
-                            onClick={() => applyRange('thisMonth')}
-                            className={cn(
-                                'inline-flex items-center whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                                activeRangePreset === 'thisMonth'
-                                    ? 'bg-primary text-primary-foreground shadow-sm'
-                                    : 'text-muted-foreground hover:text-foreground',
-                            )}
-                        >
-                            This Month
-                        </button>
-                    </div>
+                    <DateRangeFilter
+                        from={rangeFrom}
+                        to={rangeTo}
+                        onFromChange={setRangeFrom}
+                        onToChange={setRangeTo}
+                        presets={['last7', 'last30', 'last90', 'thisMonth', 'thisYear']}
+                        activePreset={activePreset}
+                        onPresetSelect={applyPreset}
+                    />
 
                     <div className="flex items-center gap-2">
                         <Button variant="outline" className="gap-2" onClick={() => setShowPreviewPayout(true)}>
@@ -1052,6 +1010,14 @@ function GlobalPayoutScheduleCard() {
  * onboarded through the auth-service application workflow (KYC + signed EPA) or quick-added,
  * plus the KRA tax treatment that governs their payouts.
  */
+function treatmentLabel(h: EquityHolder) {
+    const t = h.payout_tax_treatment && h.payout_tax_treatment !== 'auto'
+        ? h.payout_tax_treatment
+        : (h.holder_type === 'royalty' ? 'royalty' : 'dividend');
+    const residency = h.tax_residency === 'non_resident' ? 'Non-resident' : 'Resident';
+    return `${t} · ${residency}`;
+}
+
 function AgreementsPanel({
     holders,
     onOpenDocuments,
@@ -1059,13 +1025,10 @@ function AgreementsPanel({
     holders: EquityHolder[];
     onOpenDocuments: (holder: EquityHolder) => void;
 }) {
-    const treatmentLabel = (h: EquityHolder) => {
-        const t = h.payout_tax_treatment && h.payout_tax_treatment !== 'auto'
-            ? h.payout_tax_treatment
-            : (h.holder_type === 'royalty' ? 'royalty' : 'dividend');
-        const residency = h.tax_residency === 'non_resident' ? 'Non-resident' : 'Resident';
-        return `${t} · ${residency}`;
-    };
+    const holderDocumentColumns = useMemo(
+        () => buildHolderDocumentColumns(treatmentLabel, onOpenDocuments),
+        [onOpenDocuments],
+    );
 
     return (
         <div className="space-y-6">
@@ -1098,31 +1061,15 @@ function AgreementsPanel({
                     </p>
                 </CardHeader>
                 <CardContent className="p-0">
-                    {holders.length === 0 ? (
-                        <p className="p-6 text-sm text-muted-foreground">No holders yet.</p>
-                    ) : (
-                        <div className="divide-y divide-border/50">
-                            {holders.map((h) => (
-                                <div key={h.id} className="flex flex-col gap-3 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
-                                    <div className="min-w-0">
-                                        <p className="font-semibold text-sm">{h.name}</p>
-                                        <p className="text-xs text-muted-foreground">{treatmentLabel(h)} · KRA withholding applied at payout</p>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                                        <HolderDocumentStatusBadges holder={h} />
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-7 text-[11px]"
-                                            onClick={() => onOpenDocuments(h)}
-                                        >
-                                            Manage Documents
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    <DataTable
+                        columns={holderDocumentColumns}
+                        rows={holders}
+                        rowKey={(h) => h.id}
+                        emptyText="No holders yet."
+                        storageKey="equity-agreements-holders-table"
+                        pageSize={10}
+                        pageSizeOptions={[10, 25, 50]}
+                    />
                 </CardContent>
             </Card>
         </div>
@@ -1312,15 +1259,6 @@ function PreviewPayoutModal({
     );
 }
 
-const APP_STATUS_FLOW: Record<string, { next?: string; label: string }> = {
-    pending: { next: 'kyc_pending', label: 'Start KYC' },
-    kyc_pending: { next: 'kyc_approved', label: 'Mark KYC approved' },
-    kyc_approved: { next: 'epa_pending', label: 'Request EPA' },
-    epa_pending: { next: 'approved', label: 'Approve' },
-    approved: { label: 'Approved' },
-    rejected: { label: 'Rejected' },
-};
-
 /**
  * ApplicationsAdminCard drives the auth-service equity-holder application workflow
  * (apply → KYC → EPA → approval) from the treasury admin UI.
@@ -1329,10 +1267,12 @@ function ApplicationsAdminCard() {
     const { data: apps, isLoading, isError } = useEquityApplications();
     const updateApp = useUpdateEquityApplication();
 
-    const advance = (a: EquityApplication) => {
+    const advance = useCallback((a: EquityApplication) => {
         const next = APP_STATUS_FLOW[a.status]?.next;
         if (next) updateApp.mutate({ id: a.id, data: { status: next as EquityApplication['status'] } });
-    };
+    }, [updateApp]);
+    const reject = useCallback((a: EquityApplication) => updateApp.mutate({ id: a.id, data: { status: 'rejected' } }), [updateApp]);
+    const columns = useMemo(() => buildApplicationColumns(advance, reject, updateApp.isPending), [advance, reject, updateApp.isPending]);
 
     return (
         <Card className="border-none shadow-xl shadow-black/5">
@@ -1341,39 +1281,17 @@ function ApplicationsAdminCard() {
                 <Badge variant="outline" className="text-[10px]">auth-service workflow</Badge>
             </CardHeader>
             <CardContent className="p-0">
-                {isLoading ? (
-                    <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading applications...</div>
-                ) : isError ? (
-                    <p className="p-6 text-sm text-muted-foreground">Couldn&apos;t load applications (auth-service admin scope required).</p>
-                ) : !apps || apps.length === 0 ? (
-                    <p className="p-6 text-sm text-muted-foreground">No equity applications yet. External candidates apply via the auth-service, then progress here.</p>
-                ) : (
-                    <div className="divide-y divide-border/50">
-                        {apps.map((a) => (
-                            <div key={a.id} className="flex items-center justify-between px-6 py-4 gap-4">
-                                <div className="min-w-0">
-                                    <p className="font-semibold text-sm font-mono truncate">{a.tenant_id.slice(0, 8)}…</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {a.status.replace(/_/g, ' ')}{a.kyc_reference ? ` · KYC ${a.kyc_reference.slice(0, 8)}` : ''}
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Badge variant={a.status === 'approved' ? 'success' : a.status === 'rejected' ? 'error' : 'outline'}>{a.status.replace(/_/g, ' ')}</Badge>
-                                    {APP_STATUS_FLOW[a.status]?.next && (
-                                        <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={updateApp.isPending} onClick={() => advance(a)}>
-                                            {APP_STATUS_FLOW[a.status]?.label} <ArrowRight className="h-3 w-3 ml-1" />
-                                        </Button>
-                                    )}
-                                    {a.status !== 'approved' && a.status !== 'rejected' && (
-                                        <Button size="sm" variant="ghost" className="h-8 text-[11px] text-red-500" disabled={updateApp.isPending} onClick={() => updateApp.mutate({ id: a.id, data: { status: 'rejected' } })}>
-                                            Reject
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                <DataTable
+                    columns={columns}
+                    rows={apps ?? []}
+                    rowKey={(a) => a.id}
+                    loading={isLoading}
+                    error={isError}
+                    emptyText="No equity applications yet. External candidates apply via the auth-service, then progress here."
+                    storageKey="equity-applications-table"
+                    pageSize={10}
+                    pageSizeOptions={[10, 25, 50]}
+                />
             </CardContent>
         </Card>
     );
