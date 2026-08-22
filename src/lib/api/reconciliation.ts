@@ -41,7 +41,11 @@ export interface StatementLine {
   description: string;
   amount: string;
   reference: string;
+  /** unmatched | matched | manual — the bank_statement_line.match_status enum. */
+  match_status?: string;
   matched_transaction_id?: string;
+  /** Auto-match confidence 0-100, set by an auto-reconcile run. */
+  confidence_score?: number;
   status?: string;
   created_at?: string;
 }
