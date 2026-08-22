@@ -671,8 +671,9 @@ export function PaymentsTab({
                           <Loader2 className="h-4 w-4 animate-spin" /> Loading…
                         </div>
                       ) : (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10">
                         <form
-                          className="space-y-4 max-w-md"
+                          className="space-y-4"
                           onSubmit={(e) => {
                             e.preventDefault();
                             updateMpesa.mutate({
@@ -719,10 +720,8 @@ export function PaymentsTab({
                             Save M-Pesa config
                           </Button>
                         </form>
-                      )}
 
-                      {!loadingMpesa && (
-                        <div className="max-w-md space-y-4 border-t border-border pt-6">
+                        <div className="space-y-4 pt-6 border-t border-border lg:pt-0 lg:border-t-0 lg:border-l lg:pl-10">
                           <div className="flex items-center gap-4 text-xs">
                             <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium', mpesaConfig?.c2b_registered ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground')}>
                               {mpesaConfig?.c2b_registered ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
@@ -764,6 +763,7 @@ export function PaymentsTab({
                             </div>
                           )}
                         </div>
+                      </div>
                       )}
                     </CardContent>
                   </Card>
