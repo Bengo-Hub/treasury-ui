@@ -147,7 +147,7 @@ function isForexProvider(gatewayType: string) {
   return gatewayType === 'forex_provider';
 }
 
-function CopyableUrl({ label, url, onSave }: { label: string; url?: string; onSave?: (newUrl: string) => void }) {
+function CopyableUrl({ label, url, onSave, hint }: { label: string; url?: string; onSave?: (newUrl: string) => void; hint?: string }) {
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(url ?? '');
@@ -174,7 +174,7 @@ function CopyableUrl({ label, url, onSave }: { label: string; url?: string; onSa
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-muted-foreground shrink-0 w-28">{label}:</span>
+      <span className="text-xs text-muted-foreground shrink-0 w-28" title={hint}>{label}:</span>
       {editing ? (
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           <input
@@ -585,8 +585,13 @@ export default function PlatformPage() {
                               }}
                             />
                             <CopyableUrl
-                              label="Callback URL"
+                              label={isMpesa(gw.gateway_type) ? 'Webhook Base' : 'Callback URL'}
                               url={gw.callback_url}
+                              hint={
+                                isMpesa(gw.gateway_type)
+                                  ? 'Shared base URL for every M-Pesa callback below (M-Pesa Callback/Validation/Confirm and all B2C/B2B/Balance/Status/Reversal webhooks) — NOT a generic post-payment redirect. Editing this changes all of them at once.'
+                                  : undefined
+                              }
                               onSave={async (newUrl) => {
                                 try {
                                   await updateGateway.mutateAsync({ id: gw.id, body: { callback_url: newUrl } });

@@ -75,3 +75,23 @@ export function confirmManualPayment(tenantIdOrSlug: string, intentId: string, r
     reference ? { reference } : {},
   );
 }
+
+export interface InitiateIntentResponse {
+  intent_id: string;
+  status: string;
+  payment_method: string;
+  checkout_request_id?: string;
+}
+
+/**
+ * (Re)send an M-Pesa STK push for an existing intent — used by the Transactions page's "mark paid"
+ * modal to give a stuck (pending/processing) payment a fresh prompt instead of only offering an
+ * unverified manual override. Safe to call again on a "processing" intent (treasury-api allows this
+ * specific resend case for mpesa only — no charge happens until the customer enters their PIN).
+ */
+export function initiateIntent(tenantIdOrSlug: string, intentId: string, phoneNumber: string) {
+  return apiClient.post<InitiateIntentResponse>(
+    `${BASE}/${tenantIdOrSlug}/payments/intents/${intentId}/initiate`,
+    { payment_method: 'mpesa', phone_number: phoneNumber },
+  );
+}

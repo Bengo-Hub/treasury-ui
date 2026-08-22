@@ -147,7 +147,14 @@ export default function TransactionsPage() {
       // treasury.payments.* route instead, the same one live-verified against real M-Pesa
       // transactions this session (Daraja Transaction Status Query, keyed by the intent's own
       // stored receipt/provider reference).
-      await apiClient.post(`/api/v1/${tenantId}/payments/intents/${txn.id}/check-status`, {});
+      const res = await apiClient.post<{ success: boolean; error?: string }>(
+        `/api/v1/${tenantId}/payments/intents/${txn.id}/check-status`,
+        {},
+      );
+      if (!res.success) {
+        toast.error(res.error || 'Status check failed');
+        return;
+      }
       toast.success('Status query sent to Daraja — the transaction status will update shortly via webhook');
     } catch (e: any) {
       toast.error(e?.response?.data?.error || e?.message || 'Status check failed');
