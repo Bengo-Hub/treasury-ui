@@ -8,6 +8,34 @@ import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import type { BankAccount, StatementLine } from '@/lib/api/reconciliation';
 import { cn } from '@/lib/utils';
 
+// Badge variant per bank_statement_line.match_status, mirroring the billStatusVariant convention.
+export const matchStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
+  unmatched: 'warning',
+  matched: 'success',
+  manual: 'default',
+  suggested: 'secondary',
+};
+
+const matchStatusLabel: Record<string, string> = {
+  unmatched: 'Unmatched',
+  matched: 'Matched',
+  manual: 'Manually Matched',
+  suggested: 'Suggested',
+};
+
+// The API's match_status enum is unmatched | matched | manual. An auto-reconcile run also parks a
+// confidence_score on lines it scored but did not auto-confirm (50-84%) — surface those as
+// "Suggested" rather than lumping them in with never-scored lines.
+const suggestedThreshold = 50;
+
+function lineMatchStatus(l: StatementLine): string {
+  const status = l.match_status ?? l.status ?? 'unmatched';
+  if (status === 'unmatched' && (l.confidence_score ?? 0) >= suggestedThreshold) {
+    return 'suggested';
+  }
+  return status;
+}
+
 export function buildBankAccountColumns(): DataTableColumn<BankAccount>[] {
   return [
     {
@@ -76,12 +104,23 @@ export function buildUnreconciledColumns(): DataTableColumn<StatementLine>[] {
       },
     },
     {
-      key: 'status',
+      key: 'match_status',
       header: 'Status',
       align: 'right',
       mobileAction: true,
-      exportable: false,
-      render: () => <Badge variant="warning">Unmatched</Badge>,
+      filterable: true,
+      filterOptions: Object.keys(matchStatusVariant).map((value) => ({ value })),
+      // Render the row's real status — a hardcoded "Unmatched" badge mislabelled every matched line.
+      accessor: (l) => lineMatchStatus(l),
+      render: (l) => {
+        const status = lineMatchStatus(l);
+        return (
+          <Badge variant={matchStatusVariant[status] ?? 'outline'}>
+            {matchStatusLabel[status] ?? status}
+            {status === 'suggested' && l.confidence_score ? ` ${l.confidence_score}%` : ''}
+          </Badge>
+        );
+      },
     },
   ];
 }
