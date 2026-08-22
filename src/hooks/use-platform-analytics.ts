@@ -5,17 +5,21 @@ const BASE = '/api/v1';
 
 export interface PlatformOverview {
   period: string;
-  /** GMV — gross collected across tenants (settlement liability, NOT platform revenue). */
+  /** TOTAL recorded sales volume, every channel (cash/manual/gateway) — NOT a custody claim. */
   gmv: string;
   /** Alias of gmv. */
   payment_volume: string;
-  /** PAYG per-transaction commission only (sum of per-intent service charge), from non-platform tenants. */
+  /** Subset of gmv actually collected into the platform's own gateway account — the real settlement-liability figure. */
+  platform_collected_gmv: string;
+  /** gmv − platform_collected_gmv: recorded sales the platform never held (cash/mpesa_manual/card_manual/etc). */
+  tenant_collected_gmv: string;
+  /** PAYG per-transaction commission, all channels (owed regardless of how the sale was collected). */
   payg_commission: string;
   /** Platform's own GL revenue: subscription fees, platform fees, payment processing, direct sales. */
   platform_own_revenue: string;
   /** TOTAL platform income = payg_commission + platform_own_revenue. This is the headline figure. */
   platform_revenue: string;
-  /** Owed to tenants (gmv − payg_commission) — NOT platform_revenue, which includes non-GMV-linked streams. */
+  /** Owed to tenants = platform_collected_gmv − commission on that same subset. */
   tenant_net: string;
   /** Alias of platform_revenue. */
   total_revenue: string;
