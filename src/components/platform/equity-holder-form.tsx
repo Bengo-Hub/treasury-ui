@@ -341,7 +341,12 @@ export function HolderFormModal({
             ...(isDividend
                 ? {
                       parent_holder_id: parentHolderId || undefined,
-                      share_count: shareCount || undefined,
+                      // A share COUNT is only meaningful for a registered shareholder of the
+                      // umbrella — the umbrella itself doesn't hold shares in itself (that would
+                      // be treasury stock, not the case here), it only DECLARES the issued-share
+                      // total its shareholders divide up. Never send one for the umbrella, even
+                      // if stale UI state holds a leftover value.
+                      share_count: parentHolderId ? (shareCount || undefined) : undefined,
                       // Only the umbrella owns the issued-share total.
                       total_issued_shares: parentHolderId ? undefined : (totalIssuedShares || undefined),
                   }
@@ -503,17 +508,19 @@ export function HolderFormModal({
                                     </select>
                                 </FormField>
 
-                                <FormField label="Share Count" description="BRS/CR12-registered shares held.">
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step={1}
-                                        value={shareCount || ''}
-                                        onChange={(e) => setShareCount(parseInt(e.target.value) || 0)}
-                                        className={inputClass}
-                                        placeholder="e.g. 250"
-                                    />
-                                </FormField>
+                                {parentHolderId && (
+                                    <FormField label="Share Count" description="BRS/CR12-registered shares held.">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            step={1}
+                                            value={shareCount || ''}
+                                            onChange={(e) => setShareCount(parseInt(e.target.value) || 0)}
+                                            className={inputClass}
+                                            placeholder="e.g. 250"
+                                        />
+                                    </FormField>
+                                )}
 
                                 {!parentHolderId && (
                                     <FormField label="Total Issued Shares" description="The company's total issued shares — the denominator for every shareholder's %.">
@@ -529,30 +536,42 @@ export function HolderFormModal({
                                     </FormField>
                                 )}
 
-                                <FormField
-                                    label="Percentage Share"
-                                    required
-                                    description={
-                                        derivedPercentage != null
-                                            ? 'Derived from the share counts above — edit the counts to change it.'
-                                            : 'Typed directly. Fill in the share counts above to derive it instead.'
-                                    }
-                                >
-                                    <div className="relative">
-                                        <input
-                                            type="number"
-                                            min={0}
-                                            max={100}
-                                            step={0.01}
-                                            value={derivedPercentage != null ? derivedPercentage : (percentageShare || '')}
-                                            onChange={(e) => setPercentageShare(parseFloat(e.target.value) || 0)}
-                                            className={cn(inputClass, 'pr-9', derivedPercentage != null && 'bg-muted/50')}
-                                            readOnly={derivedPercentage != null}
-                                            required
-                                        />
-                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
-                                    </div>
-                                </FormField>
+                                {parentHolderId ? (
+                                    <FormField
+                                        label="Percentage Share"
+                                        required
+                                        description={
+                                            derivedPercentage != null
+                                                ? 'Derived from the share counts above — edit the counts to change it.'
+                                                : 'Typed directly. Fill in the share counts above to derive it instead.'
+                                        }
+                                    >
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                max={100}
+                                                step={0.01}
+                                                value={derivedPercentage != null ? derivedPercentage : (percentageShare || '')}
+                                                onChange={(e) => setPercentageShare(parseFloat(e.target.value) || 0)}
+                                                className={cn(inputClass, 'pr-9', derivedPercentage != null && 'bg-muted/50')}
+                                                readOnly={derivedPercentage != null}
+                                                required
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                                        </div>
+                                    </FormField>
+                                ) : (
+                                    <FormField
+                                        label="Percentage Share"
+                                        description="The umbrella owns 100% of its own net profit before distribution to its registered shareholders — this isn't a cap-table share count, so it's fixed rather than derived from shares."
+                                    >
+                                        <div className="relative">
+                                            <input type="number" value={100} readOnly className={cn(inputClass, 'pr-9 bg-muted/50')} />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                                        </div>
+                                    </FormField>
+                                )}
 
                                 {parentHolderId && !parentHolder?.total_issued_shares && (
                                     <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/10 text-sm text-amber-600 dark:text-amber-400">
