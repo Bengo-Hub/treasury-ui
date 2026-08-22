@@ -41,6 +41,7 @@ import {
     DollarSign,
     Eye,
     Info,
+    Landmark,
     Link2,
     Loader2,
     MoreVertical,
@@ -593,14 +594,15 @@ function HolderRow({
     isTriggering?: boolean;
     isGeneratingLink?: boolean;
 }) {
+    const isDividendModel = holder.compensation_model === 'dividend';
     return (
         <div className="group flex flex-col sm:flex-row sm:items-center justify-between py-6 px-8 hover:bg-accent/5 transition-all">
             <div className="flex items-center gap-4 mb-4 sm:mb-0">
                 <div className={cn(
                     "h-12 w-12 rounded-2xl flex items-center justify-center border border-border shadow-sm group-hover:scale-105 transition-transform",
-                    holder.holder_type === 'shareholder' ? "bg-primary/5 text-primary" : "bg-orange-500/5 text-orange-500"
+                    isDividendModel ? "bg-purple-500/5 text-purple-600" : holder.holder_type === 'shareholder' ? "bg-primary/5 text-primary" : "bg-orange-500/5 text-orange-500"
                 )}>
-                    {holder.holder_type === 'shareholder' ? <Shield className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
+                    {isDividendModel ? <Landmark className="h-5 w-5" /> : holder.holder_type === 'shareholder' ? <Shield className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
                 </div>
                 <div>
                     <h4 className="font-bold text-sm flex items-center gap-2">
@@ -610,21 +612,35 @@ function HolderRow({
                         {holder.is_active ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <AlertCircle className="h-3 w-3 text-red-500" />}
                     </h4>
                     <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        <span className="text-xs font-mono font-medium">{holder.percentage_share}% Share</span>
-                        <span className="h-1 w-1 rounded-full bg-border" />
-                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{holder.holder_type}</span>
-                        {holder.linked_tenant_ids && holder.linked_tenant_ids.length > 0 && (
+                        {isDividendModel ? (
                             <>
+                                <span className="text-xs font-mono font-medium">{holder.percentage_share}% Share</span>
                                 <span className="h-1 w-1 rounded-full bg-border" />
-                                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
-                                    {holder.linked_tenant_ids.length} tenant{holder.linked_tenant_ids.length !== 1 ? 's' : ''}
+                                <span className="text-[10px] text-purple-600 uppercase font-bold tracking-widest">
+                                    {holder.parent_holder_id ? 'Company Shareholder' : 'Umbrella (Company)'}
                                 </span>
-                            </>
-                        )}
-                        {holder.source_services && holder.source_services.length > 0 && (
-                            <>
                                 <span className="h-1 w-1 rounded-full bg-border" />
-                                <span className="text-[10px] text-muted-foreground">{holder.source_services.join(', ')}</span>
+                                <span className="text-[10px] text-muted-foreground">Paid via Dividend Declaration — not the automatic revenue-share engine</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-xs font-mono font-medium">{holder.percentage_share}% Share</span>
+                                <span className="h-1 w-1 rounded-full bg-border" />
+                                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{holder.holder_type}</span>
+                                {holder.linked_tenant_ids && holder.linked_tenant_ids.length > 0 && (
+                                    <>
+                                        <span className="h-1 w-1 rounded-full bg-border" />
+                                        <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
+                                            {holder.linked_tenant_ids.length} tenant{holder.linked_tenant_ids.length !== 1 ? 's' : ''}
+                                        </span>
+                                    </>
+                                )}
+                                {holder.source_services && holder.source_services.length > 0 && (
+                                    <>
+                                        <span className="h-1 w-1 rounded-full bg-border" />
+                                        <span className="text-[10px] text-muted-foreground">{holder.source_services.join(', ')}</span>
+                                    </>
+                                )}
                             </>
                         )}
                     </div>

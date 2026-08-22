@@ -38,6 +38,11 @@ export interface EquityHolder {
     tax_residency?: 'resident' | 'non_resident';
     payout_tax_treatment?: 'auto' | 'dividend' | 'royalty' | 'commission' | 'business_income' | 'exempt';
     application_id?: string; // auth-service onboarding application (KYC + EPA)
+    user_id?: string;             // auth-service SSO user this holder is registered as
+    parent_holder_id?: string;    // umbrella company holder this shareholder rolls up under (compensation_model=dividend children only)
+    share_count?: number;         // BRS/CR12-registered share count
+    total_issued_shares?: number; // umbrella-only: company's total issued shares
+    is_beneficial_owner?: boolean; // percentage_share >= 10% — Beneficial Ownership Regulations 2020 filing nudge
     is_active: boolean;
     created_at: string;
     updated_at: string;
