@@ -82,7 +82,10 @@ export default function PlatformAnalyticsPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold">{formatCurrency(parseFloat(overview?.platform_revenue || '0'), overview?.currency || 'KES')}</div>
-                <p className="text-xs text-muted-foreground mt-1">Commission only &middot; owed to tenants {formatCurrency(parseFloat(overview?.tenant_net || '0'), overview?.currency || 'KES')}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Subscriptions/fees {formatCurrency(parseFloat(overview?.platform_own_revenue || '0'), overview?.currency || 'KES')}
+                  {' + '}PAYG commission {formatCurrency(parseFloat(overview?.payg_commission || '0'), overview?.currency || 'KES')}
+                </p>
               </>
             )}
           </CardContent>
