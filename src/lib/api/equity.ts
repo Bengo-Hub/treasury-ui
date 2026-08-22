@@ -26,6 +26,13 @@ export interface EquityHolder {
     percentage_share: number;
     source_services?: string[];
     linked_tenant_ids?: string[]; // UUIDs of referred tenants this holder earns from
+    /**
+     * Resolved display names for `linked_tenant_ids`, positionally aligned.
+     * NOT yet returned by GET /platform/equity-holders — the holders list ships
+     * bare UUIDs. Until the backend joins the names in, the UI resolves them
+     * against the platform tenant directory and falls back to a short UUID.
+     */
+    linked_tenant_names?: string[];
     referral_id?: string;         // FK to a referral programme record
     payout_method: string;
     payout_account_details: string; // JSON, parsed by UI
@@ -67,6 +74,12 @@ export interface CreateEquityHolderRequest {
     tax_residency?: 'resident' | 'non_resident';
     payout_tax_treatment?: 'auto' | 'dividend' | 'royalty' | 'commission' | 'business_income' | 'exempt';
     application_id?: string;
+    // ── Dividend-model only ───────────────────────────────────────────────────
+    // Registered-shareholder fields. Non-dividend holders configure their
+    // earnings through entitlements instead, so these stay unset for them.
+    parent_holder_id?: string;    // umbrella company this shareholder rolls up under
+    share_count?: number;         // BRS/CR12-registered share count
+    total_issued_shares?: number; // umbrella-only: company's total issued shares
 }
 
 /** Platform-wide payout schedule that governs ALL equity holders. */
@@ -107,6 +120,11 @@ export interface HolderProjection {
     percentage_share: number;
     source_services?: string[];
     projected_amount: number;
+    /**
+     * Allocation earned since this holder's last completed payout — i.e. the
+     * running balance owed, independent of the summary's `from`/`to` window.
+     */
+    accrued_since_last_payout?: number;
     payout_frequency: string;
     is_active: boolean;
 }

@@ -1,19 +1,20 @@
 'use client';
 
-import { Button } from '@/components/ui/base';
+import { Badge, Button } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
-import { MultiSelect } from '@/components/ui/multi-select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { useEquityHolders } from '@/hooks/use-equity';
+import { useEquityEntitlements } from '@/hooks/use-equity-entitlements';
 import { useBanks, useResolveAccount } from '@/hooks/use-gateways';
 import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import { useReferrals } from '@/hooks/use-referrals';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import type { CreateEquityHolderRequest, EquityHolder } from '@/lib/api/equity';
 import { cn } from '@/lib/utils';
-import { AlertCircle, CheckCircle2, Info, Loader2, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Info, Loader2, Settings2, X } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export const SERVICE_OPTIONS = [
     { value: 'ordering', label: 'Ordering (Food/Delivery)' },
@@ -58,6 +59,26 @@ export const currencyToCountry: Record<string, string> = {
     ZAR: 'south-africa',
 };
 
+export const COMPENSATION_MODELS = [
+    {
+        value: 'equity_revenue_share',
+        label: 'Equity Revenue Share',
+        hint: 'Contractual revenue/profit-share participant under an EPA. Earnings come from entitlements.',
+    },
+    {
+        value: 'royalty',
+        label: 'Royalty / Referral Partner',
+        hint: 'External partner earning a % of a referred tenant’s subscription revenue. Earnings come from entitlements.',
+    },
+    {
+        value: 'dividend',
+        label: 'Dividend (Registered Shareholder)',
+        hint: 'Umbrella company or one of its registered shareholders. Paid by declared dividend, never the automatic revenue-share engine.',
+    },
+] as const;
+
+type CompensationModel = (typeof COMPENSATION_MODELS)[number]['value'];
+
 export function HolderFormModal({
     title,
     open,
@@ -65,6 +86,7 @@ export function HolderFormModal({
     onClose,
     onSubmit,
     isSubmitting,
+    onManageEntitlements,
 }: {
     title: string;
     open: boolean;
@@ -72,6 +94,12 @@ export function HolderFormModal({
     onClose: () => void;
     onSubmit: (data: CreateEquityHolderRequest) => Promise<void>;
     isSubmitting: boolean;
+    /**
+     * Opens the entitlements manager for this holder. Entitlements are the ONLY
+     * way a non-dividend holder's earnings are configured, so the form hands off
+     * rather than editing the retired percentage_share / source_services fields.
+     */
+    onManageEntitlements?: () => void;
 }) {
     const params = useParams();
     const orgSlug = params?.orgSlug as string;
@@ -82,14 +110,22 @@ export function HolderFormModal({
     const [name, setName] = useState(initial?.name ?? '');
     const [holderType, setHolderType] = useState<'shareholder' | 'royalty'>(initial?.holder_type ?? 'shareholder');
     const [email, setEmail] = useState(initial?.email ?? '');
+    const [compensationModel, setCompensationModel] = useState<CompensationModel>(
+        (initial?.compensation_model as CompensationModel) ?? 'equity_revenue_share',
+    );
     const [percentageShare, setPercentageShare] = useState(initial?.percentage_share ?? 0);
     const [payoutFrequency, setPayoutFrequency] = useState<'manual' | 'monthly' | 'quarterly' | 'annually'>(initial?.payout_frequency ?? 'monthly');
     const [payoutScheduleDay, setPayoutScheduleDay] = useState(initial?.payout_schedule_day ?? 0);
     const [financialYearEndMonth, setFinancialYearEndMonth] = useState(initial?.financial_year_end_month ?? 12);
     const [closeOfBooksDay, setCloseOfBooksDay] = useState(initial?.close_of_books_day ?? 0);
 
-    // Tab 2: Services
-    const [selectedServices, setSelectedServices] = useState<string[]>(initial?.source_services ?? []);
+    // Dividend-model shareholding (umbrella + its registered shareholders)
+    const [parentHolderId, setParentHolderId] = useState(initial?.parent_holder_id ?? '');
+    const [shareCount, setShareCount] = useState<number>(initial?.share_count ?? 0);
+    const [totalIssuedShares, setTotalIssuedShares] = useState<number>(initial?.total_issued_shares ?? 0);
+
+    // Earnings scope (non-dividend). source_services is retired from this form —
+    // entitlements are the only earnings config — but whatever is stored is preserved.
     const [linkedTenantIds, setLinkedTenantIds] = useState<string[]>(initial?.linked_tenant_ids ?? []);
     const [referralId, setReferralId] = useState(initial?.referral_id ?? '');
 
@@ -97,6 +133,37 @@ export function HolderFormModal({
     const { data: referralsData, isLoading: loadingReferrals } = useReferrals();
     const referrals = referralsData?.referrals ?? [];
     const { data: platformTenants, isLoading: loadingTenants } = usePlatformTenants();
+
+    const isDividend = compensationModel === 'dividend';
+
+    // Umbrella candidates: dividend-model holders that don't roll up under anyone.
+    const { data: allHoldersData } = useEquityHolders();
+    const umbrellaHolders = useMemo(
+        () =>
+            (allHoldersData?.holders ?? []).filter(
+                (h) => h.compensation_model === 'dividend' && !h.parent_holder_id && h.id !== initial?.id,
+            ),
+        [allHoldersData, initial?.id],
+    );
+    const parentHolder = umbrellaHolders.find((h) => h.id === parentHolderId);
+
+    // A child shareholder's denominator is the umbrella's issued-share count.
+    const effectiveTotalIssued = parentHolderId
+        ? (parentHolder?.total_issued_shares ?? 0)
+        : totalIssuedShares;
+    const derivedPercentage =
+        shareCount > 0 && effectiveTotalIssued > 0
+            ? Number(((shareCount / effectiveTotalIssued) * 100).toFixed(4))
+            : null;
+    // The registered % is either derived from the share counts or typed directly.
+    const effectivePercentage = derivedPercentage ?? percentageShare;
+
+    // Read-only view of the entitlements that actually drive a non-dividend
+    // holder's allocation, so the admin sees the live config without leaving the form.
+    const { data: entitlementsData, isLoading: loadingEntitlements } = useEquityEntitlements(
+        !isDividend && initial?.id ? initial.id : '',
+    );
+    const activeEntitlements = (entitlementsData?.entitlements ?? []).filter((e) => e.is_active);
 
     // Tab 3: Payout Method
     const [payoutMethod, setPayoutMethod] = useState(initial?.payout_method ?? 'paystack_transfer');
@@ -141,9 +208,12 @@ export function HolderFormModal({
             setName(initial.name ?? '');
             setHolderType(initial.holder_type ?? 'shareholder');
             setEmail(initial.email ?? '');
+            setCompensationModel((initial.compensation_model as CompensationModel) ?? 'equity_revenue_share');
             setPercentageShare(initial.percentage_share ?? 0);
+            setParentHolderId(initial.parent_holder_id ?? '');
+            setShareCount(initial.share_count ?? 0);
+            setTotalIssuedShares(initial.total_issued_shares ?? 0);
             setPayoutFrequency(initial.payout_frequency ?? 'monthly');
-            setSelectedServices(initial.source_services ?? []);
             setLinkedTenantIds(initial.linked_tenant_ids ?? []);
             setReferralId(initial.referral_id ?? '');
             setPayoutMethod(initial.payout_method ?? 'paystack_transfer');
@@ -199,12 +269,15 @@ export function HolderFormModal({
             setName('');
             setHolderType('shareholder');
             setEmail('');
+            setCompensationModel('equity_revenue_share');
             setPercentageShare(0);
+            setParentHolderId('');
+            setShareCount(0);
+            setTotalIssuedShares(0);
             setPayoutFrequency('monthly');
             setPayoutScheduleDay(0);
             setFinancialYearEndMonth(12);
             setCloseOfBooksDay(0);
-            setSelectedServices([]);
             setLinkedTenantIds([]);
             setReferralId('');
             setPayoutMethod('paystack_transfer');
@@ -260,10 +333,25 @@ export function HolderFormModal({
             name,
             holder_type: holderType,
             email: email || undefined,
-            percentage_share: percentageShare,
-            source_services: selectedServices.length > 0 ? selectedServices : undefined,
-            linked_tenant_ids: linkedTenantIds.length > 0 ? linkedTenantIds : undefined,
-            referral_id: referralId || undefined,
+            compensation_model: compensationModel,
+            // Only dividend holders carry a meaningful registered %. For everyone else
+            // the stored value is passed through untouched — the allocation engine
+            // always prefers entitlements, so editing it here would be a no-op.
+            percentage_share: isDividend ? effectivePercentage : (initial?.percentage_share ?? 0),
+            ...(isDividend
+                ? {
+                      parent_holder_id: parentHolderId || undefined,
+                      share_count: shareCount || undefined,
+                      // Only the umbrella owns the issued-share total.
+                      total_issued_shares: parentHolderId ? undefined : (totalIssuedShares || undefined),
+                  }
+                : {
+                      linked_tenant_ids: linkedTenantIds.length > 0 ? linkedTenantIds : undefined,
+                      referral_id: referralId || undefined,
+                      // source_services is retired from this form; preserve what's stored
+                      // rather than silently clearing it.
+                      source_services: initial?.source_services,
+                  }),
             payout_method: payoutMethod,
             payout_account_details: buildPayoutDetails(),
             payout_threshold: payoutThreshold,
@@ -284,7 +372,7 @@ export function HolderFormModal({
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
                         <TabsList className="w-full mb-4">
                             <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                            <TabsTrigger value="services">Services</TabsTrigger>
+                            <TabsTrigger value="services">{isDividend ? 'Shareholding' : 'Earnings'}</TabsTrigger>
                             <TabsTrigger value="payout">Payout Method</TabsTrigger>
                         </TabsList>
 
@@ -297,6 +385,24 @@ export function HolderFormModal({
                                     className={inputClass}
                                     required
                                 />
+                            </FormField>
+                            <FormField
+                                label="Compensation Model"
+                                required
+                                description="Decides how this holder earns — and therefore which fields below apply."
+                            >
+                                <select
+                                    value={compensationModel}
+                                    onChange={(e) => setCompensationModel(e.target.value as CompensationModel)}
+                                    className={selectClass}
+                                >
+                                    {COMPENSATION_MODELS.map((m) => (
+                                        <option key={m.value} value={m.value}>{m.label}</option>
+                                    ))}
+                                </select>
+                                <p className="text-[11px] text-muted-foreground mt-1">
+                                    {COMPENSATION_MODELS.find((m) => m.value === compensationModel)?.hint}
+                                </p>
                             </FormField>
                             <FormField label="Holder Type">
                                 <select
@@ -314,18 +420,6 @@ export function HolderFormModal({
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     className={inputClass}
-                                />
-                            </FormField>
-                            <FormField label="Percentage Share" required>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    max={100}
-                                    step={0.01}
-                                    value={percentageShare || ''}
-                                    onChange={(e) => setPercentageShare(parseFloat(e.target.value) || 0)}
-                                    className={inputClass}
-                                    required
                                 />
                             </FormField>
                             <FormField label="Payout Frequency">
@@ -382,22 +476,155 @@ export function HolderFormModal({
                             )}
                         </TabsContent>
 
-                        {/* Tab 2: Services */}
-                        <TabsContent value="services" className="space-y-4">
-                            <FormField label="Source Services" description="Select which services this holder earns from. Leave empty to earn from all services.">
-                                <MultiSelect
-                                    options={SERVICE_OPTIONS}
-                                    value={selectedServices}
-                                    onChange={setSelectedServices}
-                                    placeholder="Select services..."
-                                />
-                            </FormField>
-                            {selectedServices.length === 0 && (
-                                <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/10 text-sm text-blue-600 dark:text-blue-400">
+                        {/* Tab 2 — dividend: registered shareholding. */}
+                        {isDividend && (
+                            <TabsContent value="services" className="space-y-4">
+                                <div className="flex items-start gap-2 p-3 rounded-lg bg-purple-500/5 border border-purple-500/10 text-sm text-purple-600 dark:text-purple-400">
                                     <Info className="h-4 w-4 mt-0.5 shrink-0" />
-                                    <span>All services (default for shareholders)</span>
+                                    <span>
+                                        Dividend holders don&apos;t use entitlements. Their share is either typed
+                                        directly or derived from the registered share counts below.
+                                    </span>
                                 </div>
-                            )}
+
+                                <FormField
+                                    label="Umbrella Company"
+                                    description="Leave blank if this holder IS the umbrella company. Otherwise pick the company this shareholder rolls up under."
+                                >
+                                    <select
+                                        value={parentHolderId}
+                                        onChange={(e) => setParentHolderId(e.target.value)}
+                                        className={selectClass}
+                                    >
+                                        <option value="">None — this holder is the umbrella company</option>
+                                        {umbrellaHolders.map((h) => (
+                                            <option key={h.id} value={h.id}>{h.name}</option>
+                                        ))}
+                                    </select>
+                                </FormField>
+
+                                <FormField label="Share Count" description="BRS/CR12-registered shares held.">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        value={shareCount || ''}
+                                        onChange={(e) => setShareCount(parseInt(e.target.value) || 0)}
+                                        className={inputClass}
+                                        placeholder="e.g. 250"
+                                    />
+                                </FormField>
+
+                                {!parentHolderId && (
+                                    <FormField label="Total Issued Shares" description="The company's total issued shares — the denominator for every shareholder's %.">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            step={1}
+                                            value={totalIssuedShares || ''}
+                                            onChange={(e) => setTotalIssuedShares(parseInt(e.target.value) || 0)}
+                                            className={inputClass}
+                                            placeholder="e.g. 1000"
+                                        />
+                                    </FormField>
+                                )}
+
+                                <FormField
+                                    label="Percentage Share"
+                                    required
+                                    description={
+                                        derivedPercentage != null
+                                            ? 'Derived from the share counts above — edit the counts to change it.'
+                                            : 'Typed directly. Fill in the share counts above to derive it instead.'
+                                    }
+                                >
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            step={0.01}
+                                            value={derivedPercentage != null ? derivedPercentage : (percentageShare || '')}
+                                            onChange={(e) => setPercentageShare(parseFloat(e.target.value) || 0)}
+                                            className={cn(inputClass, 'pr-9', derivedPercentage != null && 'bg-muted/50')}
+                                            readOnly={derivedPercentage != null}
+                                            required
+                                        />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                                    </div>
+                                </FormField>
+
+                                {parentHolderId && !parentHolder?.total_issued_shares && (
+                                    <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/10 text-sm text-amber-600 dark:text-amber-400">
+                                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                                        <span>
+                                            The selected umbrella has no total issued shares recorded, so the % can&apos;t be derived.
+                                            Set it on the umbrella holder, or type the % directly.
+                                        </span>
+                                    </div>
+                                )}
+
+                                {effectivePercentage >= 10 && (
+                                    <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/10 text-sm text-blue-600 dark:text-blue-400">
+                                        <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                                        <span>
+                                            At {effectivePercentage}% this holder is a beneficial owner — a Beneficial
+                                            Ownership Regulations 2020 filing is required.
+                                        </span>
+                                    </div>
+                                )}
+                            </TabsContent>
+                        )}
+
+                        {/* Tab 2 — non-dividend: entitlements drive earnings; only scope is edited here. */}
+                        {!isDividend && (
+                        <TabsContent value="services" className="space-y-4">
+                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
+                                <div className="flex items-start gap-2 text-sm">
+                                    <Info className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                                    <div>
+                                        <p className="font-semibold text-foreground">Earnings are configured via Entitlements.</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                            The allocation engine always prefers per-service entitlements over the legacy
+                                            flat percentage and source-service list, so those fields are no longer editable here.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {initial?.id ? (
+                                    loadingEntitlements ? (
+                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading entitlements…
+                                        </div>
+                                    ) : activeEntitlements.length === 0 ? (
+                                        <p className="text-xs text-muted-foreground">
+                                            No active entitlements — this holder currently earns nothing from the revenue-share engine.
+                                        </p>
+                                    ) : (
+                                        <div className="space-y-1.5">
+                                            {activeEntitlements.map((e) => (
+                                                <div key={e.id} className="flex items-center justify-between gap-2 rounded-lg bg-background/60 border border-border/50 px-3 py-2 text-xs">
+                                                    <span className="font-mono truncate">{e.service_id === '*' ? 'All services' : e.service_id}</span>
+                                                    <span className="flex items-center gap-2 shrink-0">
+                                                        <span className="font-bold">{parseFloat(e.equity_pct).toFixed(2)}%</span>
+                                                        <Badge variant="outline">{e.vesting_type}</Badge>
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">
+                                        Save the holder first, then add entitlements to define what they earn.
+                                    </p>
+                                )}
+
+                                {onManageEntitlements && initial?.id && (
+                                    <Button type="button" variant="outline" size="sm" className="gap-2" onClick={onManageEntitlements}>
+                                        <Settings2 className="h-3.5 w-3.5" /> Manage Entitlements
+                                    </Button>
+                                )}
+                            </div>
 
                             <div className="border-t border-border pt-4 space-y-4">
                                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Referral Scope (Optional)</p>
@@ -494,6 +721,7 @@ export function HolderFormModal({
                                 </FormField>
                             </div>
                         </TabsContent>
+                        )}
 
                         {/* Tab 3: Payout Method */}
                         <TabsContent value="payout" className="space-y-4">
