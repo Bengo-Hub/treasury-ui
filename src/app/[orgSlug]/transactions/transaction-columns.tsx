@@ -7,7 +7,7 @@ import { Badge, Button } from '@/components/ui/base';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { getPaymentMethodLabel } from '@bengo-hub/shared-ui-lib';
 import type { TransactionItem } from '@/lib/api/analytics';
-import { ArrowUpRight, Eye, Loader2, RefreshCw, UserRound } from 'lucide-react';
+import { ArrowUpRight, CheckCircle2, Eye, Loader2, RefreshCw, UserRound } from 'lucide-react';
 
 const MARKETFLOW_UI_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexafrica.com';
 
@@ -19,9 +19,18 @@ export interface TransactionColumnCallbacks {
   orgSlug: string;
   onViewDetail: (txn: TransactionItem) => void;
   onCheckStatus: (txn: TransactionItem) => void;
+  onConfirmManual: (txn: TransactionItem) => void;
   onStatementClick: (txn: TransactionItem) => void;
   checkingStatusId: string | null;
+  confirmingId: string | null;
 }
+
+// Both actions apply to a stuck M-Pesa payment intent (pending or still-processing) — Check Status
+// asks Daraja for the real status (Transaction Status Query, verified against real transactions);
+// Confirm is a manual override with NO verification (marks it paid outright) for when staff have
+// already confirmed the payment some other way (e.g. checked the bank/M-Pesa statement).
+const isStuckMpesaTxn = (t: TransactionItem) =>
+  !!t.payment_method?.includes('mpesa') && (t.status === 'pending' || t.status === 'processing');
 
 export function buildTransactionColumns(cb: TransactionColumnCallbacks): DataTableColumn<TransactionItem>[] {
   return [
@@ -144,17 +153,31 @@ export function buildTransactionColumns(cb: TransactionColumnCallbacks): DataTab
           >
             <Eye className="h-3.5 w-3.5" />
           </Button>
-          {/* Check Status — M-Pesa processing transactions */}
-          {txn.payment_method?.includes('mpesa') && txn.status === 'processing' && (
+          {/* Check Status — real Daraja Transaction Status Query, pending or processing M-Pesa intents */}
+          {isStuckMpesaTxn(txn) && (
             <Button
               variant="ghost"
               size="sm"
               className="h-7 w-7 p-0"
-              title="Query Daraja for current transaction status"
+              title="Query Daraja for the real transaction status"
               disabled={cb.checkingStatusId === txn.id}
               onClick={() => cb.onCheckStatus(txn)}
             >
               {cb.checkingStatusId === txn.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            </Button>
+          )}
+          {/* Confirm — manual override, NO verification against M-Pesa. Only for staff who have
+              already confirmed the payment themselves some other way. */}
+          {isStuckMpesaTxn(txn) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              title="Manually mark as paid — does NOT verify against M-Pesa, only use if you've already confirmed it yourself"
+              disabled={cb.confirmingId === txn.id}
+              onClick={() => cb.onConfirmManual(txn)}
+            >
+              {cb.confirmingId === txn.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             </Button>
           )}
           {/* CRM contact link */}

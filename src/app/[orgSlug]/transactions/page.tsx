@@ -89,6 +89,7 @@ export default function TransactionsPage() {
   // tenant for the ordinary single-tenant view, where tenant_id may be absent.
   const [statementTxn, setStatementTxn] = useState<{ id: string; name: string; tenant: string } | null>(null);
   const [checkingStatusId, setCheckingStatusId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -140,12 +141,32 @@ export default function TransactionsPage() {
     if (!tenantId) { toast.error('Tenant ID not available for this transaction'); return; }
     setCheckingStatusId(txn.id);
     try {
-      await apiClient.post(`/api/v1/pay/${tenantId}/intents/${txn.id}/check-status`, {});
+      // The public /pay/{tenant}/intents/... namespace (used by the buyer-facing checkout page)
+      // has no check-status route at all — this admin action needs the JWT-authenticated
+      // treasury.payments.* route instead, the same one live-verified against real M-Pesa
+      // transactions this session (Daraja Transaction Status Query, keyed by the intent's own
+      // stored receipt/provider reference).
+      await apiClient.post(`/api/v1/${tenantId}/payments/intents/${txn.id}/check-status`, {});
       toast.success('Status query sent to Daraja — the transaction status will update shortly via webhook');
     } catch (e: any) {
       toast.error(e?.response?.data?.error || e?.message || 'Status check failed');
     } finally {
       setCheckingStatusId(null);
+    }
+  };
+
+  const handleConfirmManual = async (txn: TransactionItem) => {
+    const tenantId = txn.tenant_id;
+    if (!tenantId) { toast.error('Tenant ID not available for this transaction'); return; }
+    if (!window.confirm('This marks the transaction as paid WITHOUT verifying it against M-Pesa — only use this if you have already confirmed the payment yourself (e.g. checked the statement). Continue?')) return;
+    setConfirmingId(txn.id);
+    try {
+      await apiClient.post(`/api/v1/${tenantId}/payments/intents/${txn.id}/confirm-manual`, {});
+      toast.success('Transaction manually confirmed as paid');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e?.message || 'Manual confirm failed');
+    } finally {
+      setConfirmingId(null);
     }
   };
 
@@ -161,6 +182,7 @@ export default function TransactionsPage() {
         orgSlug,
         onViewDetail: (txn) => setDetailTxn(txn),
         onCheckStatus: (txn) => void handleCheckStatus(txn),
+        onConfirmManual: (txn) => void handleConfirmManual(txn),
         onStatementClick: (txn) => {
           if (txn.crm_contact_id) {
             setStatementTxn({
@@ -171,8 +193,9 @@ export default function TransactionsPage() {
           }
         },
         checkingStatusId,
+        confirmingId,
       }),
-    [orgSlug, txnTenant, checkingStatusId],
+    [orgSlug, txnTenant, checkingStatusId, confirmingId],
   );
 
   const statusOptions = ['all', 'succeeded', 'pending', 'processing', 'failed', 'cancelled'];

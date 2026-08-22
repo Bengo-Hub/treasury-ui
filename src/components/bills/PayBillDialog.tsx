@@ -33,7 +33,11 @@ const ONLINE_METHODS = [
 ];
 
 const isOnlineMethod = (m: string): boolean => (ONLINE_PAYMENT_METHODS as readonly string[]).includes(m);
-const isPhoneMethod = (m: string): boolean => m === 'mpesa_b2b' || m === 'mpesa_b2c' || m === 'paystack_mobile';
+// mpesa_b2c/paystack_mobile pay an individual's OWN phone (MSISDN). mpesa_b2b is a DIFFERENT
+// shape entirely — it pays another ORGANIZATION's paybill/till, never a phone number — so it gets
+// its own field set (isShortcodeMethod below), not lumped in here.
+const isPhoneMethod = (m: string): boolean => m === 'mpesa_b2c' || m === 'paystack_mobile';
+const isShortcodeMethod = (m: string): boolean => m === 'mpesa_b2b';
 
 interface PayBillDialogProps {
   tenant: string;
@@ -58,6 +62,8 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
   const [accountId, setAccountId] = useState('');
   const [reference, setReference] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
+  const [recipientShortcode, setRecipientShortcode] = useState('');
+  const [recipientIsTill, setRecipientIsTill] = useState(false);
   const [recipientBankCode, setRecipientBankCode] = useState('');
   const [recipientAccountNumber, setRecipientAccountNumber] = useState('');
   const [recipientAccountName, setRecipientAccountName] = useState('');
@@ -93,6 +99,8 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
     setAccountId('');
     setReference('');
     setRecipientPhone('');
+    setRecipientShortcode('');
+    setRecipientIsTill(false);
     setRecipientBankCode('');
     setRecipientAccountNumber('');
     setRecipientAccountName('');
@@ -126,6 +134,10 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
         setError('Recipient phone is required for this method.');
         return;
       }
+      if (isShortcodeMethod(method) && !recipientShortcode.trim()) {
+        setError('Recipient shortcode (paybill or till number) is required for this method.');
+        return;
+      }
       if (method === 'paystack_bank' && (!recipientBankCode.trim() || !recipientAccountNumber.trim())) {
         setError('Recipient bank code and account number are required for this method.');
         return;
@@ -133,7 +145,9 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
       body = {
         payment_method: method,
         reference: reference.trim() || undefined,
-        recipient_phone: recipientPhone.trim() || undefined,
+        recipient_phone: isPhoneMethod(method) ? recipientPhone.trim() || undefined : undefined,
+        recipient_shortcode: isShortcodeMethod(method) ? recipientShortcode.trim() || undefined : undefined,
+        recipient_is_till: isShortcodeMethod(method) ? recipientIsTill : undefined,
         recipient_bank_code: recipientBankCode.trim() || undefined,
         recipient_account_number: recipientAccountNumber.trim() || undefined,
         recipient_account_name: recipientAccountName.trim() || undefined,
@@ -222,6 +236,48 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
                       className={inputClass}
                     />
                   </FormField>
+                )}
+
+                {online && isShortcodeMethod(method) && (
+                  <div className="space-y-3">
+                    <FormField
+                      label="Recipient shortcode"
+                      required
+                      description="The supplier's OWN M-Pesa paybill or till number — B2B pays a business account, never a phone number."
+                    >
+                      <input
+                        value={recipientShortcode}
+                        onChange={(e) => setRecipientShortcode(e.target.value)}
+                        placeholder="e.g. 600000"
+                        className={inputClass}
+                      />
+                    </FormField>
+                    <FormField label="Shortcode type">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setRecipientIsTill(false)}
+                          className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${!recipientIsTill ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
+                        >
+                          Paybill
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRecipientIsTill(true)}
+                          className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${recipientIsTill ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
+                        >
+                          Till / Buy Goods
+                        </button>
+                      </div>
+                    </FormField>
+                    <FormField label="Account reference" description="The account number at the recipient's paybill, if applicable.">
+                      <input
+                        value={recipientAccountNumber}
+                        onChange={(e) => setRecipientAccountNumber(e.target.value)}
+                        className={inputClass}
+                      />
+                    </FormField>
+                  </div>
                 )}
 
                 {online && method === 'paystack_bank' && (

@@ -7,7 +7,7 @@ import { Badge, Button } from '@/components/ui/base';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import type { AgingRow, Bill } from '@/lib/api/bills';
 import { formatCurrency } from '@/lib/utils/currency';
-import { CreditCard, Loader2, Upload } from 'lucide-react';
+import { CreditCard, Loader2, ShieldCheck, Upload } from 'lucide-react';
 
 export const billStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
   draft: 'secondary',
@@ -19,6 +19,7 @@ export const billStatusVariant: Record<string, 'default' | 'success' | 'warning'
 
 export interface BillColumnCallbacks {
   onPay: (bill: Bill) => void;
+  onApprove: (bill: Bill) => void;
   onTransmit: (bill: Bill) => void;
   transmitPending: boolean;
   transmitPendingBillId?: string;
@@ -94,6 +95,17 @@ export function buildBillColumns(cb: BillColumnCallbacks): DataTableColumn<Bill>
       exportable: false,
       render: (bill) => (
         <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {bill.status === 'draft' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1 text-xs"
+              title="Submit this bill for sign-off before it can be paid"
+              onClick={() => cb.onApprove(bill)}
+            >
+              <ShieldCheck className="h-3 w-3" /> Approval
+            </Button>
+          )}
           {(bill.status === 'pending' || bill.status === 'overdue') && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => cb.onPay(bill)}>
               <CreditCard className="h-3 w-3" /> Pay
