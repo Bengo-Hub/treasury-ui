@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CheckCircle, ChevronRight, CreditCard, Loader2, Receipt, X } from 'lucide-react';
 import { useRecordPayment, useInvoices } from '@/hooks/use-invoices';
+import { useAccounts } from '@/hooks/use-accounts';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import type { Invoice } from '@/lib/api/invoices';
 import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
 
@@ -26,6 +28,7 @@ interface Step1State {
 interface Step2State {
   method: PaymentMethod;
   amount: string;
+  accountId: string;
 }
 
 interface Props {
@@ -47,10 +50,20 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
   const [s2, setS2] = useState<Step2State>({
     method: 'bank_transfer',
     amount: invoiceTotal ?? '',
+    accountId: '',
   });
   const [allocatedIds, setAllocatedIds] = useState<string[]>(invoiceId ? [invoiceId] : []);
 
   const recordPayment = useRecordPayment(tenant);
+
+  const { data: accountsData } = useAccounts(tenant);
+  const accountOptions = useMemo<ComboboxOption[]>(
+    () =>
+      (accountsData?.accounts ?? [])
+        .filter((a) => a.account_type === 'asset' && a.is_active !== false)
+        .map((a) => ({ value: a.id, label: a.account_name, hint: a.account_code })),
+    [accountsData],
+  );
 
   // For step 3 — list unpaid invoices to allocate
   const { data: invoicesData } = useInvoices(
@@ -64,7 +77,7 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
   const labelCls = 'text-[11px] font-bold text-muted-foreground uppercase tracking-wider block mb-1';
 
   const canProceed1 = s1.payment_date.trim().length > 0;
-  const canProceed2 = parseFloat(s2.amount) > 0;
+  const canProceed2 = parseFloat(s2.amount) > 0 && !!s2.accountId;
   const canFinish = allocatedIds.length > 0 || !!invoiceId;
 
   const handleFinish = () => {
@@ -78,6 +91,7 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
         invoiceId: id,
         amount: s2.amount,
         method: s2.method,
+        account_id: s2.accountId,
         reference: s1.reference || s1.receipt_number || undefined,
         note: s1.receipt_number && s1.reference ? `Receipt ${s1.receipt_number}` : undefined,
         paid_at: datetimeLocalToISO(s1.payment_date),
@@ -163,6 +177,17 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
                     </button>
                   ))}
                 </div>
+              </div>
+              <div>
+                <label className={labelCls}>Paid Into Account <span className="text-destructive">*</span></label>
+                <Combobox
+                  options={accountOptions}
+                  value={s2.accountId}
+                  onChange={(v) => setS2(p => ({ ...p, accountId: v ?? '' }))}
+                  placeholder="Select cash / bank account"
+                  searchPlaceholder="Search accounts…"
+                  emptyText="No matching accounts"
+                />
               </div>
               <div>
                 <label className={labelCls}>Amount ({currency}) <span className="text-destructive">*</span></label>

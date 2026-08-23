@@ -53,15 +53,14 @@ export function MarkExpensePaidModal({ tenant, expense, onClose, onConfirm, pend
             </p>
           </div>
 
-          <FormField label="Paid from account" description="The cash / bank account the money left. Posts the Accounts Payable settlement.">
+          <FormField label="Paid from account" required description="The cash / bank account the money left. Posts the Accounts Payable settlement.">
             <Combobox
               options={options}
               value={effective}
               onChange={(v) => setAccountId(v ?? '')}
-              placeholder={options.length ? 'Select cash / bank account' : 'No cash/bank accounts — tenant default will be used'}
+              placeholder={options.length ? 'Select cash / bank account' : 'No cash/bank accounts yet — create one first'}
               searchPlaceholder="Search accounts…"
               emptyText="No matching accounts"
-              clearable
             />
           </FormField>
 
@@ -79,7 +78,7 @@ export function MarkExpensePaidModal({ tenant, expense, onClose, onConfirm, pend
             <Button variant="outline" size="sm" onClick={onClose} disabled={pending}>
               Cancel
             </Button>
-            <Button size="sm" onClick={() => onConfirm(effective, datetimeLocalToISO(paidAtLocal))} disabled={pending}>
+            <Button size="sm" onClick={() => onConfirm(effective, datetimeLocalToISO(paidAtLocal))} disabled={pending || !effective}>
               {pending ? 'Posting…' : 'Mark paid'}
             </Button>
           </div>

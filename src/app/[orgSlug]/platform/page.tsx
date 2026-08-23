@@ -1901,7 +1901,7 @@ function GatewayCredentialsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-card rounded-xl shadow-xl border border-border max-w-md w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-card rounded-xl shadow-xl border border-border max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold">{title}</h3>
           <button type="button" onClick={onClose} className="p-1 rounded hover:bg-accent">
@@ -1910,7 +1910,7 @@ function GatewayCredentialsModal({
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           {!editMode && gatewayTypes && (
-            <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Gateway type</label>
                 <select
@@ -1934,21 +1934,22 @@ function GatewayCredentialsModal({
                   required
                 />
               </div>
-            </>
+            </div>
           )}
           {keys.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 border-b border-border pb-2">
+            <div>
+              <div className="flex items-center gap-2 border-b border-border pb-2 mb-3">
                 <Shield className="h-3.5 w-3.5 text-primary" />
                 <span className="text-xs font-semibold uppercase tracking-wide text-foreground">API Credentials</span>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {keys.map((k) => {
                 const sensitive = isSensitiveField(k);
                 const isVisible = visibleFields[k] ?? false;
                 const isPem = k === 'cert_pem';
 
                 return (
-                  <div key={k}>
+                  <div key={k} className={isPem ? 'sm:col-span-2' : ''}>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">
                       {k.replace(/_/g, ' ')}
                     </label>
@@ -1998,6 +1999,7 @@ function GatewayCredentialsModal({
                   </div>
                 );
               })}
+              </div>
             </div>
           )}
           {selectedType === 'cod' && !editMode && (
