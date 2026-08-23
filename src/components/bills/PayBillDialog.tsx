@@ -92,6 +92,16 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
         .map((a) => ({ value: a.id, label: a.account_name, hint: a.account_code })),
     [accountsData],
   );
+  const selectedAccount = accountsData?.accounts?.find((a) => a.id === accountId);
+  const selectedAccountBalance = selectedAccount?.balance !== undefined ? parseFloat(selectedAccount.balance) : undefined;
+  // Warn (never hard-block — the cashier may still be entering figures, or the account genuinely
+  // runs negative) when the chosen account's balance won't cover this payment — mirrors pos-ui's
+  // add-expense-modal pattern.
+  const insufficientBalance =
+    !!selectedAccount &&
+    selectedAccountBalance !== undefined &&
+    !Number.isNaN(selectedAccountBalance) &&
+    Number(amount || 0) > selectedAccountBalance;
 
   const { data: intentsData, isLoading: loadingIntents } = useQuery({
     queryKey: ['payment-intents', tenant],
@@ -190,6 +200,10 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
           paid_at: datetimeLocalToISO(paidAtLocal),
         };
       } else {
+        if (!accountId) {
+          setError('Select which account this payment is coming from.');
+          return;
+        }
         if (offlineMethodRequiresReference(method) && !reference.trim()) {
           setError('A reference is required for this payment method.');
           return;
@@ -197,7 +211,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
         body = {
           payment_method: method,
           amount: amt,
-          paid_from_account_id: accountId || undefined,
+          paid_from_account_id: accountId,
           reference: reference.trim() || undefined,
           paid_at: datetimeLocalToISO(paidAtLocal),
         };
@@ -276,16 +290,28 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
                 </FormField>
 
                 {!online && (
-                  <FormField label="Paid from account" description="The cash / bank account the money left.">
+                  <FormField
+                    label="Paid from account"
+                    required
+                    description={
+                      insufficientBalance
+                        ? `Warning: this account's balance (${formatCurrency(selectedAccountBalance ?? 0, selectedAccount?.currency || bill.currency)}) won't cover this payment.`
+                        : 'The cash / bank account the money left.'
+                    }
+                  >
                     <Combobox
                       options={accountOptions}
                       value={accountId}
                       onChange={(v) => setAccountId(v ?? '')}
-                      placeholder={accountOptions.length ? 'Select cash / bank account' : 'No cash/bank accounts — tenant default will be used'}
+                      placeholder={accountOptions.length ? 'Select cash / bank account' : 'No cash/bank accounts yet — create one first'}
                       searchPlaceholder="Search accounts…"
                       emptyText="No matching accounts"
-                      clearable
                     />
+                    {insufficientBalance && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-amber-600">
+                        <AlertTriangle className="h-3 w-3" /> Insufficient balance on this account — you can still proceed.
+                      </p>
+                    )}
                   </FormField>
                 )}
 

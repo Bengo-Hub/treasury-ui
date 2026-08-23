@@ -7,6 +7,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { BankAccountForm, EMPTY_BANK_ACCOUNT, type BankAccountValue } from '@/components/payments/bank-account-form';
+import { SUPPORTED_CURRENCIES, CURRENCY_META } from '@bengo-hub/shared-ui-lib/payments';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
   useBankAccounts,
@@ -68,6 +69,9 @@ export default function AccountsPage() {
   const [accountName, setAccountName] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [openingBalance, setOpeningBalance] = useState('');
+  // Only used for mobile_money/cash — the bank type's own currency lives on bankValue.currency
+  // (BankAccountForm's own picker) since a bank account is picked together with its country.
+  const [currency, setCurrency] = useState('KES');
 
   function resetForm() {
     setAccountType('bank');
@@ -75,6 +79,7 @@ export default function AccountsPage() {
     setAccountName('');
     setMobileNumber('');
     setOpeningBalance('');
+    setCurrency('KES');
   }
 
   function handleCreate() {
@@ -82,9 +87,10 @@ export default function AccountsPage() {
       account_type: accountType,
       account_name:
         accountType === 'bank' ? bankValue.account_name : accountName,
-      // Only KES accounts are supported today (backend rejects anything else) — always send it
-      // explicitly rather than relying on the backend's implicit empty-string default.
-      currency: 'KES',
+      // A real per-account native currency (e.g. a genuine KCB USD account) — the backend now
+      // accepts any currency its forex module can quote, and converts opening-balance/transfer
+      // postings against the tenant's other (typically KES) accounts automatically.
+      currency: accountType === 'bank' ? bankValue.currency : currency,
       opening_balance: openingBalance ? parseFloat(openingBalance) : undefined,
     };
     if (accountType === 'bank') {
@@ -242,6 +248,7 @@ export default function AccountsPage() {
           title="Add Account"
           description="Add a real bank, mobile money, or cash account — it gets its own ledger entry so its balance and statement are always accurate."
           onClose={() => setDialogOpen(false)}
+          className="max-w-2xl"
         >
           <div className="space-y-4">
             <FormField label="Account Type" required>
@@ -268,27 +275,43 @@ export default function AccountsPage() {
             </FormField>
 
             {accountType === 'bank' && (
-              // Only KES is supported today (backend hard-rejects anything else, bank_accounts.go)
-              // — hide the currency/country picker so the form doesn't offer options that would
-              // just fail on submit.
-              <BankAccountForm orgSlug={tenant} value={bankValue} onChange={setBankValue} hideCurrency />
+              // A real per-account native currency — e.g. picking USD here creates a genuine
+              // foreign-currency account (opening balance and future settlements convert against
+              // the tenant's other accounts automatically; see docs/general-ledger.md).
+              <BankAccountForm orgSlug={tenant} value={bankValue} onChange={setBankValue} />
             )}
 
             {accountType === 'mobile_money' && (
-              <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField label="Account Name" required description="e.g. 'M-Pesa Till — Westlands Branch'">
                   <input value={accountName} onChange={(e) => setAccountName(e.target.value)} className={inputClass} />
                 </FormField>
                 <FormField label="Till / Paybill Number" required>
                   <input value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} className={inputClass} placeholder="e.g. 174379" />
                 </FormField>
-              </>
+                <FormField label="Currency">
+                  <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}>
+                    {SUPPORTED_CURRENCIES.map((c) => (
+                      <option key={c} value={c}>{c} — {CURRENCY_META[c]?.name ?? c}</option>
+                    ))}
+                  </select>
+                </FormField>
+              </div>
             )}
 
             {accountType === 'cash' && (
-              <FormField label="Account Name" required description="e.g. 'Petty Cash — Head Office'">
-                <input value={accountName} onChange={(e) => setAccountName(e.target.value)} className={inputClass} />
-              </FormField>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Account Name" required description="e.g. 'Petty Cash — Head Office'">
+                  <input value={accountName} onChange={(e) => setAccountName(e.target.value)} className={inputClass} />
+                </FormField>
+                <FormField label="Currency">
+                  <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}>
+                    {SUPPORTED_CURRENCIES.map((c) => (
+                      <option key={c} value={c}>{c} — {CURRENCY_META[c]?.name ?? c}</option>
+                    ))}
+                  </select>
+                </FormField>
+              </div>
             )}
 
             <FormField label="Opening Balance (optional)" description="Posted as a real journal entry against Opening Balance Equity.">
@@ -298,7 +321,7 @@ export default function AccountsPage() {
                 step="0.01"
                 value={openingBalance}
                 onChange={(e) => setOpeningBalance(e.target.value)}
-                className={inputClass}
+                className={inputClass + ' sm:max-w-xs'}
                 placeholder="0.00"
               />
             </FormField>

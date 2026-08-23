@@ -863,13 +863,14 @@ export async function getCustomerBalances(tenant: string): Promise<CustomerBalan
 export function recordCustomerPayment(
   tenant: string,
   contactId: string,
-  body: { amount: number; payment_method?: string; reference?: string; paid_at?: string },
+  body: { amount: number; payment_method?: string; reference?: string; paid_at?: string; account_id?: string },
 ): Promise<CustomerBalance> {
   return apiClient.post<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/payment`, {
     amount: String(body.amount),
     payment_method: body.payment_method,
     reference: body.reference,
     paid_at: body.paid_at,
+    account_id: body.account_id,
   });
 }
 

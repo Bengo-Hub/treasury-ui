@@ -245,24 +245,27 @@ export default function CostCentersPage() {
           title="Add Cost Center"
           description="Create a new cost center dimension."
           onClose={() => setCreateOpen(false)}
+          className="max-w-lg"
         >
           <div className="space-y-4">
-            <FormField label="Name" required>
-              <input
-                className={inputClasses}
-                placeholder="e.g. Marketing"
-                value={formData.name}
-                onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
-              />
-            </FormField>
-            <FormField label="Code">
-              <input
-                className={inputClasses}
-                placeholder="e.g. MKT"
-                value={formData.code}
-                onChange={(e) => setFormData((p) => ({ ...p, code: e.target.value }))}
-              />
-            </FormField>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Name" required>
+                <input
+                  className={inputClasses}
+                  placeholder="e.g. Marketing"
+                  value={formData.name}
+                  onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
+                />
+              </FormField>
+              <FormField label="Code">
+                <input
+                  className={inputClasses}
+                  placeholder="e.g. MKT"
+                  value={formData.code}
+                  onChange={(e) => setFormData((p) => ({ ...p, code: e.target.value }))}
+                />
+              </FormField>
+            </div>
             <FormField label="Description">
               <textarea
                 className={cn(inputClasses, 'min-h-20 resize-none')}
@@ -299,22 +302,25 @@ export default function CostCentersPage() {
           title="Edit Cost Center"
           description="Update cost center details."
           onClose={() => setEditCenter(null)}
+          className="max-w-lg"
         >
           <div className="space-y-4">
-            <FormField label="Name" required>
-              <input
-                className={inputClasses}
-                value={formData.name}
-                onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
-              />
-            </FormField>
-            <FormField label="Code">
-              <input
-                className={inputClasses}
-                value={formData.code}
-                onChange={(e) => setFormData((p) => ({ ...p, code: e.target.value }))}
-              />
-            </FormField>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Name" required>
+                <input
+                  className={inputClasses}
+                  value={formData.name}
+                  onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
+                />
+              </FormField>
+              <FormField label="Code">
+                <input
+                  className={inputClasses}
+                  value={formData.code}
+                  onChange={(e) => setFormData((p) => ({ ...p, code: e.target.value }))}
+                />
+              </FormField>
+            </div>
             <FormField label="Description">
               <textarea
                 className={cn(inputClasses, 'min-h-20 resize-none')}

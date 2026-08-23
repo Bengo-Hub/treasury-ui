@@ -153,10 +153,7 @@ export function BankDetailsPicker({ orgSlug, include, onIncludeChange, value, on
       <Dialog open={addOpen} onOpenChange={(o) => !o && setAddOpen(false)}>
         <DialogContent title="Add Bank Account" description="Saved to your reusable bank-account list." onClose={() => setAddOpen(false)}>
           <div className="space-y-4">
-            {/* Only KES is supported today (backend hard-rejects anything else, bank_accounts.go)
-                — hide the currency/country picker so the form doesn't offer options that would
-                just fail on submit. */}
-            <BankAccountForm orgSlug={orgSlug} value={draft} onChange={setDraft} hideCurrency />
+            <BankAccountForm orgSlug={orgSlug} value={draft} onChange={setDraft} />
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
               <Button onClick={handleAdd} disabled={createMutation.isPending}>
