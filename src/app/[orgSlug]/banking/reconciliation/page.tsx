@@ -19,7 +19,8 @@ import {
   useUnreconciled,
   useLedgerTransactions,
 } from '@/hooks/use-reconciliation';
-import type { BankAccount, StatementLine } from '@/lib/api/reconciliation';
+import type { StatementLine } from '@/lib/api/reconciliation';
+import type { BankAccount } from '@/lib/api/bank-accounts';
 import {
   CheckCircle2,
   Link2,
@@ -85,7 +86,7 @@ function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
     currency: 'KES',
   });
 
-  const accounts = data?.accounts ?? [];
+  const accounts = data?.bank_accounts ?? [];
   const columns = useMemo(() => buildBankAccountColumns(), []);
 
   function handleCreate() {
@@ -143,16 +144,11 @@ function BankAccountsTab({ tenantSlug }: { tenantSlug: string }) {
               onChange={(patch) => setForm((p) => ({ ...p, ...patch }))}
             />
             <FormField label="Currency">
-              <select
-                className={inputClasses}
-                value={form.currency}
-                onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value }))}
-              >
-                {['KES', 'USD', 'EUR'].map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
+              {/* Only KES is supported today — the backend rejects other currencies outright since
+                  GL aggregation (this account's balance, the balance sheet, cash flow) does no FX
+                  conversion. Multi-currency accounts are a tracked future item, not built yet. */}
+              <select className={inputClasses} value={form.currency} disabled>
+                <option value="KES">KES</option>
               </select>
             </FormField>
             <div className="flex justify-end gap-3 pt-2">
@@ -187,7 +183,7 @@ function StatementsTab({ tenantSlug }: { tenantSlug: string }) {
   const [selectedBankAccount, setSelectedBankAccount] = useState('');
   const [importResult, setImportResult] = useState<{ statement_id: string; lines_imported: number } | null>(null);
 
-  const bankAccounts = bankData?.accounts ?? [];
+  const bankAccounts = bankData?.bank_accounts ?? [];
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

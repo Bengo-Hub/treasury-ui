@@ -2,16 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  listBankAccounts,
-  createBankAccount,
   importStatement,
   getStatementLines,
   autoReconcile,
   manualMatch,
   getUnreconciled,
   listLedgerTransactions,
-  type BankAccountsResponse,
-  type CreateBankAccountRequest,
   type ImportStatementRequest,
   type StatementLinesResponse,
   type AutoReconcileResponse,
@@ -22,30 +18,16 @@ import {
 const STALE_MS = 5 * 60 * 1000;
 
 export const reconKeys = {
-  bankAccounts: (orgSlug: string) => ['banking', 'accounts', orgSlug] as const,
   statementLines: (orgSlug: string, statementId: string) =>
     ['banking', 'statements', orgSlug, statementId] as const,
   unreconciled: (orgSlug: string) => ['banking', 'unreconciled', orgSlug] as const,
 };
 
-export function useBankAccounts(tenantSlug: string) {
-  return useQuery<BankAccountsResponse>({
-    queryKey: reconKeys.bankAccounts(tenantSlug),
-    queryFn: () => listBankAccounts(tenantSlug),
-    enabled: !!tenantSlug,
-    staleTime: STALE_MS,
-  });
-}
-
-export function useCreateBankAccount(tenantSlug: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: CreateBankAccountRequest) => createBankAccount(tenantSlug, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: reconKeys.bankAccounts(tenantSlug) });
-    },
-  });
-}
+// Bank-account CRUD used to be duplicated here against a separate, feature-gated /banking/accounts
+// endpoint with no GL linkage. Removed — this now re-exports the ONE consolidated accounts hook
+// (backed by /bank-accounts) so the Reconciliation page's "Bank Accounts" tab and every other
+// bank-account picker in the app share the same data and the same real, ledger-linked accounts.
+export { useBankAccounts, useCreateBankAccount } from './use-bank-accounts';
 
 export function useImportStatement(tenantSlug: string) {
   const queryClient = useQueryClient();

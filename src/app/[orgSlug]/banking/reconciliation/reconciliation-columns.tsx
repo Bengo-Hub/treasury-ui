@@ -5,7 +5,8 @@
 
 import { Badge } from '@/components/ui/base';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
-import type { BankAccount, StatementLine } from '@/lib/api/reconciliation';
+import type { StatementLine } from '@/lib/api/reconciliation';
+import type { BankAccount } from '@/lib/api/bank-accounts';
 import { cn } from '@/lib/utils';
 
 // Badge variant per bank_statement_line.match_status, mirroring the billStatusVariant convention.
