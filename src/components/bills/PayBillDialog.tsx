@@ -15,15 +15,21 @@ import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/p
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CreditCard, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const inputClass =
   'w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none transition-all';
 
-const OFFLINE_METHODS = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'bank', label: 'Bank transfer' },
-  { value: 'card', label: 'Card' },
+// Per-method reference requirement — the SAME rule shared-ui-lib's SettlementModal registry uses
+// everywhere else on the platform (AR receipts, vendor-credit payouts, POS credit-sale
+// settlement): only methods that produce an actual slip/code (bank transfer, cheque) need one.
+// Cash and card have nothing to write down. A previous version of this dialog blanket-required a
+// reference for ANY offline method, including cash — that's the bug this map fixes.
+const OFFLINE_METHODS: { value: string; label: string; requiresReference: boolean }[] = [
+  { value: 'cash', label: 'Cash', requiresReference: false },
+  { value: 'card', label: 'Card', requiresReference: false },
+  { value: 'bank', label: 'Bank transfer', requiresReference: true },
+  { value: 'cheque', label: 'Cheque', requiresReference: true },
 ];
 
 const ONLINE_METHODS = [
@@ -32,6 +38,9 @@ const ONLINE_METHODS = [
   { value: 'paystack_bank', label: 'Paystack (bank)' },
   { value: 'paystack_mobile', label: 'Paystack (mobile)' },
 ];
+
+const offlineMethodRequiresReference = (m: string): boolean =>
+  OFFLINE_METHODS.find((om) => om.value === m)?.requiresReference ?? false;
 
 const isOnlineMethod = (m: string): boolean => (ONLINE_PAYMENT_METHODS as readonly string[]).includes(m);
 // mpesa_b2c/paystack_mobile pay an individual's OWN phone (MSISDN). mpesa_b2b is a DIFFERENT
@@ -61,6 +70,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
   const [mode, setMode] = useState<'settle' | 'link'>('settle');
   const [method, setMethod] = useState('cash');
   const [accountId, setAccountId] = useState('');
+  const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [recipientShortcode, setRecipientShortcode] = useState('');
@@ -95,10 +105,22 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
     hint: it.id.slice(0, 8),
   }));
 
+  // balanceDue falls back to total_amount for a not-yet-refreshed cached bill row (pre-
+  // amount_paid/balance_due fields) so the dialog never shows a blank/zero default.
+  const balanceDue = bill ? Number(bill.balance_due ?? bill.total_amount) : 0;
+
+  // Default the amount to the full outstanding balance whenever a (new) bill is loaded into the
+  // dialog — the user can lower it to record a partial payment instead.
+  useEffect(() => {
+    if (bill) setAmount(String(balanceDue));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bill?.id]);
+
   const reset = () => {
     setMode('settle');
     setMethod('cash');
     setAccountId('');
+    setAmount('');
     setReference('');
     setRecipientPhone('');
     setRecipientShortcode('');
@@ -132,41 +154,54 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
         return;
       }
       body = { payment_intent_id: paymentIntentId };
-    } else if (online) {
-      if (isPhoneMethod(method) && !recipientPhone.trim()) {
-        setError('Recipient phone is required for this method.');
-        return;
-      }
-      if (isShortcodeMethod(method) && !recipientShortcode.trim()) {
-        setError('Recipient shortcode (paybill or till number) is required for this method.');
-        return;
-      }
-      if (method === 'paystack_bank' && (!recipientBankCode.trim() || !recipientAccountNumber.trim())) {
-        setError('Recipient bank code and account number are required for this method.');
-        return;
-      }
-      body = {
-        payment_method: method,
-        reference: reference.trim() || undefined,
-        recipient_phone: isPhoneMethod(method) ? recipientPhone.trim() || undefined : undefined,
-        recipient_shortcode: isShortcodeMethod(method) ? recipientShortcode.trim() || undefined : undefined,
-        recipient_is_till: isShortcodeMethod(method) ? recipientIsTill : undefined,
-        recipient_bank_code: recipientBankCode.trim() || undefined,
-        recipient_account_number: recipientAccountNumber.trim() || undefined,
-        recipient_account_name: recipientAccountName.trim() || undefined,
-        paid_at: datetimeLocalToISO(paidAtLocal),
-      };
     } else {
-      if (!reference.trim()) {
-        setError('A reference is required for offline payment methods.');
+      const amt = parseFloat(amount);
+      if (!amt || amt <= 0) {
+        setError('Enter a valid amount to pay.');
         return;
       }
-      body = {
-        payment_method: method,
-        paid_from_account_id: accountId || undefined,
-        reference: reference.trim(),
-        paid_at: datetimeLocalToISO(paidAtLocal),
-      };
+      if (amt > balanceDue + 0.0001) {
+        setError(`Amount exceeds the outstanding balance (${formatCurrency(balanceDue, bill.currency)}).`);
+        return;
+      }
+      if (online) {
+        if (isPhoneMethod(method) && !recipientPhone.trim()) {
+          setError('Recipient phone is required for this method.');
+          return;
+        }
+        if (isShortcodeMethod(method) && !recipientShortcode.trim()) {
+          setError('Recipient shortcode (paybill or till number) is required for this method.');
+          return;
+        }
+        if (method === 'paystack_bank' && (!recipientBankCode.trim() || !recipientAccountNumber.trim())) {
+          setError('Recipient bank code and account number are required for this method.');
+          return;
+        }
+        body = {
+          payment_method: method,
+          amount: amt,
+          reference: reference.trim() || undefined,
+          recipient_phone: isPhoneMethod(method) ? recipientPhone.trim() || undefined : undefined,
+          recipient_shortcode: isShortcodeMethod(method) ? recipientShortcode.trim() || undefined : undefined,
+          recipient_is_till: isShortcodeMethod(method) ? recipientIsTill : undefined,
+          recipient_bank_code: recipientBankCode.trim() || undefined,
+          recipient_account_number: recipientAccountNumber.trim() || undefined,
+          recipient_account_name: recipientAccountName.trim() || undefined,
+          paid_at: datetimeLocalToISO(paidAtLocal),
+        };
+      } else {
+        if (offlineMethodRequiresReference(method) && !reference.trim()) {
+          setError('A reference is required for this payment method.');
+          return;
+        }
+        body = {
+          payment_method: method,
+          amount: amt,
+          paid_from_account_id: accountId || undefined,
+          reference: reference.trim() || undefined,
+          paid_at: datetimeLocalToISO(paidAtLocal),
+        };
+      }
     }
 
     payMutation.mutate(
@@ -185,7 +220,11 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
       {bill && (
         <DialogContent
           title="Pay Bill"
-          description={`${bill.bill_number} · ${formatCurrency(Number(bill.total_amount), bill.currency)}`}
+          description={
+            Number(bill.amount_paid) > 0
+              ? `${bill.bill_number} · ${formatCurrency(balanceDue, bill.currency)} due of ${formatCurrency(Number(bill.total_amount), bill.currency)}`
+              : `${bill.bill_number} · ${formatCurrency(Number(bill.total_amount), bill.currency)}`
+          }
           onClose={close}
           className="max-w-lg"
         >
@@ -197,6 +236,26 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
               </TabsList>
 
               <TabsContent value="settle" className="space-y-4 pt-4">
+                <FormField
+                  label="Amount to pay"
+                  required
+                  description={
+                    amount && Number(amount) < balanceDue
+                      ? `Partial payment — ${formatCurrency(balanceDue - Number(amount), bill.currency)} will remain outstanding.`
+                      : 'Defaults to the full outstanding balance. Lower it to pay in installments.'
+                  }
+                >
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    max={balanceDue}
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className={inputClass}
+                  />
+                </FormField>
+
                 <FormField label="Payment method" required>
                   <select
                     value={method}
@@ -303,13 +362,19 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
 
                 <FormField
                   label="Reference"
-                  required={!online}
-                  description={online ? 'Optional — defaults to a generated dispatcher reference.' : 'e.g. M-Pesa code, cheque no., receipt no.'}
+                  required={!online && offlineMethodRequiresReference(method)}
+                  description={
+                    online
+                      ? 'Optional — defaults to a generated dispatcher reference.'
+                      : offlineMethodRequiresReference(method)
+                        ? 'e.g. cheque no., bank transaction ref.'
+                        : 'Optional — cash and card have nothing to write down.'
+                  }
                 >
                   <input
                     value={reference}
                     onChange={(e) => setReference(e.target.value)}
-                    placeholder={online ? 'Optional' : 'Required'}
+                    placeholder={online || !offlineMethodRequiresReference(method) ? 'Optional' : 'Required'}
                     className={inputClass}
                   />
                 </FormField>
