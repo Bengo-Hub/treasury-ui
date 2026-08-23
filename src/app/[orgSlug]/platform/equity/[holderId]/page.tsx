@@ -4,12 +4,21 @@ import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/ba
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEquityHolders, useHolderPayouts } from '@/hooks/use-equity';
 import { useEquityEntitlements } from '@/hooks/use-equity-entitlements';
+import { useEquityHolderStatement } from '@/hooks/use-equity-statements';
 import { useReferrals } from '@/hooks/use-referrals';
 import { useMe } from '@/hooks/useMe';
+import { useDateRangeFilter } from '@/hooks/use-date-range-filter';
+import { DateRangeFilter } from '@/components/filters/DateRangeFilter';
 import type { EquityHolder } from '@/lib/api/equity';
+import { exportHolderStatement } from '@/lib/api/equity-statements';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
+import { buildStatementLineColumns, type StatementLineRow } from './statement-line-columns';
 import { format } from 'date-fns';
-import { ArrowLeft, CheckCircle2, Gift, Loader2, Shield, Wallet } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Download, Eye, Gift, Loader2, Shield, Wallet } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 export default function EquityHolderDetailPage() {
     const { data: user } = useMe();
@@ -79,6 +88,7 @@ export default function EquityHolderDetailPage() {
             <Tabs defaultValue="overview" className="space-y-6">
                 <TabsList className="flex flex-wrap gap-1">
                     <TabsTrigger value="overview">Overview</TabsTrigger>
+                    <TabsTrigger value="statement">Statement</TabsTrigger>
                     <TabsTrigger value="payouts">Payouts</TabsTrigger>
                     <TabsTrigger value="entitlements">Entitlements</TabsTrigger>
                     <TabsTrigger value="agreement">Agreement</TabsTrigger>
@@ -87,6 +97,9 @@ export default function EquityHolderDetailPage() {
 
                 <TabsContent value="overview" className="mt-6">
                     <OverviewTab holder={holder} />
+                </TabsContent>
+                <TabsContent value="statement" className="mt-6">
+                    <StatementTab holder={holder} />
                 </TabsContent>
                 <TabsContent value="payouts" className="mt-6">
                     <PayoutsTab holderId={holder.id} />
@@ -129,6 +142,151 @@ function OverviewTab({ holder }: { holder: EquityHolder }) {
                 <Field label="Email" value={holder.email || '—'} />
             </CardContent>
         </Card>
+    );
+}
+
+function StatementStat({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-xl border border-border/60 bg-card p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+            <p className="text-sm font-black mt-1 tabular-nums">{value}</p>
+        </div>
+    );
+}
+
+/**
+ * StatementTab — a per-holder accrual/payout ledger for an arbitrary date range,
+ * backed by GET /platform/equity-holders/{id}/statement. Distinct from the
+ * Payouts tab: it includes dividend-declaration lines alongside equity payouts,
+ * a running balance, and opening/closing accrued-but-unpaid totals.
+ *
+ * PDF export reuses the shared "generate → preview in a modal → download from
+ * there" pattern (useDocumentPreview/PdfPreview) that equity-holder-documents.tsx
+ * uses for every other generated document; CSV is too tabular for that inline
+ * preview, so it triggers a direct browser download instead — the same split
+ * the Ecosystem Analytics page's Data Exports card uses.
+ */
+function StatementTab({ holder }: { holder: EquityHolder }) {
+    const { from, to, setFrom, setTo, applyPreset, activePreset } = useDateRangeFilter({ defaultPreset: 'last30' });
+    const { data, isLoading, isError, refetch } = useEquityHolderStatement(holder.id, from || undefined, to || undefined);
+    const { openPreview, previewProps } = useDocumentPreview({ onError: (m) => toast.error(m) });
+    const [exportingCsv, setExportingCsv] = useState(false);
+
+    const currency = data?.currency ?? 'KES';
+    const fmt = (v?: string) => `${currency} ${Number(v ?? 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const fileBase = `statement-${holder.name.replace(/\s+/g, '_').toLowerCase()}`;
+
+    const lineRows: StatementLineRow[] = useMemo(
+        () => (data?.lines ?? []).map((l, i) => ({ ...l, _key: `${l.source_type}-${l.reference}-${i}` })),
+        [data?.lines],
+    );
+    const columns = useMemo(() => buildStatementLineColumns(currency), [currency]);
+
+    const previewPdf = () =>
+        openPreview(
+            () => exportHolderStatement(holder.id, 'pdf', from || undefined, to || undefined).then((r) => r.blob),
+            { fileName: `${fileBase}.pdf`, title: `Statement — ${holder.name}` },
+        );
+
+    const downloadCsv = async () => {
+        setExportingCsv(true);
+        try {
+            const { blob, fileName } = await exportHolderStatement(holder.id, 'csv', from || undefined, to || undefined);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (err: any) {
+            toast.error(err?.message || 'Failed to export statement CSV');
+        } finally {
+            setExportingCsv(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <DateRangeFilter
+                    from={from}
+                    to={to}
+                    onFromChange={setFrom}
+                    onToChange={setTo}
+                    presets={['last30', 'last90', 'thisMonth', 'thisYear', 'allTime']}
+                    activePreset={activePreset}
+                    onPresetSelect={applyPreset}
+                />
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={previewPdf} disabled={isLoading || !data}>
+                        <Eye className="h-3.5 w-3.5" /> Preview / Export PDF
+                    </Button>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={downloadCsv} disabled={isLoading || !data || exportingCsv}>
+                        {exportingCsv ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                        Export CSV
+                    </Button>
+                </div>
+            </div>
+
+            {isLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-8">
+                    <Loader2 className="h-5 w-5 animate-spin" /> Loading statement…
+                </div>
+            ) : isError ? (
+                <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive flex items-center justify-between gap-3">
+                    <span>Failed to load statement. Check your connection and try again.</span>
+                    <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
+                </div>
+            ) : !data ? null : (
+                <>
+                    <Card className="border-none shadow-xl shadow-black/5">
+                        <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <Field label="Holder" value={`${data.holder_name} (${data.holder_type})`} />
+                            <Field label="Compensation Model" value={data.compensation_model} />
+                            <Field label="Percentage Share" value={`${data.percentage_share}%`} />
+                            <Field label="Tax Residency" value={data.tax_residency === 'non_resident' ? 'Non-resident' : 'Resident'} />
+                            <Field label="Payout Tax Treatment" value={data.payout_tax_treatment} />
+                            <Field label="Withholding %" value={`${data.withholding_pct}%`} />
+                            <Field label="Opening Balance" value={fmt(data.opening_balance)} />
+                            <Field label="Closing Balance" value={fmt(data.closing_balance)} />
+                        </CardContent>
+                    </Card>
+
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <StatementStat label="Gross Earned" value={fmt(data.total_gross_earned)} />
+                        <StatementStat label="Tax Withheld" value={fmt(data.total_tax_withheld)} />
+                        <StatementStat label="Net Paid" value={fmt(data.total_net_paid)} />
+                        <StatementStat label="Net Accrued (Unpaid)" value={fmt(data.total_net_accrued_unpaid)} />
+                    </div>
+
+                    <Card className="border-none shadow-xl shadow-black/5">
+                        <CardHeader className="bg-transparent border-none flex flex-row items-center justify-between">
+                            <h3 className="font-bold">Statement Lines</h3>
+                            <Badge variant="outline">{lineRows.length}</Badge>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="px-2 pb-2">
+                                <DataTable
+                                    columns={columns}
+                                    rows={lineRows}
+                                    rowKey={(l) => l._key}
+                                    storageKey="equity-holder-statement-lines-table"
+                                    emptyText={`No statement activity for this holder between ${data.from} and ${data.to}.`}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <p className="text-[11px] text-muted-foreground text-right">
+                        Generated {format(new Date(data.generated_at), 'PPpp')}
+                    </p>
+                </>
+            )}
+
+            <PdfPreview {...previewProps} />
+        </div>
     );
 }
 
