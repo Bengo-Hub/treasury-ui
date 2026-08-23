@@ -60,6 +60,8 @@ import {
     HolderDocumentStatusBadges,
 } from '@/components/platform/equity-holder-documents';
 import { DocumentTemplatesPanel } from '@/components/platform/equity-document-templates';
+import { CapTableCard } from '@/components/platform/equity-cap-table';
+import { DividendsPanel } from '@/components/platform/equity-dividends';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildEntitlementColumns } from './entitlement-columns';
 import { buildHolderColumns } from './holder-columns';
@@ -225,6 +227,7 @@ export default function EquityManagementPage() {
             <Tabs value={activeTab} onValueChange={setActiveTab} variant="capsule" className="space-y-6">
                 <TabsList>
                     <TabsTrigger value="holders" badge={holders.length || undefined}>Holders</TabsTrigger>
+                    <TabsTrigger value="dividends">Dividends</TabsTrigger>
                     <TabsTrigger value="referrals">Referrals &amp; Programs</TabsTrigger>
                     <TabsTrigger value="schedule">Payout Schedule</TabsTrigger>
                     <TabsTrigger value="agreements">Agreements</TabsTrigger>
@@ -397,6 +400,11 @@ export default function EquityManagementPage() {
                         isSubmitting={updateHolder.isPending}
                     />
                 )}
+                </TabsContent>
+
+                <TabsContent value="dividends" className="mt-6 space-y-6">
+                    <CapTableCard holders={holders} loading={loadingHolders} error={holdersError} />
+                    <DividendsPanel holders={holders} loadingHolders={loadingHolders} holdersError={holdersError} />
                 </TabsContent>
 
                 <TabsContent value="referrals" className="mt-6">
