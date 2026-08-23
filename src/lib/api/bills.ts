@@ -32,7 +32,12 @@ export interface Bill {
   tax_amount: string;
   total_amount: string;
   currency: string;
-  status: string; // draft, pending, paid, overdue, cancelled
+  status: string; // draft, received, approved, paid, partial, overdue, cancelled
+  // Cumulative amount received (sum of active bill payments) and the derived remainder
+  // (total_amount - amount_paid) — a bill can be settled in one shot or across several partial
+  // payments, same as POS split-tender or an invoice's Record Payment.
+  amount_paid: string;
+  balance_due: string;
   payment_intent_id?: string;
   paid_from_account_id?: string;
   payment_method?: string;
@@ -41,6 +46,28 @@ export interface Bill {
   source_reference_id?: string;
   lines?: BillLine[];
   metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+// BillPayment is one recorded payment against a bill — the AP mirror of invoicing's
+// InvoicePayment. Backs the Bills "View Payments" history.
+export interface BillPayment {
+  id: string;
+  tenant_id: string;
+  bill_id: string;
+  amount: string;
+  currency: string;
+  method: string;
+  reference?: string;
+  note?: string;
+  account_id?: string;
+  paid_at: string;
+  created_by?: string;
+  status: 'active' | 'voided';
+  voided_by?: string;
+  voided_at?: string;
+  void_reason?: string;
   created_at: string;
   updated_at: string;
 }
@@ -89,9 +116,13 @@ export interface CreateBillRequest {
 export interface PayBillRequest {
   payment_intent_id?: string;
   paid_from_account_id?: string;
-  /** cash|bank|card (offline, requires reference) or mpesa_b2b|mpesa_b2c|paystack_bank|paystack_mobile (online, dispatched for real). */
+  /** cash|bank|card|cheque|bank_transfer (offline) or mpesa_b2b|mpesa_b2c|paystack_bank|paystack_mobile (online, dispatched for real). */
   payment_method?: string;
   reference?: string;
+  /** Omit to pay the full outstanding balance (total_amount - amount_paid). A smaller value
+   * records a partial payment — the bill flips to "partial" and can be paid again later for the
+   * remainder, the same way POS split-tender or Invoice payments work. */
+  amount?: number;
   /** Recipient* are only used for online payment methods — the supplier's payout destination.
    * recipient_phone is an MSISDN (mpesa_b2c/paystack_mobile only). For mpesa_b2b, use
    * recipient_shortcode instead — a B2B payment goes to another organization's paybill/till,
@@ -148,4 +179,12 @@ export function payBill(tenantIdOrSlug: string, id: string, data: PayBillRequest
 
 export function getAPAging(tenantIdOrSlug: string): Promise<AgingReport> {
   return apiClient.get<AgingReport>(`${BASE}/${tenantIdOrSlug}/ap/aging`);
+}
+
+export function listBillPayments(tenantIdOrSlug: string, billId: string): Promise<{ data: BillPayment[] }> {
+  return apiClient.get<{ data: BillPayment[] }>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/payments`);
+}
+
+export function voidBillPayment(tenantIdOrSlug: string, billId: string, paymentId: string, reason?: string): Promise<BillPayment> {
+  return apiClient.delete<BillPayment>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/payments/${paymentId}`, { data: { reason } });
 }

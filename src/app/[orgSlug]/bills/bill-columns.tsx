@@ -7,20 +7,31 @@ import { Badge, Button } from '@/components/ui/base';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import type { AgingRow, Bill } from '@/lib/api/bills';
 import { formatCurrency } from '@/lib/utils/currency';
-import { CreditCard, Loader2, ShieldCheck, Upload } from 'lucide-react';
+import { CreditCard, Loader2, Receipt, ShieldCheck, Upload } from 'lucide-react';
 
 export const billStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
   draft: 'secondary',
+  received: 'secondary',
+  approved: 'secondary',
   pending: 'warning',
+  partial: 'warning',
   paid: 'success',
   overdue: 'error',
   cancelled: 'outline',
 };
 
+// A bill is payable whenever money is still owed on it — not tied to the (mostly unused) workflow
+// status transitions draft/received/approved. A bare "pending"/"overdue" check here used to hide
+// the Pay action for every normal bill, since nothing in this codebase ever writes those two
+// statuses onto a freshly-created bill — it sits in "draft" until fully paid.
+const PAYABLE_STATUSES = new Set(['draft', 'received', 'approved', 'pending', 'partial', 'overdue']);
+export const isBillPayable = (b: Bill): boolean => b.document_type !== 'credit_note' && PAYABLE_STATUSES.has(b.status);
+
 export interface BillColumnCallbacks {
   onPay: (bill: Bill) => void;
   onApprove: (bill: Bill) => void;
   onTransmit: (bill: Bill) => void;
+  onViewPayments: (bill: Bill) => void;
   transmitPending: boolean;
   transmitPendingBillId?: string;
 }
@@ -60,6 +71,24 @@ export function buildBillColumns(cb: BillColumnCallbacks): DataTableColumn<Bill>
       cellClassName: 'font-bold tabular-nums',
       accessor: (b) => Number(b.total_amount),
       render: (b) => formatCurrency(Number(b.total_amount), b.currency),
+    },
+    {
+      key: 'balance_due',
+      header: 'Balance Due',
+      align: 'right',
+      sortable: true,
+      mobileHidden: true,
+      cellClassName: 'tabular-nums',
+      accessor: (b) => Number(b.balance_due ?? b.total_amount),
+      render: (b) => {
+        const due = Number(b.balance_due ?? b.total_amount);
+        const paid = Number(b.amount_paid ?? 0);
+        return (
+          <span className={paid > 0 && due > 0 ? 'text-amber-600 font-semibold' : ''}>
+            {formatCurrency(due, b.currency)}
+          </span>
+        );
+      },
     },
     {
       key: 'due_date',
@@ -106,9 +135,14 @@ export function buildBillColumns(cb: BillColumnCallbacks): DataTableColumn<Bill>
               <ShieldCheck className="h-3 w-3" /> Approval
             </Button>
           )}
-          {(bill.status === 'pending' || bill.status === 'overdue') && (
+          {isBillPayable(bill) && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => cb.onPay(bill)}>
               <CreditCard className="h-3 w-3" /> Pay
+            </Button>
+          )}
+          {bill.document_type !== 'credit_note' && Number(bill.amount_paid) > 0 && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs" title="View recorded payments" onClick={() => cb.onViewPayments(bill)}>
+              <Receipt className="h-3 w-3" /> Payments
             </Button>
           )}
           {bill.status !== 'draft' && (

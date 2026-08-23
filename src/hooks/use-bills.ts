@@ -5,6 +5,8 @@ import {
   createBill,
   payBill,
   getAPAging,
+  listBillPayments,
+  voidBillPayment,
   type BillsParams,
   type CreateBillRequest,
   type PayBillRequest,
@@ -59,11 +61,12 @@ export function usePayBill(tenantIdOrSlug: string | undefined) {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: PayBillRequest }) =>
       payBill(tenantIdOrSlug!, id, data),
-    onSuccess: () => {
+    onSuccess: (_res, { id }) => {
       qc.invalidateQueries({ queryKey: ['bills', 'list', tenantIdOrSlug] });
       qc.invalidateQueries({ queryKey: ['bills', 'aging', tenantIdOrSlug] });
       qc.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenantIdOrSlug ?? '') });
-      toast.success('Bill paid');
+      qc.invalidateQueries({ queryKey: ['bill-payments', tenantIdOrSlug, id] });
+      toast.success('Payment recorded');
     },
     onError: (err: any) => {
       const data = err?.response?.data;
@@ -72,6 +75,30 @@ export function usePayBill(tenantIdOrSlug: string | undefined) {
         return;
       }
       toast.error(data?.error || 'Failed to pay bill');
+    },
+  });
+}
+
+// ---- Recorded-payment history (View Payments modal) ----
+
+export function useBillPayments(tenantIdOrSlug: string | undefined, billId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['bill-payments', tenantIdOrSlug, billId],
+    queryFn: () => listBillPayments(tenantIdOrSlug!, billId),
+    enabled: !!tenantIdOrSlug && !!billId && enabled,
+  });
+}
+
+export function useVoidBillPayment(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ billId, paymentId, reason }: { billId: string; paymentId: string; reason?: string }) =>
+      voidBillPayment(tenantIdOrSlug!, billId, paymentId, reason),
+    onSuccess: (_d, { billId }) => {
+      qc.invalidateQueries({ queryKey: ['bill-payments', tenantIdOrSlug, billId] });
+      qc.invalidateQueries({ queryKey: ['bills', 'list', tenantIdOrSlug] });
+      qc.invalidateQueries({ queryKey: ['bills', 'aging', tenantIdOrSlug] });
+      qc.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenantIdOrSlug ?? '') });
     },
   });
 }

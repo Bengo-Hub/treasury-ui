@@ -2,6 +2,7 @@
 
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { PayBillDialog } from '@/components/bills/PayBillDialog';
+import { ViewBillPaymentsModal } from '@/components/bills/ViewBillPaymentsModal';
 import { DocumentApprovalModal } from '@/components/documents/DocumentApprovalModal';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildAgingColumns, buildBillColumns } from './bill-columns';
@@ -34,6 +35,7 @@ export default function BillsPage() {
   const [page, setPage] = useState(1);
   const [payBillId, setPayBillId] = useState<string | null>(null);
   const [approvalFor, setApprovalFor] = useState<{ tenant: string; billId: string; billNumber: string } | null>(null);
+  const [viewPaymentsBill, setViewPaymentsBill] = useState<Bill | null>(null);
   // Deep link from the dashboard payables list: /bills?pay=<billID> opens the Pay dialog.
   const searchParams = useSearchParams();
   useEffect(() => {
@@ -70,7 +72,7 @@ export default function BillsPage() {
 
   useMemo(() => { setPage(1); }, [searchQuery, statusFilter, typeFilter]);
 
-  const statusOptions = ['all', 'draft', 'pending', 'paid', 'overdue'];
+  const statusOptions = ['all', 'draft', 'pending', 'partial', 'paid', 'overdue'];
   const typeOptions: { value: 'all' | 'bill' | 'credit_note'; label: string }[] = [
     { value: 'all', label: 'All' },
     { value: 'bill', label: 'Bills' },
@@ -93,6 +95,7 @@ export default function BillsPage() {
         // DocumentApprovalModal invoices uses, module="vendor_bill".
         onApprove: (bill) => setApprovalFor({ tenant: effectiveTenant, billId: bill.id, billNumber: bill.bill_number }),
         onTransmit: (bill) => transmit.mutate({ tenantSlug: effectiveTenant, billId: bill.id }),
+        onViewPayments: (bill) => setViewPaymentsBill(bill),
         transmitPending: transmit.isPending,
         transmitPendingBillId: transmit.variables?.billId,
       }),
@@ -267,6 +270,14 @@ export default function BillsPage() {
         bill={payTarget}
         onClose={() => setPayBillId(null)}
       />
+
+      {viewPaymentsBill && (
+        <ViewBillPaymentsModal
+          tenant={effectiveTenant}
+          bill={viewPaymentsBill}
+          onClose={() => setViewPaymentsBill(null)}
+        />
+      )}
 
       {approvalFor && (
         <DocumentApprovalModal
