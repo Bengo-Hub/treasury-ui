@@ -59,6 +59,7 @@ import {
     EquityHolderDocumentsModal,
     HolderDocumentStatusBadges,
 } from '@/components/platform/equity-holder-documents';
+import { DocumentTemplatesPanel } from '@/components/platform/equity-document-templates';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildEntitlementColumns } from './entitlement-columns';
 import { buildHolderColumns } from './holder-columns';
@@ -227,6 +228,7 @@ export default function EquityManagementPage() {
                     <TabsTrigger value="referrals">Referrals &amp; Programs</TabsTrigger>
                     <TabsTrigger value="schedule">Payout Schedule</TabsTrigger>
                     <TabsTrigger value="agreements">Agreements</TabsTrigger>
+                    <TabsTrigger value="templates">Document Templates</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="holders" className="space-y-6 mt-6">
@@ -413,6 +415,10 @@ export default function EquityManagementPage() {
 
                 <TabsContent value="agreements" className="mt-6">
                     <AgreementsPanel holders={holders} onOpenDocuments={setDocumentsHolder} />
+                </TabsContent>
+
+                <TabsContent value="templates" className="mt-6">
+                    <DocumentTemplatesPanel holders={holders} />
                 </TabsContent>
             </Tabs>
 
