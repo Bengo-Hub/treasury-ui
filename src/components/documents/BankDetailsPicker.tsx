@@ -45,8 +45,8 @@ interface BankDetailsPickerProps {
 function toSnapshot(a: BankAccount): BankDetailsSnapshot {
   return {
     account_name: a.account_name,
-    bank_name: a.bank_name,
-    account_number: a.account_number,
+    bank_name: a.bank_name ?? '',
+    account_number: a.account_number ?? '',
     bank_branch: a.bank_branch,
     branch_code: a.branch_code,
   };
@@ -55,7 +55,10 @@ function toSnapshot(a: BankAccount): BankDetailsSnapshot {
 export function BankDetailsPicker({ orgSlug, include, onIncludeChange, value, onChange }: BankDetailsPickerProps) {
   const { data, isLoading } = useBankAccounts(orgSlug);
   const createMutation = useCreateBankAccount(orgSlug);
-  const accounts = data?.bank_accounts ?? [];
+  // Bank details on a document mean an actual bank account — mobile-money/cash accounts (which
+  // now share this same list, see the 2026-08-23 accounts-module work) have no bank_name/
+  // account_number and don't belong in a "How to pay by bank" block.
+  const accounts = (data?.bank_accounts ?? []).filter((a) => !a.account_type || a.account_type === 'bank');
 
   const [addOpen, setAddOpen] = useState(false);
   const [draft, setDraft] = useState<BankAccountValue>(EMPTY_BANK_ACCOUNT);

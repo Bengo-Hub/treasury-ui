@@ -283,10 +283,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           active: pathname.startsWith(`/${orgSlug}/settings/cost-centers`),
         },
         {
+          label: 'Accounts',
+          icon: Landmark,
+          href: `/${orgSlug}/banking/accounts`,
+          active: pathname.startsWith(`/${orgSlug}/banking/accounts`),
+        },
+        {
           label: 'Reconciliation',
           icon: ClipboardCheck,
           href: `/${orgSlug}/banking/reconciliation`,
-          active: pathname.startsWith(`/${orgSlug}/banking`),
+          active: pathname.startsWith(`/${orgSlug}/banking/reconciliation`),
           feature: 'reconciliation',
         },
         ...(canViewAudit
