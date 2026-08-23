@@ -380,6 +380,7 @@ export default function EquityManagementPage() {
                         <EntitlementsModal
                             holderId={entitlementsHolderId}
                             holderName={holders.find(h => h.id === entitlementsHolderId)?.name ?? 'Holder'}
+                            subscriptionsOnly={(holders.find(h => h.id === entitlementsHolderId)?.linked_tenant_ids?.length ?? 0) > 0}
                             onClose={() => setEntitlementsHolderId(null)}
                         />
                     )}
@@ -590,7 +591,21 @@ function PayoutHistoryModal({ holderId, holderName, onClose }: { holderId: strin
     );
 }
 
-function EntitlementsModal({ holderId, holderName, onClose }: { holderId: string; holderName: string; onClose: () => void }) {
+function EntitlementsModal({
+    holderId,
+    holderName,
+    subscriptionsOnly,
+    onClose,
+}: {
+    holderId: string;
+    holderName: string;
+    /** True when this holder has linked_tenant_ids set — the backend hard-rejects any
+     *  service_id other than "subscriptions" for such a holder (referral/royalty holders earn
+     *  purely from their referred tenants' subscription revenue, never other services). Mirrored
+     *  here so the form can't offer a choice the API will 400 on. */
+    subscriptionsOnly?: boolean;
+    onClose: () => void;
+}) {
     const { data, isLoading, isError } = useEquityEntitlements(holderId);
     const createEntitlement = useCreateEntitlement(holderId);
     const deactivateEntitlement = useDeactivateEntitlement(holderId);
@@ -601,7 +616,7 @@ function EntitlementsModal({ holderId, holderName, onClose }: { holderId: string
     );
 
     const [showForm, setShowForm] = useState(false);
-    const [serviceId, setServiceId] = useState('');
+    const [serviceId, setServiceId] = useState(subscriptionsOnly ? 'subscriptions' : '');
     const [equityPct, setEquityPct] = useState('');
     const [vestingStart, setVestingStart] = useState('');
     const [vestingEnd, setVestingEnd] = useState('');
@@ -648,11 +663,23 @@ function EntitlementsModal({ holderId, holderName, onClose }: { holderId: string
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="text-xs font-medium mb-1 block">Service ID</label>
-                                <select value={serviceId} onChange={e => setServiceId(e.target.value)} className={inputClass} required>
-                                    <option value="">Select service...</option>
-                                    <option value="*">* (All Services)</option>
-                                    {SERVICE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                </select>
+                                {subscriptionsOnly ? (
+                                    <>
+                                        <select value="subscriptions" disabled className={cn(inputClass, 'opacity-70')}>
+                                            <option value="subscriptions">Subscriptions</option>
+                                        </select>
+                                        <p className="text-[11px] text-muted-foreground mt-1">
+                                            This holder is scoped to specific referred tenants — earnings are always
+                                            subscriptions-only.
+                                        </p>
+                                    </>
+                                ) : (
+                                    <select value={serviceId} onChange={e => setServiceId(e.target.value)} className={inputClass} required>
+                                        <option value="">Select service...</option>
+                                        <option value="*">* (All Services)</option>
+                                        {SERVICE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                    </select>
+                                )}
                             </div>
                             <div>
                                 <label className="text-xs font-medium mb-1 block">Equity %</label>
