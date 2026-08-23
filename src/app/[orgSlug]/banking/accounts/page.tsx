@@ -82,6 +82,9 @@ export default function AccountsPage() {
       account_type: accountType,
       account_name:
         accountType === 'bank' ? bankValue.account_name : accountName,
+      // Only KES accounts are supported today (backend rejects anything else) — always send it
+      // explicitly rather than relying on the backend's implicit empty-string default.
+      currency: 'KES',
       opening_balance: openingBalance ? parseFloat(openingBalance) : undefined,
     };
     if (accountType === 'bank') {
@@ -265,7 +268,10 @@ export default function AccountsPage() {
             </FormField>
 
             {accountType === 'bank' && (
-              <BankAccountForm orgSlug={tenant} value={bankValue} onChange={setBankValue} />
+              // Only KES is supported today (backend hard-rejects anything else, bank_accounts.go)
+              // — hide the currency/country picker so the form doesn't offer options that would
+              // just fail on submit.
+              <BankAccountForm orgSlug={tenant} value={bankValue} onChange={setBankValue} hideCurrency />
             )}
 
             {accountType === 'mobile_money' && (

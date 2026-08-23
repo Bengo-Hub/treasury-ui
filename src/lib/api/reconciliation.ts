@@ -9,30 +9,9 @@ const BASE = '/api/v1';
 
 // ---- Types ----
 
-export interface BankAccount {
-  id: string;
-  tenant_id: string;
-  account_name: string;
-  bank_name: string;
-  account_number: string;
-  currency: string;
-  ledger_account_id?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface BankAccountsResponse {
-  accounts: BankAccount[];
-  total: number;
-}
-
-export interface CreateBankAccountRequest {
-  account_name: string;
-  bank_name: string;
-  account_number: string;
-  currency: string;
-  ledger_account_id?: string;
-}
+// Bank-account CRUD types used to live here too, against a separate, now-retired
+// /banking/accounts endpoint — removed with the duplicate CRUD (see use-reconciliation.ts).
+// Bank-account types/requests now live solely in lib/api/bank-accounts.ts.
 
 export interface StatementLine {
   id: string;
@@ -96,14 +75,6 @@ export interface LedgerTxnsResponse {
 }
 
 // ---- API functions ----
-
-export function listBankAccounts(tenantIdOrSlug: string): Promise<BankAccountsResponse> {
-  return apiClient.get<BankAccountsResponse>(`${BASE}/${tenantIdOrSlug}/banking/accounts`);
-}
-
-export function createBankAccount(tenantIdOrSlug: string, data: CreateBankAccountRequest): Promise<BankAccount> {
-  return apiClient.post<BankAccount>(`${BASE}/${tenantIdOrSlug}/banking/accounts`, data);
-}
 
 export function importStatement(tenantIdOrSlug: string, data: ImportStatementRequest): Promise<ImportStatementResponse> {
   return apiClient.post<ImportStatementResponse>(`${BASE}/${tenantIdOrSlug}/banking/statements/import`, data);
