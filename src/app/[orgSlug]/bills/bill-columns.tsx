@@ -34,6 +34,9 @@ export interface BillColumnCallbacks {
   onViewPayments: (bill: Bill) => void;
   transmitPending: boolean;
   transmitPendingBillId?: string;
+  /** Whether this tenant has an active (initialized) eTIMS device — the eTIMS action only
+   *  renders when true, so a non-integrated tenant never sees a button that can only fail. */
+  etimsActive: boolean;
 }
 
 export function buildBillColumns(cb: BillColumnCallbacks): DataTableColumn<Bill>[] {
@@ -145,7 +148,7 @@ export function buildBillColumns(cb: BillColumnCallbacks): DataTableColumn<Bill>
               <Receipt className="h-3 w-3" /> Payments
             </Button>
           )}
-          {bill.status !== 'draft' && (
+          {cb.etimsActive && bill.status !== 'draft' && (
             <Button
               variant="ghost"
               size="sm"

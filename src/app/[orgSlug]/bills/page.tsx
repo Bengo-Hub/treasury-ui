@@ -8,7 +8,7 @@ import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildAgingColumns, buildBillColumns } from './bill-columns';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useBills, useAPAging } from '@/hooks/use-bills';
-import { useTransmitVendorBill } from '@/hooks/use-tax';
+import { useTransmitVendorBill, useIsEtimsActive } from '@/hooks/use-tax';
 import type { Bill } from '@/lib/api/bills';
 import { cn } from '@/lib/utils';
 import {
@@ -80,6 +80,9 @@ export default function BillsPage() {
   ];
 
   const transmit = useTransmitVendorBill();
+  // Gate the per-row eTIMS action on the tenant actually having an active device — a tenant
+  // that hasn't integrated with KRA yet should never see a "Transmit" button that can only fail.
+  const { isActive: etimsActive } = useIsEtimsActive(effectiveTenant);
 
   // The bill the Pay dialog is settling, resolved from the loaded list (covers both the
   // row-level "Pay" click and the ?pay=<billID> deep link).
@@ -98,8 +101,9 @@ export default function BillsPage() {
         onViewPayments: (bill) => setViewPaymentsBill(bill),
         transmitPending: transmit.isPending,
         transmitPendingBillId: transmit.variables?.billId,
+        etimsActive,
       }),
-    [effectiveTenant, transmit],
+    [effectiveTenant, transmit, etimsActive],
   );
   const agingColumns = useMemo(() => buildAgingColumns(), []);
 
