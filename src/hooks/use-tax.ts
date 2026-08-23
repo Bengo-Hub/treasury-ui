@@ -60,6 +60,20 @@ export function useEtimsDevices(tenantSlug: string) {
   });
 }
 
+/**
+ * useIsEtimsActive — the ONE place that decides "is this tenant actually eTIMS-integrated" for
+ * gating transmit/sync UI (Bills list, invoice detail's "Transmit to eTIMS", any future surface).
+ * A device merely being REGISTERED isn't enough (tax-page-columns.tsx's own "Initialize" action
+ * only hides once `status === 'active'`) — a tenant with a pending/uninitialized device hasn't
+ * actually integrated with KRA yet and would just get a confusing failure clicking Transmit.
+ * Every eTIMS action surface should gate on this rather than unconditionally rendering.
+ */
+export function useIsEtimsActive(tenantSlug: string) {
+  const { data, isLoading } = useEtimsDevices(tenantSlug);
+  const isActive = (data?.devices ?? []).some((d) => d.status === 'active');
+  return { isActive, isLoading };
+}
+
 export function useRegisterEtimsDevice() {
   const qc = useQueryClient();
   return useMutation({

@@ -33,7 +33,7 @@ import { DocumentApprovalCard } from '@/components/documents/DocumentApprovalCar
 import { DocumentJournalPanel } from '@/components/documents/DocumentJournalPanel';
 import { FiscalInfoPanel } from '@/components/documents/FiscalInfoPanel';
 import { EtimsResponseModal } from '@/components/tax/etims-response-modal';
-import { useTransmitInvoice } from '@/hooks/use-tax';
+import { useTransmitInvoice, useIsEtimsActive } from '@/hooks/use-tax';
 import { MarginPanel } from '@/components/documents/MarginPanel';
 import { LinkedCostsPanel } from '@/components/documents/LinkedCostsPanel';
 import { moduleForDocType } from '@/lib/documents/approvals';
@@ -139,6 +139,10 @@ export default function InvoiceDetailPage() {
   const [deliveryConfirm, setDeliveryConfirm] = useState<null | 'dispatch' | 'cancel'>(null);
   const [etimsResp, setEtimsResp]         = useState<any>(null);
   const transmitMut = useTransmitInvoice();
+  // Gate "Transmit to eTIMS" on the tenant actually having an active device — see bill-columns.tsx's
+  // identical fix for the same class of bug (the button used to render for every tenant regardless
+  // of KRA integration status, based only on the document's own type/status).
+  const { isActive: etimsActive } = useIsEtimsActive(effectiveTenant);
 
   const handleRecordPayment = useCallback(() => {
     if (!paymentAmount) return;
@@ -276,7 +280,7 @@ export default function InvoiceDetailPage() {
               {/* Transmit to KRA eTIMS — for fiscal sale documents (standard invoice / credit
                   note). The backend is idempotent; the worker may also fiscalise automatically,
                   but this gives the operator an explicit action + immediate KRA response. */}
-              {(invoice.invoice_type === 'standard' || invoice.invoice_type === 'credit_note') && (
+              {etimsActive && (invoice.invoice_type === 'standard' || invoice.invoice_type === 'credit_note') && (
                 <button
                   onClick={() => transmitMut.mutate(
                     { tenantSlug: orgSlug, invoiceId },
