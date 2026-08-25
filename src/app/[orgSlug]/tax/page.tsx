@@ -449,9 +449,16 @@ function KraActivationCard({ tenantSlug }: { tenantSlug: string }) {
 }
 
 function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
+  const { orgSlug } = useResolvedTenant();
   const wizardSearchParams = useSearchParams();
   const wizardTenantParam = wizardSearchParams.get('tenant');
-  const wizardHref = wizardTenantParam ? `etims-certification?tenant=${encodeURIComponent(wizardTenantParam)}` : 'etims-certification';
+  // Absolute path, not relative — a relative "etims-certification" href resolves against the
+  // current path by REPLACING its last segment (no trailing slash on /tax), landing on
+  // /{orgSlug}/etims-certification instead of /{orgSlug}/tax/etims-certification (404, proven
+  // live 2026-08-25).
+  const wizardHref = wizardTenantParam
+    ? `/${orgSlug}/tax/etims-certification?tenant=${encodeURIComponent(wizardTenantParam)}`
+    : `/${orgSlug}/tax/etims-certification`;
   const { data, isLoading, isError } = useEtimsDevices(tenantSlug);
   const devices = data?.devices ?? [];
   const [registerOpen, setRegisterOpen] = useState(false);
