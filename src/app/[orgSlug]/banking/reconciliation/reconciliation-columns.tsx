@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/base';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import type { StatementLine } from '@/lib/api/reconciliation';
 import type { BankAccount } from '@/lib/api/bank-accounts';
+import type { ParsedStatementLine } from '@/lib/statement-parser';
 import { cn } from '@/lib/utils';
 
 // Badge variant per bank_statement_line.match_status, mirroring the billStatusVariant convention.
@@ -66,6 +67,48 @@ export function buildBankAccountColumns(): DataTableColumn<BankAccount>[] {
       mobileAction: true,
       accessor: (a) => a.currency,
       render: (a) => <Badge variant="outline">{a.currency}</Badge>,
+    },
+  ];
+}
+
+// Preview table shown between "parse" and "commit" in the Statements tab's import wizard — the
+// parsed-but-not-yet-imported rows, so a bad file/column-mapping is caught before anything is sent.
+export function buildStatementPreviewColumns(): DataTableColumn<ParsedStatementLine>[] {
+  return [
+    {
+      key: 'transaction_date',
+      header: 'Date',
+      sortable: true,
+      accessor: (l) => l.transaction_date,
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      primary: true,
+      sortable: true,
+      accessor: (l) => l.description,
+      render: (l) => <span className="font-bold">{l.description}</span>,
+    },
+    {
+      key: 'reference',
+      header: 'Reference',
+      mobileHidden: true,
+      accessor: (l) => l.reference || '',
+      render: (l) => l.reference || 'N/A',
+    },
+    {
+      key: 'amount',
+      header: 'Amount',
+      align: 'right',
+      sortable: true,
+      mobileAction: true,
+      accessor: (l) => l.amount,
+      render: (l) => (
+        <span className={cn('font-bold', l.amount < 0 ? 'text-red-500' : 'text-green-500')}>
+          {l.amount < 0 ? '' : '+'}
+          {l.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+      ),
     },
   ];
 }

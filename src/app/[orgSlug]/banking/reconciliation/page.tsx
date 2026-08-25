@@ -2,12 +2,16 @@
 
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { BankAccountVerify } from '@/components/payments/bank-account-verify';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
+import { SearchableCombobox, type ComboboxOption } from '@bengo-hub/shared-ui-lib/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
-import { buildBankAccountColumns, buildUnreconciledColumns } from './reconciliation-columns';
+import {
+  buildBankAccountColumns,
+  buildStatementPreviewColumns,
+  buildUnreconciledColumns,
+} from './reconciliation-columns';
 import { cn } from '@/lib/utils';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
@@ -22,12 +26,22 @@ import {
 import type { StatementLine } from '@/lib/api/reconciliation';
 import type { BankAccount } from '@/lib/api/bank-accounts';
 import {
+  buildTemplateWorkbook,
+  detectFormat,
+  parseStatementFile,
+  type ParsedStatementLine,
+} from '@/lib/statement-parser';
+import {
+  AlertCircle,
   CheckCircle2,
+  Download,
+  FileSpreadsheet,
   Link2,
   Loader2,
   Plus,
   RefreshCw,
   Upload,
+  X,
 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
@@ -181,102 +195,229 @@ function StatementsTab({ tenantSlug }: { tenantSlug: string }) {
   const importMutation = useImportStatement(tenantSlug);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedBankAccount, setSelectedBankAccount] = useState('');
+  const [statementDate, setStatementDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fileName, setFileName] = useState('');
+  const [format, setFormat] = useState<'csv' | 'xls' | 'xlsx'>('csv');
+  const [parsedLines, setParsedLines] = useState<ParsedStatementLine[] | null>(null);
+  const [parseWarnings, setParseWarnings] = useState<string[]>([]);
+  const [parseError, setParseError] = useState('');
+  const [dragOver, setDragOver] = useState(false);
   const [importResult, setImportResult] = useState<{ statement_id: string; lines_imported: number } | null>(null);
 
   const bankAccounts = bankData?.bank_accounts ?? [];
+  const bankAccountOptions: ComboboxOption[] = bankAccounts.map((ba) => ({
+    value: ba.id,
+    label: ba.account_name,
+    hint: ba.bank_name || ba.account_number || ba.account_type,
+  }));
 
-  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFile(file: File) {
+    setImportResult(null);
+    setParseError('');
+    setParsedLines(null);
+    setParseWarnings([]);
+    setFileName(file.name);
+    setFormat(detectFormat(file.name));
+    try {
+      const result = await parseStatementFile(file);
+      if (result.lines.length === 0) {
+        setParseError(result.warnings[0] || 'No transaction rows were found in this file.');
+        return;
+      }
+      setParsedLines(result.lines);
+      setParseWarnings(result.warnings);
+    } catch {
+      setParseError('Could not read this file — is it a valid CSV, XLS, or XLSX statement export?');
+    }
+  }
+
+  function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !selectedBankAccount) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      const lines = parseCSV(text);
-      if (lines.length === 0) return;
-
-      importMutation.mutate(
-        {
-          bank_account_id: selectedBankAccount,
-          statement_date: new Date().toISOString().slice(0, 10),
-          lines,
-        },
-        {
-          onSuccess: (result) => {
-            setImportResult(result);
-          },
-        },
-      );
-    };
-    reader.readAsText(file);
+    if (file) void handleFile(file);
+    e.target.value = '';
   }
 
-  function parseCSV(text: string): { transaction_date: string; description: string; amount: number; reference: string }[] {
-    const rows = text.trim().split('\n');
-    if (rows.length < 2) return [];
-    // skip header row
-    return rows.slice(1).map((row) => {
-      const cols = row.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
-      return {
-        transaction_date: cols[0] || new Date().toISOString().slice(0, 10),
-        description: cols[1] || '',
-        amount: parseFloat(cols[2] || '0'),
-        reference: cols[3] || '',
-      };
-    }).filter((l) => l.description && !isNaN(l.amount));
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void handleFile(file);
   }
+
+  function handleCommit() {
+    if (!parsedLines || !selectedBankAccount) return;
+    importMutation.mutate(
+      {
+        bank_account_id: selectedBankAccount,
+        statement_date: statementDate,
+        format,
+        lines: parsedLines,
+      },
+      {
+        onSuccess: (result) => {
+          setImportResult(result);
+          setParsedLines(null);
+          setParseWarnings([]);
+          setFileName('');
+        },
+      },
+    );
+  }
+
+  function handleDownloadTemplate() {
+    const blob = buildTemplateWorkbook();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bank-statement-template.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const totals = useMemo(() => {
+    if (!parsedLines) return null;
+    let moneyIn = 0;
+    let moneyOut = 0;
+    for (const l of parsedLines) {
+      if (l.amount > 0) moneyIn += l.amount;
+      else moneyOut += -l.amount;
+    }
+    return { moneyIn, moneyOut };
+  }, [parsedLines]);
+
+  const previewColumns = useMemo(() => buildStatementPreviewColumns(), []);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold">Import Statement</h2>
+        <Button variant="outline" className="gap-2" onClick={handleDownloadTemplate}>
+          <Download className="h-4 w-4" /> Download Template
+        </Button>
       </div>
 
       <Card>
         <CardContent>
           <div className="space-y-4">
-            <FormField label="Bank Account" required>
-              <select
-                className={inputClasses}
-                value={selectedBankAccount}
-                onChange={(e) => setSelectedBankAccount(e.target.value)}
-              >
-                <option value="">Select bank account...</option>
-                {bankAccounts.map((ba) => (
-                  <option key={ba.id} value={ba.id}>
-                    {ba.account_name} ({ba.bank_name})
-                  </option>
-                ))}
-              </select>
-            </FormField>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="Bank Account" required>
+                <SearchableCombobox
+                  options={bankAccountOptions}
+                  value={selectedBankAccount}
+                  onChange={setSelectedBankAccount}
+                  placeholder="Select bank account…"
+                  searchPlaceholder="Search accounts…"
+                  emptyText="No bank accounts yet"
+                />
+              </FormField>
+              <FormField label="Statement Date" required>
+                <input
+                  type="date"
+                  className={inputClasses}
+                  value={statementDate}
+                  onChange={(e) => setStatementDate(e.target.value)}
+                />
+              </FormField>
+            </div>
 
             <div
               className={cn(
-                'border-2 border-dashed border-border rounded-xl p-8 text-center transition-colors',
-                selectedBankAccount
-                  ? 'hover:border-primary/50 cursor-pointer'
-                  : 'opacity-50 pointer-events-none',
+                'border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer',
+                dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50',
               )}
               onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
             >
               <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
-              <p className="text-sm font-medium">Click to upload CSV or OFX statement</p>
+              <p className="text-sm font-medium">Click or drag a CSV, XLS, or XLSX statement here</p>
               <p className="text-xs text-muted-foreground mt-1">
-                CSV format: date, description, amount, reference
+                Any bank export with a date, description, and amount (or money-in/money-out) column is
+                auto-detected — or use the template above.
               </p>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.ofx"
+                accept=".csv,.xls,.xlsx"
                 className="hidden"
-                onChange={handleFileUpload}
+                onChange={handleFileInputChange}
               />
             </div>
 
-            {importMutation.isPending && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Importing statement...
+            {parseError && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{parseError}</span>
+              </div>
+            )}
+
+            {parsedLines && totals && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{fileName}</span>
+                    <span className="text-muted-foreground">
+                      · {parsedLines.length} line{parsedLines.length !== 1 ? 's' : ''} · Money in{' '}
+                      <span className="text-green-500 font-semibold">
+                        +{totals.moneyIn.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>{' '}
+                      · Money out{' '}
+                      <span className="text-red-500 font-semibold">
+                        -{totals.moneyOut.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => {
+                      setParsedLines(null);
+                      setParseWarnings([]);
+                      setFileName('');
+                    }}
+                  >
+                    <X className="h-3.5 w-3.5" /> Discard
+                  </Button>
+                </div>
+
+                {parseWarnings.length > 0 && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-400 space-y-0.5">
+                    {parseWarnings.map((w, i) => (
+                      <p key={i}>{w}</p>
+                    ))}
+                  </div>
+                )}
+
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <DataTable<ParsedStatementLine>
+                    columns={previewColumns}
+                    rows={parsedLines}
+                    rowKey={(l) => `${l.transaction_date}-${l.reference}-${l.amount}-${l.description}`}
+                    storageKey="reconciliation-statement-preview-table"
+                    emptyText="No rows parsed"
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    className="gap-2"
+                    onClick={handleCommit}
+                    disabled={!selectedBankAccount || importMutation.isPending}
+                  >
+                    {importMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    Import {parsedLines.length} line{parsedLines.length !== 1 ? 's' : ''}
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -363,7 +504,7 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
         <CardContent>
           <div className="flex items-end gap-3">
             <FormField label="Statement" className="flex-1">
-              <Combobox
+              <SearchableCombobox
                 options={statementOptions}
                 value={statementIdForAuto}
                 onChange={setStatementIdForAuto}
@@ -445,7 +586,7 @@ function ReconcileTab({ tenantSlug }: { tenantSlug: string }) {
             </div>
 
             <FormField label="Ledger Transaction" required>
-              <Combobox
+              <SearchableCombobox
                 options={ledgerTxnOptions}
                 value={matchTransactionId}
                 onChange={setMatchTransactionId}
