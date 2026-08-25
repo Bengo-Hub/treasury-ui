@@ -92,6 +92,9 @@ export interface Invoice {
   reference_type?: string;
   /** Originating outlet/branch that made the sale (null = tenant-wide / HQ). */
   outlet_id?: string;
+  /** The real BankAccount this invoice was raised against ("Deposit to Account") — RecordPayment
+   *  defaults to crediting this account when set. */
+  settlement_account_id?: string;
   lines?: InvoiceLine[];
   metadata?: Record<string, unknown>;
   /** Read-only summary of documents already generated FROM this invoice (credit/debit notes,
@@ -135,6 +138,8 @@ export interface CreateInvoiceRequest {
   reference_type?: string;
   /** Originating outlet/branch that made the sale (optional; null/omit = tenant-wide / HQ). */
   outlet_id?: string;
+  /** The real BankAccount this invoice is being raised against — see Invoice's own field. */
+  settlement_account_id?: string;
   lines: LineRequest[];
   metadata?: Record<string, unknown>;
 }
@@ -157,6 +162,8 @@ export interface UpdateInvoiceRequest {
   transport?: Record<string, any>;
   /** Originating outlet/branch that made the sale (optional; null/omit = tenant-wide / HQ). */
   outlet_id?: string;
+  /** The real BankAccount this invoice is being raised against — see Invoice's own field. */
+  settlement_account_id?: string;
   lines?: LineRequest[];
   metadata?: Record<string, unknown>;
 }

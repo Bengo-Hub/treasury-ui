@@ -107,6 +107,15 @@ export function getAccountBalance(tenantIdOrSlug: string, id: string): Promise<A
   return apiClient.get<AccountBalance>(`${BASE}/${tenantIdOrSlug}/bank-accounts/${id}/balance`);
 }
 
+/**
+ * Repairs an account whose ledger leaf was never provisioned (a legacy row from before this
+ * account-type/ledger-linking work existed) — idempotent, safe to call on an already-linked
+ * account. This is what actually fixes the "this account is not linked to the ledger yet" 409.
+ */
+export function linkAccountLedger(tenantIdOrSlug: string, id: string): Promise<BankAccount> {
+  return apiClient.post<BankAccount>(`${BASE}/${tenantIdOrSlug}/bank-accounts/${id}/link-ledger`, {});
+}
+
 export function getAccountStatement(
   tenantIdOrSlug: string,
   id: string,

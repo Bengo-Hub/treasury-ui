@@ -16,9 +16,10 @@ import {
   EMPTY_PAYMENT_ACCOUNT,
   type PaymentAccount,
 } from '@/components/payments/payment-account-form';
+import { BankAccountsPanel } from '@/components/payments/bank-accounts-panel';
 import { useSettings, useUpdateSetting, getSettingValue } from '@/hooks/use-settings';
 import { fetchTenantDefaults } from '@/lib/api/tenant';
-import { Banknote, Loader2 } from 'lucide-react';
+import { Banknote, Landmark, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -76,33 +77,52 @@ export function PaymentDetailsTab({ orgSlug, tenantSlug }: { orgSlug: string; te
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center gap-2 py-4 border-b border-border/50">
-        <Banknote className="h-4 w-4 text-primary" />
-        <div>
-          <h3 className="font-bold text-sm uppercase tracking-tight">Payment Details</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Business identity + payment account shown on your invoices, receipts &amp; statements (issuer block + &quot;How to pay&quot;).
-          </p>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6 p-6">
-        {isLoading || !hydrated ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 py-4 border-b border-border/50">
+          <Banknote className="h-4 w-4 text-primary" />
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-tight">Payment Details</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Business identity + payment account shown on your invoices, receipts &amp; statements (issuer block + &quot;How to pay&quot;).
+            </p>
           </div>
-        ) : (
-          <>
-            <PaymentAccountFields acct={acct} onChange={onChange} showVat orgSlug={orgSlug} />
-            <div className="flex justify-end">
-              <Button onClick={handleSave} disabled={updateSetting.isPending}>
-                {updateSetting.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Save Payment Details
-              </Button>
+        </CardHeader>
+        <CardContent className="space-y-6 p-6">
+          {isLoading || !hydrated ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
             </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+          ) : (
+            <>
+              <PaymentAccountFields acct={acct} onChange={onChange} showVat orgSlug={orgSlug} />
+              <div className="flex justify-end">
+                <Button onClick={handleSave} disabled={updateSetting.isPending}>
+                  {updateSetting.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Save Payment Details
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 py-4 border-b border-border/50">
+          <Landmark className="h-4 w-4 text-primary" />
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-tight">Bank Accounts</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Your real, ledger-linked bank/mobile-money/cash accounts — distinct from the issuer
+              block above, this is what actually tracks balances and statements. The same list as
+              the Accounts page; create or link one here too.
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <BankAccountsPanel tenant={tenantSlug} orgSlug={orgSlug} />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

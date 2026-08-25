@@ -264,7 +264,10 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     // Hydrate bank-details choice: exclude flag + the snapshot stored at issue time.
     setIncludeBankDetails(!(existing.metadata?.exclude_bank_details as boolean));
     const savedBank = existing.metadata?.bank_details as BankDetailsSnapshot | undefined;
-    if (savedBank && savedBank.account_number) setBankDetails(savedBank);
+    const settlementAccountId = (existing as { settlement_account_id?: string }).settlement_account_id;
+    if (savedBank && savedBank.account_number) {
+      setBankDetails(savedBank.account_id ? savedBank : { ...savedBank, account_id: settlementAccountId });
+    }
 
     const srcLines = existing.lines ?? [];
     setLines(srcLines.map(l => ({
@@ -460,6 +463,10 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         terms:          form.terms,
         notes:          form.notes,
         outlet_id:      outletId,
+        // The real BankAccount this invoice is raised against, when an existing account (not a
+        // freshly-typed one with no id yet) was picked in BankDetailsPicker — lets Record Payment
+        // default to crediting the same account later instead of a blank picker every time.
+        settlement_account_id: includeBankDetails ? bankDetails?.account_id : undefined,
         metadata,
         lines:          linePayload,
         discount_amount: globalDiscountAmt > 0 ? globalDiscountAmt : undefined,

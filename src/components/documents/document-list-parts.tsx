@@ -39,6 +39,9 @@ export interface DocumentRow {
   due_date?: string;
   secondary_date?: string;
   public_token?: string;
+  /** The real BankAccount this invoice was raised against (invoices only) — lets Record Payment
+   *  default to the same account instead of the user picking one from scratch each time. */
+  settlement_account_id?: string;
   lines?: DocumentLine[];
   /** Documents already generated FROM this row (credit/debit notes, delivery note, receipt) —
    *  lets the action-gating policy link to what exists instead of re-offering "Generate". */
@@ -215,6 +218,7 @@ export function invoiceToDocumentRow(inv: Invoice): DocumentRow {
     doc_date: inv.invoice_date,
     due_date: inv.due_date,
     public_token: inv.public_token,
+    settlement_account_id: inv.settlement_account_id,
     related_documents: inv.related_documents,
     lines: inv.lines?.map(l => ({
       description: l.description,

@@ -8,10 +8,12 @@ import {
   deleteBankAccount,
   getAccountBalance,
   getAccountStatement,
+  linkAccountLedger,
   type BankAccountsResponse,
   type BankAccountRequest,
   type AccountBalance,
   type AccountStatement,
+  type BankAccount,
 } from '@/lib/api/bank-accounts';
 
 const STALE_MS = 5 * 60 * 1000;
@@ -62,6 +64,21 @@ export function useAccountBalance(tenant: string, id: string, enabled = true) {
     queryFn: () => getAccountBalance(tenant, id),
     enabled: !!tenant && !!id && enabled,
     staleTime: STALE_MS,
+  });
+}
+
+/** Repairs a legacy account's missing ledger link — the "Link to ledger" fix action for the
+ * 409 "this account is not linked to the ledger yet" error. Invalidates the account list AND
+ * this account's own statement/balance queries so a subsequent refetch succeeds immediately. */
+export function useLinkAccountLedger(tenant: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => linkAccountLedger(tenant, id),
+    onSuccess: (_data: BankAccount, id: string) => {
+      qc.invalidateQueries({ queryKey: bankAccountKeys.all(tenant) });
+      qc.invalidateQueries({ queryKey: bankAccountKeys.balance(tenant, id) });
+      qc.invalidateQueries({ queryKey: ['bank-accounts', tenant, id, 'statement'] });
+    },
   });
 }
 

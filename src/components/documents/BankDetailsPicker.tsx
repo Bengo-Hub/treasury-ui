@@ -23,8 +23,12 @@ import { BankAccountForm, EMPTY_BANK_ACCOUNT, type BankAccountValue } from '@/co
 import { useBankAccounts, useCreateBankAccount } from '@/hooks/use-bank-accounts';
 import type { BankAccount } from '@/lib/api/bank-accounts';
 
-/** The snapshot the parent stores in document metadata.bank_details. */
+/** The snapshot the parent stores in document metadata.bank_details. account_id (the real
+ *  BankAccount id, when an existing account was picked rather than a fresh one typed/added) lets
+ *  the parent also persist Invoice.settlement_account_id — the account RecordPayment later
+ *  defaults to crediting — alongside the display-only text snapshot. */
 export interface BankDetailsSnapshot {
+  account_id?: string;
   account_name: string;
   bank_name: string;
   account_number: string;
@@ -44,6 +48,7 @@ interface BankDetailsPickerProps {
 
 function toSnapshot(a: BankAccount): BankDetailsSnapshot {
   return {
+    account_id: a.id,
     account_name: a.account_name,
     bank_name: a.bank_name ?? '',
     account_number: a.account_number ?? '',
@@ -68,9 +73,12 @@ export function BankDetailsPicker({ orgSlug, include, onIncludeChange, value, on
     [accounts],
   );
 
-  // Match the current snapshot back to an account id (by account number) for the combobox value.
+  // Match the current snapshot back to an account id for the combobox value — prefer the stored
+  // account_id (added later; older drafts/invoices predate it) and fall back to matching by
+  // account number for those.
   const selectedId = useMemo(() => {
     if (!value) return '';
+    if (value.account_id && accounts.some((a) => a.id === value.account_id)) return value.account_id;
     return accounts.find((a) => a.account_number === value.account_number)?.id ?? '';
   }, [accounts, value]);
 

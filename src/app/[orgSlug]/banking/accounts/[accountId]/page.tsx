@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { useAccountStatement } from '@/hooks/use-bank-accounts';
+import { useAccountStatement, useLinkAccountLedger } from '@/hooks/use-bank-accounts';
 import { ReportDocument, type ReportKpi } from '@/components/reports/ReportDocument';
 import {
   ReportTable,
@@ -68,12 +68,14 @@ export default function AccountStatementPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState(today());
 
-  const { data, isLoading, isError, refetch, isFetching } = useAccountStatement(
+  const { data, isLoading, isError, error, refetch, isFetching } = useAccountStatement(
     effectiveTenant,
     accountId,
     { from: from || undefined, to: to || undefined },
     !!effectiveTenant && !!accountId,
   );
+  const notLinked = (error as { response?: { status?: number } } | null)?.response?.status === 409;
+  const linkLedger = useLinkAccountLedger(effectiveTenant);
 
   const lines = data?.lines ?? [];
   const opening = num(data?.opening_balance);
@@ -132,10 +134,28 @@ export default function AccountStatementPage() {
         </div>
       )}
 
-      {!isLoading && isError && (
+      {!isLoading && isError && notLinked && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <span>This account isn&apos;t linked to the ledger yet, so it has no statement — this
+            happens on older accounts created before ledger-linking existed. Link it now to fix
+            this permanently.</span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={linkLedger.isPending}
+            onClick={() => linkLedger.mutate(accountId, { onSuccess: () => refetch() })}
+          >
+            {linkLedger.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : null}
+            Link to ledger
+          </Button>
+        </div>
+      )}
+
+      {!isLoading && isError && !notLinked && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          Failed to load the statement. If this account was just created, make sure it's linked to
-          the ledger, then try again.
+          Failed to load the statement. Please try again.
         </div>
       )}
 

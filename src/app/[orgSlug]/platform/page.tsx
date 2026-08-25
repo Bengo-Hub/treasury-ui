@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api/client';
 import { fetchTenantDefaults, listPlatformTenants, type TenantResponse } from '@/lib/api/tenant';
 import { PaymentAccountFields, EMPTY_PAYMENT_ACCOUNT, type PaymentAccount } from '@/components/payments/payment-account-form';
+import { BankAccountsPanel } from '@/components/payments/bank-accounts-panel';
 import { fetchLiveForexRates } from '@/lib/api/currencies';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildFeeRuleColumns } from './fee-rule-columns';
@@ -1020,6 +1021,23 @@ function PlatformPaymentsSection({ orgSlug }: { orgSlug: string }) {
               </div>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 py-4">
+          <Landmark className="h-4 w-4 text-primary" />
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-tight">Bank Accounts</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              The platform&apos;s real, ledger-linked bank/mobile-money/cash accounts — distinct
+              from the issuer block above, this is what actually tracks balances and statements.
+              Same list as the platform&apos;s own Accounts page.
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="pb-6">
+          <BankAccountsPanel tenant={orgSlug} orgSlug={orgSlug} />
         </CardContent>
       </Card>
     </div>

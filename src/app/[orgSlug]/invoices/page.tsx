@@ -73,7 +73,7 @@ export default function InvoicesPage() {
   // In the all-tenants view a row's edit must target that row's tenant, not the owner org.
   const [editTenant, setEditTenant] = useState<string | undefined>(undefined);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
-  const [paymentFor, setPaymentFor] = useState<{ tenant: string; invoiceId: string; invoiceTotal?: string; currency?: string } | null>(null);
+  const [paymentFor, setPaymentFor] = useState<{ tenant: string; invoiceId: string; invoiceTotal?: string; currency?: string; settlementAccountId?: string } | null>(null);
   const [viewPaymentsFor, setViewPaymentsFor] = useState<{ tenant: string; invoice: ViewPaymentsInvoiceRef } | null>(null);
   // Reused centralized approval modal (submit / approve / reject) — the SAME flow as the Approvals
   // inbox and the invoice detail page, opened right from a row so no one has to navigate away.
@@ -144,7 +144,7 @@ export default function InvoicesPage() {
     send: { label: 'Send / Resend', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => setConfirmDialog({ kind: 'send', tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) },
     generate_delivery_note: { label: 'Generate Delivery Note', icon: <Truck className="h-3.5 w-3.5" />, onClick: (r) => run(() => generateDeliveryNote(src.rowTenant(r), r.id), `Delivery note generated for ${r.doc_number}`) },
     view_delivery_note: { label: 'View Delivery Note', icon: <Truck className="h-3.5 w-3.5" />, onClick: (r) => r.related_documents?.delivery_note_id && router.push(`/${src.detailHrefTenant(r)}/invoices/${r.related_documents.delivery_note_id}`) },
-    record_payment: { label: 'Record Payment', icon: <DollarSign className="h-3.5 w-3.5" />, onClick: (r) => setPaymentFor({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceTotal: r.total_amount, currency: r.currency }) },
+    record_payment: { label: 'Record Payment', icon: <DollarSign className="h-3.5 w-3.5" />, onClick: (r) => setPaymentFor({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceTotal: r.total_amount, currency: r.currency, settlementAccountId: r.settlement_account_id }) },
     view_payments: {
       label: 'View Payments', icon: <Receipt className="h-3.5 w-3.5" />,
       onClick: (r) => setViewPaymentsFor({ tenant: src.rowTenant(r), invoice: { id: r.id, invoice_number: r.doc_number, total_amount: r.total_amount, currency: r.currency } }),
@@ -289,6 +289,7 @@ export default function InvoicesPage() {
           invoiceId={paymentFor.invoiceId}
           invoiceTotal={paymentFor.invoiceTotal}
           currency={paymentFor.currency}
+          settlementAccountId={paymentFor.settlementAccountId}
           onClose={() => setPaymentFor(null)}
         />
       )}
