@@ -9,6 +9,7 @@
  */
 
 import { apiClient } from './client';
+import { formatCurrency } from '@/lib/utils/currency';
 
 const BASE = '/api/v1';
 
@@ -40,6 +41,15 @@ export interface BankAccount {
 export interface BankAccountsResponse {
   bank_accounts: BankAccount[];
   total: number;
+}
+
+/** Shared "which account, and how much is in it" hint for every account picker across the app
+ *  (Record Payment, Receive Payment, Pay Bill, Mark Expense Paid) — so a user isn't choosing an
+ *  account blind. Falls back to the account number when there's no bank_name (mobile_money/cash). */
+export function bankAccountHint(a: BankAccount): string {
+  const identity = a.bank_name || a.account_number || '';
+  const balance = a.balance !== undefined ? formatCurrency(Number(a.balance) || 0, a.currency) : '';
+  return [identity, balance].filter(Boolean).join(' · ');
 }
 
 export interface BankAccountRequest {

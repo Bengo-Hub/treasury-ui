@@ -5,6 +5,7 @@ import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { useBankAccounts } from '@/hooks/use-bank-accounts';
+import { bankAccountHint } from '@/lib/api/bank-accounts';
 import type { Expense } from '@/lib/api/expenses';
 import { formatCurrency } from '@/lib/utils/currency';
 import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
@@ -35,7 +36,7 @@ export function MarkExpensePaidModal({ tenant, expense, onClose, onConfirm, pend
     () =>
       (bankAccountsData?.bank_accounts ?? [])
         .filter((a) => a.is_active !== false)
-        .map((a) => ({ value: a.id, label: a.account_name, hint: a.bank_name || a.account_number })),
+        .map((a) => ({ value: a.id, label: a.account_name, hint: bankAccountHint(a) })),
     [bankAccountsData],
   );
   // Default to a cash-type account when present, else leave empty (backend default).

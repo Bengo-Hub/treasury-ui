@@ -17,6 +17,7 @@ import {
 import type { AccountType, BankAccount, BankAccountRequest } from '@/lib/api/bank-accounts';
 import { money } from '@/components/charts/chart-theme';
 import { cn } from '@/lib/utils';
+import { useMe } from '@/hooks/useMe';
 import { Banknote, Landmark, Loader2, Plus, Smartphone, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -66,6 +67,7 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
   const router = useRouter();
 
   const { data, isLoading, isError } = useBankAccounts(tenant);
+  const { data: me } = useMe();
   const createMutation = useCreateBankAccount(tenant);
   const deleteMutation = useDeleteBankAccount(tenant);
   const linkLedgerMutation = useLinkAccountLedger(tenant);
@@ -122,6 +124,11 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
         toast.error('Account name is required');
         return;
       }
+      // The backend requires a custodian for a cash account (who's accountable for the drawer)
+      // — this form has no staff picker, so default to whoever is creating it. Previously this
+      // was omitted entirely, so every cash-account create failed backend validation
+      // ("custodian_user_id is required for a cash account") with no field to fix it from here.
+      if (me?.id) payload.custodian_user_id = me.id;
     }
 
     createMutation.mutate(payload, {
