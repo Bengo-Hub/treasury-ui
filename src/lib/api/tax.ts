@@ -515,6 +515,37 @@ export function updateEtimsImportedItem(tenantSlug: string, body: UpdateImported
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/imported-items`, body);
 }
 
+// ---- The 4 KRA OSCU test cases that had a working backend client method but no
+// individually-triggerable route until this was closed (certification-wizard gap).
+
+export function getEtimsCustomerPinInfo(tenantSlug: string, tin: string): Promise<KraOscuLookupResult> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/customer-pin-info?tin=${encodeURIComponent(tin)}`);
+}
+
+export function getEtimsItemClassList(tenantSlug: string): Promise<KraOscuLookupResult> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/item-class-list`);
+}
+
+export function getEtimsItemInfo(tenantSlug: string): Promise<KraOscuLookupResult> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/item-info`);
+}
+
+export function getEtimsStockMoveList(tenantSlug: string): Promise<KraOscuLookupResult> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/stock-move-list`);
+}
+
+// ---- Read-only verification endpoints reused by the certification wizard to confirm a
+// "manual" step (one that requires real business data, driven from its own feature page)
+// actually reached KRA — never a duplicate write path, only the existing read routes.
+
+export function getEtimsSalesTransactions(tenantSlug: string): Promise<KraOscuLookupResult> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/sales-transactions`);
+}
+
+export function getEtimsInvoiceDetail(tenantSlug: string, invcNo: string | number): Promise<KraOscuLookupResult> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/invoice-detail/${invcNo}`);
+}
+
 export function listEtimsTransmissions(
   tenantSlug: string,
   params?: { status?: string; limit?: number; offset?: number },
