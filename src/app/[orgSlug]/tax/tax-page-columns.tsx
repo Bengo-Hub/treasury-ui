@@ -14,15 +14,16 @@ import { useParams } from 'next/navigation';
 
 // Password-style masked field with a reveal-eye toggle, matching the platform Gateways &
 // Secrets page's existing pattern for GavaConnect app secrets (platform/page.tsx). Fetches
-// the decrypted value on demand — never on row render — so viewing the list never decrypts
-// a device's real CMC key unless an operator explicitly asks.
-function CmcKeyCell({ device }: { device: EtimsDevice }) {
+// the decrypted value on demand — never on render — so viewing it never decrypts a device's
+// real CMC key unless an operator explicitly asks. Shared by the eTIMS Devices table cell
+// (below) and the Device SCU details dialog (page.tsx) so both stay in sync with one reveal
+// implementation. Wraps onto multiple lines rather than truncating with an ellipsis — a
+// masked/revealed secret cut off mid-string is illegible and defeats the point of revealing it.
+export function CmcKeyReveal({ deviceId }: { deviceId: string }) {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const [value, setValue] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [visible, setVisible] = useState(false);
-
-  if (!device.status || device.status === 'pending') return <span className="text-muted-foreground text-xs">—</span>;
 
   const toggle = async () => {
     if (visible) {
@@ -32,7 +33,7 @@ function CmcKeyCell({ device }: { device: EtimsDevice }) {
     if (value === null) {
       setLoading(true);
       try {
-        const resp = await revealEtimsDeviceCmcKey(orgSlug, device.id);
+        const resp = await revealEtimsDeviceCmcKey(orgSlug, deviceId);
         setValue(resp.cmc_key || '');
       } catch {
         setValue('');
@@ -44,15 +45,20 @@ function CmcKeyCell({ device }: { device: EtimsDevice }) {
   };
 
   return (
-    <div className="flex items-center gap-1.5 font-mono text-xs">
-      <span className="max-w-35 truncate">
+    <div className="flex items-start gap-1.5 font-mono text-xs">
+      <span className="max-w-40 break-all whitespace-normal">
         {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : visible ? value || '(empty)' : '••••••••••'}
       </span>
-      <button type="button" onClick={toggle} className="text-muted-foreground hover:text-foreground" tabIndex={-1}>
+      <button type="button" onClick={toggle} className="shrink-0 text-muted-foreground hover:text-foreground" tabIndex={-1}>
         {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
       </button>
     </div>
   );
+}
+
+function CmcKeyCell({ device }: { device: EtimsDevice }) {
+  if (!device.status || device.status === 'pending') return <span className="text-muted-foreground text-xs">—</span>;
+  return <CmcKeyReveal deviceId={device.id} />;
 }
 
 export const periodStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'secondary'> = {
