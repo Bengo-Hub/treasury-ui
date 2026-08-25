@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { CheckCircle, ChevronRight, CreditCard, Loader2, Receipt, X } from 'lucide-react';
 import { useRecordPayment, useInvoices } from '@/hooks/use-invoices';
 import { useBankAccounts } from '@/hooks/use-bank-accounts';
+import { bankAccountHint } from '@/lib/api/bank-accounts';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import type { Invoice } from '@/lib/api/invoices';
 import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
@@ -71,7 +72,7 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
     () =>
       (bankAccountsData?.bank_accounts ?? [])
         .filter((a) => a.is_active !== false)
-        .map((a) => ({ value: a.id, label: a.account_name, hint: a.bank_name || a.account_number })),
+        .map((a) => ({ value: a.id, label: a.account_name, hint: bankAccountHint(a) })),
     [bankAccountsData],
   );
 

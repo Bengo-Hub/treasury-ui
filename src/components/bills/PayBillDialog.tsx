@@ -7,6 +7,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBankAccounts } from '@/hooks/use-bank-accounts';
+import { bankAccountHint } from '@/lib/api/bank-accounts';
 import { usePayBill } from '@/hooks/use-bills';
 import { ONLINE_PAYMENT_METHODS, type Bill, type PayBillRequest } from '@/lib/api/bills';
 import { listPaymentIntents } from '@/lib/api/payments';
@@ -93,7 +94,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
     () =>
       (bankAccountsData?.bank_accounts ?? [])
         .filter((a) => a.is_active !== false)
-        .map((a) => ({ value: a.id, label: a.account_name, hint: a.bank_name || a.account_number })),
+        .map((a) => ({ value: a.id, label: a.account_name, hint: bankAccountHint(a) })),
     [bankAccountsData],
   );
   const selectedAccount = bankAccountsData?.bank_accounts?.find((a) => a.id === accountId);
