@@ -850,6 +850,11 @@ export interface CustomerBalance {
    *  this (never balance_due). max(0, balance_due). */
   outstanding_debit: string;
   updated_at: string;
+  /** Only present on a recordCustomerPayment response: how much of THAT payment cleared the
+   *  debit vs. was banked as new store credit (only set when surplus_action was requested and
+   *  the payment genuinely overshot the outstanding debit). */
+  settled_amount?: string;
+  surplus_amount?: string;
 }
 
 interface Paginated<T> { data: T[]; total: number; page: number; limit: number }
@@ -870,7 +875,7 @@ export async function getCustomerBalances(tenant: string): Promise<CustomerBalan
 export function recordCustomerPayment(
   tenant: string,
   contactId: string,
-  body: { amount: number; payment_method?: string; reference?: string; paid_at?: string; account_id?: string },
+  body: { amount: number; payment_method?: string; reference?: string; paid_at?: string; account_id?: string; surplus_action?: string },
 ): Promise<CustomerBalance> {
   return apiClient.post<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/payment`, {
     amount: String(body.amount),
@@ -878,6 +883,7 @@ export function recordCustomerPayment(
     reference: body.reference,
     paid_at: body.paid_at,
     account_id: body.account_id,
+    surplus_action: body.surplus_action,
   });
 }
 
