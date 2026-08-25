@@ -86,6 +86,12 @@ export function DocStatsBlock({ tenant, docType }: DocStatsBlockProps) {
           <div>
             <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{labels.amount}</p>
             <p className="text-2xl font-black text-foreground tabular-nums">{fmt(stats.total_amount)}</p>
+            {docType === 'invoice' && (
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Lifetime, every status &amp; type — not the same figure as the Dashboard&apos;s
+                &quot;Revenue&quot; card (this period, accrual-recognized only).
+              </p>
+            )}
           </div>
         </div>
       </div>

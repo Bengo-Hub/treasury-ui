@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { CheckCircle, ChevronRight, CreditCard, Loader2, Receipt, X } from 'lucide-react';
 import { useRecordPayment, useInvoices } from '@/hooks/use-invoices';
-import { useAccounts } from '@/hooks/use-accounts';
+import { useBankAccounts } from '@/hooks/use-bank-accounts';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import type { Invoice } from '@/lib/api/invoices';
 import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
@@ -37,10 +37,15 @@ interface Props {
   invoiceId?: string;
   invoiceTotal?: string;
   currency?: string;
+  /** The real bank account this invoice was raised against (Invoice.settlement_account_id), if
+   *  any — pre-selects "Paid Into Account" so a payment naturally lands on the same account the
+   *  invoice was issued for, instead of the user re-picking one from scratch every time. Still
+   *  editable — a customer may genuinely pay into a different account than originally quoted. */
+  settlementAccountId?: string;
   onClose: () => void;
 }
 
-export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency = 'KES', onClose }: Props) {
+export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency = 'KES', settlementAccountId, onClose }: Props) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [s1, setS1] = useState<Step1State>({
     receipt_number: '',
@@ -50,19 +55,24 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
   const [s2, setS2] = useState<Step2State>({
     method: 'bank_transfer',
     amount: invoiceTotal ?? '',
-    accountId: '',
+    accountId: settlementAccountId ?? '',
   });
   const [allocatedIds, setAllocatedIds] = useState<string[]>(invoiceId ? [invoiceId] : []);
 
   const recordPayment = useRecordPayment(tenant);
 
-  const { data: accountsData } = useAccounts(tenant);
+  // Sourced from the real bank_accounts table (not chart-of-accounts) — RecordPayment's
+  // account_id resolves as a financial-account lookup (ledger.ResolveCashCode), so the picker
+  // must offer BankAccount IDs, matching BankDetailsPicker's own convention. Previously this
+  // sourced ChartOfAccount rows instead, so every manually-recorded payment silently landed on a
+  // fallback account regardless of what the user picked here.
+  const { data: bankAccountsData } = useBankAccounts(tenant);
   const accountOptions = useMemo<ComboboxOption[]>(
     () =>
-      (accountsData?.accounts ?? [])
-        .filter((a) => a.account_type === 'asset' && a.is_active !== false)
-        .map((a) => ({ value: a.id, label: a.account_name, hint: a.account_code })),
-    [accountsData],
+      (bankAccountsData?.bank_accounts ?? [])
+        .filter((a) => a.is_active !== false)
+        .map((a) => ({ value: a.id, label: a.account_name, hint: a.bank_name || a.account_number })),
+    [bankAccountsData],
   );
 
   // For step 3 — list unpaid invoices to allocate

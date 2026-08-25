@@ -6,7 +6,7 @@ import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAccounts } from '@/hooks/use-accounts';
+import { useBankAccounts } from '@/hooks/use-bank-accounts';
 import { usePayBill } from '@/hooks/use-bills';
 import { ONLINE_PAYMENT_METHODS, type Bill, type PayBillRequest } from '@/lib/api/bills';
 import { listPaymentIntents } from '@/lib/api/payments';
@@ -84,15 +84,19 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
   const [error, setError] = useState('');
   const [approvalRequired, setApprovalRequired] = useState(false);
 
-  const { data: accountsData } = useAccounts(tenant);
+  // Sourced from the real bank_accounts table — PayBill's paid_from_account_id resolves as a
+  // financial-account lookup (ledger.ResolveCashCode), which needs a BankAccount ID, not a
+  // ChartOfAccount one. Previously sourced ChartOfAccount rows here, so this picker's selection
+  // was silently ignored (fell through to a fallback account) on every submission.
+  const { data: bankAccountsData } = useBankAccounts(tenant);
   const accountOptions = useMemo<ComboboxOption[]>(
     () =>
-      (accountsData?.accounts ?? [])
-        .filter((a) => a.account_type === 'asset' && a.is_active !== false)
-        .map((a) => ({ value: a.id, label: a.account_name, hint: a.account_code })),
-    [accountsData],
+      (bankAccountsData?.bank_accounts ?? [])
+        .filter((a) => a.is_active !== false)
+        .map((a) => ({ value: a.id, label: a.account_name, hint: a.bank_name || a.account_number })),
+    [bankAccountsData],
   );
-  const selectedAccount = accountsData?.accounts?.find((a) => a.id === accountId);
+  const selectedAccount = bankAccountsData?.bank_accounts?.find((a) => a.id === accountId);
   const selectedAccountBalance = selectedAccount?.balance !== undefined ? parseFloat(selectedAccount.balance) : undefined;
   // Warn (never hard-block — the cashier may still be entering figures, or the account genuinely
   // runs negative) when the chosen account's balance won't cover this payment — mirrors pos-ui's

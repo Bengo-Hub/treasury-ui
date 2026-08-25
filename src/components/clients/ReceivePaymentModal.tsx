@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { SettlementModal, RECEIVE_METHODS } from '@bengo-hub/shared-ui-lib/payments';
 import { useRecordCustomerPayment } from '@/hooks/use-invoices';
-import { useAccounts } from '@/hooks/use-accounts';
+import { useBankAccounts } from '@/hooks/use-bank-accounts';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import type { CustomerBalance } from '@/lib/api/invoices';
 
@@ -30,13 +30,17 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
   const recordPay = useRecordCustomerPayment(tenant);
   const contactId = target.crm_contact_id || target.customer_identifier || target.id;
 
-  const { data: accountsData } = useAccounts(tenant);
+  // Sourced from the real bank_accounts table — RecordARPayment's account_id resolves as a
+  // financial-account lookup (ledger.ResolveCashCode), which needs a BankAccount ID, not a
+  // ChartOfAccount one. Previously sourced ChartOfAccount rows here, so this picker's selection
+  // was silently ignored (fell through to a fallback account) on every submission.
+  const { data: bankAccountsData } = useBankAccounts(tenant);
   const accountOptions = useMemo<ComboboxOption[]>(
     () =>
-      (accountsData?.accounts ?? [])
-        .filter((a) => a.account_type === 'asset' && a.is_active !== false)
-        .map((a) => ({ value: a.id, label: a.account_name, hint: a.account_code })),
-    [accountsData],
+      (bankAccountsData?.bank_accounts ?? [])
+        .filter((a) => a.is_active !== false)
+        .map((a) => ({ value: a.id, label: a.account_name, hint: a.bank_name || a.account_number })),
+    [bankAccountsData],
   );
   const [accountId, setAccountId] = useState('');
 
