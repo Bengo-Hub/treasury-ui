@@ -7,7 +7,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { CapsuleTabs, CapsuleTabsContent, CapsuleTabsList, CapsuleTabsTrigger } from '@/components/ui/capsule-tabs';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
-import { buildEtimsDeviceColumns, buildTaxCodeColumns, buildTaxPeriodColumns } from './tax-page-columns';
+import { buildEtimsDeviceColumns, buildTaxCodeColumns, buildTaxPeriodColumns, CmcKeyReveal } from './tax-page-columns';
 import {
   useTaxCodes,
   useCreateTaxCode,
@@ -680,6 +680,12 @@ function ScuDetailsDialog({
           <div className="grid grid-cols-1 gap-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-xs sm:grid-cols-2">
             <div><span className="text-muted-foreground">Device serial:</span> <span className="font-mono font-medium">{device?.device_serial}</span></div>
             <div><span className="text-muted-foreground">KRA PIN:</span> <span className="font-mono font-medium">{device?.tin || '—'}</span></div>
+            {device?.id && (
+              <div className="sm:col-span-2">
+                <span className="text-muted-foreground">CMC key:</span>{' '}
+                <CmcKeyReveal deviceId={device.id} />
+              </div>
+            )}
           </div>
           <FormField label="SCU ID (sdcId)">
             <input
