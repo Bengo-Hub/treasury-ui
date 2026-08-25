@@ -404,6 +404,13 @@ export function setDeviceScuDetails(
   return apiClient.patch(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/scu-details`, body);
 }
 
+/** Reveals a device's decrypted CMC key — fetched on demand (reveal-eye toggle), never
+ * bundled into the device list response, so the real secret is only decrypted when an
+ * operator explicitly asks to see it. */
+export function revealEtimsDeviceCmcKey(tenantSlug: string, deviceId: string): Promise<{ cmc_key: string }> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/cmc-key`);
+}
+
 export function listEtimsTransmissions(
   tenantSlug: string,
   params?: { status?: string; limit?: number; offset?: number },
