@@ -32,6 +32,8 @@ export interface StatementLine {
 export interface ImportStatementRequest {
   bank_account_id: string;
   statement_date: string;
+  /** Source file format, for traceability only — stored on BankStatement.format. */
+  format?: 'csv' | 'xls' | 'xlsx';
   lines: {
     transaction_date: string;
     description: string;
