@@ -67,6 +67,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 const SUBSCRIBE_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexafrica.com';
 
@@ -98,7 +99,11 @@ export default function TaxPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
   // Default to the platform owner's own tenant (codevertex); drill-down overrides.
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
-  const [tab, setTab] = useState('profile');
+  // Reads ?tab=... once on load so other pages (e.g. the eTIMS certification wizard) can deep
+  // link straight to a specific tab ("Go to eTIMS Items") instead of leaving the tenant to find
+  // it manually — tab switches after that stay pure client state, same as before.
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') || 'profile');
   const { hasFeature, isLoading: subLoading } = useSubscription();
 
   // Platform owners can always see eTIMS for any tenant; tenants need the feature
@@ -444,6 +449,9 @@ function KraActivationCard({ tenantSlug }: { tenantSlug: string }) {
 }
 
 function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
+  const wizardSearchParams = useSearchParams();
+  const wizardTenantParam = wizardSearchParams.get('tenant');
+  const wizardHref = wizardTenantParam ? `etims-certification?tenant=${encodeURIComponent(wizardTenantParam)}` : 'etims-certification';
   const { data, isLoading, isError } = useEtimsDevices(tenantSlug);
   const devices = data?.devices ?? [];
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -505,6 +513,12 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
             <Button size="sm" onClick={() => setRegisterOpen(true)} className="gap-1">
               <Plus className="h-3.5 w-3.5" /> Register Device
             </Button>
+            <Link href={wizardHref}>
+              <Button size="sm" variant="outline" title="Step through all 23 KRA-scored OSCU test cases">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span className="ml-1">Certification Wizard</span>
+              </Button>
+            </Link>
           </div>
         </CardHeader>
         <CardContent className="p-0">
