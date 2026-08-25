@@ -7,7 +7,53 @@
 import { Badge, Button } from '@/components/ui/base';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import type { EtimsDevice, TaxCode, TaxPeriod } from '@/lib/api/tax';
-import { Calculator, Loader2 } from 'lucide-react';
+import { revealEtimsDeviceCmcKey } from '@/lib/api/tax';
+import { Calculator, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { useParams } from 'next/navigation';
+
+// Password-style masked field with a reveal-eye toggle, matching the platform Gateways &
+// Secrets page's existing pattern for GavaConnect app secrets (platform/page.tsx). Fetches
+// the decrypted value on demand — never on row render — so viewing the list never decrypts
+// a device's real CMC key unless an operator explicitly asks.
+function CmcKeyCell({ device }: { device: EtimsDevice }) {
+  const { orgSlug } = useParams<{ orgSlug: string }>();
+  const [value, setValue] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  if (!device.status || device.status === 'pending') return <span className="text-muted-foreground text-xs">—</span>;
+
+  const toggle = async () => {
+    if (visible) {
+      setVisible(false);
+      return;
+    }
+    if (value === null) {
+      setLoading(true);
+      try {
+        const resp = await revealEtimsDeviceCmcKey(orgSlug, device.id);
+        setValue(resp.cmc_key || '');
+      } catch {
+        setValue('');
+      } finally {
+        setLoading(false);
+      }
+    }
+    setVisible(true);
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 font-mono text-xs">
+      <span className="max-w-35 truncate">
+        {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : visible ? value || '(empty)' : '••••••••••'}
+      </span>
+      <button type="button" onClick={toggle} className="text-muted-foreground hover:text-foreground" tabIndex={-1}>
+        {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  );
+}
 
 export const periodStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'secondary'> = {
   open: 'warning',
@@ -112,6 +158,7 @@ export function buildEtimsDeviceColumns(cb: EtimsDeviceColumnCallbacks): DataTab
     { key: 'device_serial', header: 'Serial', primary: true, sortable: true, accessor: (d) => d.device_serial, cellClassName: 'font-mono text-xs font-bold' },
     { key: 'tin', header: 'TIN (KRA PIN)', cellClassName: 'font-mono text-xs', accessor: (d) => d.tin ?? '', render: (d) => d.tin || '—' },
     { key: 'branch_id', header: 'Branch', mobileHidden: true, accessor: (d) => d.branch_id ?? '', render: (d) => d.branch_id || '00' },
+    { key: 'cmc_key_reveal', header: 'CMC Key', mobileHidden: true, accessor: () => '', render: (d) => <CmcKeyCell device={d} /> },
     {
       key: 'outlet_id', header: 'Outlet', mobileHidden: true,
       accessor: (d) => (d.outlet_id ? (cb.outletNameById[d.outlet_id] ?? d.outlet_id) : 'All Outlets'),
