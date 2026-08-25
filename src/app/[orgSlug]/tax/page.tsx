@@ -35,6 +35,7 @@ import { VATReturnTab } from './vat-return-tab';
 import { EtimsSyncTab } from './etims-sync-tab';
 import { RatesCalendarTab } from './rates-calendar-tab';
 import { EtimsItemsTab } from './etims-items-tab';
+import { KraBranchToolsTab } from './kra-branch-tools-tab';
 import { WHVATTab } from './whvat-tab';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSubscription } from '@/hooks/use-subscription';
@@ -135,6 +136,7 @@ export default function TaxPage() {
             <CapsuleTabsTrigger value="etims" badge={!subLoading && !canUseEtims ? <Lock className="size-3 text-muted-foreground" /> : undefined}><Cpu className="h-4 w-4" />eTIMS Devices</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="etims-sync" badge={<span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">New</span>}><RefreshCw className="h-4 w-4" />eTIMS Sync</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="etims-items"><Package className="h-4 w-4" />eTIMS Items</CapsuleTabsTrigger>
+            <CapsuleTabsTrigger value="etims-branch-tools" badge={<span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">New</span>}><Landmark className="h-4 w-4" />KRA Branch Tools</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="wht-prn"><Coins className="h-4 w-4" />WHT PRN</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="whvat"><ShieldCheck className="h-4 w-4" />WHVAT</CapsuleTabsTrigger>
             <CapsuleTabsTrigger value="tax-returns"><FileText className="h-4 w-4" />Tax Returns</CapsuleTabsTrigger>
@@ -174,6 +176,10 @@ export default function TaxPage() {
           <CapsuleTabsContent value="etims-sync" className="mt-6">
             {canUseEtims ? <EtimsSyncTab tenantSlug={effectiveTenant} /> : <EtimsUpgradePrompt />}
           </CapsuleTabsContent>
+          <CapsuleTabsContent value="etims-branch-tools" className="mt-6">
+            {canUseEtims ? <KraBranchToolsTab tenantSlug={effectiveTenant} /> : <EtimsUpgradePrompt />}
+          </CapsuleTabsContent>
+
           <CapsuleTabsContent value="etims-items" className="mt-6">
             {canUseEtims ? <EtimsItemsTab tenantSlug={effectiveTenant} /> : <EtimsUpgradePrompt />}
           </CapsuleTabsContent>

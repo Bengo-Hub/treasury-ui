@@ -420,6 +420,89 @@ export function syncEtimsDeviceInvoiceCounter(
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/invoice-counter/sync`, {});
 }
 
+// ---- KRA branch admin / taxpayer / notice / item-composition / imported-item endpoints ----
+// Request/response shapes mirror the backend's tax_etims_branch.go handlers exactly.
+
+export interface KraOscuLookupResult {
+  resultCd?: string;
+  resultMsg?: string;
+  resultDt?: string;
+  data?: unknown;
+}
+
+export function getEtimsBranchList(tenantSlug: string): Promise<KraOscuLookupResult> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/branches`);
+}
+
+export function getEtimsNoticeList(tenantSlug: string): Promise<KraOscuLookupResult> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/notices`);
+}
+
+export function getEtimsTaxpayerInfo(tenantSlug: string): Promise<KraOscuLookupResult> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/taxpayer-info`);
+}
+
+export interface RegisterBranchCustomerBody {
+  cust_no?: string;
+  cust_tin: string;
+  cust_nm: string;
+  adrs?: string;
+  tel_no?: string;
+  email?: string;
+  fax_no?: string;
+}
+export function registerEtimsBranchCustomer(tenantSlug: string, body: RegisterBranchCustomerBody) {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/branch-customer`, body);
+}
+
+export interface RegisterBranchUserBody {
+  user_id: string;
+  user_nm?: string;
+  pwd: string;
+  adrs?: string;
+  cntc?: string;
+}
+export function registerEtimsBranchUser(tenantSlug: string, body: RegisterBranchUserBody) {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/branch-user`, body);
+}
+
+export interface RegisterBranchInsuranceBody {
+  isrcc_cd: string;
+  isrcc_nm?: string;
+  isrc_rt?: number;
+}
+export function registerEtimsBranchInsurance(tenantSlug: string, body: RegisterBranchInsuranceBody) {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/branch-insurance`, body);
+}
+
+export interface RegisterItemCompositionBody {
+  item_cd: string;
+  cpst_item_cd: string;
+  cpst_qty: number;
+}
+export function registerEtimsItemComposition(tenantSlug: string, body: RegisterItemCompositionBody) {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/item-composition`, body);
+}
+
+/** tin: optional override (the GavaConnect session's Application Test Pin during
+ * certification, per the runbook) — omit for real (non-certification) use. */
+export function getEtimsImportedItems(tenantSlug: string, tin?: string): Promise<KraOscuLookupResult> {
+  const q = tin ? `?tin=${encodeURIComponent(tin)}` : '';
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/imported-items${q}`);
+}
+
+export interface UpdateImportedItemBody {
+  task_cd: string;
+  dcl_de?: string;
+  item_seq: number;
+  hs_cd?: string;
+  item_cls_cd: string;
+  item_cd: string;
+}
+export function updateEtimsImportedItem(tenantSlug: string, body: UpdateImportedItemBody) {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/imported-items`, body);
+}
+
 export function listEtimsTransmissions(
   tenantSlug: string,
   params?: { status?: string; limit?: number; offset?: number },
