@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { SettlementModal, RECEIVE_METHODS } from '@bengo-hub/shared-ui-lib/payments';
 import { useRecordCustomerPayment } from '@/hooks/use-invoices';
 import { useBankAccounts } from '@/hooks/use-bank-accounts';
@@ -54,6 +55,7 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
       amountLabel="Balance due"
       amountValue={parseFloat(target.outstanding_debit) || 0}
       defaultAmount={parseFloat(target.outstanding_debit) || 0}
+      allowOverpayment
       currency={target.currency}
       methods={RECEIVE_METHODS}
       isPending={recordPay.isPending}
@@ -73,15 +75,28 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
           </div>
         </div>
       }
-      onSubmit={({ amount, method, reference, effectiveAt }) =>
+      onSubmit={({ amount, method, reference, effectiveAt, overpaymentAction }) =>
         new Promise((resolve, reject) => {
           if (!accountId) {
             reject(new Error('Select which account this payment landed in.'));
             return;
           }
           recordPay.mutate(
-            { contactId, amount, paymentMethod: method, reference, paidAt: effectiveAt, accountId },
-            { onSuccess: () => { onClose(); resolve(); }, onError: reject },
+            {
+              contactId, amount, paymentMethod: method, reference, paidAt: effectiveAt, accountId,
+              surplusAction: overpaymentAction === 'store_credit' ? 'store_credit' : undefined,
+            },
+            {
+              onSuccess: (res) => {
+                const surplus = parseFloat(res.surplus_amount || '0');
+                if (surplus > 0) {
+                  toast.success(`Payment recorded — ${surplus.toLocaleString()} credited to ${target.customer_name || 'the customer'}'s store credit`);
+                }
+                onClose();
+                resolve();
+              },
+              onError: reject,
+            },
           );
         })
       }

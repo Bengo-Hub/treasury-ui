@@ -222,8 +222,8 @@ export function useCustomerBalances(tenant: string, enabled = true) {
 export function useRecordCustomerPayment(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ contactId, amount, paymentMethod, reference, paidAt, accountId }: { contactId: string; amount: number; paymentMethod?: string; reference?: string; paidAt?: string; accountId?: string }) =>
-      recordCustomerPayment(tenant, contactId, { amount, payment_method: paymentMethod, reference, paid_at: paidAt, account_id: accountId }),
+    mutationFn: ({ contactId, amount, paymentMethod, reference, paidAt, accountId, surplusAction }: { contactId: string; amount: number; paymentMethod?: string; reference?: string; paidAt?: string; accountId?: string; surplusAction?: string }) =>
+      recordCustomerPayment(tenant, contactId, { amount, payment_method: paymentMethod, reference, paid_at: paidAt, account_id: accountId, surplus_action: surplusAction }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
