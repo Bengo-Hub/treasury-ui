@@ -411,6 +411,18 @@ export function revealEtimsDeviceCmcKey(tenantSlug: string, deviceId: string): P
   return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/cmc-key`);
 }
 
+/** Admin correction: directly sets a device's local invoice-number counter. Use sparingly — the
+ * counter is normally allocated automatically (a locked per-TIN sequence) and kept in sync via
+ * syncEtimsDeviceInvoiceCounter below; this exists for the rare case where KRA's own state and
+ * ours have genuinely diverged and an operator needs to force a specific next value. */
+export function setEtimsDeviceInvoiceCounter(
+  tenantSlug: string,
+  deviceId: string,
+  value: number,
+): Promise<EtimsDevice> {
+  return apiClient.patch(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/invoice-counter`, { value });
+}
+
 /** Fast-forwards a device's local invoice-number counter to match KRA's own transmitted-sales
  * history when it's drifted behind (the real source of truth). */
 export function syncEtimsDeviceInvoiceCounter(

@@ -8,7 +8,8 @@ import { Badge, Button } from '@/components/ui/base';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import type { EtimsDevice, TaxCode, TaxPeriod } from '@/lib/api/tax';
 import { revealEtimsDeviceCmcKey } from '@/lib/api/tax';
-import { Calculator, Eye, EyeOff, Loader2, RefreshCw } from 'lucide-react';
+import { useSetDeviceInvoiceCounter } from '@/hooks/use-tax';
+import { Calculator, Check, Eye, EyeOff, Loader2, Pencil, RefreshCw, X } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 
@@ -59,6 +60,78 @@ export function CmcKeyReveal({ deviceId }: { deviceId: string }) {
 function CmcKeyCell({ device }: { device: EtimsDevice }) {
   if (!device.status || device.status === 'pending') return <span className="text-muted-foreground text-xs">—</span>;
   return <CmcKeyReveal deviceId={device.id} />;
+}
+
+// Invoice-number counter cell: shows the current value with a sync-from-KRA button (cb, wired
+// by the page) and its own inline edit affordance for the rare admin-correction case — both go
+// through the same locked allocator server-side, so the two paths can never drift into
+// disagreeing writers again (the bug this centralization was built to close).
+function InvoiceCounterCell({ device, cb }: { device: EtimsDevice; cb: EtimsDeviceColumnCallbacks }) {
+  const { orgSlug } = useParams<{ orgSlug: string }>();
+  const setCounter = useSetDeviceInvoiceCounter();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(device.last_invoice_no ?? 0));
+
+  if (editing) {
+    return (
+      <div className="flex items-center justify-end gap-1">
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          autoFocus
+          className="w-16 rounded border border-input bg-transparent px-1 py-0.5 text-right font-mono text-xs"
+        />
+        <button
+          type="button"
+          title="Save"
+          disabled={setCounter.isPending}
+          onClick={() => {
+            const n = Number.parseInt(value, 10);
+            if (Number.isNaN(n)) return;
+            setCounter.mutate(
+              { tenantSlug: orgSlug, deviceId: device.id, value: n },
+              { onSuccess: () => setEditing(false) },
+            );
+          }}
+          className="text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+        >
+          {setCounter.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+        </button>
+        <button
+          type="button"
+          title="Cancel"
+          onClick={() => { setEditing(false); setValue(String(device.last_invoice_no ?? 0)); }}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-1.5">
+      <span>{device.last_invoice_no}</span>
+      <button
+        type="button"
+        title="Manually set the counter (admin correction — prefer the sync button unless you have a specific reason)"
+        onClick={() => setEditing(true)}
+        className="text-muted-foreground hover:text-foreground"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        title="Sync from KRA (the real source of truth) if the local count has drifted"
+        disabled={cb.syncPending}
+        onClick={() => cb.onSyncInvoiceCounter(device)}
+        className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+      >
+        {cb.syncPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  );
 }
 
 export const periodStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'secondary'> = {
@@ -191,20 +264,7 @@ export function buildEtimsDeviceColumns(cb: EtimsDeviceColumnCallbacks): DataTab
     {
       key: 'last_invoice_no', header: 'Invoice #', align: 'right', mobileHidden: true, cellClassName: 'font-mono',
       accessor: (d) => d.last_invoice_no,
-      render: (d) => (
-        <div className="flex items-center justify-end gap-1.5">
-          <span>{d.last_invoice_no}</span>
-          <button
-            type="button"
-            title="Sync from KRA (the real source of truth) if the local count has drifted"
-            disabled={cb.syncPending}
-            onClick={() => cb.onSyncInvoiceCounter(d)}
-            className="text-muted-foreground hover:text-foreground disabled:opacity-50"
-          >
-            {cb.syncPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-      ),
+      render: (d) => <InvoiceCounterCell device={d} cb={cb} />,
     },
     {
       key: 'sdc_id', header: 'SCU ID', accessor: (d) => d.sdc_id ?? '',
