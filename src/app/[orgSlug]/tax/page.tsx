@@ -16,6 +16,7 @@ import {
   useEtimsDevices,
   useRegisterEtimsDevice,
   useInitEtimsDevice,
+  useSyncDeviceInvoiceCounter,
   useSetDeviceScuDetails,
   useRefreshCodeLists,
   useKraStatus,
@@ -444,6 +445,7 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
   const [scuDevice, setScuDevice] = useState<EtimsDevice | null>(null);
   const [codeListsOpen, setCodeListsOpen] = useState(false);
   const initDevice = useInitEtimsDevice();
+  const syncInvoiceCounter = useSyncDeviceInvoiceCounter();
   const refreshCodes = useRefreshCodeLists();
   const outlets = useOutletFilterStore((s) => s.outlets);
   const outletNameById = useMemo(
@@ -456,10 +458,12 @@ function EtimsTab({ tenantSlug }: { tenantSlug: string }) {
         onInit: (device) => initDevice.mutate({ tenantSlug, deviceId: device.id }),
         onActivateWithCmc: (device) => setCmcDevice({ id: device.id, serial: device.device_serial, tin: device.tin || '' }),
         onSetScuDetails: (device) => setScuDevice(device),
+        onSyncInvoiceCounter: (device) => syncInvoiceCounter.mutate({ tenantSlug, deviceId: device.id }),
         initPending: initDevice.isPending,
+        syncPending: syncInvoiceCounter.isPending,
         outletNameById,
       }),
-    [tenantSlug, initDevice, outletNameById],
+    [tenantSlug, initDevice, syncInvoiceCounter, outletNameById],
   );
 
   return (

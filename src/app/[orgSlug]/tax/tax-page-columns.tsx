@@ -8,7 +8,7 @@ import { Badge, Button } from '@/components/ui/base';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import type { EtimsDevice, TaxCode, TaxPeriod } from '@/lib/api/tax';
 import { revealEtimsDeviceCmcKey } from '@/lib/api/tax';
-import { Calculator, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Calculator, Eye, EyeOff, Loader2, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 
@@ -135,7 +135,9 @@ export interface EtimsDeviceColumnCallbacks {
   onInit: (device: EtimsDevice) => void;
   onActivateWithCmc: (device: EtimsDevice) => void;
   onSetScuDetails: (device: EtimsDevice) => void;
+  onSyncInvoiceCounter: (device: EtimsDevice) => void;
   initPending: boolean;
+  syncPending: boolean;
   /** outlet_id -> display name, for resolving the Outlet column. Missing id falls back to the raw id. */
   outletNameById: Record<string, string>;
 }
@@ -183,6 +185,20 @@ export function buildEtimsDeviceColumns(cb: EtimsDeviceColumnCallbacks): DataTab
     {
       key: 'last_invoice_no', header: 'Invoice #', align: 'right', mobileHidden: true, cellClassName: 'font-mono',
       accessor: (d) => d.last_invoice_no,
+      render: (d) => (
+        <div className="flex items-center justify-end gap-1.5">
+          <span>{d.last_invoice_no}</span>
+          <button
+            type="button"
+            title="Sync from KRA (the real source of truth) if the local count has drifted"
+            disabled={cb.syncPending}
+            onClick={() => cb.onSyncInvoiceCounter(d)}
+            className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            {cb.syncPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      ),
     },
     {
       key: 'sdc_id', header: 'SCU ID', accessor: (d) => d.sdc_id ?? '',
