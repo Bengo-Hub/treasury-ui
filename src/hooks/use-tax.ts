@@ -216,6 +216,23 @@ export function useInitEtimsDevice() {
   });
 }
 
+// Admin correction: directly sets the local invoice-number counter to a specific value —
+// goes through the same locked allocator the automatic paths use (unlike a raw SQL edit,
+// which is silently overwritten on the next transmit), for the rare case where an operator
+// needs to force a value rather than sync from KRA's own history.
+export function useSetDeviceInvoiceCounter() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, deviceId, value }: { tenantSlug: string; deviceId: string; value: number }) =>
+      taxApi.setEtimsDeviceInvoiceCounter(tenantSlug, deviceId, value),
+    onSuccess: (_result, vars) => {
+      qc.invalidateQueries({ queryKey: ['etims-devices', vars.tenantSlug] });
+      toast.success(`Invoice counter set to ${vars.value}`);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to set invoice counter'),
+  });
+}
+
 // Fast-forwards the local invoice-number counter to match KRA's own transmitted-sales
 // history — the real source of truth — when it's drifted behind (proven live: ad-hoc SQL
 // fixes never survived because they bypassed the row lock the allocator/self-heal share).
