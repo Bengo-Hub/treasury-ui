@@ -216,6 +216,26 @@ export function useInitEtimsDevice() {
   });
 }
 
+// Fast-forwards the local invoice-number counter to match KRA's own transmitted-sales
+// history — the real source of truth — when it's drifted behind (proven live: ad-hoc SQL
+// fixes never survived because they bypassed the row lock the allocator/self-heal share).
+export function useSyncDeviceInvoiceCounter() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, deviceId }: { tenantSlug: string; deviceId: string }) =>
+      taxApi.syncEtimsDeviceInvoiceCounter(tenantSlug, deviceId),
+    onSuccess: (result, vars) => {
+      qc.invalidateQueries({ queryKey: ['etims-devices', vars.tenantSlug] });
+      toast.success(
+        result.changed
+          ? `Invoice counter synced: ${result.previous_no} → ${result.kra_max_no}`
+          : `Already in sync (${result.previous_no})`,
+      );
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Sync from KRA failed'),
+  });
+}
+
 // Manually records a device's KRA SCU identity (sdc_id/mrc_no/dvc_id) — the recovery path when
 // KRA's [902] "already installed" response didn't include them (a real, confirmed case with no
 // other API-side recovery).

@@ -411,6 +411,15 @@ export function revealEtimsDeviceCmcKey(tenantSlug: string, deviceId: string): P
   return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/cmc-key`);
 }
 
+/** Fast-forwards a device's local invoice-number counter to match KRA's own transmitted-sales
+ * history when it's drifted behind (the real source of truth). */
+export function syncEtimsDeviceInvoiceCounter(
+  tenantSlug: string,
+  deviceId: string,
+): Promise<{ device: EtimsDevice; previous_no: number; kra_max_no: number; changed: boolean }> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/invoice-counter/sync`, {});
+}
+
 export function listEtimsTransmissions(
   tenantSlug: string,
   params?: { status?: string; limit?: number; offset?: number },
