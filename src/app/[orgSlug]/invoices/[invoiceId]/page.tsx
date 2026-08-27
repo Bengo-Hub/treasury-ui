@@ -504,12 +504,13 @@ export default function InvoiceDetailPage() {
                   <DetailRow label="Discount" value={`− ${fmtAmount(invoice.discount_amount ?? 0)}`} />
                 )}
                 <DetailRow label="Tax" value={fmtAmount(invoice.tax_amount)} />
-                {invoice.additional_charges && invoice.additional_charges.length > 0 && (
+                {invoice.additional_charges?.filter(c => Number(c.amount) > 0).map((c, i) => (
                   <DetailRow
-                    label="Additional Charges"
-                    value={fmtAmount(invoice.additional_charges.reduce((s, c) => s + Number(c.amount), 0))}
+                    key={i}
+                    label={c.label || 'Additional Charge'}
+                    value={fmtAmount(Number(c.amount) + Number(c.amount) * (Number(c.tax_rate) || 0) / 100)}
                   />
-                )}
+                ))}
                 <div className="flex items-center justify-between pt-2 border-t border-border">
                   <span className="text-sm font-black text-foreground">Total</span>
                   <span className="text-sm font-black text-foreground tabular-nums">{fmtAmount(invoice.total_amount)}</span>
