@@ -9,7 +9,6 @@ import {
   useSendInvoice,
   useVoidInvoice,
   useMarkPaid,
-  useRecordPayment,
   useCreateCreditNote,
   useCreateDebitNote,
   useGenerateDeliveryNote,
@@ -29,6 +28,7 @@ import { toast } from 'sonner';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadPublicInvoicePdf } from '@/lib/api/documents';
 import { CreditNoteDialog } from '@/components/documents/CreditNoteDialog';
+import { RecordPaymentModal } from '@/components/documents/RecordPaymentModal';
 import { DocumentApprovalCard } from '@/components/documents/DocumentApprovalCard';
 import { DocumentJournalPanel } from '@/components/documents/DocumentJournalPanel';
 import { FiscalInfoPanel } from '@/components/documents/FiscalInfoPanel';
@@ -107,7 +107,6 @@ export default function InvoiceDetailPage() {
   const sendMutation   = useSendInvoice(effectiveTenant);
   const voidMutation   = useVoidInvoice(effectiveTenant);
   const markPaidMut    = useMarkPaid(effectiveTenant);
-  const recordPayMut   = useRecordPayment(effectiveTenant);
   const creditNoteMut  = useCreateCreditNote(effectiveTenant);
   const debitNoteMut   = useCreateDebitNote(effectiveTenant);
   const deliveryNoteMut = useGenerateDeliveryNote(effectiveTenant);
@@ -119,7 +118,6 @@ export default function InvoiceDetailPage() {
   // header OutletFilter). Falls back to the raw id when the list isn't populated.
   const outlets = useOutletFilterStore((s) => s.outlets);
 
-  const [paymentAmount, setPaymentAmount] = useState('');
   const [showPayModal, setShowPayModal]   = useState(false);
   const [showCreditNote, setShowCreditNote] = useState(false);
   const [creditNoteError, setCreditNoteError] = useState('');
@@ -143,14 +141,6 @@ export default function InvoiceDetailPage() {
   // identical fix for the same class of bug (the button used to render for every tenant regardless
   // of KRA integration status, based only on the document's own type/status).
   const { isActive: etimsActive } = useIsEtimsActive(effectiveTenant);
-
-  const handleRecordPayment = useCallback(() => {
-    if (!paymentAmount) return;
-    recordPayMut.mutate(
-      { invoiceId, amount: paymentAmount },
-      { onSuccess: () => { setShowPayModal(false); setPaymentAmount(''); } },
-    );
-  }, [invoiceId, paymentAmount, recordPayMut]);
 
   const handleDispatch = useCallback(() => setDeliveryConfirm('dispatch'), []);
   const confirmDispatch = useCallback(() => {
@@ -646,50 +636,21 @@ export default function InvoiceDetailPage() {
         />
       )}
 
-      {/* Record Payment Modal */}
-      {showPayModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/75"
-          onClick={e => { if (e.target === e.currentTarget) setShowPayModal(false); }}
-        >
-          <div className="relative w-full max-w-sm rounded-2xl border border-border p-6 space-y-4 bg-card shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-foreground">Record Payment</h2>
-              <button onClick={() => setShowPayModal(false)}>
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">Invoice: {invoice.invoice_number}</p>
-            <div>
-              <label className="text-xs font-bold block mb-1 text-foreground">
-                Amount<span className="text-destructive">*</span>
-              </label>
-              <input
-                type="number" min={0} step="0.01"
-                className="w-full rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-ring bg-background border border-input text-foreground"
-                value={paymentAmount}
-                onChange={e => setPaymentAmount(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setShowPayModal(false)}
-                className="px-4 py-2 rounded-lg text-xs font-medium hover:bg-accent transition-colors text-muted-foreground">
-                Cancel
-              </button>
-              <button
-                onClick={handleRecordPayment}
-                disabled={recordPayMut.isPending || !paymentAmount}
-                className={cn(
-                  'px-5 py-2 rounded-lg text-xs font-bold transition-all bg-primary text-primary-foreground hover:bg-primary/90',
-                  (recordPayMut.isPending || !paymentAmount) && 'opacity-50 cursor-not-allowed',
-                )}
-              >
-                {recordPayMut.isPending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
-                Record Payment
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Record Payment Modal — the SAME shared modal the invoices list / payment-receipts pages
+          use (full capture: date/reference/method persisted on the InvoicePayment record, and a
+          real BankAccount picker since RecordPayment requires account_id). This page previously
+          had its own amount-only inline dialog that never collected an account, so submitting it
+          would 400 ("account_id is required") — replaced rather than patched, matching the fix
+          already applied to invoices/page.tsx. */}
+      {showPayModal && invoice && (
+        <RecordPaymentModal
+          tenant={effectiveTenant}
+          invoiceId={invoice.id}
+          invoiceTotal={invoice.total_amount}
+          currency={invoice.currency}
+          settlementAccountId={invoice.settlement_account_id}
+          onClose={() => setShowPayModal(false)}
+        />
       )}
 
       {/* Mark Delivered Modal — optional received-by + note (dispatched → delivered). */}
