@@ -29,6 +29,22 @@ export interface LineRequest {
   completion_percent?: number;
 }
 
+/** One labeled extra charge on an invoice's "Additional Charges" block, sent in a create/update
+ *  request (mirrors treasury-api's invoicing.AdditionalChargeItem). */
+export interface AdditionalChargeRequest {
+  label: string;
+  amount: number | string;
+  tax_rate?: number | string;
+}
+
+/** As returned by the API — amount/tax_rate come back as decimal strings, same convention as
+ *  every other money field on Invoice (see InvoiceLine.quantity/unit_price). */
+export interface AdditionalChargeResponse {
+  label: string;
+  amount: string;
+  tax_rate?: string;
+}
+
 // ---- Invoice Types ----
 
 export interface InvoiceLine {
@@ -76,6 +92,10 @@ export interface Invoice {
   shipping_amount?: string;
   /** Captured shipping/transport block (shipped-from/to, transporter own/third-party, mode, vehicle, doc). */
   transport?: Record<string, any>;
+  /** Extra billed items beyond shipping (handling, a manually-typed local tax add-on, etc.)
+   *  recharged to the customer — each item's amount+tax is already folded into total_amount
+   *  (and tax_amount); kept itemized here purely for edit-form rehydration + display. */
+  additional_charges?: AdditionalChargeResponse[];
   total_amount: string;
   currency: string;
   transaction_currency?: string;
@@ -134,6 +154,9 @@ export interface CreateInvoiceRequest {
   discount_amount?: number | string;
   shipping_amount?: number | string;
   transport?: Record<string, any>;
+  /** Extra billed items beyond shipping (handling, a manually-typed local tax add-on, etc.)
+   *  recharged to the customer — see Invoice's own field. */
+  additional_charges?: AdditionalChargeRequest[];
   reference_id?: string;
   reference_type?: string;
   /** Originating outlet/branch that made the sale (optional; null/omit = tenant-wide / HQ). */
@@ -160,6 +183,9 @@ export interface UpdateInvoiceRequest {
   discount_amount?: number | string;
   shipping_amount?: number | string;
   transport?: Record<string, any>;
+  /** Extra billed items beyond shipping (handling, a manually-typed local tax add-on, etc.)
+   *  recharged to the customer — see Invoice's own field. */
+  additional_charges?: AdditionalChargeRequest[];
   /** Originating outlet/branch that made the sale (optional; null/omit = tenant-wide / HQ). */
   outlet_id?: string;
   /** The real BankAccount this invoice is being raised against — see Invoice's own field. */

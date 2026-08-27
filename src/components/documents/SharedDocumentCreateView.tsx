@@ -304,6 +304,19 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       setGlobalDiscount(existingDiscount);
     }
 
+    // Rehydrate Additional Charges on edit — without this, reopening a saved invoice showed an
+    // empty charges block even though the total already includes them, and re-saving without
+    // touching this section would send an empty array and silently wipe them.
+    const existingCharges = (existing as { additional_charges?: { label: string; amount: string; tax_rate?: string }[] }).additional_charges;
+    if (!isQuotation && existingCharges && existingCharges.length > 0) {
+      setAdditionalCharges(existingCharges.map(c => ({
+        _key:     Math.random().toString(36).slice(2),
+        label:    c.label,
+        amount:   Number(c.amount) || 0,
+        tax_rate: Number(c.tax_rate) || 0,
+      })));
+    }
+
     setInitialized(true);
   }, [isEdit, existing, initialized, isQuotation, existingInvoice, existingQuotation, today, defaultSecondary]);
 
@@ -367,6 +380,19 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
             : undefined,
       })),
   [lines]);
+
+  // Always sent as an array (never omitted/undefined) — an UPDATE must be able to send back an
+  // EMPTY array to actually clear previously-saved charges when the user removes them all; the
+  // backend treats an absent key as "leave unchanged" (see UpdateInvoiceRequest.AdditionalCharges).
+  const buildAdditionalChargesPayload = useCallback(() =>
+    additionalCharges
+      .filter(c => c.label.trim() && c.amount > 0)
+      .map(c => ({
+        label:    c.label.trim(),
+        amount:   c.amount,
+        tax_rate: c.tax_rate || undefined,
+      })),
+  [additionalCharges]);
 
   // Save/update mutations previously had NO onError handler anywhere in this component (and no
   // global MutationCache error handler exists either — see org-shell.tsx) — a failed create just
@@ -473,6 +499,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         discount_mode:   globalDiscountAmt > 0 ? 'total' : undefined,
         shipping_amount: addShipping && shippingAmount > 0 ? shippingAmount : undefined,
         transport:       addShipping && Object.keys(transport).length > 0 ? transport : undefined,
+        additional_charges: buildAdditionalChargesPayload(),
       };
       if (isEdit && editId) {
         (updateMutation as ReturnType<typeof useUpdateInvoice>).mutate(base as UpdateInvoiceRequest, { onSuccess: onClose, onError: handleSaveError });
@@ -483,7 +510,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         );
       }
     }
-  }, [form, customerDetails, buildLinePayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, handleSaveError, addShipping, shippingAmount, transport, selectedOutlet, subtotal, globalDiscount, globalDiscountMode]);
+  }, [form, customerDetails, buildLinePayload, buildAdditionalChargesPayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, handleSaveError, addShipping, shippingAmount, transport, selectedOutlet, subtotal, globalDiscount, globalDiscountMode]);
 
   if (isEdit && existingLoading) {
     return (
