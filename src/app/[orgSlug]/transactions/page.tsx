@@ -10,8 +10,14 @@ import { apiClient } from '@/lib/api/client';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildTransactionColumns } from './transaction-columns';
 import { cn } from '@/lib/utils';
+import { StatCard } from '@/components/charts/StatCard';
+import { money } from '@/components/charts/chart-theme';
+import { RangePicker, rangeFor, type RangeKey } from '@/components/dashboard/RangePicker';
 import {
+    Banknote,
     Calendar,
+    CheckCircle2,
+    Clock,
     Download,
     FileText,
     Filter,
@@ -53,13 +59,6 @@ const SERVICE_OPTIONS = [
   { value: 'codevertex-website', label: 'Codevertex Website (Digitika)' },
 ];
 
-function defaultDateRange(): { from: string; to: string } {
-  const to = new Date();
-  const from = new Date(to);
-  from.setDate(from.getDate() - 30);
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
-}
-
 export default function TransactionsPage() {
   const user = useAuthStore((s) => s.user);
   const { tenantPathId, tenantIdsParam, isPlatformOwner, isAllTenants, tenantQueryParam, orgSlug } = useResolvedTenant();
@@ -96,7 +95,10 @@ export default function TransactionsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [serviceFilter, setServiceFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
-  const dateRange = useMemo(() => defaultDateRange(), []);
+  // Same preset picker + rangeFor() the Dashboard uses (single source of truth for date-range
+  // math) rather than a bespoke fixed 30-day window with no way to change it.
+  const [rangeKey, setRangeKey] = useState<RangeKey>('30d');
+  const dateRange = useMemo(() => rangeFor(rangeKey), [rangeKey]);
 
   // Platform admins: use platform endpoint (all tenants by default; tenant_ids filter optional)
   // Regular tenants: use tenant-scoped endpoint
@@ -174,7 +176,39 @@ export default function TransactionsPage() {
   const paginatedItems = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   // Reset to page 1 when filters change
-  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, typeFilter, serviceFilter]);
+  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, typeFilter, serviceFilter, rangeKey]);
+
+  // Summary stats over the currently filtered set (same rows the table/CSV export use — the
+  // list is fetched whole for the selected range, then paginated client-side, so this reflects
+  // every matching transaction, not just the current page).
+  const summary = useMemo(() => {
+    let succeededAmount = 0;
+    let pendingAmount = 0;
+    let succeededCount = 0;
+    let pendingCount = 0;
+    let fees = 0;
+    for (const t of filtered) {
+      const amt = parseFloat(t.amount) || 0;
+      if (t.status === 'succeeded') {
+        succeededAmount += amt;
+        succeededCount += 1;
+      } else if (t.status === 'pending' || t.status === 'processing') {
+        pendingAmount += amt;
+        pendingCount += 1;
+      }
+      fees += parseFloat(t.transaction_cost || '0') || 0;
+    }
+    const total = filtered.length;
+    return {
+      total,
+      succeededAmount,
+      succeededCount,
+      pendingAmount,
+      pendingCount,
+      fees,
+      successRate: total > 0 ? (succeededCount / total) * 100 : 0,
+    };
+  }, [filtered]);
 
   const columns = useMemo(
     () =>
@@ -211,25 +245,40 @@ export default function TransactionsPage() {
               : 'View and filter all payment transactions across gateways.'}
           </p>
         </div>
-        <Button
-          variant="outline"
-          className="gap-2"
-          onClick={() => {
-            if (isAggregate) {
-              const url = getTransactionsExportURL(
-                dateRange.from, dateRange.to,
-                statusFilter !== 'all' ? statusFilter : undefined,
-                serviceFilter !== 'all' ? serviceFilter : undefined,
-                tenantIdsParam || undefined,
-              );
-              window.open(url, '_blank');
-            } else if (txnTenant) {
-              exportTransactionsCSV(txnTenant, tenantParams);
-            }
-          }}
-        >
-          <Download className="h-4 w-4" /> Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <RangePicker value={rangeKey} onChange={setRangeKey} />
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => {
+              if (isAggregate) {
+                const url = getTransactionsExportURL(
+                  dateRange.from, dateRange.to,
+                  statusFilter !== 'all' ? statusFilter : undefined,
+                  serviceFilter !== 'all' ? serviceFilter : undefined,
+                  tenantIdsParam || undefined,
+                );
+                window.open(url, '_blank');
+              } else if (txnTenant) {
+                exportTransactionsCSV(txnTenant, tenantParams);
+              }
+            }}
+          >
+            <Download className="h-4 w-4" /> Export CSV
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <StatCard label="Total Transactions" value={summary.total.toLocaleString()} tone="default" loading={isLoading} icon={<Filter className="h-5 w-5" />} />
+        <StatCard label="Succeeded" value={money(summary.succeededAmount)} tone="success" loading={isLoading}
+          icon={<CheckCircle2 className="h-5 w-5" />} hint={`${summary.succeededCount.toLocaleString()} transactions`} />
+        <StatCard label="Pending / Processing" value={money(summary.pendingAmount)} tone="warning" loading={isLoading}
+          icon={<Clock className="h-5 w-5" />} hint={`${summary.pendingCount.toLocaleString()} transactions`} />
+        <StatCard label="Success Rate" value={`${summary.successRate.toFixed(1)}%`}
+          tone={summary.successRate >= 90 ? 'success' : summary.successRate >= 60 ? 'warning' : 'destructive'} loading={isLoading}
+          icon={<Banknote className="h-5 w-5" />} />
+        <StatCard label="Total Fees" value={money(summary.fees)} tone="default" loading={isLoading} icon={<Receipt className="h-5 w-5" />} />
       </div>
 
       {error && (
