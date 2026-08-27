@@ -66,6 +66,11 @@ export interface BankAccountRequest {
   /** Only honored on create — posts an Opening Balance Equity journal entry. */
   opening_balance?: number;
   is_active?: boolean;
+  /** Tender/payment_method values (e.g. "paystack", "mpesa", "card") that should automatically
+   *  post to this account when a payment carries no explicit account_id — feeds
+   *  ledger.ResolveCashCode's tier-2 lookup. Free-form: whatever string the paying service tags
+   *  the payment with. */
+  default_payment_methods?: string[];
 }
 
 export interface AccountBalance {

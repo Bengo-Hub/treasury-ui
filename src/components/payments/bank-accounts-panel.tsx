@@ -13,12 +13,13 @@ import {
   useCreateBankAccount,
   useDeleteBankAccount,
   useLinkAccountLedger,
+  useUpdateBankAccount,
 } from '@/hooks/use-bank-accounts';
 import type { AccountType, BankAccount, BankAccountRequest } from '@/lib/api/bank-accounts';
 import { money } from '@/components/charts/chart-theme';
 import { cn } from '@/lib/utils';
 import { useMe } from '@/hooks/useMe';
-import { Banknote, Landmark, Loader2, Plus, Smartphone, Wallet } from 'lucide-react';
+import { Banknote, Landmark, Loader2, Plus, Smartphone, Tag, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 
 const inputClass =
@@ -71,6 +72,7 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
   const createMutation = useCreateBankAccount(tenant);
   const deleteMutation = useDeleteBankAccount(tenant);
   const linkLedgerMutation = useLinkAccountLedger(tenant);
+  const updateMutation = useUpdateBankAccount(tenant);
 
   const accounts = data?.bank_accounts ?? [];
 
@@ -83,6 +85,32 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
   // Only used for mobile_money/cash — the bank type's own currency lives on bankValue.currency
   // (BankAccountForm's own picker) since a bank account is picked together with its country.
   const [currency, setCurrency] = useState('KES');
+
+  const [methodsAccount, setMethodsAccount] = useState<BankAccount | null>(null);
+  const [methodsInput, setMethodsInput] = useState('');
+
+  function openMethodsDialog(account: BankAccount) {
+    setMethodsAccount(account);
+    setMethodsInput((account.default_payment_methods ?? []).join(', '));
+  }
+
+  function handleSaveMethods() {
+    if (!methodsAccount) return;
+    const methods = methodsInput
+      .split(',')
+      .map((m) => m.trim().toLowerCase())
+      .filter(Boolean);
+    updateMutation.mutate(
+      { id: methodsAccount.id, data: { account_name: methodsAccount.account_name, default_payment_methods: methods } },
+      {
+        onSuccess: () => {
+          toast.success('Payment methods updated');
+          setMethodsAccount(null);
+        },
+        onError: () => toast.error('Failed to update payment methods'),
+      },
+    );
+  }
 
   function resetForm() {
     setAccountType('bank');
@@ -233,6 +261,16 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
             <Button variant="outline" size="sm" onClick={() => router.push(`/${orgSlug}/banking/accounts/${a.id}`)}>
               Statement
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => openMethodsDialog(a)}
+              title="Which payment methods (paystack, mpesa, card...) automatically post to this account"
+            >
+              <Tag className="h-3.5 w-3.5" />
+              Payment Methods
+            </Button>
             {a.is_active && (
               <Button variant="ghost" size="sm" onClick={() => handleDeactivate(a)} disabled={deleteMutation.isPending}>
                 Deactivate
@@ -363,6 +401,37 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
               <Button onClick={handleCreate} disabled={createMutation.isPending}>
                 {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Add Account
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!methodsAccount} onOpenChange={(o) => { if (!o) setMethodsAccount(null); }}>
+        <DialogContent
+          title="Payment Methods"
+          description={`Which tender/payment methods should automatically post to "${methodsAccount?.account_name ?? ''}" when a payment carries no explicit account? Comma-separated (e.g. paystack, mpesa, card).`}
+          onClose={() => setMethodsAccount(null)}
+        >
+          <div className="space-y-4">
+            <FormField
+              label="Payment methods"
+              description="Free-form — must match the payment_method value the paying service actually sends. Replaces the current list; clearing this field has no effect (the backend ignores an empty update)."
+            >
+              <input
+                value={methodsInput}
+                onChange={(e) => setMethodsInput(e.target.value)}
+                className={inputClass}
+                placeholder="e.g. paystack, mpesa"
+              />
+            </FormField>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setMethodsAccount(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveMethods} disabled={updateMutation.isPending || !methodsInput.trim()}>
+                {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save
               </Button>
             </div>
           </div>
