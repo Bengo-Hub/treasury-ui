@@ -430,6 +430,16 @@ export default function InvoiceDetailPage() {
               <p className="text-xs text-muted-foreground font-medium">Total Amount</p>
               <p className="text-2xl font-black text-foreground tabular-nums">{fmtAmount(invoice.total_amount)}</p>
               <p className="text-xs text-muted-foreground">Tax: {fmtAmount(invoice.tax_amount)}</p>
+              {/* Partial/unpaid invoices must show the actual balance, not just the gross
+                  total — otherwise a paid invoice looks identical to an untouched one. */}
+              {invoice.payment_status !== 'paid' && Number(invoice.amount_paid) > 0 && (
+                <p className="text-xs font-semibold text-emerald-600">Paid: {fmtAmount(invoice.amount_paid ?? 0)}</p>
+              )}
+              {invoice.payment_status !== 'paid' && (
+                <p className="text-sm font-black text-amber-600 tabular-nums">
+                  Due: {fmtAmount(Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid ?? 0)))}
+                </p>
+              )}
             </div>
           </div>
 
@@ -515,6 +525,17 @@ export default function InvoiceDetailPage() {
                   <span className="text-sm font-black text-foreground">Total</span>
                   <span className="text-sm font-black text-foreground tabular-nums">{fmtAmount(invoice.total_amount)}</span>
                 </div>
+                {invoice.payment_status !== 'paid' && Number(invoice.amount_paid) > 0 && (
+                  <DetailRow label="Amount Paid" value={<span className="text-emerald-600">{fmtAmount(invoice.amount_paid ?? 0)}</span>} />
+                )}
+                {invoice.payment_status !== 'paid' && (
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs font-black text-amber-600">Balance Due</span>
+                    <span className="text-xs font-black text-amber-600 tabular-nums">
+                      {fmtAmount(Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid ?? 0)))}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
