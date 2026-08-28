@@ -114,6 +114,40 @@ export function buildDocumentColumns({
       ),
     },
   );
+  if (showPaymentStatus) {
+    // Paid / Amount Due — lets the list show the real outstanding balance for a partially-paid
+    // document at a glance, the same way the POS all-sales table does, instead of requiring a
+    // trip into the detail page for every row.
+    cols.push(
+      {
+        key: 'amount_paid',
+        header: 'Paid',
+        align: 'right',
+        sortable: true,
+        accessor: (r) => Number(r.amount_paid ?? 0),
+        render: (r) => (
+          <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+            {fmt(r.amount_paid ?? '0', r.currency)}
+          </span>
+        ),
+      },
+      {
+        key: 'amount_due',
+        header: 'Amount Due',
+        align: 'right',
+        sortable: true,
+        accessor: (r) => Math.max(0, Number(r.total_amount) - Number(r.amount_paid ?? 0)),
+        render: (r) => {
+          const due = Math.max(0, Number(r.total_amount) - Number(r.amount_paid ?? 0));
+          return (
+            <span className={`font-mono text-xs font-bold whitespace-nowrap ${due > 0 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+              {fmt(due, r.currency)}
+            </span>
+          );
+        },
+      },
+    );
+  }
   if (showDeliveryStatus) {
     cols.push({
       key: 'delivery_status',
