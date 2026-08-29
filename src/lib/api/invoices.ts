@@ -901,7 +901,13 @@ export async function getCustomerBalances(tenant: string): Promise<CustomerBalan
 export function recordCustomerPayment(
   tenant: string,
   contactId: string,
-  body: { amount: number; payment_method?: string; reference?: string; paid_at?: string; account_id?: string; surplus_action?: string },
+  body: {
+    amount: number; payment_method?: string; reference?: string; paid_at?: string; account_id?: string; surplus_action?: string;
+    // Optional currency-conversion snapshot for a payment received in a different currency (e.g.
+    // Uganda MTN Mobile Money against a KES AR ledger) — recorded structurally on the ledger line
+    // instead of the Reference field being used to note the conversion math by hand.
+    foreign_amount?: number; exchange_rate?: number; foreign_currency?: string;
+  },
 ): Promise<CustomerBalance> {
   return apiClient.post<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/payment`, {
     amount: String(body.amount),
@@ -910,6 +916,9 @@ export function recordCustomerPayment(
     paid_at: body.paid_at,
     account_id: body.account_id,
     surplus_action: body.surplus_action,
+    foreign_amount: body.foreign_amount != null ? String(body.foreign_amount) : undefined,
+    exchange_rate: body.exchange_rate != null ? String(body.exchange_rate) : undefined,
+    foreign_currency: body.foreign_currency,
   });
 }
 

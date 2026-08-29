@@ -124,7 +124,7 @@ export function StatementDialog(props: StatementDialogProps) {
                     <th className="text-right px-3 py-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Debit</th>
                     <th className="text-right px-3 py-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Credit</th>
                     <th className="text-right px-3 py-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Balance</th>
-                    <th className="text-center px-3 py-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Status</th>
+                    <th className="text-center px-3 py-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Description</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
