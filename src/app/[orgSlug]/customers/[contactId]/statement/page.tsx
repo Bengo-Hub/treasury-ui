@@ -24,7 +24,7 @@ const columns: ReportTableColumn[] = [
   { header: 'Debit', align: 'right' },
   { header: 'Credit', align: 'right' },
   { header: 'Balance', align: 'right' },
-  { header: 'Status', align: 'left' },
+  { header: 'Description', align: 'left' },
 ];
 
 const fmtDate = (d?: string) => (d ? new Date(d).toLocaleDateString() : '—');
