@@ -18,6 +18,7 @@ import {
   FileMinus,
   FilePlus,
   FileText,
+  GitBranch,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -281,6 +282,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: Target,
           href: `/${orgSlug}/settings/cost-centers`,
           active: pathname.startsWith(`/${orgSlug}/settings/cost-centers`),
+        },
+        {
+          label: 'GL Account Mappings',
+          icon: GitBranch,
+          href: `/${orgSlug}/settings/gl-account-mappings`,
+          active: pathname.startsWith(`/${orgSlug}/settings/gl-account-mappings`),
         },
         {
           label: 'Accounts',

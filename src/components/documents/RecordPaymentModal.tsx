@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle, ChevronRight, CreditCard, Loader2, Receipt, X } from 'lucide-react';
 import { useRecordPayment, useInvoices } from '@/hooks/use-invoices';
 import { useBankAccounts } from '@/hooks/use-bank-accounts';
 import { bankAccountHint } from '@/lib/api/bank-accounts';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import type { Invoice } from '@/lib/api/invoices';
-import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
+import { nowDatetimeLocal, datetimeLocalToISO, resolveDefaultAccount } from '@bengo-hub/shared-ui-lib/payments';
 
 type PaymentMethod = 'cash' | 'bank_transfer' | 'cheque' | 'mpesa' | 'card' | 'other';
 
@@ -59,6 +59,11 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
     accountId: settlementAccountId ?? '',
   });
   const [allocatedIds, setAllocatedIds] = useState<string[]>(invoiceId ? [invoiceId] : []);
+  // The invoice's own settlement account (when set) is a stronger, already-explicit signal than
+  // a generic payment-method match, so it counts as "already decided" and the effect below never
+  // overrides it — a customer paying by a different method than originally quoted still lands on
+  // the account the invoice was actually raised against.
+  const [accountTouched, setAccountTouched] = useState(!!settlementAccountId);
 
   const recordPayment = useRecordPayment(tenant);
 
@@ -75,6 +80,17 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
         .map((a) => ({ value: a.id, label: a.account_name, hint: bankAccountHint(a) })),
     [bankAccountsData],
   );
+
+  // When the invoice has no settlement account of its own, preload whichever real account this
+  // payment method's default_payment_methods mapping points to — re-runs as the method changes,
+  // but never once the user (or the invoice's own settlement account, see accountTouched's
+  // initializer above) has already decided.
+  useEffect(() => {
+    if (accountTouched || s2.accountId || !bankAccountsData?.bank_accounts?.length) return;
+    const def = resolveDefaultAccount(bankAccountsData.bank_accounts, s2.method);
+    if (def) setS2((p) => ({ ...p, accountId: def.id }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bankAccountsData, s2.method]);
 
   // For step 3 — list unpaid invoices to allocate
   const { data: invoicesData } = useInvoices(
@@ -194,7 +210,7 @@ export function RecordPaymentModal({ tenant, invoiceId, invoiceTotal, currency =
                 <Combobox
                   options={accountOptions}
                   value={s2.accountId}
-                  onChange={(v) => setS2(p => ({ ...p, accountId: v ?? '' }))}
+                  onChange={(v) => { setS2(p => ({ ...p, accountId: v ?? '' })); setAccountTouched(true); }}
                   placeholder="Select cash / bank account"
                   searchPlaceholder="Search accounts…"
                   emptyText="No matching accounts"

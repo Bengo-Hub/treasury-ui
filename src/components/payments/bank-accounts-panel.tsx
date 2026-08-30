@@ -19,7 +19,7 @@ import type { AccountType, BankAccount, BankAccountRequest } from '@/lib/api/ban
 import { money } from '@/components/charts/chart-theme';
 import { cn } from '@/lib/utils';
 import { useMe } from '@/hooks/useMe';
-import { Banknote, Landmark, Loader2, Plus, Smartphone, Tag, Wallet } from 'lucide-react';
+import { Banknote, FileText, Landmark, Loader2, Plus, Smartphone, Tag, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 
 const inputClass =
@@ -108,6 +108,35 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
           setMethodsAccount(null);
         },
         onError: () => toast.error('Failed to update payment methods'),
+      },
+    );
+  }
+
+  // Mirrors the Payment Methods dialog above, one level up the document lifecycle: which invoice
+  // TYPE (e.g. "subscription") a newly created invoice should settle into and print bank details
+  // for by default, instead of every payment_method this account happens to collect.
+  const [invoiceTypesAccount, setInvoiceTypesAccount] = useState<BankAccount | null>(null);
+  const [invoiceTypesInput, setInvoiceTypesInput] = useState('');
+
+  function openInvoiceTypesDialog(account: BankAccount) {
+    setInvoiceTypesAccount(account);
+    setInvoiceTypesInput((account.default_invoice_types ?? []).join(', '));
+  }
+
+  function handleSaveInvoiceTypes() {
+    if (!invoiceTypesAccount) return;
+    const types = invoiceTypesInput
+      .split(',')
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    updateMutation.mutate(
+      { id: invoiceTypesAccount.id, data: { account_name: invoiceTypesAccount.account_name, default_invoice_types: types } },
+      {
+        onSuccess: () => {
+          toast.success('Invoice types updated');
+          setInvoiceTypesAccount(null);
+        },
+        onError: () => toast.error('Failed to update invoice types'),
       },
     );
   }
@@ -271,6 +300,16 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
               <Tag className="h-3.5 w-3.5" />
               Payment Methods
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => openInvoiceTypesDialog(a)}
+              title="Which invoice types (subscription, etc.) default to this account for settlement and printed bank details"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Invoice Types
+            </Button>
             {a.is_active && (
               <Button variant="ghost" size="sm" onClick={() => handleDeactivate(a)} disabled={deleteMutation.isPending}>
                 Deactivate
@@ -430,6 +469,37 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
                 Cancel
               </Button>
               <Button onClick={handleSaveMethods} disabled={updateMutation.isPending || !methodsInput.trim()}>
+                {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!invoiceTypesAccount} onOpenChange={(o) => { if (!o) setInvoiceTypesAccount(null); }}>
+        <DialogContent
+          title="Invoice Types"
+          description={`Which invoice types should default to "${invoiceTypesAccount?.account_name ?? ''}" for settlement (and its printed bank details) when a new invoice of that type doesn't specify an account? Comma-separated (e.g. subscription).`}
+          onClose={() => setInvoiceTypesAccount(null)}
+        >
+          <div className="space-y-4">
+            <FormField
+              label="Invoice types"
+              description="Free-form — must match the invoice_type value the creating service actually sends (e.g. 'subscription'). Replaces the current list; clearing this field has no effect (the backend ignores an empty update)."
+            >
+              <input
+                value={invoiceTypesInput}
+                onChange={(e) => setInvoiceTypesInput(e.target.value)}
+                className={inputClass}
+                placeholder="e.g. subscription"
+              />
+            </FormField>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setInvoiceTypesAccount(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveInvoiceTypes} disabled={updateMutation.isPending || !invoiceTypesInput.trim()}>
                 {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Save
               </Button>

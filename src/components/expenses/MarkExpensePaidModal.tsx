@@ -8,7 +8,7 @@ import { useBankAccounts } from '@/hooks/use-bank-accounts';
 import { bankAccountHint } from '@/lib/api/bank-accounts';
 import type { Expense } from '@/lib/api/expenses';
 import { formatCurrency } from '@/lib/utils/currency';
-import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
+import { nowDatetimeLocal, datetimeLocalToISO, resolveDefaultAccount } from '@bengo-hub/shared-ui-lib/payments';
 import { useMemo, useState } from 'react';
 
 interface Props {
@@ -41,7 +41,7 @@ export function MarkExpensePaidModal({ tenant, expense, onClose, onConfirm, pend
   );
   // Default to a cash-type account when present, else leave empty (backend default).
   const defaultAccount = useMemo(
-    () => (bankAccountsData?.bank_accounts ?? []).find((a) => a.account_type === 'cash' && a.is_active !== false)?.id ?? '',
+    () => resolveDefaultAccount(bankAccountsData?.bank_accounts)?.id ?? '',
     [bankAccountsData],
   );
   const [accountId, setAccountId] = useState<string>('');
