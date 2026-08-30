@@ -22,7 +22,14 @@ export interface BankAccount {
   bank_name?: string;
   account_number?: string;
   bank_branch?: string;
+  /** National/regulator-assigned bank code (e.g. "01" for KCB Bank Kenya) — distinct from
+   *  branch_code (SWIFT/BIC) and local_branch_code (domestic branch/sort code) below. */
+  bank_code?: string;
+  /** SWIFT/BIC code, often branch-specific (e.g. "KCBLKENX077" for KCB Kisumu Main). */
   branch_code?: string;
+  /** Domestic bank-branch/sort code (e.g. "303" for KCB Kisumu Main) — a genuinely different
+   *  real-world identifier from branch_code's SWIFT/BIC. */
+  local_branch_code?: string;
   currency: string;
   /** GL-derived — never a stored figure the client can trust as authoritative on write. */
   balance: string;
@@ -62,7 +69,9 @@ export interface BankAccountRequest {
   bank_name?: string;
   account_number?: string;
   bank_branch?: string;
+  bank_code?: string;
   branch_code?: string;
+  local_branch_code?: string;
   currency?: string;
   gateway_config_id?: string;
   custodian_user_id?: string;

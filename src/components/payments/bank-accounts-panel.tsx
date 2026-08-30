@@ -152,9 +152,14 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
     bank_name: string;
     account_number: string;
     bank_branch: string;
+    bank_code: string;
     branch_code: string;
+    local_branch_code: string;
   }
-  const EMPTY_EDIT: EditFormState = { account_name: '', bank_name: '', account_number: '', bank_branch: '', branch_code: '' };
+  const EMPTY_EDIT: EditFormState = {
+    account_name: '', bank_name: '', account_number: '', bank_branch: '',
+    bank_code: '', branch_code: '', local_branch_code: '',
+  };
   const [editAccount, setEditAccount] = useState<BankAccount | null>(null);
   const [editForm, setEditForm] = useState<EditFormState>(EMPTY_EDIT);
 
@@ -165,7 +170,9 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
       bank_name: account.bank_name ?? '',
       account_number: account.account_number ?? '',
       bank_branch: account.bank_branch ?? '',
+      bank_code: account.bank_code ?? '',
       branch_code: account.branch_code ?? '',
+      local_branch_code: account.local_branch_code ?? '',
     });
   }
 
@@ -183,7 +190,9 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
           bank_name: editForm.bank_name.trim() || undefined,
           account_number: editForm.account_number.trim() || undefined,
           bank_branch: editForm.bank_branch,
+          bank_code: editForm.bank_code,
           branch_code: editForm.branch_code,
+          local_branch_code: editForm.local_branch_code,
         },
       },
       {
@@ -234,7 +243,9 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
       payload.bank_name = bankValue.bank_name;
       payload.account_number = bankValue.account_number;
       payload.bank_branch = bankValue.bank_branch || undefined;
+      payload.bank_code = bankValue.bank_code || undefined;
       payload.branch_code = bankValue.branch_code || undefined;
+      payload.local_branch_code = bankValue.local_branch_code || undefined;
     } else if (accountType === 'mobile_money') {
       if (!accountName || !mobileNumber) {
         toast.error('Account name and till/paybill number are required');
@@ -575,10 +586,28 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
                     className={inputClass}
                   />
                 </FormField>
-                <FormField label="SWIFT / Branch Code" description="e.g. the bank's SWIFT/BIC code">
+                <FormField label="SWIFT / BIC Code" description="Often branch-specific, e.g. 'KCBLKENX077'">
                   <input
                     value={editForm.branch_code}
                     onChange={(e) => setEditForm((p) => ({ ...p, branch_code: e.target.value }))}
+                    className={inputClass}
+                  />
+                </FormField>
+              </div>
+            )}
+            {editAccount?.account_type !== 'cash' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Bank Code" description="National bank code, e.g. '01' for KCB">
+                  <input
+                    value={editForm.bank_code}
+                    onChange={(e) => setEditForm((p) => ({ ...p, bank_code: e.target.value }))}
+                    className={inputClass}
+                  />
+                </FormField>
+                <FormField label="Local Branch Code" description="Domestic sort code, e.g. '303' — distinct from SWIFT">
+                  <input
+                    value={editForm.local_branch_code}
+                    onChange={(e) => setEditForm((p) => ({ ...p, local_branch_code: e.target.value }))}
                     className={inputClass}
                   />
                 </FormField>

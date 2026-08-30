@@ -33,7 +33,9 @@ export interface BankDetailsSnapshot {
   bank_name: string;
   account_number: string;
   bank_branch?: string;
+  bank_code?: string;
   branch_code?: string;
+  local_branch_code?: string;
 }
 
 interface BankDetailsPickerProps {
@@ -53,7 +55,9 @@ function toSnapshot(a: BankAccount): BankDetailsSnapshot {
     bank_name: a.bank_name ?? '',
     account_number: a.account_number ?? '',
     bank_branch: a.bank_branch,
+    bank_code: a.bank_code,
     branch_code: a.branch_code,
+    local_branch_code: a.local_branch_code,
   };
 }
 
@@ -98,7 +102,9 @@ export function BankDetailsPicker({ orgSlug, include, onIncludeChange, value, on
         bank_name: draft.bank_name,
         account_number: draft.account_number,
         bank_branch: draft.bank_branch || undefined,
+        bank_code: draft.bank_code || undefined,
         branch_code: draft.branch_code || undefined,
+        local_branch_code: draft.local_branch_code || undefined,
         currency: draft.currency || undefined,
       },
       {
