@@ -10,6 +10,8 @@ import {
   recordVendorRefund,
   applyVendorCredit,
   payoutVendorCredit,
+  listCustomerReceipts,
+  voidCustomerReceipt,
   type StatementRange,
   type SetCustomerOpeningBalanceRequest,
   type UpsertVendorBalanceRequest,
@@ -29,6 +31,8 @@ export const arpaKeys = {
     ['arpa', 'vendor-statement', tenant, vendorId, range] as const,
   customerStatement: (tenant: string, contactId: string, range?: StatementRange) =>
     ['arpa', 'customer-statement', tenant, contactId, range] as const,
+  customerReceipts: (tenant: string, contactId: string) =>
+    ['arpa', 'customer-receipts', tenant, contactId] as const,
 };
 
 export function useAPSummary(tenant: string | undefined, enabled = true) {
@@ -72,6 +76,16 @@ export function useCustomerStatement(
   return useQuery({
     queryKey: arpaKeys.customerStatement(tenant ?? '', contactId ?? '', range),
     queryFn: () => getCustomerStatement(tenant!, contactId!, range),
+    enabled: !!tenant && !!contactId && enabled,
+    staleTime: STALE_MS,
+  });
+}
+
+/** "View Payments" history for one customer's AR receipts. */
+export function useCustomerReceipts(tenant: string | undefined, contactId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: arpaKeys.customerReceipts(tenant ?? '', contactId ?? ''),
+    queryFn: () => listCustomerReceipts(tenant!, contactId!),
     enabled: !!tenant && !!contactId && enabled,
     staleTime: STALE_MS,
   });
@@ -174,5 +188,27 @@ export function usePayoutVendorCredit(tenant: string | undefined) {
       toast.success('Vendor credit paid out.');
     },
     onError: (e: unknown) => toast.error(errMessage(e, 'Failed to pay out vendor credit.')),
+  });
+}
+
+/**
+ * Void a customer's AR receipt (DELETE /ar/customers/{contactID}/receipts/{receiptID}) — lets an
+ * admin correct a payment recorded against the wrong customer/order/amount. Reinstates the debt
+ * + reversing journal in treasury. Refreshes the receipt history, statement, and balances.
+ */
+export function useVoidCustomerReceipt(tenant: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ contactId, receiptId, reason }: { contactId: string; receiptId: string; reason?: string }) =>
+      voidCustomerReceipt(tenant!, contactId, receiptId, reason),
+    onSuccess: (_d, { contactId }) => {
+      queryClient.invalidateQueries({ queryKey: arpaKeys.customerReceipts(tenant ?? '', contactId) });
+      queryClient.invalidateQueries({ queryKey: ['arpa', 'customer-statement', tenant ?? ''] });
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant ?? ''] });
+      queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant ?? ''] });
+      queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant ?? ''] });
+      toast.success('Payment voided — the customer’s balance has been reinstated.');
+    },
+    onError: (e: unknown) => toast.error(errMessage(e, 'Failed to void payment.')),
   });
 }
