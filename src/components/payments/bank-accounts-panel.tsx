@@ -19,7 +19,7 @@ import type { AccountType, BankAccount, BankAccountRequest } from '@/lib/api/ban
 import { money } from '@/components/charts/chart-theme';
 import { cn } from '@/lib/utils';
 import { useMe } from '@/hooks/useMe';
-import { Banknote, FileText, Landmark, Loader2, Plus, Smartphone, Tag, Wallet } from 'lucide-react';
+import { Banknote, FileText, Landmark, Loader2, Pencil, Plus, RotateCcw, Smartphone, Tag, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 
 const inputClass =
@@ -137,6 +137,71 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
           setInvoiceTypesAccount(null);
         },
         onError: () => toast.error('Failed to update invoice types'),
+      },
+    );
+  }
+
+  // Full edit — account_name/bank_name/account_number/bank_branch/branch_code, the fields the
+  // backend's PUT /bank-accounts/{id} already unconditionally supports. account_type and currency
+  // are deliberately excluded: account_type's GL leaf code prefix is derived from it at creation
+  // (changing it would misclassify every already-posted transaction), and currency has no Update
+  // wiring at all server-side (by design — a live account's exchange-rate-stamped journal history
+  // would corrupt if its native currency changed after the fact).
+  interface EditFormState {
+    account_name: string;
+    bank_name: string;
+    account_number: string;
+    bank_branch: string;
+    branch_code: string;
+  }
+  const EMPTY_EDIT: EditFormState = { account_name: '', bank_name: '', account_number: '', bank_branch: '', branch_code: '' };
+  const [editAccount, setEditAccount] = useState<BankAccount | null>(null);
+  const [editForm, setEditForm] = useState<EditFormState>(EMPTY_EDIT);
+
+  function openEditDialog(account: BankAccount) {
+    setEditAccount(account);
+    setEditForm({
+      account_name: account.account_name,
+      bank_name: account.bank_name ?? '',
+      account_number: account.account_number ?? '',
+      bank_branch: account.bank_branch ?? '',
+      branch_code: account.branch_code ?? '',
+    });
+  }
+
+  function handleSaveEdit() {
+    if (!editAccount) return;
+    if (!editForm.account_name.trim()) {
+      toast.error('Account name is required');
+      return;
+    }
+    updateMutation.mutate(
+      {
+        id: editAccount.id,
+        data: {
+          account_name: editForm.account_name.trim(),
+          bank_name: editForm.bank_name.trim() || undefined,
+          account_number: editForm.account_number.trim() || undefined,
+          bank_branch: editForm.bank_branch,
+          branch_code: editForm.branch_code,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success('Account updated');
+          setEditAccount(null);
+        },
+        onError: () => toast.error('Failed to update account'),
+      },
+    );
+  }
+
+  function handleReactivate(account: BankAccount) {
+    updateMutation.mutate(
+      { id: account.id, data: { account_name: account.account_name, is_active: true } },
+      {
+        onSuccess: () => toast.success('Account reactivated'),
+        onError: () => toast.error('Failed to reactivate account'),
       },
     );
   }
@@ -294,6 +359,16 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
               variant="outline"
               size="sm"
               className="gap-1.5"
+              onClick={() => openEditDialog(a)}
+              title="Edit account name, bank name, account number, branch, or SWIFT/branch code"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
               onClick={() => openMethodsDialog(a)}
               title="Which payment methods (paystack, mpesa, card...) automatically post to this account"
             >
@@ -310,9 +385,21 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
               <FileText className="h-3.5 w-3.5" />
               Invoice Types
             </Button>
-            {a.is_active && (
+            {a.is_active ? (
               <Button variant="ghost" size="sm" onClick={() => handleDeactivate(a)} disabled={deleteMutation.isPending}>
                 Deactivate
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => handleReactivate(a)}
+                disabled={updateMutation.isPending}
+                title="Reactivate this account"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reactivate
               </Button>
             )}
           </div>
@@ -440,6 +527,70 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
               <Button onClick={handleCreate} disabled={createMutation.isPending}>
                 {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Add Account
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editAccount} onOpenChange={(o) => { if (!o) setEditAccount(null); }}>
+        <DialogContent
+          title="Edit Account"
+          description={`Update "${editAccount?.account_name ?? ''}"'s details. Account type and currency can't be changed after creation — they're tied to this account's real GL leaf and its transaction history.`}
+          onClose={() => setEditAccount(null)}
+          className="max-w-2xl"
+        >
+          <div className="space-y-4">
+            <FormField label="Account Name" required>
+              <input
+                value={editForm.account_name}
+                onChange={(e) => setEditForm((p) => ({ ...p, account_name: e.target.value }))}
+                className={inputClass}
+              />
+            </FormField>
+            {editAccount?.account_type === 'bank' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Bank Name">
+                  <input
+                    value={editForm.bank_name}
+                    onChange={(e) => setEditForm((p) => ({ ...p, bank_name: e.target.value }))}
+                    className={inputClass}
+                  />
+                </FormField>
+                <FormField label="Account Number">
+                  <input
+                    value={editForm.account_number}
+                    onChange={(e) => setEditForm((p) => ({ ...p, account_number: e.target.value }))}
+                    className={inputClass}
+                  />
+                </FormField>
+              </div>
+            )}
+            {editAccount?.account_type !== 'cash' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Branch" description="e.g. 'Kisumu'">
+                  <input
+                    value={editForm.bank_branch}
+                    onChange={(e) => setEditForm((p) => ({ ...p, bank_branch: e.target.value }))}
+                    className={inputClass}
+                  />
+                </FormField>
+                <FormField label="SWIFT / Branch Code" description="e.g. the bank's SWIFT/BIC code">
+                  <input
+                    value={editForm.branch_code}
+                    onChange={(e) => setEditForm((p) => ({ ...p, branch_code: e.target.value }))}
+                    className={inputClass}
+                  />
+                </FormField>
+              </div>
+            )}
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setEditAccount(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={updateMutation.isPending || !editForm.account_name.trim()}>
+                {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save Changes
               </Button>
             </div>
           </div>
