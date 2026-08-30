@@ -12,6 +12,7 @@
  */
 
 import { apiClient } from './client';
+import { fetchAllViaApiClient } from './paginate';
 
 const BASE = '/api/v1';
 
@@ -160,25 +161,19 @@ export interface PayoutVendorCreditRequest {
   paid_at?: string;
 }
 
-/** treasury-api list endpoints return a pagination envelope `{ data, total, page, limit }`. */
-interface Paginated<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-}
-
 // ---- API Functions ----
 
 export function getAPSummary(tenant: string): Promise<APSummary> {
   return apiClient.get<APSummary>(`${BASE}/${tenant}/ap/summary`);
 }
 
+// `/ap/vendors` is paginated (ListVendorBalances, shared Bengo-Hub/pagination lib) — this fetches
+// the tenant's COMPLETE vendor balance list, paging through the backend until exhausted. The
+// Vendors page needs every vendor's balance to merge against its bill-derived vendor rollup, not
+// just the first page; a plain single-page call silently dropped any vendor past it. Mirrors
+// getAllBills/getAllInvoices/getCustomerBalances for the identical truncation shape.
 export async function getVendorBalances(tenant: string): Promise<VendorBalance[]> {
-  const res = await apiClient.get<Paginated<VendorBalance> | VendorBalance[]>(
-    `${BASE}/${tenant}/ap/vendors`,
-  );
-  return Array.isArray(res) ? res : res.data ?? [];
+  return fetchAllViaApiClient<VendorBalance>(`${BASE}/${tenant}/ap/vendors`);
 }
 
 export function getVendorStatement(
