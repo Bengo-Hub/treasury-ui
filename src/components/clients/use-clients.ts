@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useInvoices, useCustomerBalances } from '@/hooks/use-invoices';
+import { useAllInvoices, useCustomerBalances } from '@/hooks/use-invoices';
 import { useCRMContacts } from '@/hooks/use-crm-contacts';
 import type { Invoice, CustomerBalance } from '@/lib/api/invoices';
 import type { CRMContact } from '@/lib/api/crm';
@@ -63,8 +63,10 @@ const crmName = (c: CRMContact) =>
  *    CRM-only contacts are added as zero-balance clients.
  */
 export function useClients(tenant: string, search = '') {
-  const { data, isLoading, error, refetch: refetchInvoices, isFetching: fetchingInvoices } = useInvoices(tenant, {}, !!tenant);
-  const invoices = useMemo(() => data?.invoices ?? [], [data]);
+  // ALL invoices, not one backend page — this merge needs the tenant's complete doc history to
+  // aggregate totals/counts correctly and to avoid dropping a client whose only invoices sort
+  // past the first page (see getAllInvoices).
+  const { data: invoices = [], isLoading, error, refetch: refetchInvoices, isFetching: fetchingInvoices } = useAllInvoices(tenant, !!tenant);
 
   const { data: balances, refetch: refetchBalances, isFetching: fetchingBalances } = useCustomerBalances(tenant, !!tenant);
   // Drive the CRM lookup server-side: empty search loads the whole customer directory, a typed

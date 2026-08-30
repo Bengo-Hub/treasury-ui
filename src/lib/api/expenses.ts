@@ -91,6 +91,9 @@ export interface ExpensesParams {
   billable?: boolean;
   limit?: number;
   offset?: number;
+  /** 1-based page — the shared Bengo-Hub/pagination lib reads this directly (page takes
+   * precedence over `offset` when both are present). */
+  page?: number;
   tenantId?: string;
 }
 
