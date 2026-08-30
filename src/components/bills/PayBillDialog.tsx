@@ -12,7 +12,7 @@ import { usePayBill } from '@/hooks/use-bills';
 import { ONLINE_PAYMENT_METHODS, type Bill, type PayBillRequest } from '@/lib/api/bills';
 import { listPaymentIntents } from '@/lib/api/payments';
 import { formatCurrency } from '@/lib/utils/currency';
-import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
+import { nowDatetimeLocal, datetimeLocalToISO, resolveDefaultAccount } from '@bengo-hub/shared-ui-lib/payments';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CreditCard, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -71,6 +71,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
   const [mode, setMode] = useState<'settle' | 'link'>('settle');
   const [method, setMethod] = useState('cash');
   const [accountId, setAccountId] = useState('');
+  const [accountTouched, setAccountTouched] = useState(false);
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
@@ -108,6 +109,16 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
     !Number.isNaN(selectedAccountBalance) &&
     Number(amount || 0) > selectedAccountBalance;
 
+  // Preload the account that this offline method's default_payment_methods mapping points to —
+  // re-runs when the method changes (this dialog owns `method` directly, unlike modals wrapping
+  // SettlementModal), but never clobbers a manual pick.
+  useEffect(() => {
+    if (accountTouched || accountId || !bankAccountsData?.bank_accounts?.length) return;
+    const def = resolveDefaultAccount(bankAccountsData.bank_accounts, method);
+    if (def) setAccountId(def.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bankAccountsData, method]);
+
   const { data: intentsData, isLoading: loadingIntents } = useQuery({
     queryKey: ['payment-intents', tenant],
     queryFn: () => listPaymentIntents(tenant),
@@ -135,6 +146,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
     setMode('settle');
     setMethod('cash');
     setAccountId('');
+    setAccountTouched(false);
     setAmount('');
     setReference('');
     setRecipientPhone('');
@@ -307,7 +319,7 @@ export function PayBillDialog({ tenant, orgSlug, bill, onClose }: PayBillDialogP
                     <Combobox
                       options={accountOptions}
                       value={accountId}
-                      onChange={(v) => setAccountId(v ?? '')}
+                      onChange={(v) => { setAccountId(v ?? ''); setAccountTouched(true); }}
                       placeholder={accountOptions.length ? 'Select cash / bank account' : 'No cash/bank accounts yet — create one first'}
                       searchPlaceholder="Search accounts…"
                       emptyText="No matching accounts"

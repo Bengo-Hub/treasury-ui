@@ -85,3 +85,18 @@ export function updateAccount(tenantIdOrSlug: string, id: string, data: UpdateAc
 export function deactivateAccount(tenantIdOrSlug: string, id: string): Promise<{ status: string }> {
   return apiClient.delete<{ status: string }>(`${BASE}/${tenantIdOrSlug}/ledger/accounts/${id}`);
 }
+
+/** Flattens the hierarchical chart of accounts into a single pickable list — for any UI selecting
+ *  one specific leaf account (a mapping target, a category default, …) where parent/child nesting
+ *  doesn't matter, just the full set of codes. */
+export function flattenAccounts(accounts: Account[]): Account[] {
+  const out: Account[] = [];
+  const walk = (list: Account[]) => {
+    for (const a of list) {
+      out.push(a);
+      if (a.children?.length) walk(a.children);
+    }
+  };
+  walk(accounts);
+  return out;
+}

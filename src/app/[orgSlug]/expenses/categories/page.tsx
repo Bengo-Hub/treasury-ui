@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { RowActionMenu, type RowAction } from '@/components/ui/action-menu';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -11,6 +12,8 @@ import {
   useExpenseCategories,
   useUpdateCategory,
 } from '@/hooks/use-expenses';
+import { useAccounts } from '@/hooks/use-accounts';
+import { flattenAccounts } from '@/lib/api/accounts';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { cn } from '@/lib/utils';
 import type { ExpenseCategory } from '@/lib/api/expenses';
@@ -73,6 +76,14 @@ export default function ExpenseCategoriesPage() {
   const createCategory = useCreateCategory(effectiveTenant);
   const updateCategory = useUpdateCategory(effectiveTenant);
   const deleteCategory = useDeleteCategory(effectiveTenant);
+  const { data: accountsData } = useAccounts(effectiveTenant);
+  const accountOptions = useMemo<ComboboxOption[]>(
+    () =>
+      flattenAccounts(accountsData?.accounts ?? [])
+        .filter((a) => a.is_active !== false)
+        .map((a) => ({ value: a.id, label: a.account_name, hint: a.account_code })),
+    [accountsData],
+  );
 
   const [search, setSearch] = useState('');
 
@@ -81,6 +92,7 @@ export default function ExpenseCategoriesPage() {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
+  const [defaultAccountId, setDefaultAccountId] = useState('');
   const [codeTouched, setCodeTouched] = useState(false);
   const [nameError, setNameError] = useState<string | undefined>();
 
@@ -88,6 +100,7 @@ export default function ExpenseCategoriesPage() {
   const [editTarget, setEditTarget] = useState<ExpenseCategory | null>(null);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editDefaultAccountId, setEditDefaultAccountId] = useState('');
   const [editActive, setEditActive] = useState(true);
   const [editNameError, setEditNameError] = useState<string | undefined>();
 
@@ -113,6 +126,7 @@ export default function ExpenseCategoriesPage() {
     setName('');
     setCode('');
     setDescription('');
+    setDefaultAccountId('');
     setCodeTouched(false);
     setNameError(undefined);
     setDialogOpen(true);
@@ -129,6 +143,7 @@ export default function ExpenseCategoriesPage() {
         name: trimmed,
         code: (codeTouched && code.trim()) || deriveCode(trimmed),
         description: description.trim() || undefined,
+        default_account_id: defaultAccountId || undefined,
       },
       {
         onSuccess: (cat) => {
@@ -149,6 +164,7 @@ export default function ExpenseCategoriesPage() {
     setEditTarget(cat);
     setEditName(cat.name);
     setEditDescription(cat.description ?? '');
+    setEditDefaultAccountId(cat.default_account_id ?? '');
     setEditActive(cat.is_active);
     setEditNameError(undefined);
   };
@@ -167,6 +183,7 @@ export default function ExpenseCategoriesPage() {
           name: trimmed,
           // Send empty string (not undefined) so clearing the description persists.
           description: editDescription.trim(),
+          default_account_id: editDefaultAccountId || undefined,
           is_active: editActive,
         },
       },
@@ -470,6 +487,20 @@ export default function ExpenseCategoriesPage() {
               />
             </FormField>
 
+            <FormField
+              label="Default ledger account"
+              description="Preloaded on the expense/payment forms when this category is picked — the user can still choose a different account. Leave blank to use the platform's built-in default."
+            >
+              <Combobox
+                options={accountOptions}
+                value={defaultAccountId}
+                onChange={(v) => setDefaultAccountId(v ?? '')}
+                placeholder="Use the built-in default"
+                searchPlaceholder="Search accounts…"
+                emptyText="No matching accounts"
+              />
+            </FormField>
+
             <div className="flex justify-end gap-2 pt-1">
               <Button
                 variant="outline"
@@ -532,6 +563,20 @@ export default function ExpenseCategoriesPage() {
                 rows={3}
                 placeholder="e.g. Pens, paper, printer ink and other office consumables"
                 className={cn(inputClass, 'resize-y')}
+              />
+            </FormField>
+
+            <FormField
+              label="Default ledger account"
+              description="Preloaded on the expense/payment forms when this category is picked — the user can still choose a different account. Leave blank to use the platform's built-in default."
+            >
+              <Combobox
+                options={accountOptions}
+                value={editDefaultAccountId}
+                onChange={(v) => setEditDefaultAccountId(v ?? '')}
+                placeholder="Use the built-in default"
+                searchPlaceholder="Search accounts…"
+                emptyText="No matching accounts"
               />
             </FormField>
 

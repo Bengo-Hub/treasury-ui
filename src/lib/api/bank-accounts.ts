@@ -32,6 +32,10 @@ export interface BankAccount {
   custodian_user_id?: string;
   outlet_id?: string;
   default_payment_methods?: string[];
+  /** Invoice types (e.g. "subscription") that default to this account for settlement — feeds
+   *  invoicing.CreateInvoice's auto-default of settlement_account_id when a new invoice's type
+   *  matches and no account was explicitly chosen. */
+  default_invoice_types?: string[];
   opened_at?: string;
   is_active: boolean;
   created_at?: string;
@@ -71,6 +75,11 @@ export interface BankAccountRequest {
    *  ledger.ResolveCashCode's tier-2 lookup. Free-form: whatever string the paying service tags
    *  the payment with. */
   default_payment_methods?: string[];
+  /** Invoice types (e.g. "subscription") that should default to this account for settlement —
+   *  a new invoice of a matching type auto-fills settlement_account_id (and therefore its printed
+   *  bank details) to this account when none is explicitly chosen at creation. Free-form, matches
+   *  whatever invoice_type value the creating service sends. */
+  default_invoice_types?: string[];
 }
 
 export interface AccountBalance {
