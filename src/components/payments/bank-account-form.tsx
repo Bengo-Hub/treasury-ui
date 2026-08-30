@@ -21,12 +21,15 @@ export interface BankAccountValue {
   bank_name: string;
   account_number: string;
   bank_branch: string;
-  branch_code: string; // SWIFT/BIC or branch/sort code
+  bank_code: string; // national/regulator-assigned bank code, e.g. "01" for KCB
+  branch_code: string; // SWIFT/BIC, often branch-specific, e.g. "KCBLKENX077"
+  local_branch_code: string; // domestic branch/sort code, e.g. "303" — distinct from branch_code's SWIFT
   currency: string;
 }
 
 export const EMPTY_BANK_ACCOUNT: BankAccountValue = {
-  account_name: '', bank_name: '', account_number: '', bank_branch: '', branch_code: '', currency: 'KES',
+  account_name: '', bank_name: '', account_number: '', bank_branch: '',
+  bank_code: '', branch_code: '', local_branch_code: '', currency: 'KES',
 };
 
 // Currencies Paystack can enumerate banks + name-enquire for, mapped to its country slug.
@@ -177,12 +180,33 @@ export function BankAccountForm({ orgSlug, value, onChange, hideCurrency = false
           />
         </div>
         <div>
-          <label className={labelClass}>SWIFT / Branch Code (optional)</label>
+          <label className={labelClass}>SWIFT / BIC Code (optional)</label>
           <input
             value={value.branch_code}
             onChange={(e) => set({ branch_code: e.target.value })}
             className={inputClass}
-            placeholder="e.g. EQBLKENA"
+            placeholder="e.g. EQBLKENA (often branch-specific)"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Bank Code (optional)</label>
+          <input
+            value={value.bank_code}
+            onChange={(e) => set({ bank_code: e.target.value })}
+            className={inputClass}
+            placeholder="e.g. 01 (national bank code)"
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Local Branch Code (optional)</label>
+          <input
+            value={value.local_branch_code}
+            onChange={(e) => set({ local_branch_code: e.target.value })}
+            className={inputClass}
+            placeholder="e.g. 303 (domestic sort code)"
           />
         </div>
       </div>

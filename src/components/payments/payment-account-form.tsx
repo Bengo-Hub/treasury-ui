@@ -30,7 +30,9 @@ export interface PaymentAccount {
   account_name: string;
   account_number: string;
   bank_branch: string;
+  bank_code: string;
   branch_code: string;
+  local_branch_code: string;
   // Mobile money. Paybill takes BOTH a shortcode (paybill no.) and the account no.
   // payers quote as the reference; Till is a single buy-goods number.
   mpesa_paybill: string;
@@ -47,7 +49,8 @@ export const EMPTY_PAYMENT_ACCOUNT: PaymentAccount = {
   business_name: '', tagline: '', building: '', street: '', city: '', po_box: '',
   postal_code: '', country: '', address: '', tax_pin: '', vat_registered: false,
   vat_registered_on: '', bank_name: '', account_name: '', account_number: '',
-  bank_branch: '', branch_code: '', mpesa_paybill: '', mpesa_paybill_account: '', mpesa_till: '',
+  bank_branch: '', bank_code: '', branch_code: '', local_branch_code: '',
+  mpesa_paybill: '', mpesa_paybill_account: '', mpesa_till: '',
   mtn_momo_number: '', airtel_money_number: '',
   instructions: '',
 };
@@ -152,7 +155,9 @@ export function PaymentAccountFields({ acct, onChange, showVat = false, orgSlug 
               bank_name: acct.bank_name,
               account_number: acct.account_number,
               bank_branch: acct.bank_branch,
+              bank_code: acct.bank_code,
               branch_code: acct.branch_code,
+              local_branch_code: acct.local_branch_code,
               currency: 'KES',
             }}
             onChange={(v: BankAccountValue) => {
@@ -160,7 +165,9 @@ export function PaymentAccountFields({ acct, onChange, showVat = false, orgSlug 
               onChange('bank_name', v.bank_name);
               onChange('account_number', v.account_number);
               onChange('bank_branch', v.bank_branch);
+              onChange('bank_code', v.bank_code);
               onChange('branch_code', v.branch_code);
+              onChange('local_branch_code', v.local_branch_code);
             }}
           />
         ) : (
@@ -168,6 +175,8 @@ export function PaymentAccountFields({ acct, onChange, showVat = false, orgSlug 
             {field('Bank Name', 'bank_name', 'Equity Bank')}
             {field('Bank Branch', 'bank_branch', 'e.g. Westlands')}
             {field('IBAN / Swift', 'branch_code')}
+            {field('Bank Code', 'bank_code', "e.g. '01'")}
+            {field('Local Branch Code', 'local_branch_code', "e.g. '303'")}
             {field('Account Name', 'account_name')}
             {field('Account Number', 'account_number')}
           </div>
