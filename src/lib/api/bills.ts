@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from './client';
+import { fetchAllViaApiClient } from './paginate';
 
 const BASE = '/api/v1';
 
@@ -85,8 +86,11 @@ export interface BillsParams {
   status?: string;
   from?: string;
   to?: string;
+  /** Matches the bill's own number or vendor name — real DB-level filtering. */
+  search?: string;
   limit?: number;
   offset?: number;
+  page?: number;
   tenantId?: string;
 }
 
@@ -163,6 +167,18 @@ export interface AgingReport {
 
 export function getBills(tenantIdOrSlug: string, params?: BillsParams): Promise<BillsResponse> {
   return apiClient.get<BillsResponse>(`${BASE}/${tenantIdOrSlug}/ap/bills`, params);
+}
+
+/**
+ * Fetch the tenant's ENTIRE bill history (unpaginated). `/ap/bills` is paginated (shared
+ * Bengo-Hub/pagination lib defaults to 20/page, caps a page at 100) — a single un-paginated
+ * fetch only returns the newest page, silently truncating any view that aggregates over "all
+ * bills" (e.g. the Vendors page's derived per-vendor rollup, which groups bills by vendor_name
+ * client-side since there's no dedicated vendor service). Mirrors getCustomerBalances's fix
+ * (lib/api/invoices.ts) for the identical truncation shape.
+ */
+export async function getAllBills(tenantIdOrSlug: string): Promise<Bill[]> {
+  return fetchAllViaApiClient<Bill>(`${BASE}/${tenantIdOrSlug}/ap/bills`);
 }
 
 export function getBill(tenantIdOrSlug: string, id: string): Promise<Bill> {

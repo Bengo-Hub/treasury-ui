@@ -43,9 +43,17 @@ export default function BillsPage() {
     if (payParam) setPayBillId(payParam);
   }, [searchParams]);
 
+  // Search/status/page all go straight to the backend — ListBills already runs this through
+  // pagination.Parse with a true total, and now supports a real DB-level `search` (matches the
+  // bill's own number or vendor name). Previously this only sent `status`, so the backend's own
+  // default page size silently capped every load, and the on-screen search box + pager only ever
+  // filtered/sliced that already-truncated set in memory, with a fake total from its length.
   const queryParams = useMemo(() => ({
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-  }), [statusFilter]);
+    ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+    page,
+    limit: ITEMS_PER_PAGE,
+  }), [statusFilter, searchQuery, page]);
 
   const { data, isLoading, error } = useBills(effectiveTenant, queryParams, !!effectiveTenant);
   const { data: agingData } = useAPAging(effectiveTenant, !!effectiveTenant);
@@ -53,22 +61,16 @@ export default function BillsPage() {
   const list = data?.data ?? [];
   const agingRows = agingData?.rows ?? [];
 
-  // Note: the bills list endpoint does not support a document_type query filter
-  // (BillFilters has no DocumentType), so type filtering is done client-side here.
+  // Note: the bills list endpoint does not support a document_type query filter (BillFilters has
+  // no DocumentType), so type filtering narrows client-side, scoped to the current backend page
+  // only — the same tradeoff this codebase's own Expenses page accepts for its funnel filters.
   const filtered = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return list.filter((bill: Bill) => {
-      if (typeFilter !== 'all' && (bill.document_type ?? 'bill') !== typeFilter) return false;
-      if (!q) return true;
-      return (
-        bill.bill_number?.toLowerCase().includes(q) ||
-        bill.vendor_name?.toLowerCase().includes(q)
-      );
-    });
-  }, [list, searchQuery, typeFilter]);
+    if (typeFilter === 'all') return list;
+    return list.filter((bill: Bill) => (bill.document_type ?? 'bill') === typeFilter);
+  }, [list, typeFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginatedItems = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const total = data?.total ?? filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
 
   useMemo(() => { setPage(1); }, [searchQuery, statusFilter, typeFilter]);
 
@@ -249,7 +251,7 @@ export default function BillsPage() {
           <div className="px-2 pb-2">
             <DataTable<Bill>
               columns={billColumns}
-              rows={paginatedItems}
+              rows={filtered}
               rowKey={(b) => b.id}
               loading={isLoading}
               loadingRows={8}
@@ -260,7 +262,7 @@ export default function BillsPage() {
               page={page}
               totalPages={totalPages}
               onPageChange={setPage}
-              total={filtered.length}
+              total={total}
               pageSize={ITEMS_PER_PAGE}
             />
           </div>

@@ -89,7 +89,13 @@ export default function ExpensesPage() {
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     // Backend ListExpenses supports server-side cost_center_id filtering (expenses.go).
     ...(costCenterFilter !== 'all' ? { cost_center_id: costCenterFilter } : {}),
-  }), [dateRange, statusFilter, costCenterFilter]);
+    // Real server-side pagination (ListExpenses runs this through pagination.Parse, same as
+    // every other Bengo-Hub/pagination-backed list) — without these the backend silently
+    // defaults to page 1 / limit 20, so "page 2" of the table was always empty past the 20th
+    // matching expense no matter how many actually existed.
+    page,
+    limit: pageSize,
+  }), [dateRange, statusFilter, costCenterFilter, page, pageSize]);
 
   const { data, isLoading, error } = useExpenses(effectiveTenant, queryParams, !!effectiveTenant);
   // active_only: hide archived centers from the selector/filter.
@@ -98,6 +104,10 @@ export default function ExpensesPage() {
   const list = data?.expenses ?? [];
   const costCenters = costCenterData?.cost_centers ?? [];
 
+  // `list` is already exactly this backend page's rows (page/limit are forwarded above).
+  // ListExpenses has no free-text search filter, so `search` and the funnel headers narrow
+  // client-side within the current page only — same tradeoff the ledger Journals page documents
+  // for its own free-text search over a server-filtered set.
   const filtered = useMemo(() => {
     let out = list;
     if (searchQuery.trim()) {
@@ -109,7 +119,6 @@ export default function ExpensesPage() {
           exp.category_name?.toLowerCase().includes(q)
       );
     }
-    // Funnel filters (controlled: applied over the whole list, before pagination).
     for (const [key, st] of Object.entries(funnel)) {
       const acc = EXPENSE_ACCESSORS[key];
       if (!acc || !st) continue;
@@ -133,8 +142,11 @@ export default function ExpensesPage() {
     return out;
   }, [list, searchQuery, funnel, sort]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paginatedItems = filtered.slice((page - 1) * pageSize, page * pageSize);
+  // Real total from the server (accounts for date/status/cost_center — the server-side filters),
+  // not filtered.length: the old totalPages was computed from an already-truncated `list`, so
+  // navigating to "page 2" always rendered empty past the 20th matching expense.
+  const total = data?.total ?? filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   useMemo(() => { setPage(1); }, [searchQuery, statusFilter, costCenterFilter, funnel, pageSize]);
 
@@ -313,8 +325,9 @@ export default function ExpensesPage() {
     },
   ];
 
-  // Funnel checklists derived from the WHOLE loaded list (controlled-filter mode would
-  // otherwise only see the current page slice).
+  // Funnel checklists derived from the current backend page (ListExpenses has no "distinct
+  // categories/statuses across all pages" endpoint, so these options are necessarily scoped to
+  // whatever page is currently loaded).
   const categoryOptions = [...new Set(list.map((e: Expense) => e.category_name || ''))]
     .sort()
     .map((v) => ({ value: v, label: v || '(none)' }));
@@ -400,7 +413,7 @@ export default function ExpensesPage() {
         <CardContent className="pt-0">
           <DataTable<Expense>
             columns={columns}
-            rows={paginatedItems}
+            rows={filtered}
             rowKey={(exp) => exp.id}
             loading={isLoading}
             loadingRows={8}
@@ -419,7 +432,7 @@ export default function ExpensesPage() {
             page={page}
             totalPages={totalPages}
             onPageChange={setPage}
-            total={filtered.length}
+            total={total}
           />
         </CardContent>
       </Card>

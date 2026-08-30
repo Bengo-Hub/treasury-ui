@@ -2,6 +2,7 @@
 
 import {
   getBills,
+  getAllBills,
   createBill,
   payBill,
   getAPAging,
@@ -32,6 +33,19 @@ export function useBills(
   return useQuery({
     queryKey: billKeys.list(tenantIdOrSlug ?? '', params),
     queryFn: () => getBills(tenantIdOrSlug!, params),
+    enabled: !!tenantIdOrSlug && enabled,
+    staleTime: STALE_MS,
+  });
+}
+
+// useAllBills fetches the tenant's COMPLETE bill history (pages through the backend until
+// exhausted) — for views that aggregate/derive over every bill rather than showing one page of
+// them (e.g. the Vendors page's per-vendor rollup). See getAllBills for why a plain useBills({})
+// call silently truncates this to the newest 20.
+export function useAllBills(tenantIdOrSlug: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['bills', 'all', tenantIdOrSlug ?? ''],
+    queryFn: () => getAllBills(tenantIdOrSlug!),
     enabled: !!tenantIdOrSlug && enabled,
     staleTime: STALE_MS,
   });

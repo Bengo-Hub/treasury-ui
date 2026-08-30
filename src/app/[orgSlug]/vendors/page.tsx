@@ -3,7 +3,7 @@
 import { Badge, Button, Card, CardContent } from '@/components/ui/base';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useOrgBranding } from '@/hooks/use-org-branding';
-import { useBills } from '@/hooks/use-bills';
+import { useAllBills } from '@/hooks/use-bills';
 import { useAPSummary, useVendorBalances } from '@/hooks/use-arpa';
 import type { Bill } from '@/lib/api/bills';
 import type { VendorBalance } from '@/lib/api/arpa';
@@ -70,8 +70,11 @@ export default function VendorsPage() {
   const [refundVendor, setRefundVendor] = useState<{ id?: string; name: string } | null>(null);
   const [payoutVendor, setPayoutVendor] = useState<{ id?: string; name: string; creditAvailable: number; currency: string } | null>(null);
 
-  const { data, isLoading, error } = useBills(effectiveTenant, {}, !!effectiveTenant);
-  const bills = useMemo(() => data?.data ?? [], [data]);
+  // Vendors have no dedicated backend resource — they're derived by grouping the tenant's ENTIRE
+  // bill history by vendor_name (below). useAllBills pages through the backend until exhausted so
+  // this rollup (and the search/pagination over it) is never silently computed from a truncated
+  // first page — see getAllBills's doc comment for the identical bug this mirrors.
+  const { data: bills = [], isLoading, error } = useAllBills(effectiveTenant, !!effectiveTenant);
 
   // AP balances + summary (the operational AP ledger — opening/advance + owed per supplier).
   const { data: apSummary } = useAPSummary(effectiveTenant, !!effectiveTenant);

@@ -31,6 +31,7 @@ import {
   getQuotationStats,
   getQuotationSummary,
   listInvoices,
+  getAllInvoices,
   listQuotations,
   recordPayment,
   listInvoicePayments,
@@ -110,6 +111,19 @@ export function useInvoices(tenant: string, filters?: InvoiceFilters, enabled = 
   return useQuery({
     queryKey: invoiceKeys.list(tenant, filters),
     queryFn: () => listInvoices(tenant, filters),
+    enabled: !!tenant && enabled,
+    staleTime: STALE_MS,
+  });
+}
+
+// useAllInvoices fetches the tenant's COMPLETE invoice history (pages through the backend until
+// exhausted) — for views that aggregate/merge over every invoice rather than showing one page of
+// them (e.g. useClients' doc-derived customer rollup). See getAllInvoices for why a plain
+// useInvoices(tenant, {}) call silently truncates this to the newest 20.
+export function useAllInvoices(tenant: string, enabled = true) {
+  return useQuery({
+    queryKey: [...invoiceKeys.all(tenant), 'all'],
+    queryFn: () => getAllInvoices(tenant),
     enabled: !!tenant && enabled,
     staleTime: STALE_MS,
   });

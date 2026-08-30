@@ -896,6 +896,17 @@ export async function getCustomerBalances(tenant: string): Promise<CustomerBalan
   return fetchAllViaApiClient<CustomerBalance>(`${BASE}/${tenant}/ar/customers`);
 }
 
+/**
+ * Fetch the tenant's ENTIRE invoice history (unpaginated). `/invoices` is paginated (shared
+ * Bengo-Hub/pagination lib defaults to 20/page) — a single un-paginated fetch (as useClients'
+ * doc-derived customer rollup used to make) only returns the newest page, silently truncating the
+ * aggregation AND dropping any client whose only invoices fall past it. Mirrors
+ * getCustomerBalances's fix for the identical truncation shape.
+ */
+export async function getAllInvoices(tenant: string): Promise<Invoice[]> {
+  return fetchAllViaApiClient<Invoice>(`${BASE}/${tenant}/invoices`);
+}
+
 // Receive a customer's repayment against their AR balance. `contactId` = crm_contact_id (or the
 // customer_identifier for non-CRM rows). Returns the updated balance.
 export function recordCustomerPayment(
