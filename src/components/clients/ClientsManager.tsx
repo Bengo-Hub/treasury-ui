@@ -9,6 +9,7 @@ import {
 } from '@bengo-hub/shared-ui-lib/data-table';
 import { StatementDialog } from '@/components/statement-dialog';
 import { OpeningBalanceDialog } from '@/components/opening-balance-dialog';
+import { ViewCustomerPaymentsModal } from './ViewCustomerPaymentsModal';
 import type { CustomerBalance } from '@/lib/api/invoices';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
@@ -19,6 +20,7 @@ import {
   FileText,
   Loader2,
   Mail,
+  Receipt,
   RefreshCw,
   Search,
   User,
@@ -125,6 +127,7 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [statementClient, setStatementClient] = useState<{ id: string; name: string } | null>(null);
   const [openingClient, setOpeningClient] = useState<ClientRecord | null>(null);
   const [payTarget, setPayTarget] = useState<CustomerBalance | null>(null);
+  const [paymentsHistoryTarget, setPaymentsHistoryTarget] = useState<CustomerBalance | null>(null);
   const [payoutTarget, setPayoutTarget] = useState<CustomerBalance | null>(null);
   const [applyToDebtTarget, setApplyToDebtTarget] = useState<CustomerBalance | null>(null);
   const [creditTermsClient, setCreditTermsClient] = useState<ClientRecord | null>(null);
@@ -442,6 +445,12 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                 <FileText className="h-3.5 w-3.5" />
               </Button>
             )}
+            {b && (
+              <Button variant="outline" size="sm" title="View payments — correct a payment recorded against the wrong order/amount"
+                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setPaymentsHistoryTarget(b); }}>
+                <Receipt className="h-3.5 w-3.5" />
+              </Button>
+            )}
             <ArrowUpRight className="h-4 w-4 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
           </div>
         );
@@ -499,6 +508,10 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
 
       {payTarget && (
         <ReceivePaymentModal tenant={tenant} target={payTarget} onClose={() => setPayTarget(null)} />
+      )}
+
+      {paymentsHistoryTarget && (
+        <ViewCustomerPaymentsModal tenant={tenant} customer={paymentsHistoryTarget} onClose={() => setPaymentsHistoryTarget(null)} />
       )}
 
       {payoutTarget && (

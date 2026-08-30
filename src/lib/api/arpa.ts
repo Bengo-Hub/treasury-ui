@@ -263,3 +263,39 @@ export interface CustomerBalanceRow {
   currency: string;
   updated_at: string;
 }
+
+// ---- AR Receipt history / correction ----
+// GET    /{tenant}/ar/customers/{contactID}/receipts               -> ARReceipt[]
+// DELETE /{tenant}/ar/customers/{contactID}/receipts/{receiptID}   -> ARReceipt (voided)
+// Lets an admin correct a payment recorded against the wrong customer/order/amount — the AR
+// mirror of bills.ts's listBillPayments/voidBillPayment.
+
+/** One customer AR payment, addressable for history/void. */
+export interface ARReceipt {
+  id: string;
+  amount: string;
+  currency: string;
+  method: string;
+  reference: string;
+  occurred_at: string;
+  status: string; // succeeded | voided
+  voided_at?: string;
+  void_reason?: string;
+  created_at: string;
+}
+
+export function listCustomerReceipts(tenant: string, contactId: string): Promise<{ data: ARReceipt[] }> {
+  return apiClient.get<{ data: ARReceipt[] }>(`${BASE}/${tenant}/ar/customers/${contactId}/receipts`);
+}
+
+export function voidCustomerReceipt(
+  tenant: string,
+  contactId: string,
+  receiptId: string,
+  reason?: string,
+): Promise<ARReceipt> {
+  return apiClient.delete<ARReceipt>(
+    `${BASE}/${tenant}/ar/customers/${contactId}/receipts/${receiptId}`,
+    { data: { reason } },
+  );
+}
