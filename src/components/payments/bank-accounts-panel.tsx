@@ -7,7 +7,9 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { BankAccountForm, EMPTY_BANK_ACCOUNT, type BankAccountValue } from '@/components/payments/bank-account-form';
-import { SUPPORTED_CURRENCIES, CURRENCY_META } from '@bengo-hub/shared-ui-lib/payments';
+import { SUPPORTED_CURRENCIES, CURRENCY_META, PAYMENT_METHOD_LABELS } from '@bengo-hub/shared-ui-lib/payments';
+import { MultiSelectCombobox, type ComboboxOption } from '@bengo-hub/shared-ui-lib/combobox';
+import { INVOICE_TYPE_OPTIONS } from '@/lib/api/invoice-types';
 import {
   useBankAccounts,
   useCreateBankAccount,
@@ -44,6 +46,13 @@ const TYPE_LABEL: Record<string, string> = {
   cash: 'Cash',
   gateway: 'Gateway',
 };
+
+// Every real payment method the platform actually handles in live transactions — the same
+// registry every transaction list/receipt/export reads from (@bengo-hub/shared-ui-lib/payments),
+// reused here instead of asking the user to type and hope they match the right value.
+const PAYMENT_METHOD_OPTIONS: ComboboxOption[] = Object.entries(PAYMENT_METHOD_LABELS).map(
+  ([value, label]) => ({ value, label }),
+);
 
 interface BankAccountsPanelProps {
   /** Tenant ID/slug to scope the accounts to (platform Gateways & Secrets passes the platform
@@ -87,21 +96,17 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
   const [currency, setCurrency] = useState('KES');
 
   const [methodsAccount, setMethodsAccount] = useState<BankAccount | null>(null);
-  const [methodsInput, setMethodsInput] = useState('');
+  const [methodsValues, setMethodsValues] = useState<string[]>([]);
 
   function openMethodsDialog(account: BankAccount) {
     setMethodsAccount(account);
-    setMethodsInput((account.default_payment_methods ?? []).join(', '));
+    setMethodsValues(account.default_payment_methods ?? []);
   }
 
   function handleSaveMethods() {
     if (!methodsAccount) return;
-    const methods = methodsInput
-      .split(',')
-      .map((m) => m.trim().toLowerCase())
-      .filter(Boolean);
     updateMutation.mutate(
-      { id: methodsAccount.id, data: { account_name: methodsAccount.account_name, default_payment_methods: methods } },
+      { id: methodsAccount.id, data: { account_name: methodsAccount.account_name, default_payment_methods: methodsValues } },
       {
         onSuccess: () => {
           toast.success('Payment methods updated');
@@ -116,21 +121,17 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
   // TYPE (e.g. "subscription") a newly created invoice should settle into and print bank details
   // for by default, instead of every payment_method this account happens to collect.
   const [invoiceTypesAccount, setInvoiceTypesAccount] = useState<BankAccount | null>(null);
-  const [invoiceTypesInput, setInvoiceTypesInput] = useState('');
+  const [invoiceTypesValues, setInvoiceTypesValues] = useState<string[]>([]);
 
   function openInvoiceTypesDialog(account: BankAccount) {
     setInvoiceTypesAccount(account);
-    setInvoiceTypesInput((account.default_invoice_types ?? []).join(', '));
+    setInvoiceTypesValues(account.default_invoice_types ?? []);
   }
 
   function handleSaveInvoiceTypes() {
     if (!invoiceTypesAccount) return;
-    const types = invoiceTypesInput
-      .split(',')
-      .map((t) => t.trim().toLowerCase())
-      .filter(Boolean);
     updateMutation.mutate(
-      { id: invoiceTypesAccount.id, data: { account_name: invoiceTypesAccount.account_name, default_invoice_types: types } },
+      { id: invoiceTypesAccount.id, data: { account_name: invoiceTypesAccount.account_name, default_invoice_types: invoiceTypesValues } },
       {
         onSuccess: () => {
           toast.success('Invoice types updated');
@@ -629,26 +630,27 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
       <Dialog open={!!methodsAccount} onOpenChange={(o) => { if (!o) setMethodsAccount(null); }}>
         <DialogContent
           title="Payment Methods"
-          description={`Which tender/payment methods should automatically post to "${methodsAccount?.account_name ?? ''}" when a payment carries no explicit account? Comma-separated (e.g. paystack, mpesa, card).`}
+          description={`Pick every payment method that should post to "${methodsAccount?.account_name ?? ''}" automatically, whenever a payment doesn't say which account to use.`}
           onClose={() => setMethodsAccount(null)}
         >
           <div className="space-y-4">
             <FormField
               label="Payment methods"
-              description="Free-form — must match the payment_method value the paying service actually sends. Replaces the current list; clearing this field has no effect (the backend ignores an empty update)."
+              description="Selecting none leaves the current list unchanged — the backend doesn't support clearing it yet."
             >
-              <input
-                value={methodsInput}
-                onChange={(e) => setMethodsInput(e.target.value)}
-                className={inputClass}
-                placeholder="e.g. paystack, mpesa"
+              <MultiSelectCombobox
+                options={PAYMENT_METHOD_OPTIONS}
+                values={methodsValues}
+                onChange={setMethodsValues}
+                placeholder="Select payment methods…"
+                searchPlaceholder="Search payment methods…"
               />
             </FormField>
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setMethodsAccount(null)}>
                 Cancel
               </Button>
-              <Button onClick={handleSaveMethods} disabled={updateMutation.isPending || !methodsInput.trim()}>
+              <Button onClick={handleSaveMethods} disabled={updateMutation.isPending || methodsValues.length === 0}>
                 {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Save
               </Button>
@@ -660,26 +662,27 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
       <Dialog open={!!invoiceTypesAccount} onOpenChange={(o) => { if (!o) setInvoiceTypesAccount(null); }}>
         <DialogContent
           title="Invoice Types"
-          description={`Which invoice types should default to "${invoiceTypesAccount?.account_name ?? ''}" for settlement (and its printed bank details) when a new invoice of that type doesn't specify an account? Comma-separated (e.g. subscription).`}
+          description={`Pick every invoice type that should default to "${invoiceTypesAccount?.account_name ?? ''}" for settlement and printed bank details, whenever a new invoice of that type doesn't say which account to use.`}
           onClose={() => setInvoiceTypesAccount(null)}
         >
           <div className="space-y-4">
             <FormField
               label="Invoice types"
-              description="Free-form — must match the invoice_type value the creating service actually sends (e.g. 'subscription'). Replaces the current list; clearing this field has no effect (the backend ignores an empty update)."
+              description="Selecting none leaves the current list unchanged — the backend doesn't support clearing it yet."
             >
-              <input
-                value={invoiceTypesInput}
-                onChange={(e) => setInvoiceTypesInput(e.target.value)}
-                className={inputClass}
-                placeholder="e.g. subscription"
+              <MultiSelectCombobox
+                options={INVOICE_TYPE_OPTIONS}
+                values={invoiceTypesValues}
+                onChange={setInvoiceTypesValues}
+                placeholder="Select invoice types…"
+                searchPlaceholder="Search invoice types…"
               />
             </FormField>
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setInvoiceTypesAccount(null)}>
                 Cancel
               </Button>
-              <Button onClick={handleSaveInvoiceTypes} disabled={updateMutation.isPending || !invoiceTypesInput.trim()}>
+              <Button onClick={handleSaveInvoiceTypes} disabled={updateMutation.isPending || invoiceTypesValues.length === 0}>
                 {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Save
               </Button>
