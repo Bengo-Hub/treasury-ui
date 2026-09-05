@@ -63,6 +63,10 @@ export default async function PublicInvoicePage({ params }: Props) {
   }
 
   const totalAmount = parseFloat(invoice.total_amount) || 0;
+  const amountPaid = parseFloat(invoice.amount_paid) || 0;
+  // Charge the outstanding balance, not the full total — otherwise a partially-paid invoice's
+  // "Pay Now" link re-charges the customer for the whole invoice, including what they already paid.
+  const balanceDue = Math.max(totalAmount - amountPaid, 0);
   const fmt = (v: number) => Number(v).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const badge = statusBadge(invoice.status, invoice.payment_status);
 
@@ -72,10 +76,10 @@ export default async function PublicInvoicePage({ params }: Props) {
   // Durable pay link (reuses the existing /pay page; fresh Paystack session per visit).
   const isPaid = invoice.payment_status === 'paid' || invoice.status === 'cancelled' || invoice.status === 'void';
   let payUrl: string | undefined;
-  if (!isPaid && totalAmount > 0) {
+  if (!isPaid && balanceDue > 0) {
     const q = new URLSearchParams({
       tenant: invoice.tenant_slug,
-      amount: String(totalAmount),
+      amount: String(balanceDue),
       currency: invoice.currency || 'KES',
       reference_id: token,
       reference_type: 'invoice',
