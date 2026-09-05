@@ -390,6 +390,7 @@ export interface PublicInvoice {
   tax_amount: string;
   discount_amount?: string;
   total_amount: string;
+  amount_paid: string;
   currency: string;
   status: string;
   payment_status: string;
