@@ -25,6 +25,26 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: /docs-capture\/.*/,
+    },
+    // docs-capture logs in once (see e2e/docs-capture/auth.setup.ts) and every capture spec
+    // reuses that saved session via storageState, instead of each spec driving its own full SSO
+    // redirect round trip — repeating that in quick succession against the live SSO host proved
+    // unreliable (see auth.setup.ts).
+    {
+      name: 'docs-capture-setup',
+      testMatch: /docs-capture\/auth\.setup\.ts/,
+    },
+    {
+      name: 'docs-capture',
+      use: { ...devices['Desktop Chrome'], storageState: 'e2e/docs-capture/.auth/demo-tenant.json' },
+      testMatch: /docs-capture\/.*\.spec\.ts/,
+      dependencies: ['docs-capture-setup'],
+    },
+  ],
   timeout: 60_000,
 });
