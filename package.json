@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "docs:capture": "playwright test --project=docs-capture-setup --project=docs-capture --headed"
   },
   "dependencies": {
     "@bengo-hub/shared-ui-lib": "github:Bengo-Hub/shared-ui-lib#v0.1.87",

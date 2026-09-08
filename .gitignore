@@ -12,6 +12,7 @@
 /coverage
 /playwright-report/
 /test-results/
+e2e/docs-capture/.auth/
 /cypress/
 /cypress/videos/
 /cypress/screenshots/
