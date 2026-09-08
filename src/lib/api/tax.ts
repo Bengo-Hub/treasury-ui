@@ -429,7 +429,14 @@ export function syncEtimsDeviceInvoiceCounter(
   tenantSlug: string,
   deviceId: string,
 ): Promise<{ device: EtimsDevice; previous_no: number; kra_max_no: number; changed: boolean }> {
-  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/invoice-counter/sync`, {});
+  // The backend gives its own KRA call up to 25s before giving up with a real error
+  // message (service.go). The client's default 15s timeout used to cut this call off
+  // first, so the browser never even saw that message — just a generic network error.
+  return apiClient.post(
+    `${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/invoice-counter/sync`,
+    {},
+    { timeout: 30000 },
+  );
 }
 
 // ---- KRA branch admin / taxpayer / notice / item-composition / imported-item endpoints ----

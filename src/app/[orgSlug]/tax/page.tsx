@@ -641,7 +641,9 @@ function CmcKeyDialog({
 // recovery path for a device already installed at KRA whose [902] "already installed" response
 // didn't include them (a real, confirmed case with no other API-side recovery). Prefills from the
 // device's currently-recorded values when present (editable — a wrong value can be corrected),
-// and starts empty when none have been captured yet.
+// and starts empty when none have been captured yet. KRA normally assigns these once, at the
+// device's original init; enter them from KRA support, a portal export, or a record kept at init
+// time. This is the same "SCU ID" an ETR receipt prints in place of the device serial.
 function ScuDetailsDialog({
   device,
   onClose,
@@ -691,12 +693,7 @@ function ScuDetailsDialog({
       <DialogContent title="Device SCU details" onClose={() => { setError(''); onClose(); }}>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            KRA assigns the SCU ID (e.g. <span className="font-mono">KRACU0400001154</span>), MRC
-            number, and device ID once, at the device&apos;s original initialization. If KRA&apos;s
-            response didn&apos;t include them (common for a device already installed at KRA), enter
-            the values here — from KRA support, a portal export, or a record kept at the time of
-            initialization. This is what ETR receipts print as &quot;SCU ID&quot; instead of the
-            device serial.
+            Enter the SCU ID, MRC number, and device ID KRA issued for this device.
           </p>
           <div className="grid grid-cols-1 gap-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-xs sm:grid-cols-2">
             <div><span className="text-muted-foreground">Device serial:</span> <span className="font-mono font-medium">{device?.device_serial}</span></div>
