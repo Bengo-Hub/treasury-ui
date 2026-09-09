@@ -15,6 +15,7 @@ export const INVOICE_TYPE_LABELS: Record<string, string> = {
   debit_note: 'Debit Note',
   delivery_challan: 'Delivery Challan',
   payment_receipt: 'Payment Receipt',
+  commercial_weighing_fee: 'Commercial Weighing Fee (TruLoad)',
 };
 
 export const INVOICE_TYPE_OPTIONS: { value: string; label: string }[] = Object.entries(
