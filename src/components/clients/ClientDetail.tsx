@@ -44,6 +44,7 @@ export function ClientDetail({ tenant, client, invoices, onBack }: ClientDetailP
     tenant,
     client.customerId,
     undefined,
+    undefined,
     !!client.customerId,
   );
 

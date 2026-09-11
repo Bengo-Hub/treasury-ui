@@ -13,6 +13,7 @@ import {
   listCustomerReceipts,
   voidCustomerReceipt,
   type StatementRange,
+  type StatementPage,
   type SetCustomerOpeningBalanceRequest,
   type UpsertVendorBalanceRequest,
   type RecordVendorRefundRequest,
@@ -29,8 +30,8 @@ export const arpaKeys = {
   vendorBalances: (tenant: string) => ['arpa', 'vendor-balances', tenant] as const,
   vendorStatement: (tenant: string, vendorId: string, range?: StatementRange) =>
     ['arpa', 'vendor-statement', tenant, vendorId, range] as const,
-  customerStatement: (tenant: string, contactId: string, range?: StatementRange) =>
-    ['arpa', 'customer-statement', tenant, contactId, range] as const,
+  customerStatement: (tenant: string, contactId: string, range?: StatementRange, page?: StatementPage) =>
+    ['arpa', 'customer-statement', tenant, contactId, range, page] as const,
   customerReceipts: (tenant: string, contactId: string) =>
     ['arpa', 'customer-receipts', tenant, contactId] as const,
 };
@@ -71,13 +72,15 @@ export function useCustomerStatement(
   tenant: string | undefined,
   contactId: string | undefined,
   range?: StatementRange,
+  page?: StatementPage,
   enabled = true,
 ) {
   return useQuery({
-    queryKey: arpaKeys.customerStatement(tenant ?? '', contactId ?? '', range),
-    queryFn: () => getCustomerStatement(tenant!, contactId!, range),
+    queryKey: arpaKeys.customerStatement(tenant ?? '', contactId ?? '', range, page),
+    queryFn: () => getCustomerStatement(tenant!, contactId!, range, page),
     enabled: !!tenant && !!contactId && enabled,
     staleTime: STALE_MS,
+    placeholderData: (previousData) => previousData, // avoid a full-table flash when flipping pages
   });
 }
 

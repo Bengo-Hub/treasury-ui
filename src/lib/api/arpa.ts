@@ -70,7 +70,18 @@ export interface CustomerStatement {
   total_invoiced: string;
   total_paid: string;
   closing_balance: string;
+  /**
+   * closing_balance minus the net movement of EVERY line in the period (computed server-side
+   * from the full set, independent of pagination) — never re-derive this from `lines`, which may
+   * be just one page.
+   */
+  opening_balance: string;
+  /** The current page only when `page`/`page_size` are set — otherwise every line. */
   lines: StatementLine[];
+  /** Full line count for the date range (before paging) — set only when paginated. */
+  total_lines?: number;
+  page?: number;
+  page_size?: number;
 }
 
 /** Period statement of a supplier's AP activity. */
@@ -88,6 +99,16 @@ export interface VendorStatement {
 export interface StatementRange {
   from?: string;
   to?: string;
+}
+
+/**
+ * Optional pagination for getCustomerStatement — omit both for every line (pre-existing shape).
+ * Param names match the backend's shared `pagination.Parse` convention (`page`/`limit`, NOT
+ * `page_size`) — see arpa.go's `parseStatementPage`.
+ */
+export interface StatementPage {
+  page?: number;
+  limit?: number;
 }
 
 /**
@@ -191,10 +212,28 @@ export function getCustomerStatement(
   tenant: string,
   contactId: string,
   range?: StatementRange,
+  page?: StatementPage,
 ): Promise<CustomerStatement> {
   return apiClient.get<CustomerStatement>(
     `${BASE}/${tenant}/ar/customers/${contactId}/statement`,
-    range,
+    { ...range, ...page },
+  );
+}
+
+/**
+ * Download a customer's AR statement as a branded PDF or CSV (GET .../statement/export) — always
+ * the full date range regardless of what page the caller happens to be viewing.
+ */
+export function downloadCustomerStatement(
+  tenant: string,
+  contactId: string,
+  format: 'pdf' | 'csv',
+  range?: StatementRange,
+): Promise<{ blob: Blob; fileName: string }> {
+  return apiClient.getBlob(
+    `${BASE}/${tenant}/ar/customers/${contactId}/statement/export`,
+    `customer-statement.${format}`,
+    { format, ...range },
   );
 }
 
