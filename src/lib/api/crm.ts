@@ -141,6 +141,72 @@ export async function createCRMContact(tenantId: string, input: CreateCRMContact
   return (data?.data ?? data) as CRMContact;
 }
 
+/**
+ * Fetch a single CRM contact by id — backs the "Edit Client" form (see CreateClientModal's
+ * edit mode) so it hydrates from the contact's live/full record rather than a document's own
+ * (possibly partial) metadata snapshot.
+ */
+export async function getCRMContact(tenantId: string, contactId: string): Promise<CRMContact | null> {
+  const token = useAuthStore.getState().session?.accessToken;
+  const marketflowTenantId = resolveMarketflowTenantId(tenantId);
+  if (!token || !marketflowTenantId || !contactId) return null;
+
+  const url = new URL(`/api/crm/contacts/${encodeURIComponent(contactId)}`, window.location.origin);
+  url.searchParams.set('tenant_id', marketflowTenantId);
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return (data?.data ?? data) as CRMContact;
+}
+
+export interface UpdateCRMContactInput {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  // The FULL metadata object to persist, not just the changed keys — marketflow-api's Update
+  // replaces Metadata wholesale rather than merging it (see contacts/service.go), so callers
+  // must spread the contact's existing metadata and layer their edits on top of it, or any
+  // key the caller doesn't itself track (e.g. one set by another system) is silently dropped.
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Update a CRM contact (customer) in marketflow via the local Next.js proxy route.
+ * See UpdateCRMContactInput's doc comment re: sending the full metadata object.
+ */
+export async function updateCRMContact(
+  tenantId: string,
+  contactId: string,
+  input: UpdateCRMContactInput,
+): Promise<CRMContact | null> {
+  const token = useAuthStore.getState().session?.accessToken;
+  const marketflowTenantId = resolveMarketflowTenantId(tenantId);
+  if (!token || !marketflowTenantId) return null;
+
+  const url = new URL(`/api/crm/contacts/${encodeURIComponent(contactId)}`, window.location.origin);
+  url.searchParams.set('tenant_id', marketflowTenantId);
+
+  const res = await fetch(url.toString(), {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`update contact failed: ${res.status}`);
+  const data = await res.json();
+  return (data?.data ?? data) as CRMContact;
+}
+
 export function crmContactDisplayName(c: CRMContact): string {
   const parts = [c.first_name, c.last_name].filter(Boolean);
   return parts.length ? parts.join(' ') : (c.email ?? c.id);

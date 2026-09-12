@@ -14,7 +14,7 @@ import { crmContactDisplayName, type CRMContact } from '@/lib/api/crm';
 import { useOutletFilterStore } from '@/store/outlet-filter';
 import { useVendors, useVendorSearch } from '@/hooks/use-inventory';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Loader2, Search, UserPlus } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, Search, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LineItemsSection, newLineRow, lineCompletionFactor, type LineRow } from './sections/LineItemsSection';
@@ -351,10 +351,15 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     setShowSuggestions(false);
   }, []);
 
-  // "Add New Client" opens a full CreateClientModal (mirrors CreateItemModal's inline-create
-  // pattern for line items) instead of firing a bare name/email upsert — lets the user capture
-  // phone/address/tax-pin/contact-person up front and posts them all to MarketFlow CRM.
-  const [showCreateClient, setShowCreateClient] = useState(false);
+  // "Add New Client" / "Edit Client" both open the same CreateClientModal (mirrors
+  // CreateItemModal's inline-create pattern for line items) instead of firing a bare name/email
+  // upsert — lets the user capture phone/address/tax-pin/contact-person up front and post them
+  // to MarketFlow CRM. Which mode opens depends on whether the currently entered customer is
+  // already linked to a CRM contact (crmCustomerId set — via a picked search suggestion, or
+  // hydrated from an existing document's crm_customer_id on edit): editing re-opens THAT
+  // contact preloaded with its live details instead of routing back through create and risking
+  // a duplicate contact.
+  const [clientModal, setClientModal] = useState<'create' | 'edit' | null>(null);
 
   const buildLinePayload = useCallback(() =>
     lines
@@ -657,8 +662,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
                     className="mt-1 w-full rounded-lg py-2 px-3 text-xs font-mono border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
                 </div>
                 {/* Extra Billed-To details carried over from the picked/created CRM contact
-                    (see selectContact / CreateClientModal) — read-only here; edit them by
-                    updating the contact in MarketFlow (the customer source of truth). */}
+                    (see selectContact / CreateClientModal) — read-only summary here; use the
+                    "Edit Client" button below to change them (updates the CRM contact itself). */}
                 {(form.customer_phone || customerDetails.address || customerDetails.country || customerDetails.contact_person) && (
                   <div className="rounded-lg border border-border bg-background/60 px-3 py-2 space-y-0.5 text-[10px] text-muted-foreground">
                     {form.customer_phone && <div><span className="font-bold text-foreground">Phone:</span> {form.customer_phone}</div>}
@@ -669,10 +674,12 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
                 )}
                 <button
                   type="button"
-                  onClick={() => setShowCreateClient(true)}
+                  onClick={() => setClientModal(crmCustomerId ? 'edit' : 'create')}
                   className="inline-flex items-center gap-1 px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50"
                 >
-                  <UserPlus className="h-3.5 w-3.5" /> Add New Client
+                  {crmCustomerId
+                    ? <><Pencil className="h-3.5 w-3.5" /> Edit Client</>
+                    : <><UserPlus className="h-3.5 w-3.5" /> Add New Client</>}
                 </button>
               </div>
             </div>
@@ -784,15 +791,16 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         />
       )}
 
-      {showCreateClient && (
+      {clientModal && (
         <CreateClientModal
           tenant={effectiveTenant}
           initialName={(clientSearch || form.customer_name).trim()}
+          editContactId={clientModal === 'edit' ? (crmCustomerId ?? undefined) : undefined}
           onCreated={contact => {
             selectContact(contact);
-            setShowCreateClient(false);
+            setClientModal(null);
           }}
-          onClose={() => setShowCreateClient(false)}
+          onClose={() => setClientModal(null)}
         />
       )}
     </div>
