@@ -1,6 +1,6 @@
 'use client';
 
-import { searchCRMContacts, listAllCRMContacts, type CRMContact } from '@/lib/api/crm';
+import { searchCRMContacts, listAllCRMContacts, getCRMContact, type CRMContact } from '@/lib/api/crm';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
@@ -28,5 +28,19 @@ export function useCRMContacts(tenantId: string, rawQuery: string) {
     enabled:  !!tenantId && query.length !== 1,
     staleTime: 60_000,
     placeholderData: [],
+  });
+}
+
+/**
+ * Fetches a single CRM contact by id — backs the "Edit Client" flow (see CreateClientModal's
+ * edit mode) so the form hydrates from the contact's live/full record instead of a document's
+ * own (possibly partial) metadata snapshot.
+ */
+export function useCRMContact(tenantId: string, contactId: string | undefined | null, enabled = true) {
+  return useQuery<CRMContact | null>({
+    queryKey: ['crm-contact', tenantId, contactId],
+    queryFn:  () => getCRMContact(tenantId, contactId as string),
+    enabled:  !!tenantId && !!contactId && enabled,
+    staleTime: 30_000,
   });
 }
