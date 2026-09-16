@@ -8,9 +8,11 @@
 // verify against a read endpoint where one exists, per kra-etims-status-and-history.md §8b.
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { FormField } from '@/components/ui/form-field';
+import { useEtimsCertRun, useEtimsCertRuns, useTriggerEtimsCertRun } from '@/hooks/use-etims-cert-runs';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { useEtimsDevices, useInitEtimsDevice, useRefreshCodeLists } from '@/hooks/use-tax';
+import { useAssignEtimsDeviceOutlet, useEtimsDevices, useInitEtimsDevice, useRefreshCodeLists } from '@/hooks/use-tax';
 import { useEtimsBranchList, useEtimsNoticeList, useEtimsTaxpayerInfo } from '@/hooks/use-tax-etims-branch';
 import {
   useEtimsCustomerPinInfo,
@@ -19,12 +21,39 @@ import {
   useEtimsSalesTransactionsCheck,
   useEtimsStockMoveList,
 } from '@/hooks/use-tax-etims-wizard';
+import { useAuthStore } from '@/store/auth';
 import * as taxApi from '@/lib/api/tax';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Loader2, PlayCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { WIZARD_STEPS } from './steps';
+
+const AUTH_API_URL =
+  process.env.NEXT_PUBLIC_AUTH_API_URL || process.env.NEXT_PUBLIC_SSO_URL || 'https://sso.codevertexafrica.com';
+
+interface OutletOption {
+  id: string;
+  code: string;
+  name: string;
+}
+
+async function fetchOutletOptions(accessToken: string, tenantSlug: string): Promise<OutletOption[]> {
+  const res = await fetch(`${AUTH_API_URL}/api/v1/tenants/${tenantSlug}/outlets`, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  const list = Array.isArray(data) ? data : (data.outlets ?? data.data ?? []);
+  return list.filter((o: any) => o.status !== 'archived');
+}
+
+const runStatusVariant: Record<string, 'success' | 'error' | 'warning' | 'secondary'> = {
+  completed: 'success',
+  failed: 'error',
+  running: 'warning',
+  pending: 'secondary',
+};
 
 type StepStatus = 'idle' | 'running' | 'pass' | 'fail';
 
@@ -165,6 +194,34 @@ export default function EtimsCertificationPage() {
   const devicesQuery = useEtimsDevices(tenantSlug);
   const devices = devicesQuery.data?.devices ?? [];
   const activeDevice = devices.find((d) => d.status === 'active') ?? devices[0];
+
+  // Multi-branch outlet mapping (2026-09-16): each KRA branch/device can be tied to one
+  // POS/inventory outlet, scoping eTIMS catalog sync to that outlet's own warehouse. Fetches
+  // the tenant's outlet list the same way the header's OutletFilter does (auth-api owns
+  // outlets; treasury-api has no local mirror to query instead).
+  const session = useAuthStore((s) => s.session);
+  const outletOptionsQuery = useQuery({
+    queryKey: ['outlet_options_cert_wizard', tenantSlug],
+    queryFn: () => fetchOutletOptions(session?.accessToken ?? '', tenantSlug),
+    enabled: !!session?.accessToken && !!tenantSlug,
+    staleTime: 5 * 60_000,
+  });
+  const assignOutlet = useAssignEtimsDeviceOutlet();
+
+  // API-triggered certification run (replaces hand-running the CLI script).
+  const certRunsQuery = useEtimsCertRuns(tenantSlug);
+  const triggerCertRun = useTriggerEtimsCertRun();
+  const [certRunDeviceId, setCertRunDeviceId] = useState('');
+  const [certRunApigeeAppId, setCertRunApigeeAppId] = useState('');
+  const [certRunConsumerKey, setCertRunConsumerKey] = useState('');
+  const [certRunConsumerSecret, setCertRunConsumerSecret] = useState('');
+  const [certRunTestPin, setCertRunTestPin] = useState('');
+  const [certRunConfirmOpen, setCertRunConfirmOpen] = useState(false);
+  const [liveRunId, setLiveRunId] = useState<string | undefined>(undefined);
+  const liveRun = useEtimsCertRun(tenantSlug, liveRunId);
+  const certRunDevice = devices.find((d) => d.id === certRunDeviceId) ?? activeDevice;
+  const certRunOutletName = outletOptionsQuery.data?.find((o) => o.id === certRunDevice?.outlet_id)?.name;
+  const existingRunsForDevice = (certRunsQuery.data ?? []).filter((r) => r.device_id === certRunDevice?.id);
 
   const initDevice = useInitEtimsDevice();
   const refreshCodeLists = useRefreshCodeLists();
@@ -354,6 +411,156 @@ export default function EtimsCertificationPage() {
             calls won&apos;t attribute to the scored session otherwise.
           </p>
           <p>3. Enter the Application Test Pin where a step below asks for it (used for imported-item lookups, per KRA&apos;s own requirement).</p>
+        </CardContent>
+      </Card>
+
+      {devices.length > 1 && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold">Branches &amp; outlets</h2>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Each KRA branch can be tied to one POS/inventory outlet, so its eTIMS catalog only syncs items from that outlet&apos;s own warehouse.
+            </p>
+            <div className="space-y-2">
+              {devices.map((d) => (
+                <div key={d.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                  <span className="font-mono text-xs">branch {d.branch_id ?? '00'}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{d.device_serial}</span>
+                  <select
+                    value={d.outlet_id ?? ''}
+                    onChange={(e) => assignOutlet.mutate({ tenantSlug, deviceId: d.id, outletId: e.target.value || null })}
+                    disabled={assignOutlet.isPending}
+                    className={`${inputClass} ml-auto max-w-[220px]`}
+                  >
+                    <option value="">Tenant main/default (no outlet)</option>
+                    {(outletOptionsQuery.data ?? []).map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <h2 className="text-sm font-semibold">Certification runs (API-triggered)</h2>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Runs the full 23-case suite server-side instead of the manual walk-through below — its score and
+            per-case results are kept here for every attempt. Requires this session&apos;s GavaConnect app
+            credentials (from developer.go.ke, same as the manual pre-flight above).
+          </p>
+
+          {devices.length > 1 && (
+            <FormField label="Branch to certify">
+              <select value={certRunDeviceId || certRunDevice?.id || ''} onChange={(e) => setCertRunDeviceId(e.target.value)} className={inputClass}>
+                {devices.map((d) => (
+                  <option key={d.id} value={d.id}>branch {d.branch_id ?? '00'} — {d.device_serial}</option>
+                ))}
+              </select>
+            </FormField>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField label="Apigee App ID">
+              <input value={certRunApigeeAppId} onChange={(e) => setCertRunApigeeAppId(e.target.value)} className={inputClass} placeholder="This session's Apigee App ID" />
+            </FormField>
+            <FormField label="Application Test Pin">
+              <input value={certRunTestPin} onChange={(e) => setCertRunTestPin(e.target.value)} className={inputClass} placeholder="e.g. P600004242A" />
+            </FormField>
+            <FormField label="OSCU Consumer Key">
+              <input value={certRunConsumerKey} onChange={(e) => setCertRunConsumerKey(e.target.value)} className={inputClass} type="password" />
+            </FormField>
+            <FormField label="OSCU Consumer Secret">
+              <input value={certRunConsumerSecret} onChange={(e) => setCertRunConsumerSecret(e.target.value)} className={inputClass} type="password" />
+            </FormField>
+          </div>
+
+          <Button
+            onClick={() => setCertRunConfirmOpen(true)}
+            disabled={!certRunDevice || !certRunApigeeAppId || !certRunConsumerKey || !certRunConsumerSecret}
+          >
+            <PlayCircle className="h-4 w-4" />
+            Start new run
+          </Button>
+
+          <ConfirmDialog
+            open={certRunConfirmOpen}
+            onOpenChange={setCertRunConfirmOpen}
+            title="Start certification run"
+            description={
+              `This will run all 23 KRA test cases against branch ${certRunDevice?.branch_id ?? '00'} ` +
+              `(${certRunDevice?.device_serial ?? 'no device'}${certRunOutletName ? `, outlet ${certRunOutletName}` : ''}) ` +
+              `and consume real KRA sequence numbers on that branch. ` +
+              (existingRunsForDevice.length > 0
+                ? `This branch already has ${existingRunsForDevice.length} prior run(s) recorded here.`
+                : `This branch has no prior run recorded here — verify with KRA that it's genuinely ready before proceeding.`)
+            }
+            confirmLabel="Start run"
+            isPending={triggerCertRun.isPending}
+            onConfirm={async () => {
+              if (!certRunDevice) return;
+              const run = await triggerCertRun.mutateAsync({
+                tenantSlug,
+                body: {
+                  device_id: certRunDevice.id,
+                  apigee_app_id: certRunApigeeAppId,
+                  consumer_key: certRunConsumerKey,
+                  consumer_secret: certRunConsumerSecret,
+                  application_test_pin: certRunTestPin,
+                  confirm: true,
+                },
+              });
+              setLiveRunId(run.id);
+              setCertRunConfirmOpen(false);
+            }}
+          />
+
+          {liveRunId && liveRun.data && (
+            <div className="rounded-lg border border-border p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">
+                  Run {liveRunId.slice(0, 8)} — {liveRun.data.run.passed_count}/{liveRun.data.run.total_count} passed
+                </span>
+                <Badge variant={runStatusVariant[liveRun.data.run.status] ?? 'secondary'}>{liveRun.data.run.status}</Badge>
+              </div>
+              <div className="max-h-64 overflow-auto space-y-1">
+                {liveRun.data.steps.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate">{s.label ?? s.case_key}</span>
+                    <Badge variant={s.status === 'pass' ? 'success' : s.status === 'pending' ? 'secondary' : s.status === 'skipped' ? 'outline' : 'error'}>
+                      {s.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(certRunsQuery.data ?? []).length > 0 && (
+            <div className="space-y-1">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase">History</h3>
+              {(certRunsQuery.data ?? []).map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setLiveRunId(r.id)}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-left text-xs hover:bg-muted/40"
+                >
+                  <span>{new Date(r.created_at).toLocaleString()} — branch {devices.find((d) => d.id === r.device_id)?.branch_id ?? '?'}</span>
+                  <span className="flex items-center gap-2">
+                    {r.passed_count}/{r.total_count}
+                    <Badge variant={runStatusVariant[r.status] ?? 'secondary'}>{r.status}</Badge>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

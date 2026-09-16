@@ -233,6 +233,21 @@ export function useSetDeviceInvoiceCounter() {
   });
 }
 
+// Assigns (or clears) the POS outlet a device/branch serves — the multi-branch mapping that
+// scopes eTIMS catalog sync to that outlet's own warehouse (2026-09-16).
+export function useAssignEtimsDeviceOutlet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, deviceId, outletId }: { tenantSlug: string; deviceId: string; outletId: string | null }) =>
+      taxApi.assignEtimsDeviceOutlet(tenantSlug, deviceId, outletId),
+    onSuccess: (_result, vars) => {
+      qc.invalidateQueries({ queryKey: ['etims-devices', vars.tenantSlug] });
+      toast.success(vars.outletId ? 'Branch linked to outlet' : 'Outlet link cleared');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to update outlet assignment'),
+  });
+}
+
 // Fast-forwards the local invoice-number counter to match KRA's own transmitted-sales
 // history — the real source of truth — when it's drifted behind (proven live: ad-hoc SQL
 // fixes never survived because they bypassed the row lock the allocator/self-heal share).
