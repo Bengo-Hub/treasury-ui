@@ -439,6 +439,77 @@ export function syncEtimsDeviceInvoiceCounter(
   );
 }
 
+/** Assigns (or clears, passing null) the POS outlet a device/branch serves — the multi-branch
+ * mapping (branch 00 -> Grand Hotel, branch 01 -> Demo Supermarket) that scopes eTIMS catalog
+ * sync and sale/item registration to that outlet's own warehouse (2026-09-16). */
+export function assignEtimsDeviceOutlet(
+  tenantSlug: string,
+  deviceId: string,
+  outletId: string | null,
+): Promise<EtimsDevice> {
+  return apiClient.patch(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/outlet`, { outlet_id: outletId ?? '' });
+}
+
+// ---- API-triggered KRA OSCU certification runs (2026-09-16) ----
+// Replaces hand-running scripts/kra_oscu_test_suite.py from a terminal: a run executes
+// server-side (certification_runner.go) and its score/history persists per attempt. Shapes
+// mirror tax_etims_cert_run.go's handlers exactly.
+
+export interface EtimsCertRun {
+  id: string;
+  tenant_id: string;
+  device_id: string;
+  outlet_id?: string | null;
+  apigee_app_id?: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  passed_count: number;
+  total_count: number;
+  triggered_by?: string;
+  log?: string;
+  error_message?: string;
+  started_at?: string;
+  completed_at?: string;
+  created_at: string;
+}
+
+export interface EtimsCertRunStep {
+  id: string;
+  run_id: string;
+  case_key: string;
+  label?: string;
+  status: 'pending' | 'pass' | 'fail' | 'skipped' | 'unresolvable';
+  message?: string;
+  attempted_at?: string;
+}
+
+export interface TriggerCertRunRequest {
+  device_id: string;
+  apigee_app_id: string;
+  consumer_key: string;
+  consumer_secret: string;
+  application_test_pin: string;
+  confirm: boolean;
+}
+
+/** Starts a new certification run. confirm MUST be true — the caller is responsible for
+ * showing the resolved branch/outlet and any existing run history in a ConfirmDialog first,
+ * the authorization gate for a state-changing action that consumes real KRA sequence numbers
+ * (the branch-01 incident, 2026-09-16, is exactly what this gate exists to prevent). */
+export function triggerEtimsCertRun(tenantSlug: string, body: TriggerCertRunRequest): Promise<EtimsCertRun> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/cert-runs`, body);
+}
+
+export function listEtimsCertRuns(tenantSlug: string): Promise<EtimsCertRun[]> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/cert-runs`);
+}
+
+export function getEtimsCertRun(
+  tenantSlug: string,
+  runId: string,
+): Promise<{ run: EtimsCertRun; steps: EtimsCertRunStep[] }> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/cert-runs/${runId}`);
+}
+
 // ---- KRA branch admin / taxpayer / notice / item-composition / imported-item endpoints ----
 // Request/response shapes mirror the backend's tax_etims_branch.go handlers exactly.
 
