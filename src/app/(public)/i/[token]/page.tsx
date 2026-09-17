@@ -96,19 +96,19 @@ export default async function PublicInvoicePage({ params }: Props) {
 
       <InvoiceActions pdfUrl={pdfUrl} invoiceNumber={invoice.invoice_number} payUrl={payUrl} brand={brand} />
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Summary header */}
-        <div className="bg-white rounded-xl shadow-sm p-5 mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
+        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
             <p className="text-xs uppercase tracking-wide text-slate-400">Invoice from</p>
-            <h1 className="text-xl font-bold text-slate-800">{invoice.tenant_name}</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 truncate">{invoice.tenant_name}</h1>
             <p className="text-sm text-slate-500 mt-0.5">{invoice.invoice_number}</p>
           </div>
           <div className="text-right">
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badge.cls}`}>
               {badge.label}
             </span>
-            <p className="text-2xl font-bold text-slate-900 mt-1">
+            <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
               {invoice.currency} {fmt(totalAmount)}
             </p>
             {invoice.due_date && (
@@ -119,8 +119,28 @@ export default async function PublicInvoicePage({ params }: Props) {
           </div>
         </div>
 
-        {/* Embedded PDF preview — single source of truth for the document content */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        {/* Mobile: inline PDF embeds are unreliable on phone browsers (blank/no-preview on most
+            mobile Safari/Chrome), so phones get a tappable summary card instead of a fragile
+            embed. Desktop/tablet keep the inline preview, which works reliably there. */}
+        <div className="sm:hidden bg-white rounded-xl shadow-sm p-5 text-center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}
+            className="w-12 h-12 mx-auto mb-3" style={{ color: brand }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <p className="text-sm text-slate-600 mb-4">Your invoice document is ready to view.</p>
+          <a
+            href={pdfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center min-h-12 w-full px-6 rounded-lg text-sm font-semibold text-white active:opacity-80"
+            style={{ backgroundColor: brand }}
+          >
+            View Invoice
+          </a>
+        </div>
+
+        {/* Embedded PDF preview (desktop/tablet) — single source of truth for the document content */}
+        <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
           <object data={`${pdfUrl}#toolbar=1&navpanes=0&view=FitH`} type="application/pdf" className="w-full h-[78vh]">
             <iframe src={pdfUrl} title={invoice.invoice_number} className="w-full h-[78vh]" />
             <div className="p-8 text-center text-sm text-slate-500">
