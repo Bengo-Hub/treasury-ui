@@ -1,4 +1,5 @@
 import * as taxApi from '@/lib/api/tax';
+import type { DeviceCounterChange } from '@/lib/api/tax';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
@@ -225,12 +226,27 @@ export function useSetDeviceInvoiceCounter() {
   return useMutation({
     mutationFn: ({ tenantSlug, deviceId, value }: { tenantSlug: string; deviceId: string; value: number }) =>
       taxApi.setEtimsDeviceInvoiceCounter(tenantSlug, deviceId, value),
-    onSuccess: (_result, vars) => {
+    onSuccess: (result, vars) => {
       qc.invalidateQueries({ queryKey: ['etims-devices', vars.tenantSlug] });
       toast.success(`Invoice counter set to ${vars.value}`);
+      describeSiblingCounterChanges(result.affected_devices, vars.deviceId);
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to set invoice counter'),
   });
+}
+
+// The invoice-number counter is genuinely shared per-TIN, so setting/syncing ONE device's
+// counter always applies to every other device row sharing that TIN too (confirmed live
+// 2026-09-17). Without this, a sibling branch's counter can visibly change with zero
+// explanation beyond a server log line — this turns that into an explicit toast naming
+// exactly which other branch(es) moved and by how much.
+function describeSiblingCounterChanges(changes: DeviceCounterChange[] | undefined, targetDeviceId: string) {
+  const siblings = (changes ?? []).filter((c) => c.device_id !== targetDeviceId);
+  if (siblings.length === 0) return;
+  const summary = siblings
+    .map((c) => `branch ${c.branch_id} (${c.device_serial}): ${c.previous_no} → ${c.new_no}`)
+    .join(', ');
+  toast.info(`Also updated (shared per-TIN counter): ${summary}`);
 }
 
 // Assigns (or clears) the POS outlet a device/branch serves — the multi-branch mapping that
@@ -263,6 +279,7 @@ export function useSyncDeviceInvoiceCounter() {
           ? `Invoice counter synced: ${result.previous_no} → ${result.kra_max_no}`
           : `Already in sync (${result.previous_no})`,
       );
+      describeSiblingCounterChanges(result.affected_devices, vars.deviceId);
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Sync from KRA failed'),
   });
