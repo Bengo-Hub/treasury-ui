@@ -360,7 +360,7 @@ function PayPageContent() {
                   <button
                     type="button"
                     onClick={() => setOpenGateway('paystack')}
-                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
                   >
                     <PaystackLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
                     <div className="flex-1 min-w-0">
@@ -374,7 +374,7 @@ function PayPageContent() {
                   <button
                     type="button"
                     onClick={() => setOpenGateway('mpesa')}
-                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
                   >
                     <MpesaLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
                     <div className="flex-1 min-w-0">
@@ -392,7 +392,7 @@ function PayPageContent() {
                   <button
                     type="button"
                     onClick={() => setOpenGateway('wallet')}
-                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
                   >
                     <WalletLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
                     <div className="flex-1 min-w-0">
@@ -406,7 +406,7 @@ function PayPageContent() {
                   <button
                     type="button"
                     onClick={() => setOpenGateway('cod')}
-                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
                   >
                     <CodLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
                     <div className="flex-1 min-w-0">
@@ -420,7 +420,7 @@ function PayPageContent() {
                   <button
                     type="button"
                     onClick={() => setOpenGateway('mtn_momo')}
-                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
                   >
                     <div className="h-14 w-14 shrink-0 rounded-xl bg-amber-500/10 flex items-center justify-center">
                       <Smartphone className="h-6 w-6 text-amber-600" />
@@ -436,7 +436,7 @@ function PayPageContent() {
                   <button
                     type="button"
                     onClick={() => setOpenGateway('airtel_money')}
-                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
                   >
                     <div className="h-14 w-14 shrink-0 rounded-xl bg-red-500/10 flex items-center justify-center">
                       <Smartphone className="h-6 w-6 text-red-600" />
@@ -452,7 +452,7 @@ function PayPageContent() {
                   <button
                     type="button"
                     onClick={() => setOpenGateway('bank_transfer')}
-                    className="flex items-center gap-4 w-full rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 hover:border-primary/30 transition-colors"
+                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
                   >
                     <div className="h-14 w-14 shrink-0 rounded-xl bg-indigo-500/10 flex items-center justify-center">
                       <Landmark className="h-6 w-6 text-indigo-600" />

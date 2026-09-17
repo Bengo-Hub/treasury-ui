@@ -111,7 +111,7 @@ function PaySuccessContent() {
               <p className="text-xs text-gray-400">Redirecting automatically...</p>
               <button
                 onClick={handleReturn}
-                className="w-full py-3 px-6 bg-black text-white font-medium rounded-xl hover:bg-gray-800 transition-colors"
+                className="w-full min-h-12 py-3 px-6 bg-black text-white font-medium rounded-xl hover:bg-gray-800 active:bg-gray-900 transition-colors"
               >
                 {buttonText || 'Return to App'}
               </button>
@@ -119,7 +119,7 @@ function PaySuccessContent() {
           ) : (
             <button
               onClick={() => window.close()}
-              className="w-full py-3 px-6 bg-black text-white font-medium rounded-xl hover:bg-gray-800 transition-colors"
+              className="w-full min-h-12 py-3 px-6 bg-black text-white font-medium rounded-xl hover:bg-gray-800 active:bg-gray-900 transition-colors"
             >
               {buttonText || 'Close'}
             </button>
