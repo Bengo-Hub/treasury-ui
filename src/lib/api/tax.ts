@@ -43,6 +43,18 @@ export interface TaxPeriod {
   filed_at?: string;
 }
 
+/** One EtimsDevice row's invoice-counter value before/after a change that always applies to
+ * every device row sharing a TIN together (KRA's sequence is per-TIN, not per-branch —
+ * confirmed live 2026-09-17: KRA's own transmitted-sales list for one TIN is a single
+ * contiguous invcNo sequence spanning every branch). */
+export interface DeviceCounterChange {
+  device_id: string;
+  branch_id: string;
+  device_serial: string;
+  previous_no: number;
+  new_no: number;
+}
+
 export interface EtimsDevice {
   id: string;
   tenant_id: string;
@@ -419,16 +431,25 @@ export function setEtimsDeviceInvoiceCounter(
   tenantSlug: string,
   deviceId: string,
   value: number,
-): Promise<EtimsDevice> {
+): Promise<{ device: EtimsDevice; affected_devices: DeviceCounterChange[] }> {
   return apiClient.patch(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/invoice-counter`, { value });
 }
 
 /** Fast-forwards a device's local invoice-number counter to match KRA's own transmitted-sales
- * history when it's drifted behind (the real source of truth). */
+ * history when it's drifted behind (the real source of truth). affected_devices lists every
+ * OTHER device sharing this TIN whose counter also moved as a side effect - the sync is
+ * forward-only TIN-wide (it will never silently move a sibling backward), but it can still
+ * fast-forward a sibling that was genuinely behind. */
 export function syncEtimsDeviceInvoiceCounter(
   tenantSlug: string,
   deviceId: string,
-): Promise<{ device: EtimsDevice; previous_no: number; kra_max_no: number; changed: boolean }> {
+): Promise<{
+  device: EtimsDevice;
+  previous_no: number;
+  kra_max_no: number;
+  changed: boolean;
+  affected_devices?: DeviceCounterChange[];
+}> {
   // The backend gives its own KRA call up to 25s before giving up with a real error
   // message (service.go). The client's default 15s timeout used to cut this call off
   // first, so the browser never even saw that message — just a generic network error.
