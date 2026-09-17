@@ -376,6 +376,10 @@ export interface PublicQuotation {
   tenant_slug: string;
   tenant_name: string;
   lines?: QuotationLine[];
+  /** Populated once this quotation has been accepted and auto-converted to an invoice. */
+  converted_invoice_number?: string;
+  /** The invoice's own public share token — links to its /i/[token] page. */
+  converted_invoice_token?: string;
 }
 
 // ---- Public Invoice Types ----
@@ -582,6 +586,17 @@ export const ADMIN_INVOICE_STATUSES = [
  */
 export function adminSetInvoiceStatus(tenant: string, invoiceId: string, status: string): Promise<Invoice> {
   return apiClient.post<Invoice>(`${BASE}/${tenant}/invoices/${invoiceId}/set-status`, { status });
+}
+
+/**
+ * Platform-owner-only: permanently delete any invoice-table document — invoice, credit note,
+ * debit note, proforma, delivery note, receipt, subscription invoice, etc. — regardless of its
+ * status, bypassing the normal delete's draft/void/cancelled-only guard. Cascades to its lines,
+ * recorded payments, eTIMS records, and any GL journal entries already posted for it. 403s for
+ * non-platform-owners.
+ */
+export function adminHardDeleteInvoice(tenant: string, invoiceId: string): Promise<{ status: string }> {
+  return apiClient.delete<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/hard-delete`);
 }
 
 /** One recorded payment against an invoice (View Payments modal row). Soft-voided, never deleted. */

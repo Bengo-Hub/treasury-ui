@@ -41,10 +41,16 @@ export default async function PublicQuotationPage({ params }: Props) {
     Number(v).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const canAccept = quote.status === 'sent' || quote.status === 'draft';
+  const isConverted = quote.status === 'converted' && !!quote.converted_invoice_token;
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <QuotationActionBar token={token} quoteNumber={quote.quote_number} status={quote.status} />
+      <QuotationActionBar
+        token={token}
+        quoteNumber={quote.quote_number}
+        status={quote.status}
+        convertedInvoiceToken={quote.converted_invoice_token}
+      />
 
       <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="bg-white shadow-sm rounded-xl p-4 sm:p-8 print:shadow-none print:rounded-none">
@@ -171,6 +177,26 @@ export default async function PublicQuotationPage({ params }: Props) {
                   <p className="text-sm text-slate-600 whitespace-pre-line">{quote.terms}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Accepted + converted to invoice */}
+          {isConverted && (
+            <div className="border-t border-slate-100 pt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-2 text-green-700">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 shrink-0">
+                  <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                </svg>
+                <p className="text-sm font-medium">
+                  This quotation has been accepted and converted to invoice {quote.converted_invoice_number}
+                </p>
+              </div>
+              <a
+                href={`/i/${quote.converted_invoice_token}`}
+                className="text-center bg-green-600 hover:opacity-90 text-white font-semibold py-3 px-6 rounded-lg transition text-sm whitespace-nowrap"
+              >
+                View Invoice
+              </a>
             </div>
           )}
 
