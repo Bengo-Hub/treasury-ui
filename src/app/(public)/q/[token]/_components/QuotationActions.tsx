@@ -15,11 +15,15 @@ interface Props {
 }
 
 export function QuotationActionBar({ token, quoteNumber, status, convertedInvoiceToken }: Props) {
-  const shareUrl = `${window.location.origin}/q/${token}`;
   const pdfUrl = `${TREASURY_API}/api/v1/public/quotations/${token}/pdf?download=true`;
   const isConverted = status?.toLowerCase() === 'converted' && !!convertedInvoiceToken;
 
+  // window is read here, inside the handler, rather than at the top of the component body —
+  // accessing it during render throws during SSR (window is undefined in Node), which silently
+  // drops this whole client component from the initial server-rendered HTML and defers it to
+  // client-side hydration only.
   const copyLink = () => {
+    const shareUrl = `${window.location.origin}/q/${token}`;
     navigator.clipboard.writeText(shareUrl).then(() => alert('Link copied to clipboard!'));
   };
 
