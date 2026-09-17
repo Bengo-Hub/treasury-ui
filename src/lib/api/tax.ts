@@ -571,7 +571,8 @@ export interface RegisterBranchUserBody {
   user_nm?: string;
   pwd: string;
   adrs?: string;
-  cntc?: string;
+  cellphone?: string;
+  email?: string;
 }
 export function registerEtimsBranchUser(tenantSlug: string, body: RegisterBranchUserBody) {
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/branch-user`, body);

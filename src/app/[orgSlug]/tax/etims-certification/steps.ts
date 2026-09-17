@@ -30,25 +30,31 @@ export interface WizardStep {
   unverifiable?: boolean;
 }
 
+// kraEndpoint values use KRA's Standard-eTIMS naming - the ONLY path family the GavaConnect
+// Validation Test Cases portal actually scores (runbook section 3.16.0), confirmed live: an
+// identical, equally-real, but differently-named "OSCU Integrator" family exists on the same
+// host and shares all backend state, but the portal's pass/fail tracking never moves for it.
+// treasury-api's own kra_client.go was switched to call these same Standard-eTIMS paths
+// 2026-09-17 so the real production code IS what the portal scores, not a parallel path.
 export const WIZARD_STEPS: WizardStep[] = [
-  { id: 'initialize', title: 'OSCU initialization', kraEndpoint: '/initialize', kind: 'action', hint: '902 "already installed" is healthy — the device stays bound to your TIN, this is not a failure.' },
+  { id: 'initialize', title: 'OSCU initialization', kraEndpoint: '/selectInitOsdcInfo', kind: 'action', hint: '902 "already installed" is healthy - the device stays bound to your TIN, this is not a failure.' },
   { id: 'selectCodeList', title: 'Get Code list', kraEndpoint: '/selectCodeList', kind: 'action', hint: 'Refreshes every KRA code list (classification codes, package/quantity units, tax types, etc).' },
-  { id: 'selectItemClass', title: 'Get Item Classification List', kraEndpoint: '/selectItemClass', kind: 'lookup', hint: 'The UNSPSC-style itemClsCd master list.' },
-  { id: 'branchList', title: 'Branch List', kraEndpoint: '/branchList', kind: 'lookup', hint: 'resultCd 001 ("no data") is a pass here, not a failure — a device may have no other registered branches.' },
-  { id: 'selectNoticeList', title: 'Get notice list', kraEndpoint: '/selectNoticeList', kind: 'lookup', hint: 'KRA notices addressed to this taxpayer.' },
-  { id: 'selectTaxpayerInfo', title: 'Get Taxpayer Info', kraEndpoint: '/selectTaxpayerInfo', kind: 'lookup', hint: "The taxpayer's own registration info as KRA has it on file." },
+  { id: 'selectItemClass', title: 'Get Item Classification List', kraEndpoint: '/selectItemClsList', kind: 'lookup', hint: 'The UNSPSC-style itemClsCd master list.' },
+  { id: 'branchList', title: 'Branch List', kraEndpoint: '/selectBhfList', kind: 'lookup', hint: 'resultCd 001 ("no data") is a pass here, not a failure - a device may have no other registered branches.' },
+  { id: 'selectNoticeList', title: 'Get notice list', kraEndpoint: '/selectNotices', kind: 'lookup', hint: 'KRA notices addressed to this taxpayer.' },
+  { id: 'selectTaxpayerInfo', title: 'Get Taxpayer Info', kraEndpoint: '/selectTaxPayerInfo', kind: 'lookup', hint: "The taxpayer's own registration info as KRA has it on file." },
   {
-    id: 'branchSendCustomerInfo', title: 'Send customer information', kraEndpoint: '/branchSendCustomerInfo', kind: 'manual',
+    id: 'branchSendCustomerInfo', title: 'Send customer information', kraEndpoint: '/saveBhfCustomer', kind: 'manual',
     hint: 'Register a known customer at branch level.',
     deepLinkHref: '?tab=etims-branch-tools', deepLinkLabel: 'Go to KRA Branch Tools', unverifiable: true,
   },
   {
-    id: 'branchUserAccount', title: 'Send branch user account', kraEndpoint: '/branchUserAccount', kind: 'manual',
+    id: 'branchUserAccount', title: 'Send branch user account', kraEndpoint: '/saveBhfUser', kind: 'manual',
     hint: "Register this branch's user account with KRA.",
     deepLinkHref: '?tab=etims-branch-tools', deepLinkLabel: 'Go to KRA Branch Tools', unverifiable: true,
   },
   {
-    id: 'branchInsuranceInfo', title: 'Send branch insurance information', kraEndpoint: '/branchInsuranceInfo', kind: 'manual',
+    id: 'branchInsuranceInfo', title: 'Send branch insurance information', kraEndpoint: '/saveBhfInsurance', kind: 'manual',
     hint: "Register this branch's insurance details with KRA.",
     deepLinkHref: '?tab=etims-branch-tools', deepLinkLabel: 'Go to KRA Branch Tools', unverifiable: true,
   },
@@ -58,62 +64,62 @@ export const WIZARD_STEPS: WizardStep[] = [
     deepLinkHref: '?tab=etims-items', deepLinkLabel: 'Go to eTIMS Items',
   },
   {
-    id: 'insertStockIO', title: 'Send Stock Information', kraEndpoint: '/insert/stockIO', kind: 'manual',
-    hint: 'Record real stock-in for every item that will need stock (the raw material especially — saveItemComposition requires it to already carry stock).',
+    id: 'insertStockIO', title: 'Send Stock Information', kraEndpoint: '/insertStockIO', kind: 'manual',
+    hint: 'Record real stock-in for every item that will need stock (the raw material especially - saveItemComposition requires it to already carry stock).',
     deepLinkHref: '?tab=etims-sync', deepLinkLabel: 'Go to eTIMS Sync', unverifiable: true,
   },
   {
     id: 'saveItemComposition', title: 'Send Item Composition', kraEndpoint: '/saveItemComposition', kind: 'manual',
-    hint: 'Declare the finished good’s raw-material component and quantity — the component must already carry KRA stock (previous step).',
+    hint: 'Declare the finished good’s raw-material component and quantity - the component must already carry KRA stock (previous step).',
     deepLinkHref: '?tab=etims-branch-tools', deepLinkLabel: 'Go to KRA Branch Tools', unverifiable: true,
   },
   {
-    id: 'saveStockMaster', title: 'Stock Master Save Request', kraEndpoint: '/save/stockMaster', kind: 'manual',
-    hint: 'Fires automatically as a side-effect right after Send Stock Information above — nothing separate to run here.',
+    id: 'saveStockMaster', title: 'Stock Master Save Request', kraEndpoint: '/saveStockMaster', kind: 'manual',
+    hint: 'Fires automatically as a side-effect right after Send Stock Information above - nothing separate to run here.',
     unverifiable: true,
   },
   {
-    id: 'sendSalesTransaction', title: 'Save sales transaction information', kraEndpoint: '/sendSalesTransaction', kind: 'manual',
-    hint: 'Create and transmit one real invoice for a registered item — strictly sequential invcNo, so this must be a genuine new sale.',
+    id: 'sendSalesTransaction', title: 'Save sales transaction information', kraEndpoint: '/saveTrnsSalesOsdc', kind: 'manual',
+    hint: 'Create and transmit one real invoice for a registered item - strictly sequential invcNo, so this must be a genuine new sale.',
     deepLinkHref: '/invoices', deepLinkLabel: 'Go to Invoices',
   },
   {
-    id: 'getPurchaseTransactionInfo', title: 'Get purchase transaction information', kraEndpoint: '/getPurchaseTransactionInfo', kind: 'manual',
-    hint: 'Checks for a matching supplier sale KRA already knows about — fires automatically as part of the vendor-bill / purchase flow.',
+    id: 'getPurchaseTransactionInfo', title: 'Get purchase transaction information', kraEndpoint: '/selectTrnsPurchaseSalesList', kind: 'manual',
+    hint: 'Checks for a matching supplier sale KRA already knows about - fires automatically as part of the vendor-bill / purchase flow.',
     deepLinkHref: '/bills/new', deepLinkLabel: 'Go to Vendor Bills', unverifiable: true,
   },
   {
-    id: 'sendPurchaseTransactionInfo', title: 'Send purchase transaction information', kraEndpoint: '/sendPurchaseTransactionInfo', kind: 'manual',
+    id: 'sendPurchaseTransactionInfo', title: 'Send purchase transaction information', kraEndpoint: '/insertTrnsPurchase', kind: 'manual',
     hint: 'Transmit a real vendor bill / purchase as an eTIMS purchase record.',
     deepLinkHref: '/bills/new', deepLinkLabel: 'Go to Vendor Bills', unverifiable: true,
   },
   {
-    id: 'importedItemInfo', title: 'Get imported item information', kraEndpoint: '/importedItemInfo', kind: 'lookupInput',
-    hint: "Uses the GavaConnect session's Application Test Pin, not your own TIN (runbook §3.7) — set it in the pre-flight box above.",
+    id: 'importedItemInfo', title: 'Get imported item information', kraEndpoint: '/selectImportItemList', kind: 'lookupInput',
+    hint: "Uses the GavaConnect session's Application Test Pin, not your own TIN (runbook section 3.7) - set it in the pre-flight box above.",
   },
   {
-    id: 'importedItemConvertedInfo', title: 'Send (converted) imported item information', kraEndpoint: '/importedItemConvertedInfo', kind: 'manual',
-    hint: 'Approve a pending import declaration found by the previous step — needs its taskCd. Consumes the task: only run once per declaration.',
+    id: 'importedItemConvertedInfo', title: 'Send (converted) imported item information', kraEndpoint: '/updateImportItem', kind: 'manual',
+    hint: 'Approve a pending import declaration found by the previous step - needs its taskCd. Consumes the task: only run once per declaration.',
     deepLinkHref: '?tab=etims-branch-tools', deepLinkLabel: 'Go to KRA Branch Tools', unverifiable: true,
   },
   {
-    id: 'itemInfo', title: 'Get Item Info', kraEndpoint: '/itemInfo', kind: 'lookup',
+    id: 'itemInfo', title: 'Get Item Info', kraEndpoint: '/selectItemList', kind: 'lookup',
     hint: "The taxpayer's own items already registered at KRA.",
   },
   {
-    id: 'selectInvoiceDetail', title: 'Select Invoice Details', kraEndpoint: '/selectInvoiceDetail', kind: 'lookupInput',
+    id: 'selectInvoiceDetail', title: 'Select Invoice Details', kraEndpoint: '/selectInvoiceDetails', kind: 'lookupInput',
     hint: 'Looks up one transmitted invoice by its eTIMS invoice number (invcNo).',
   },
   {
-    id: 'selectSalesTransactions', title: 'Select sales transaction', kraEndpoint: '/selectSalesTransactions', kind: 'lookup',
+    id: 'selectSalesTransactions', title: 'Select sales transaction', kraEndpoint: '/selectTrnsSalesList', kind: 'lookup',
     hint: 'Confirms the sale from Save sales transaction information above actually reached KRA.',
   },
   {
-    id: 'customerPinInfo', title: 'Get Customer PIN Info', kraEndpoint: '/customerPinInfo', kind: 'lookupInput',
-    hint: "Looks up a customer's KRA registration by PIN.",
+    id: 'customerPinInfo', title: 'Get Customer PIN Info', kraEndpoint: '/selectCustomerList', kind: 'lookupInput',
+    hint: "Looks up a customer's KRA registration by PIN - KRA's own proven call for this case sends no separate PIN filter, so it may return the branch's whole customer list rather than one match.",
   },
   {
-    id: 'selectStockMoveLists', title: 'get MoveList', kraEndpoint: '/selectStockMoveLists', kind: 'lookup',
+    id: 'selectStockMoveLists', title: 'get MoveList', kraEndpoint: '/selectStockMoveList', kind: 'lookup',
     hint: 'The stock movement list KRA has recorded for this branch.',
   },
 ];
