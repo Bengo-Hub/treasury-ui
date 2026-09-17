@@ -11,11 +11,13 @@ interface Props {
   token: string;
   quoteNumber: string;
   status: string;
+  convertedInvoiceToken?: string;
 }
 
-export function QuotationActionBar({ token, quoteNumber, status }: Props) {
+export function QuotationActionBar({ token, quoteNumber, status, convertedInvoiceToken }: Props) {
   const shareUrl = `${window.location.origin}/q/${token}`;
   const pdfUrl = `${TREASURY_API}/api/v1/public/quotations/${token}/pdf?download=true`;
+  const isConverted = status?.toLowerCase() === 'converted' && !!convertedInvoiceToken;
 
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl).then(() => alert('Link copied to clipboard!'));
@@ -32,45 +34,65 @@ export function QuotationActionBar({ token, quoteNumber, status }: Props) {
     declined: 'bg-red-100 text-red-700',
     expired: 'bg-orange-100 text-orange-700',
     cancelled: 'bg-gray-100 text-gray-500',
+    converted: 'bg-purple-100 text-purple-700',
   };
   const badge = statusColor[status?.toLowerCase()] ?? 'bg-gray-100 text-gray-600';
 
   return (
     <div className="bg-white border-b border-slate-200 sticky top-0 z-10 print:hidden">
       <div className="max-w-4xl mx-auto px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-slate-700">{quoteNumber}</span>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${badge}`}>
-            {status}
-          </span>
+          {isConverted ? (
+            <>
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+                Accepted
+              </span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">
+                Converted to Invoice
+              </span>
+            </>
+          ) : (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${badge}`}>
+              {status}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <button
             onClick={copyLink}
-            className="text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 border border-slate-200 rounded-md hover:bg-slate-50 text-slate-600 whitespace-nowrap"
+            className="min-h-10 inline-flex items-center text-xs sm:text-sm px-2.5 sm:px-3 py-2 border border-slate-200 rounded-md hover:bg-slate-50 active:bg-slate-100 text-slate-600 whitespace-nowrap"
           >
             Copy Link
           </button>
           <a
             href={`${TREASURY_API}/api/v1/public/quotations/${token}/export?format=xlsx`}
             download
-            className="text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 border border-slate-200 rounded-md hover:bg-slate-50 text-slate-600 whitespace-nowrap"
+            className="min-h-10 inline-flex items-center text-xs sm:text-sm px-2.5 sm:px-3 py-2 border border-slate-200 rounded-md hover:bg-slate-50 active:bg-slate-100 text-slate-600 whitespace-nowrap"
           >
             Excel
           </a>
           <a
             href={`${TREASURY_API}/api/v1/public/quotations/${token}/export?format=csv`}
             download
-            className="text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 border border-slate-200 rounded-md hover:bg-slate-50 text-slate-600 whitespace-nowrap"
+            className="min-h-10 inline-flex items-center text-xs sm:text-sm px-2.5 sm:px-3 py-2 border border-slate-200 rounded-md hover:bg-slate-50 active:bg-slate-100 text-slate-600 whitespace-nowrap"
           >
             CSV
           </a>
           <button
             onClick={downloadPdf}
-            className="text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 bg-brand-emphasis text-white rounded-md hover:opacity-90 font-medium whitespace-nowrap"
+            className="min-h-10 inline-flex items-center text-xs sm:text-sm px-2.5 sm:px-3 py-2 bg-brand-emphasis text-white rounded-md hover:opacity-90 active:opacity-80 font-medium whitespace-nowrap"
           >
             Download PDF
           </button>
+          {isConverted && (
+            <a
+              href={`/i/${convertedInvoiceToken}`}
+              className="min-h-10 inline-flex items-center text-xs sm:text-sm px-2.5 sm:px-3 py-2 bg-green-600 text-white rounded-md hover:opacity-90 active:opacity-80 font-medium whitespace-nowrap"
+            >
+              View Invoice
+            </a>
+          )}
         </div>
       </div>
     </div>
@@ -117,14 +139,14 @@ export function AcceptDeclineButtons({ token }: AcceptDeclineProps) {
       <button
         onClick={handleAccept}
         disabled={pending !== null}
-        className="flex-1 bg-brand-emphasis hover:opacity-90 text-white font-semibold py-3 rounded-lg transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+        className="flex-1 min-h-12 bg-brand-emphasis hover:opacity-90 active:opacity-80 text-white font-semibold py-3 rounded-lg transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {pending === 'accept' ? 'Accepting…' : 'Accept Quotation'}
       </button>
       <button
         onClick={handleDecline}
         disabled={pending !== null}
-        className="px-6 border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium py-3 rounded-lg transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+        className="min-h-12 px-6 border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-600 font-medium py-3 rounded-lg transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {pending === 'decline' ? 'Declining…' : 'Decline'}
       </button>

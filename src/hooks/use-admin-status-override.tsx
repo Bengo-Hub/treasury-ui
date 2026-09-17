@@ -11,7 +11,7 @@
  */
 
 import { useState } from 'react';
-import { SlidersHorizontal } from 'lucide-react';
+import { SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useDocRowAction } from './use-doc-row-action';
 import { AdminStatusOverrideModal } from '@/components/documents/AdminStatusOverrideModal';
 import type { DocAction, DocumentRow } from '@/components/documents/SharedDocumentList';
@@ -20,6 +20,7 @@ import {
   ADMIN_INVOICE_STATUSES,
   adminSetQuotationStatus,
   ADMIN_QUOTATION_STATUSES,
+  adminHardDeleteInvoice,
 } from '@/lib/api/invoices';
 
 export function useAdminStatusOverride(opts: {
@@ -43,6 +44,28 @@ export function useAdminStatusOverride(opts: {
           onClick: (r: DocumentRow) => setRow(r),
           visible: () => true,
         },
+        // Hard delete only applies to the invoice family — quotations live in a separate
+        // table/lifecycle entirely and already have their own bulk-delete path.
+        ...(family === 'invoice'
+          ? [
+              {
+                label: 'Hard Delete (Admin)',
+                icon: <Trash2 className="h-3.5 w-3.5" />,
+                onClick: (r: DocumentRow) => {
+                  if (
+                    !window.confirm(
+                      `Permanently delete ${r.doc_number}? This cannot be undone and bypasses the normal draft/void-only rule. ` +
+                        'It cascades: line items, recorded payments, eTIMS records, and any GL journal entries already posted for it are all removed too.',
+                    )
+                  ) {
+                    return;
+                  }
+                  run(() => adminHardDeleteInvoice(rowTenant(r), r.id), `${r.doc_number} permanently deleted`);
+                },
+                visible: () => true,
+              } satisfies DocAction,
+            ]
+          : []),
       ]
     : [];
 
