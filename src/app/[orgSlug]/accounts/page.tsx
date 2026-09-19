@@ -11,6 +11,7 @@ import {
   useCreateAccount,
   useUpdateAccount,
   useDeactivateAccount,
+  useSetAccountOpeningBalance,
 } from '@/hooks/use-accounts';
 import type { Account } from '@/lib/api/accounts';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
@@ -32,6 +33,10 @@ interface AccountFormData {
   account_type: string;
   currency: string;
   description: string;
+  /** Opening/current balance, as typed — raw debit-minus-credit terms (matches how the account
+   *  list already displays `balance`). Posted via a journal entry against 3200 Opening Balance
+   *  Equity, never stored directly — see ledger.Service.SetAccountOpeningBalance. */
+  balance: string;
 }
 
 const emptyForm: AccountFormData = {
@@ -40,6 +45,7 @@ const emptyForm: AccountFormData = {
   account_type: 'asset',
   currency: 'KES',
   description: '',
+  balance: '',
 };
 
 export default function AccountsPage() {
@@ -61,6 +67,7 @@ export default function AccountsPage() {
   const createMutation = useCreateAccount(effectiveTenant);
   const updateMutation = useUpdateAccount(effectiveTenant);
   const deactivateMutation = useDeactivateAccount(effectiveTenant);
+  const openingBalanceMutation = useSetAccountOpeningBalance(effectiveTenant);
 
   const accounts = accountsData?.accounts ?? [];
 
@@ -101,6 +108,7 @@ export default function AccountsPage() {
       account_type: account.account_type,
       currency: 'KES', // backend doesn't store currency on account model; default
       description: account.description ?? '',
+      balance: account.balance ?? '0',
     });
     setEditAccount(account);
   }
@@ -114,7 +122,16 @@ export default function AccountsPage() {
         description: formData.description || undefined,
       },
       {
-        onSuccess: () => setCreateOpen(false),
+        onSuccess: (created) => {
+          // Optional opening balance — chained after creation since the journal entry needs a
+          // real account id to post against (SetAccountOpeningBalance can't run before the
+          // account exists).
+          const opening = Number(formData.balance);
+          if (formData.balance.trim() !== '' && !Number.isNaN(opening) && opening !== 0) {
+            openingBalanceMutation.mutate({ id: created.id, balance: opening, description: 'Opening balance' });
+          }
+          setCreateOpen(false);
+        },
       },
     );
   }
@@ -130,7 +147,20 @@ export default function AccountsPage() {
         },
       },
       {
-        onSuccess: () => setEditAccount(null),
+        onSuccess: () => {
+          // Balance is a SEPARATE operation (a journal entry, not a plain field edit) — only
+          // fired when the typed value actually differs from the account's current balance.
+          const newBalance = Number(formData.balance);
+          const currentBalance = Number(editAccount.balance ?? '0');
+          if (!Number.isNaN(newBalance) && newBalance !== currentBalance) {
+            openingBalanceMutation.mutate(
+              { id: editAccount.id, balance: newBalance, description: 'Balance correction via Edit Account' },
+              { onSuccess: () => setEditAccount(null) },
+            );
+          } else {
+            setEditAccount(null);
+          }
+        },
       },
     );
   }
@@ -265,6 +295,16 @@ export default function AccountsPage() {
                 ))}
               </select>
             </FormField>
+            <FormField label="Opening Balance" description="Optional — leave blank or 0 to start at zero. Posts a balancing entry against Opening Balance Equity.">
+              <input
+                type="number"
+                inputMode="decimal"
+                className={inputClasses}
+                placeholder="0.00"
+                value={formData.balance}
+                onChange={(e) => setFormData((p) => ({ ...p, balance: e.target.value }))}
+              />
+            </FormField>
             <FormField label="Description">
               <textarea
                 className={cn(inputClasses, 'min-h-20 resize-none')}
@@ -317,15 +357,24 @@ export default function AccountsPage() {
                 onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
               />
             </FormField>
+            <FormField label="Balance" description="Changing this posts a correcting journal entry against Opening Balance Equity — it never edits the balance directly, so the ledger stays double-entry-correct.">
+              <input
+                type="number"
+                inputMode="decimal"
+                className={inputClasses}
+                value={formData.balance}
+                onChange={(e) => setFormData((p) => ({ ...p, balance: e.target.value }))}
+              />
+            </FormField>
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setEditAccount(null)}>
                 Cancel
               </Button>
               <Button
                 onClick={handleUpdate}
-                disabled={!formData.account_name || updateMutation.isPending}
+                disabled={!formData.account_name || updateMutation.isPending || openingBalanceMutation.isPending}
               >
-                {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {(updateMutation.isPending || openingBalanceMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Save Changes
               </Button>
             </div>

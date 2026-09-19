@@ -6,6 +6,7 @@ import {
   createAccount,
   updateAccount,
   deactivateAccount,
+  setAccountOpeningBalance,
   type AccountsResponse,
   type CreateAccountRequest,
   type UpdateAccountRequest,
@@ -51,6 +52,17 @@ export function useDeactivateAccount(tenantSlug: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deactivateAccount(tenantSlug, id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: accountKeys.all(tenantSlug) });
+    },
+  });
+}
+
+export function useSetAccountOpeningBalance(tenantSlug: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, balance, description }: { id: string; balance: number; description?: string }) =>
+      setAccountOpeningBalance(tenantSlug, id, balance, description),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountKeys.all(tenantSlug) });
     },
