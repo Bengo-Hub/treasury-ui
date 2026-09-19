@@ -860,6 +860,23 @@ export function syncCustomerToCRM(
   return apiClient.post<SyncCustomerToCRMResult>(`${BASE}/${tenant}/ar/customers/sync-crm`, body);
 }
 
+/** Edit a customer's name/email/phone — proxies to the CRM (the identity source of truth).
+ *  Requires the customer already have a linked CRM contact; sync-to-CRM first if not. */
+export function updateCustomerIdentity(
+  tenant: string,
+  contactId: string,
+  body: { name?: string; email?: string; phone?: string },
+): Promise<{ status: string }> {
+  return apiClient.patch<{ status: string }>(`${BASE}/${tenant}/ar/customers/${contactId}/identity`, body);
+}
+
+/** Permanently delete a customer (CRM contact + this tenant's AR row), cascading to POS's own
+ *  loyalty/cache footprint. The backend refuses while any balance (either direction) is owed —
+ *  ar_transactions/journal_entries are never touched, only the customer-identity rows. */
+export function deleteCustomer(tenant: string, contactId: string): Promise<{ status: string }> {
+  return apiClient.delete<{ status: string }>(`${BASE}/${tenant}/ar/customers/${contactId}`);
+}
+
 // Per-customer running AR balances (the operational AR ledger — includes POS credit sales,
 // which create no invoice). The `id`/`crm_contact_id` is used to receive a repayment.
 export interface CustomerBalance {

@@ -26,6 +26,8 @@ import {
   applyCustomerCreditToDebt,
   setCustomerCreditTerms,
   syncCustomerToCRM,
+  updateCustomerIdentity,
+  deleteCustomer,
   getQuotation,
   getQuotationGraph,
   getQuotationStats,
@@ -327,6 +329,37 @@ export function useSyncCustomerToCRM(tenant: string) {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['crm-contacts'] });
+    },
+  });
+}
+
+// Edit a customer's name/email/phone (proxies to the CRM). Refreshes the same set
+// useSyncCustomerToCRM does, since a name/phone change affects the same displayed rows.
+export function useUpdateCustomerIdentity(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ contactId, name, email, phone }: { contactId: string; name?: string; email?: string; phone?: string }) =>
+      updateCustomerIdentity(tenant, contactId, { name, email, phone }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['crm-contacts'] });
+    },
+  });
+}
+
+// Permanently delete a customer (CRM contact + AR row + POS loyalty/cache cascade). Refreshes
+// everything the Clients list is built from so the deleted customer disappears immediately.
+export function useDeleteCustomer(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (contactId: string) => deleteCustomer(tenant, contactId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
       queryClient.invalidateQueries({ queryKey: ['crm-contacts'] });
     },
   });
