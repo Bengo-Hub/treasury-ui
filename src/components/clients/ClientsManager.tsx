@@ -20,15 +20,18 @@ import {
   FileText,
   Loader2,
   Mail,
+  Pencil,
   Receipt,
   RefreshCw,
   Search,
+  Trash2,
   User,
+  UserPlus,
   Wallet,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { useSyncCustomerToCRM, useDuplicateCustomerBalances } from '@/hooks/use-invoices';
+import { useSyncCustomerToCRM, useDuplicateCustomerBalances, useUpdateCustomerIdentity, useDeleteCustomer } from '@/hooks/use-invoices';
 import { DuplicateCustomersModal } from './DuplicateCustomersModal';
 import { useClients, type ClientRecord } from './use-clients';
 import { ClientDetail } from './ClientDetail';
@@ -37,6 +40,9 @@ import { ReceivePaymentModal } from './ReceivePaymentModal';
 import { PayoutCreditModal } from './PayoutCreditModal';
 import { ApplyCreditToDebtModal } from './ApplyCreditToDebtModal';
 import { SyncToCrmDialog } from './SyncToCrmDialog';
+import { EditCustomerDialog } from './EditCustomerDialog';
+import { DeleteCustomerDialog } from './DeleteCustomerDialog';
+import { AddCustomerDialog } from './AddCustomerDialog';
 
 /** Account-relationship filter: who owes me money vs whom I owe (store credit / overpayment). */
 type BalanceFilter = 'all' | 'owe_me' | 'i_owe' | 'settled';
@@ -44,6 +50,13 @@ type BalanceFilter = 'all' | 'owe_me' | 'i_owe' | 'settled';
 type CreditFilter = 'all' | 'has_limit' | 'over_limit' | 'no_limit';
 
 const numAcc = (v?: string | null) => parseFloat(v ?? '0') || 0;
+
+/** Pulls the backend's own error/message string out of an axios error body — used for actions
+ *  (like customer delete) whose rejection reason is specifically crafted to be user-facing. */
+const errMessage = (e: unknown, fallback: string): string => {
+  const data = (e as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
+  return data?.error || data?.message || (e instanceof Error ? e.message : fallback);
+};
 
 /** The AR statement endpoint keys on a crm_contact_id UUID — a phone-keyed row has no UUID id,
  *  so its statement 400s. Gate the statement action on a real UUID (merge unifies the rest). */
@@ -135,6 +148,40 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [syncDialogClient, setSyncDialogClient] = useState<ClientRecord | null>(null);
   const syncCrm = useSyncCustomerToCRM(tenant);
   const [showDuplicatesModal, setShowDuplicatesModal] = useState(false);
+  const [editClient, setEditClient] = useState<ClientRecord | null>(null);
+  const [deleteClient, setDeleteClient] = useState<ClientRecord | null>(null);
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
+  const updateIdentity = useUpdateCustomerIdentity(tenant);
+  const deleteCustomerMutation = useDeleteCustomer(tenant);
+
+  const handleUpdateIdentity = (values: { name?: string; email?: string; phone?: string }) => {
+    if (!editClient?.customerId) return;
+    updateIdentity.mutate(
+      { contactId: editClient.customerId, ...values },
+      {
+        onSuccess: () => { toast.success(`${editClient.name} updated.`); setEditClient(null); },
+        onError: (e: unknown) => toast.error(errMessage(e, 'Failed to update customer.')),
+      },
+    );
+  };
+
+  const handleDeleteCustomer = () => {
+    if (!deleteClient?.customerId) return;
+    deleteCustomerMutation.mutate(deleteClient.customerId, {
+      onSuccess: () => { toast.success(`${deleteClient.name} deleted.`); setDeleteClient(null); },
+      onError: (e: unknown) => toast.error(errMessage(e, 'Failed to delete customer.')),
+    });
+  };
+
+  const handleAddCustomer = (values: { name: string; email?: string; phone?: string }) => {
+    syncCrm.mutate(
+      { customer_name: values.name, email: values.email, phone: values.phone },
+      {
+        onSuccess: () => { toast.success(`${values.name} added.`); setAddCustomerOpen(false); },
+        onError: () => toast.error('Failed to add customer.'),
+      },
+    );
+  };
 
   // Duplicate detection is server-driven (GET /ar/customers/duplicates — the SAME grouping the
   // actual merge uses, see DuplicateCustomersModal) rather than re-implemented here client-side,
@@ -451,6 +498,18 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                 <Receipt className="h-3.5 w-3.5" />
               </Button>
             )}
+            {hasUuidId(c) && (
+              <Button variant="outline" size="sm" title="Edit customer details"
+                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setEditClient(c); }}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {hasUuidId(c) && (
+              <Button variant="outline" size="sm" title="Delete customer"
+                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setDeleteClient(c); }}>
+                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+              </Button>
+            )}
             <ArrowUpRight className="h-4 w-4 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
           </div>
         );
@@ -467,16 +526,20 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
             Your clients merged from documents and the CRM, with balances and statements.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={isFetching}
-          onClick={() => refetch()}
-          title="Refresh — pulls the latest balances if a payment made elsewhere hasn't shown up yet"
-          className="shrink-0"
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} />
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button size="sm" onClick={() => setAddCustomerOpen(true)} className="gap-1.5">
+            <UserPlus className="h-3.5 w-3.5" /> Add Customer
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isFetching}
+            onClick={() => refetch()}
+            title="Refresh — pulls the latest balances if a payment made elsewhere hasn't shown up yet"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} />
+          </Button>
+        </div>
       </div>
 
       {showOwnOrgHint && (
@@ -654,6 +717,34 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
           pending={syncingKey === syncDialogClient.key}
           onConfirm={({ email, phone }) => performSync(syncDialogClient, email, phone)}
           onClose={() => setSyncDialogClient(null)}
+        />
+      )}
+
+      {editClient && (
+        <EditCustomerDialog
+          name={editClient.name}
+          defaultEmail={editClient.email}
+          defaultPhone={editClient.phone}
+          pending={updateIdentity.isPending}
+          onConfirm={handleUpdateIdentity}
+          onClose={() => setEditClient(null)}
+        />
+      )}
+
+      {deleteClient && (
+        <DeleteCustomerDialog
+          name={deleteClient.name}
+          pending={deleteCustomerMutation.isPending}
+          onConfirm={handleDeleteCustomer}
+          onClose={() => setDeleteClient(null)}
+        />
+      )}
+
+      {addCustomerOpen && (
+        <AddCustomerDialog
+          pending={syncCrm.isPending}
+          onConfirm={handleAddCustomer}
+          onClose={() => setAddCustomerOpen(false)}
         />
       )}
     </div>
