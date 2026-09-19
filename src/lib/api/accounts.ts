@@ -86,6 +86,21 @@ export function deactivateAccount(tenantIdOrSlug: string, id: string): Promise<{
   return apiClient.delete<{ status: string }>(`${BASE}/${tenantIdOrSlug}/ledger/accounts/${id}`);
 }
 
+/**
+ * Set an account's balance to a target value via a journal entry against 3200 Opening Balance
+ * Equity — works on any account, not just brand-new ones with no history (ledger.Service.
+ * SetAccountOpeningBalance posts only the delta needed to reach the target, since a real
+ * double-entry account's balance is always derived from its posted entries, never a raw field).
+ */
+export function setAccountOpeningBalance(
+  tenantIdOrSlug: string,
+  id: string,
+  balance: number,
+  description?: string,
+): Promise<Account> {
+  return apiClient.post<Account>(`${BASE}/${tenantIdOrSlug}/ledger/accounts/${id}/opening-balance`, { balance, description });
+}
+
 /** Flattens the hierarchical chart of accounts into a single pickable list — for any UI selecting
  *  one specific leaf account (a mapping target, a category default, …) where parent/child nesting
  *  doesn't matter, just the full set of codes. */
