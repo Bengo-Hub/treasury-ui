@@ -1039,6 +1039,26 @@ export function applyCustomerCreditToDebt(
   });
 }
 
+// Manually grant or remove a customer's stored credit, independent of any sale/return/debt-apply —
+// e.g. a customer hands over cash purely to bank as future store credit, or staff correct an
+// over/under-grant. direction "credit" requires accountId (which cash/bank account received the
+// money); direction "debit" posts no GL (a pure correction, not a cash payout — use
+// payoutCustomerCredit for that). reason is mandatory on both directions for the audit trail.
+export function adjustCustomerStoreCredit(
+  tenant: string,
+  contactId: string,
+  body: { amount: number; direction: 'credit' | 'debit'; accountId?: string; reason: string; reference?: string; paidAt?: string },
+): Promise<CustomerBalance> {
+  return apiClient.post<CustomerBalance>(`${BASE}/${tenant}/ar/customers/${contactId}/store-credit/adjust`, {
+    amount: String(body.amount),
+    direction: body.direction,
+    account_id: body.accountId,
+    reason: body.reason,
+    reference: body.reference,
+    paid_at: body.paidAt,
+  });
+}
+
 // Set/clear a customer's credit terms (limit amount + payment period days). `contactId` =
 // crm_contact_id (or the customer_identifier for non-CRM rows). Zero clears the respective term.
 export function setCustomerCreditTerms(

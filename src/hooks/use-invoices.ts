@@ -24,6 +24,7 @@ import {
   type DuplicateCustomerGroup,
   payoutCustomerCredit,
   applyCustomerCreditToDebt,
+  adjustCustomerStoreCredit,
   setCustomerCreditTerms,
   syncCustomerToCRM,
   updateCustomerIdentity,
@@ -297,6 +298,22 @@ export function useApplyCustomerCreditToDebt(tenant: string) {
   return useMutation({
     mutationFn: ({ contactId, amount, reference, paidAt }: { contactId: string; amount: number; reference?: string; paidAt?: string }) =>
       applyCustomerCreditToDebt(tenant, contactId, { amount, reference, paidAt }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
+      queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+    },
+  });
+}
+
+// Manually grant or remove a customer's stored credit, independent of any sale/return/debt-apply.
+export function useAdjustCustomerStoreCredit(tenant: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      { contactId, amount, direction, accountId, reason, reference, paidAt }:
+      { contactId: string; amount: number; direction: 'credit' | 'debit'; accountId?: string; reason: string; reference?: string; paidAt?: string },
+    ) => adjustCustomerStoreCredit(tenant, contactId, { amount, direction, accountId, reason, reference, paidAt }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
       queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
