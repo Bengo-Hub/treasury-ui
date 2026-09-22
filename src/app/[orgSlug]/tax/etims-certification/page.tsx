@@ -1,19 +1,34 @@
 'use client';
 
 // KRA eTIMS OSCU certification wizard — steps a tenant admin through all 23 scored test cases
-// in the runbook's state-machine order (steps.ts), auto-advancing once the active step passes.
-// Every step calls a REAL business endpoint (the same ones the rest of Tax & Compliance already
-// uses) — this page never duplicates a form that exists elsewhere; steps needing real business
-// data (item registration, a real sale, a real stock movement) link to that existing feature and
-// verify against a read endpoint where one exists, per kra-etims-status-and-history.md §8b.
+// in the runbook's state-machine order (steps.ts), one case at a time: pick a step on the left,
+// press Run, see the real KRA response on the right. Every step calls a REAL business endpoint
+// (the same ones the rest of Tax & Compliance already uses) — this page never duplicates a form
+// that exists elsewhere; steps needing real business data (a real sale, a real stock movement)
+// link to that existing feature and verify against a read endpoint where one exists, per
+// kra-etims-status-and-history.md §8b.
+//
+// 2026-09-22 redesign: removed the separate "API-triggered batch run" card that duplicated this
+// same 23-case list in a second place with its own device/credential inputs and history — one
+// unified list+console now covers both the walkthrough and the response inspection. Also wired
+// real inline Run forms (using mutation hooks that already existed but were previously only
+// reachable from the KRA Branch Tools tab) for the 5 steps that used to be deep-link-only:
+// branch customer/user/insurance registration, item composition, and imported-item approval.
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { FormField } from '@/components/ui/form-field';
-import { useEtimsCertRun, useEtimsCertRuns, useTriggerEtimsCertRun } from '@/hooks/use-etims-cert-runs';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useAssignEtimsDeviceOutlet, useEtimsDevices, useInitEtimsDevice, useRefreshCodeLists } from '@/hooks/use-tax';
-import { useEtimsBranchList, useEtimsNoticeList, useEtimsTaxpayerInfo } from '@/hooks/use-tax-etims-branch';
+import {
+  useEtimsBranchList,
+  useEtimsNoticeList,
+  useEtimsTaxpayerInfo,
+  useRegisterEtimsBranchCustomer,
+  useRegisterEtimsBranchInsurance,
+  useRegisterEtimsBranchUser,
+  useRegisterEtimsItemComposition,
+  useUpdateEtimsImportedItem,
+} from '@/hooks/use-tax-etims-branch';
 import {
   useEtimsCustomerPinInfo,
   useEtimsItemClassList,
@@ -24,19 +39,28 @@ import {
 import { useAuthStore } from '@/store/auth';
 import * as taxApi from '@/lib/api/tax';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Loader2, PlayCircle, XCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  CircleSlash,
+  ExternalLink,
+  Loader2,
+  MinusCircle,
+  XCircle,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { WIZARD_STEPS } from './steps';
-
-const AUTH_API_URL =
-  process.env.NEXT_PUBLIC_AUTH_API_URL || process.env.NEXT_PUBLIC_SSO_URL || 'https://sso.codevertexafrica.com';
 
 interface OutletOption {
   id: string;
   code: string;
   name: string;
 }
+
+const AUTH_API_URL =
+  process.env.NEXT_PUBLIC_AUTH_API_URL || process.env.NEXT_PUBLIC_SSO_URL || 'https://sso.codevertexafrica.com';
 
 async function fetchOutletOptions(accessToken: string, tenantSlug: string): Promise<OutletOption[]> {
   const res = await fetch(`${AUTH_API_URL}/api/v1/tenants/${tenantSlug}/outlets`, {
@@ -48,27 +72,36 @@ async function fetchOutletOptions(accessToken: string, tenantSlug: string): Prom
   return list.filter((o: any) => o.status !== 'archived');
 }
 
-const runStatusVariant: Record<string, 'success' | 'error' | 'warning' | 'secondary'> = {
-  completed: 'success',
-  failed: 'error',
-  running: 'warning',
-  pending: 'secondary',
-};
-
-type StepStatus = 'idle' | 'running' | 'pass' | 'fail';
+// Mirrors the backend's own EtimsCertRunStep status vocabulary (certification_runner.go /
+// etimscertrunstep) so a step here always reads the same way it would from an API-triggered run
+// — 'skipped' (a prerequisite step never passed) and 'unresolvable' (a confirmed KRA-side dead
+// end, not a bug) are real, distinct outcomes, not just "failed".
+type StepStatus = 'idle' | 'running' | 'pass' | 'fail' | 'skipped' | 'unresolvable';
 
 function isPassResultCd(code: string | undefined): boolean {
   return code === '000' || code === '0000' || code === '001';
 }
 
-const jsonBoxClass = 'max-h-56 overflow-auto rounded-lg bg-muted/40 p-3 text-xs';
 const inputClass = 'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm';
+const consoleClass =
+  'max-h-72 overflow-auto rounded-lg border border-border bg-muted/30 p-3 font-mono text-xs leading-relaxed';
+
+const STATUS_META: Record<StepStatus, { label: string; badge: 'success' | 'error' | 'warning' | 'outline' | 'secondary'; icon: React.ReactNode }> = {
+  idle: { label: 'Idle', badge: 'secondary', icon: <span className="block h-3.5 w-3.5 rounded-full border-2 border-border" /> },
+  running: { label: 'Running', badge: 'warning', icon: <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-600" /> },
+  pass: { label: 'Pass', badge: 'success', icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> },
+  fail: { label: 'Fail', badge: 'error', icon: <XCircle className="h-3.5 w-3.5 text-destructive" /> },
+  skipped: { label: 'Skipped', badge: 'outline', icon: <MinusCircle className="h-3.5 w-3.5 text-muted-foreground" /> },
+  unresolvable: { label: 'Unresolvable', badge: 'error', icon: <CircleSlash className="h-3.5 w-3.5 text-destructive" /> },
+};
 
 function StatusIcon({ status }: { status: StepStatus }) {
-  if (status === 'running') return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
-  if (status === 'pass') return <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
-  if (status === 'fail') return <XCircle className="h-4 w-4 text-destructive" />;
-  return <span className="h-4 w-4 rounded-full border border-border" />;
+  return STATUS_META[status].icon;
+}
+
+function StatusBadge({ status }: { status: StepStatus }) {
+  const meta = STATUS_META[status];
+  return <Badge variant={meta.badge}>{meta.label}</Badge>;
 }
 
 // A step whose result is a plain KraOscuLookupResult — shared body for every 'lookup' /
@@ -116,9 +149,57 @@ function LookupStepBody({
         {query.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         Run
       </Button>
-      {query.data != null && (
-        <pre className={jsonBoxClass}>{JSON.stringify(query.data, null, 2)}</pre>
-      )}
+      {query.data != null && <pre className={consoleClass}>{JSON.stringify(query.data, null, 2)}</pre>}
+    </div>
+  );
+}
+
+// A step that fires a real POST mutation with a small pre-filled form — used for the 5 branch
+// registration / composition / imported-item cases that already have a working mutation hook
+// (previously only reachable from the KRA Branch Tools tab, deep-link-only here). Sensible
+// certification-test defaults are pre-filled (matching certification_runner.go's own
+// CERT-TEST-* convention) so a real click "just works" without hunting for values, but every
+// field stays editable.
+function ActionStepBody({
+  description,
+  fields,
+  values,
+  onChange,
+  onRun,
+  isPending,
+  result,
+  runLabel = 'Run',
+}: {
+  description: string;
+  fields: { key: string; label: string; placeholder?: string; type?: string }[];
+  values: Record<string, string>;
+  onChange: (key: string, v: string) => void;
+  onRun: () => void;
+  isPending: boolean;
+  result?: any;
+  runLabel?: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">{description}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {fields.map((f) => (
+          <FormField key={f.key} label={f.label}>
+            <input
+              type={f.type ?? 'text'}
+              value={values[f.key] ?? ''}
+              onChange={(e) => onChange(f.key, e.target.value)}
+              placeholder={f.placeholder}
+              className={inputClass}
+            />
+          </FormField>
+        ))}
+      </div>
+      <Button onClick={onRun} disabled={isPending}>
+        {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {runLabel}
+      </Button>
+      {result != null && <pre className={consoleClass}>{JSON.stringify(result, null, 2)}</pre>}
     </div>
   );
 }
@@ -168,7 +249,7 @@ function ManualStepBody({
           you&apos;ve completed it on the linked page.
         </p>
       )}
-      {checkResult?.data != null && <pre className={jsonBoxClass}>{JSON.stringify(checkResult.data, null, 2)}</pre>}
+      {checkResult?.data != null && <pre className={consoleClass}>{JSON.stringify(checkResult.data, null, 2)}</pre>}
     </div>
   );
 }
@@ -179,13 +260,15 @@ export default function EtimsCertificationPage() {
 
   const [current, setCurrent] = useState(0);
   const [statuses, setStatuses] = useState<Record<string, StepStatus>>({});
+  const [results, setResults] = useState<Record<string, any>>({});
   const [testPin, setTestPin] = useState('');
   const [custPinInput, setCustPinInput] = useState('');
   const [invcNoInput, setInvcNoInput] = useState('');
 
   const step = WIZARD_STEPS[current];
-  const setStatus = (id: string, status: StepStatus) => {
+  const setStatus = (id: string, status: StepStatus, data?: any) => {
     setStatuses((s) => ({ ...s, [id]: status }));
+    if (data !== undefined) setResults((r) => ({ ...r, [id]: data }));
     if (status === 'pass' && current < WIZARD_STEPS.length - 1) {
       setTimeout(() => setCurrent((c) => (WIZARD_STEPS[c].id === id ? c + 1 : c)), 500);
     }
@@ -208,21 +291,6 @@ export default function EtimsCertificationPage() {
   });
   const assignOutlet = useAssignEtimsDeviceOutlet();
 
-  // API-triggered certification run (replaces hand-running the CLI script).
-  const certRunsQuery = useEtimsCertRuns(tenantSlug);
-  const triggerCertRun = useTriggerEtimsCertRun();
-  const [certRunDeviceId, setCertRunDeviceId] = useState('');
-  const [certRunApigeeAppId, setCertRunApigeeAppId] = useState('');
-  const [certRunConsumerKey, setCertRunConsumerKey] = useState('');
-  const [certRunConsumerSecret, setCertRunConsumerSecret] = useState('');
-  const [certRunTestPin, setCertRunTestPin] = useState('');
-  const [certRunConfirmOpen, setCertRunConfirmOpen] = useState(false);
-  const [liveRunId, setLiveRunId] = useState<string | undefined>(undefined);
-  const liveRun = useEtimsCertRun(tenantSlug, liveRunId);
-  const certRunDevice = devices.find((d) => d.id === certRunDeviceId) ?? activeDevice;
-  const certRunOutletName = outletOptionsQuery.data?.find((o) => o.id === certRunDevice?.outlet_id)?.name;
-  const existingRunsForDevice = (certRunsQuery.data ?? []).filter((r) => r.device_id === certRunDevice?.id);
-
   const initDevice = useInitEtimsDevice();
   const refreshCodeLists = useRefreshCodeLists();
   const itemClassList = useEtimsItemClassList(tenantSlug);
@@ -244,7 +312,34 @@ export default function EtimsCertificationPage() {
     enabled: false,
   });
 
+  // Real inline Run forms for the 5 steps that already have a working mutation hook.
+  const registerCustomer = useRegisterEtimsBranchCustomer();
+  const registerUser = useRegisterEtimsBranchUser();
+  const registerInsurance = useRegisterEtimsBranchInsurance();
+  const registerComposition = useRegisterEtimsItemComposition();
+  const updateImportedItem = useUpdateEtimsImportedItem();
+
+  const [customerForm, setCustomerForm] = useState<Record<string, string>>({
+    cust_no: 'CERT-TEST-001', cust_tin: '', cust_nm: 'Certification Test Customer',
+    adrs: 'Nairobi', tel_no: '0700000000', email: 'cert-test@codevertexafrica.com',
+  });
+  const [userForm, setUserForm] = useState<Record<string, string>>({
+    user_id: 'certtest01', user_nm: 'Certification Test User', pwd: 'CertTest@1234',
+    adrs: 'Nairobi', cellphone: '0700000000', email: 'certtest@example.com',
+  });
+  const [insuranceForm, setInsuranceForm] = useState<Record<string, string>>({
+    isrcc_cd: '12', isrcc_nm: 'Certification Test Insurance', isrc_rt: '5',
+  });
+  const [compositionForm, setCompositionForm] = useState<Record<string, string>>({
+    item_cd: '', cpst_item_cd: '', cpst_qty: '1',
+  });
+  const [importForm, setImportForm] = useState<Record<string, string>>({
+    task_cd: '', dcl_de: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+    item_seq: '1', hs_cd: '', item_cls_cd: '', item_cd: '',
+  });
+
   const passCount = WIZARD_STEPS.filter((s) => statuses[s.id] === 'pass').length;
+  const donePct = Math.round((passCount / WIZARD_STEPS.length) * 100);
 
   function renderStepBody() {
     switch (step.id) {
@@ -253,7 +348,7 @@ export default function EtimsCertificationPage() {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               Initializes {activeDevice ? <span className="font-mono">{activeDevice.device_serial}</span> : 'the active device'} against KRA. A
-              <span className="font-mono"> 902</span> response ("already installed") is healthy, not a failure.
+              <span className="font-mono"> 902</span> response (&quot;already installed&quot;) is healthy, not a failure.
             </p>
             <Button
               onClick={() => {
@@ -261,7 +356,10 @@ export default function EtimsCertificationPage() {
                 setStatus('initialize', 'running');
                 initDevice.mutate(
                   { tenantSlug, deviceId: activeDevice.id },
-                  { onSuccess: () => setStatus('initialize', 'pass'), onError: () => setStatus('initialize', 'fail') },
+                  {
+                    onSuccess: (d) => setStatus('initialize', 'pass', d),
+                    onError: (e: any) => setStatus('initialize', 'fail', e?.response?.data),
+                  },
                 );
               }}
               disabled={!activeDevice || initDevice.isPending}
@@ -270,6 +368,7 @@ export default function EtimsCertificationPage() {
               Run
             </Button>
             {!activeDevice && <p className="text-xs text-destructive">No eTIMS device found — register one on the eTIMS Devices tab first.</p>}
+            {results.initialize != null && <pre className={consoleClass}>{JSON.stringify(results.initialize, null, 2)}</pre>}
           </div>
         );
       case 'selectCodeList':
@@ -281,7 +380,10 @@ export default function EtimsCertificationPage() {
                 setStatus('selectCodeList', 'running');
                 refreshCodeLists.mutate(
                   { tenantSlug },
-                  { onSuccess: () => setStatus('selectCodeList', 'pass'), onError: () => setStatus('selectCodeList', 'fail') },
+                  {
+                    onSuccess: (d) => setStatus('selectCodeList', 'pass', d),
+                    onError: (e: any) => setStatus('selectCodeList', 'fail', e?.response?.data),
+                  },
                 );
               }}
               disabled={refreshCodeLists.isPending}
@@ -289,28 +391,29 @@ export default function EtimsCertificationPage() {
               {refreshCodeLists.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Run
             </Button>
+            {results.selectCodeList != null && <pre className={consoleClass}>{JSON.stringify(results.selectCodeList, null, 2)}</pre>}
           </div>
         );
       case 'selectItemClass':
-        return <LookupStepBody description={step.hint} query={itemClassList} onResult={(s) => setStatus(step.id, s)} />;
+        return <LookupStepBody description={step.hint} query={itemClassList} onResult={(s) => setStatus(step.id, s, itemClassList.data)} />;
       case 'branchList':
-        return <LookupStepBody description={step.hint} query={branchList} onResult={(s) => setStatus(step.id, s)} />;
+        return <LookupStepBody description={step.hint} query={branchList} onResult={(s) => setStatus(step.id, s, branchList.data)} />;
       case 'selectNoticeList':
-        return <LookupStepBody description={step.hint} query={noticeList} onResult={(s) => setStatus(step.id, s)} />;
+        return <LookupStepBody description={step.hint} query={noticeList} onResult={(s) => setStatus(step.id, s, noticeList.data)} />;
       case 'selectTaxpayerInfo':
-        return <LookupStepBody description={step.hint} query={taxpayerInfo} onResult={(s) => setStatus(step.id, s)} />;
+        return <LookupStepBody description={step.hint} query={taxpayerInfo} onResult={(s) => setStatus(step.id, s, taxpayerInfo.data)} />;
       case 'itemInfo':
-        return <LookupStepBody description={step.hint} query={itemInfo} onResult={(s) => setStatus(step.id, s)} />;
+        return <LookupStepBody description={step.hint} query={itemInfo} onResult={(s) => setStatus(step.id, s, itemInfo.data)} />;
       case 'selectStockMoveLists':
-        return <LookupStepBody description={step.hint} query={stockMoveList} onResult={(s) => setStatus(step.id, s)} />;
+        return <LookupStepBody description={step.hint} query={stockMoveList} onResult={(s) => setStatus(step.id, s, stockMoveList.data)} />;
       case 'selectSalesTransactions':
-        return <LookupStepBody description={step.hint} query={salesTransactions} onResult={(s) => setStatus(step.id, s)} />;
+        return <LookupStepBody description={step.hint} query={salesTransactions} onResult={(s) => setStatus(step.id, s, salesTransactions.data)} />;
       case 'customerPinInfo':
         return (
           <LookupStepBody
             description={step.hint}
             query={customerPinInfo}
-            onResult={(s) => setStatus(step.id, s)}
+            onResult={(s) => setStatus(step.id, s, customerPinInfo.data)}
             inputLabel="Customer KRA PIN"
             inputValue={custPinInput}
             onInputChange={setCustPinInput}
@@ -322,7 +425,7 @@ export default function EtimsCertificationPage() {
           <LookupStepBody
             description={step.hint}
             query={invoiceDetail}
-            onResult={(s) => setStatus(step.id, s)}
+            onResult={(s) => setStatus(step.id, s, invoiceDetail.data)}
             inputLabel="eTIMS invoice number (invcNo)"
             inputValue={invcNoInput}
             onInputChange={setInvcNoInput}
@@ -334,11 +437,152 @@ export default function EtimsCertificationPage() {
           <LookupStepBody
             description={step.hint}
             query={importedItems}
-            onResult={(s) => setStatus(step.id, s)}
+            onResult={(s) => setStatus(step.id, s, importedItems.data)}
             inputLabel="Application Test Pin (from the GavaConnect session, not your own TIN)"
             inputValue={testPin}
             onInputChange={setTestPin}
             inputPlaceholder="e.g. P052543168K"
+          />
+        );
+      case 'branchSendCustomerInfo':
+        return (
+          <ActionStepBody
+            description={step.hint}
+            fields={[
+              { key: 'cust_no', label: 'Customer no.' },
+              { key: 'cust_tin', label: 'Customer TIN', placeholder: 'e.g. the session Application Test Pin' },
+              { key: 'cust_nm', label: 'Customer name' },
+              { key: 'adrs', label: 'Address' },
+              { key: 'tel_no', label: 'Phone' },
+              { key: 'email', label: 'Email' },
+            ]}
+            values={customerForm}
+            onChange={(k, v) => setCustomerForm((f) => ({ ...f, [k]: v }))}
+            isPending={registerCustomer.isPending}
+            result={results.branchSendCustomerInfo}
+            onRun={() => {
+              setStatus('branchSendCustomerInfo', 'running');
+              registerCustomer.mutate(
+                { tenantSlug, body: customerForm as unknown as taxApi.RegisterBranchCustomerBody },
+                {
+                  onSuccess: (d) => setStatus('branchSendCustomerInfo', 'pass', d),
+                  onError: (e: any) => setStatus('branchSendCustomerInfo', 'fail', e?.response?.data),
+                },
+              );
+            }}
+          />
+        );
+      case 'branchUserAccount':
+        return (
+          <ActionStepBody
+            description={step.hint}
+            fields={[
+              { key: 'user_id', label: 'User ID' },
+              { key: 'user_nm', label: 'User name' },
+              { key: 'pwd', label: 'Password', type: 'password' },
+              { key: 'adrs', label: 'Address' },
+              { key: 'cellphone', label: 'Cellphone' },
+              { key: 'email', label: 'Email' },
+            ]}
+            values={userForm}
+            onChange={(k, v) => setUserForm((f) => ({ ...f, [k]: v }))}
+            isPending={registerUser.isPending}
+            result={results.branchUserAccount}
+            onRun={() => {
+              setStatus('branchUserAccount', 'running');
+              registerUser.mutate(
+                { tenantSlug, body: userForm as unknown as taxApi.RegisterBranchUserBody },
+                {
+                  onSuccess: (d) => setStatus('branchUserAccount', 'pass', d),
+                  onError: (e: any) => setStatus('branchUserAccount', 'fail', e?.response?.data),
+                },
+              );
+            }}
+          />
+        );
+      case 'branchInsuranceInfo':
+        return (
+          <ActionStepBody
+            description={step.hint}
+            fields={[
+              { key: 'isrcc_cd', label: 'Insurance company code' },
+              { key: 'isrcc_nm', label: 'Insurance company name' },
+              { key: 'isrc_rt', label: 'Insurance rate (%)', type: 'number' },
+            ]}
+            values={insuranceForm}
+            onChange={(k, v) => setInsuranceForm((f) => ({ ...f, [k]: v }))}
+            isPending={registerInsurance.isPending}
+            result={results.branchInsuranceInfo}
+            onRun={() => {
+              setStatus('branchInsuranceInfo', 'running');
+              registerInsurance.mutate(
+                { tenantSlug, body: { ...insuranceForm, isrc_rt: Number(insuranceForm.isrc_rt) || 0 } as unknown as taxApi.RegisterBranchInsuranceBody },
+                {
+                  onSuccess: (d) => setStatus('branchInsuranceInfo', 'pass', d),
+                  onError: (e: any) => setStatus('branchInsuranceInfo', 'fail', e?.response?.data),
+                },
+              );
+            }}
+          />
+        );
+      case 'saveItemComposition':
+        return (
+          <ActionStepBody
+            description={step.hint}
+            fields={[
+              { key: 'item_cd', label: 'Finished-good itemCd', placeholder: 'e.g. KE2NTNO00000170' },
+              { key: 'cpst_item_cd', label: 'Component itemCd (must already carry KRA stock)', placeholder: 'e.g. KE1NTNO00000171' },
+              { key: 'cpst_qty', label: 'Component quantity', type: 'number' },
+            ]}
+            values={compositionForm}
+            onChange={(k, v) => setCompositionForm((f) => ({ ...f, [k]: v }))}
+            isPending={registerComposition.isPending}
+            result={results.saveItemComposition}
+            onRun={() => {
+              setStatus('saveItemComposition', 'running');
+              registerComposition.mutate(
+                {
+                  tenantSlug,
+                  body: {
+                    item_cd: compositionForm.item_cd,
+                    cpst_item_cd: compositionForm.cpst_item_cd,
+                    cpst_qty: Number(compositionForm.cpst_qty) || 0,
+                  },
+                },
+                {
+                  onSuccess: (d) => setStatus('saveItemComposition', 'pass', d),
+                  onError: (e: any) => setStatus('saveItemComposition', 'fail', e?.response?.data),
+                },
+              );
+            }}
+          />
+        );
+      case 'importedItemConvertedInfo':
+        return (
+          <ActionStepBody
+            description={step.hint}
+            fields={[
+              { key: 'task_cd', label: 'Task code', placeholder: 'from Get imported item information above' },
+              { key: 'dcl_de', label: 'Declaration date (YYYYMMDD)' },
+              { key: 'item_seq', label: 'Item seq', type: 'number' },
+              { key: 'hs_cd', label: 'HS code', placeholder: 'e.g. 63079000' },
+              { key: 'item_cls_cd', label: 'Item class code' },
+              { key: 'item_cd', label: 'Your itemCd for this import' },
+            ]}
+            values={importForm}
+            onChange={(k, v) => setImportForm((f) => ({ ...f, [k]: v }))}
+            isPending={updateImportedItem.isPending}
+            result={results.importedItemConvertedInfo}
+            onRun={() => {
+              setStatus('importedItemConvertedInfo', 'running');
+              updateImportedItem.mutate(
+                { tenantSlug, body: { ...importForm, item_seq: Number(importForm.item_seq) || 1 } as unknown as taxApi.UpdateImportedItemBody },
+                {
+                  onSuccess: (d) => setStatus('importedItemConvertedInfo', 'pass', d),
+                  onError: (e: any) => setStatus('importedItemConvertedInfo', 'fail', e?.response?.data),
+                },
+              );
+            }}
           />
         );
       case 'saveItem':
@@ -351,10 +595,10 @@ export default function EtimsCertificationPage() {
             onCheck={async () => {
               setStatus('saveItem', 'running');
               const r = await itemInfo.refetch();
-              setStatus('saveItem', r.isError ? 'fail' : isPassResultCd((r.data as any)?.resultCd) ? 'pass' : 'fail');
+              setStatus('saveItem', r.isError ? 'fail' : isPassResultCd((r.data as any)?.resultCd) ? 'pass' : 'fail', r.data);
             }}
             checkLabel="Check (Get Item Info)"
-            checkResult={{ status: statuses.saveItem ?? 'idle', data: itemInfo.data }}
+            checkResult={{ status: statuses.saveItem ?? 'idle', data: results.saveItem ?? itemInfo.data }}
           />
         );
       case 'sendSalesTransaction':
@@ -367,10 +611,10 @@ export default function EtimsCertificationPage() {
             onCheck={async () => {
               setStatus('sendSalesTransaction', 'running');
               const r = await salesTransactions.refetch();
-              setStatus('sendSalesTransaction', r.isError ? 'fail' : isPassResultCd((r.data as any)?.resultCd) ? 'pass' : 'fail');
+              setStatus('sendSalesTransaction', r.isError ? 'fail' : isPassResultCd((r.data as any)?.resultCd) ? 'pass' : 'fail', r.data);
             }}
             checkLabel="Check (Select sales transaction)"
-            checkResult={{ status: statuses.sendSalesTransaction ?? 'idle', data: salesTransactions.data }}
+            checkResult={{ status: statuses.sendSalesTransaction ?? 'idle', data: results.sendSalesTransaction ?? salesTransactions.data }}
           />
         );
       default:
@@ -387,12 +631,23 @@ export default function EtimsCertificationPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div>
-        <h1 className="text-xl font-bold">KRA eTIMS Certification Wizard</h1>
-        <p className="text-sm text-muted-foreground">
-          Steps through all 23 scored OSCU test cases in KRA&apos;s required order. {passCount}/{WIZARD_STEPS.length} passed this run.
-        </p>
+    <div className="mx-auto max-w-6xl space-y-5 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-3">
+        <div>
+          <h1 className="text-xl font-bold">KRA eTIMS Certification Wizard</h1>
+          <p className="text-sm text-muted-foreground">
+            Steps through all 23 scored OSCU test cases in KRA&apos;s required order, one at a time.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs font-semibold">
+            <span>{passCount}/{WIZARD_STEPS.length} passed</span>
+            <span className="text-muted-foreground">{donePct}%</span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-emerald-500 transition-all duration-300" style={{ width: `${donePct}%` }} />
+          </div>
+        </div>
       </div>
 
       <Card>
@@ -446,167 +701,56 @@ export default function EtimsCertificationPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <h2 className="text-sm font-semibold">Certification runs (API-triggered)</h2>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Runs the full 23-case suite server-side instead of the manual walk-through below — its score and
-            per-case results are kept here for every attempt. Requires this session&apos;s GavaConnect app
-            credentials (from developer.go.ke, same as the manual pre-flight above).
-          </p>
-
-          {devices.length > 1 && (
-            <FormField label="Branch to certify">
-              <select value={certRunDeviceId || certRunDevice?.id || ''} onChange={(e) => setCertRunDeviceId(e.target.value)} className={inputClass}>
-                {devices.map((d) => (
-                  <option key={d.id} value={d.id}>branch {d.branch_id ?? '00'} — {d.device_serial}</option>
-                ))}
-              </select>
-            </FormField>
-          )}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label="Apigee App ID">
-              <input value={certRunApigeeAppId} onChange={(e) => setCertRunApigeeAppId(e.target.value)} className={inputClass} placeholder="This session's Apigee App ID" />
-            </FormField>
-            <FormField label="Application Test Pin">
-              <input value={certRunTestPin} onChange={(e) => setCertRunTestPin(e.target.value)} className={inputClass} placeholder="e.g. P600004242A" />
-            </FormField>
-            <FormField label="OSCU Consumer Key">
-              <input value={certRunConsumerKey} onChange={(e) => setCertRunConsumerKey(e.target.value)} className={inputClass} type="password" />
-            </FormField>
-            <FormField label="OSCU Consumer Secret">
-              <input value={certRunConsumerSecret} onChange={(e) => setCertRunConsumerSecret(e.target.value)} className={inputClass} type="password" />
-            </FormField>
+      <Card className="overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr]">
+          <div className="border-b border-border lg:border-b-0 lg:border-r">
+            <div className="max-h-[60vh] space-y-0.5 overflow-y-auto p-2 lg:max-h-[75vh]">
+              {WIZARD_STEPS.map((s, i) => {
+                const st = statuses[s.id] ?? 'idle';
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setCurrent(i)}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${
+                      i === current ? 'bg-primary/10 font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-background text-[10px] font-semibold text-muted-foreground">
+                      {i + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{s.title}</span>
+                    <StatusIcon status={st} />
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <Button
-            onClick={() => setCertRunConfirmOpen(true)}
-            disabled={!certRunDevice || !certRunApigeeAppId || !certRunConsumerKey || !certRunConsumerSecret}
-          >
-            <PlayCircle className="h-4 w-4" />
-            Start new run
-          </Button>
-
-          <ConfirmDialog
-            open={certRunConfirmOpen}
-            onOpenChange={setCertRunConfirmOpen}
-            title="Start certification run"
-            description={
-              `This will run all 23 KRA test cases against branch ${certRunDevice?.branch_id ?? '00'} ` +
-              `(${certRunDevice?.device_serial ?? 'no device'}${certRunOutletName ? `, outlet ${certRunOutletName}` : ''}) ` +
-              `and consume real KRA sequence numbers on that branch. ` +
-              (existingRunsForDevice.length > 0
-                ? `This branch already has ${existingRunsForDevice.length} prior run(s) recorded here.`
-                : `This branch has no prior run recorded here — verify with KRA that it's genuinely ready before proceeding.`)
-            }
-            confirmLabel="Start run"
-            isPending={triggerCertRun.isPending}
-            onConfirm={async () => {
-              if (!certRunDevice) return;
-              const run = await triggerCertRun.mutateAsync({
-                tenantSlug,
-                body: {
-                  device_id: certRunDevice.id,
-                  apigee_app_id: certRunApigeeAppId,
-                  consumer_key: certRunConsumerKey,
-                  consumer_secret: certRunConsumerSecret,
-                  application_test_pin: certRunTestPin,
-                  confirm: true,
-                },
-              });
-              setLiveRunId(run.id);
-              setCertRunConfirmOpen(false);
-            }}
-          />
-
-          {liveRunId && liveRun.data && (
-            <div className="rounded-lg border border-border p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">
-                  Run {liveRunId.slice(0, 8)} — {liveRun.data.run.passed_count}/{liveRun.data.run.total_count} passed
-                </span>
-                <Badge variant={runStatusVariant[liveRun.data.run.status] ?? 'secondary'}>{liveRun.data.run.status}</Badge>
+          <div className="flex min-w-0 flex-col">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-4 sm:p-6">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold">
+                  {current + 1}. {step.title}
+                </h2>
+                <p className="font-mono text-xs text-muted-foreground">{step.kraEndpoint}</p>
               </div>
-              <div className="max-h-64 overflow-auto space-y-1">
-                {liveRun.data.steps.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate">{s.label ?? s.case_key}</span>
-                    <Badge variant={s.status === 'pass' ? 'success' : s.status === 'pending' ? 'secondary' : s.status === 'skipped' ? 'outline' : 'error'}>
-                      {s.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
+              <StatusBadge status={statuses[step.id] ?? 'idle'} />
             </div>
-          )}
-
-          {(certRunsQuery.data ?? []).length > 0 && (
-            <div className="space-y-1">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase">History</h3>
-              {(certRunsQuery.data ?? []).map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => setLiveRunId(r.id)}
-                  className="flex w-full items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-left text-xs hover:bg-muted/40"
-                >
-                  <span>{new Date(r.created_at).toLocaleString()} — branch {devices.find((d) => d.id === r.device_id)?.branch_id ?? '?'}</span>
-                  <span className="flex items-center gap-2">
-                    {r.passed_count}/{r.total_count}
-                    <Badge variant={runStatusVariant[r.status] ?? 'secondary'}>{r.status}</Badge>
-                  </span>
-                </button>
-              ))}
+            <div className="flex-1 p-4 sm:p-6">{renderStepBody()}</div>
+            <div className="flex items-center justify-between border-t border-border p-3 sm:p-4">
+              <Button variant="outline" onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0}>
+                <ChevronLeft className="h-4 w-4" />
+                Back
+              </Button>
+              <Button variant="outline" onClick={() => setCurrent((c) => Math.min(WIZARD_STEPS.length - 1, c + 1))} disabled={current === WIZARD_STEPS.length - 1}>
+                Skip
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-[280px_1fr]">
-        <div className="space-y-1">
-          {WIZARD_STEPS.map((s, i) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setCurrent(i)}
-              className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs ${
-                i === current ? 'bg-primary/10 font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/40'
-              }`}
-            >
-              <StatusIcon status={statuses[s.id] ?? 'idle'} />
-              <span className="truncate">{i + 1}. {s.title}</span>
-            </button>
-          ))}
+          </div>
         </div>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold">
-                {current + 1}. {step.title}
-              </h2>
-              <p className="font-mono text-xs text-muted-foreground">{step.kraEndpoint}</p>
-            </div>
-            <Badge variant={statuses[step.id] === 'pass' ? 'success' : statuses[step.id] === 'fail' ? 'error' : 'secondary'}>
-              {statuses[step.id] ?? 'idle'}
-            </Badge>
-          </CardHeader>
-          <CardContent>{renderStepBody()}</CardContent>
-        </Card>
-      </div>
-
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0}>
-          <ChevronLeft className="h-4 w-4" />
-          Back
-        </Button>
-        <Button variant="outline" onClick={() => setCurrent((c) => Math.min(WIZARD_STEPS.length - 1, c + 1))} disabled={current === WIZARD_STEPS.length - 1}>
-          Skip
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
+      </Card>
     </div>
   );
 }
