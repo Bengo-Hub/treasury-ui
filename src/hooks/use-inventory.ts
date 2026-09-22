@@ -21,6 +21,8 @@ import {
   type ListVendorsParams,
   type SearchItemsParams,
 } from '@/lib/api/inventory';
+import { searchVendorBalances } from '@/lib/api/arpa';
+import { formatCurrency } from '@/lib/utils/currency';
 
 const STALE_MS = 2 * 60 * 1000;
 
@@ -128,12 +130,35 @@ export function useVendors(tenant: string, params?: ListVendorsParams, enabled =
  * paginated endpoint (backend default limit 20) `useVendors` prefetches page 1 of, so
  * a vendor sorting past that first page is still found once typed. Mirrors the same
  * fix shipped for inventory-ui's own Supplier combobox.
+ *
+ * Also merges in treasury-api's own AP balance (`/ap/vendors?search=`) by NAME
+ * (case-insensitive) — the same join strategy the Vendors list page already uses, since a
+ * VendorBalance row only exists once a supplier has been billed at least once; a brand-new
+ * supplier legitimately has none and must still appear from the inventory search alone. When a
+ * match is found and they owe something, it's appended to the option's hint (e.g. "owed KES
+ * 4,500") so a tenant picking a vendor for a new bill/expense can see at a glance what's already
+ * outstanding — previously only visible by separately opening the Vendors page.
  */
 export function useVendorSearch(tenant: string): (query: string) => Promise<ComboboxOption[]> {
   return useCallback(
     async (query: string) => {
-      const res = await listVendors(tenant, { q: query, limit: 20 });
-      return res.vendors.map((v) => ({ value: v.id, label: v.business_name, hint: v.phone || v.email || undefined }));
+      const [supplierRes, balances] = await Promise.all([
+        listVendors(tenant, { q: query, limit: 20 }),
+        searchVendorBalances(tenant, query, 20).catch(() => []),
+      ]);
+      const balanceByName = new Map(
+        balances
+          .filter((b) => b.vendor_name)
+          .map((b) => [b.vendor_name!.trim().toLowerCase(), b] as const),
+      );
+      return supplierRes.vendors.map((v) => {
+        const bal = balanceByName.get(v.business_name.trim().toLowerCase());
+        const owed = bal ? parseFloat(bal.balance_owed) : 0;
+        const contactHint = v.phone || v.email || undefined;
+        const owedHint = owed > 0.0001 ? `owed ${formatCurrency(owed, bal!.currency)}` : undefined;
+        const hint = [contactHint, owedHint].filter(Boolean).join(' · ') || undefined;
+        return { value: v.id, label: v.business_name, hint };
+      });
     },
     [tenant],
   );

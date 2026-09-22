@@ -20,7 +20,9 @@ import {
   FileText,
   Loader2,
   Mail,
+  MinusCircle,
   Pencil,
+  PlusCircle,
   Receipt,
   RefreshCw,
   Search,
@@ -39,6 +41,8 @@ import { CreditTermsDialog } from './CreditTermsDialog';
 import { ReceivePaymentModal } from './ReceivePaymentModal';
 import { PayoutCreditModal } from './PayoutCreditModal';
 import { ApplyCreditToDebtModal } from './ApplyCreditToDebtModal';
+import { AddStoreCreditModal } from './AddStoreCreditModal';
+import { RemoveStoreCreditModal } from './RemoveStoreCreditModal';
 import { SyncToCrmDialog } from './SyncToCrmDialog';
 import { EditCustomerDialog } from './EditCustomerDialog';
 import { DeleteCustomerDialog } from './DeleteCustomerDialog';
@@ -143,6 +147,8 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
   const [paymentsHistoryTarget, setPaymentsHistoryTarget] = useState<CustomerBalance | null>(null);
   const [payoutTarget, setPayoutTarget] = useState<CustomerBalance | null>(null);
   const [applyToDebtTarget, setApplyToDebtTarget] = useState<CustomerBalance | null>(null);
+  const [addCreditTarget, setAddCreditTarget] = useState<CustomerBalance | null>(null);
+  const [removeCreditTarget, setRemoveCreditTarget] = useState<CustomerBalance | null>(null);
   const [creditTermsClient, setCreditTermsClient] = useState<ClientRecord | null>(null);
   const [syncingKey, setSyncingKey] = useState<string | null>(null);
   const [syncDialogClient, setSyncDialogClient] = useState<ClientRecord | null>(null);
@@ -468,6 +474,20 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
                 Apply to debt
               </Button>
             )}
+            {b && (
+              <Button size="sm" variant="outline"
+                title="Manually add store credit — e.g. a customer hands over cash to bank for future use"
+                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setAddCreditTarget(b); }}>
+                <PlusCircle className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {b && (parseFloat(b.store_credit_balance) || 0) > 0.0001 && (
+              <Button size="sm" variant="outline"
+                title="Manually remove/correct store credit — a correction, not a payout (no cash moves)"
+                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setRemoveCreditTarget(b); }}>
+                <MinusCircle className="h-3.5 w-3.5" />
+              </Button>
+            )}
             {hasArIdentifier(c) && (
               <Button variant="outline" size="sm" title="Credit terms (limit & payment period)"
                 onClick={(e: React.MouseEvent) => { e.stopPropagation(); setCreditTermsClient(c); }}>
@@ -493,9 +513,10 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
               </Button>
             )}
             {b && (
-              <Button variant="outline" size="sm" title="View payments — correct a payment recorded against the wrong order/amount"
+              <Button variant="outline" size="sm" className="gap-1 text-xs"
+                title="View payments — correct or delete a payment recorded against the wrong order/amount"
                 onClick={(e: React.MouseEvent) => { e.stopPropagation(); setPaymentsHistoryTarget(b); }}>
-                <Receipt className="h-3.5 w-3.5" />
+                <Receipt className="h-3.5 w-3.5" /> Payments
               </Button>
             )}
             {hasUuidId(c) && (
@@ -582,6 +603,12 @@ export function ClientsManager({ tenant, showOwnOrgHint }: ClientsManagerProps) 
       )}
       {applyToDebtTarget && (
         <ApplyCreditToDebtModal tenant={tenant} target={applyToDebtTarget} onClose={() => setApplyToDebtTarget(null)} />
+      )}
+      {addCreditTarget && (
+        <AddStoreCreditModal tenant={tenant} target={addCreditTarget} onClose={() => setAddCreditTarget(null)} />
+      )}
+      {removeCreditTarget && (
+        <RemoveStoreCreditModal tenant={tenant} target={removeCreditTarget} onClose={() => setRemoveCreditTarget(null)} />
       )}
 
       <Card>
