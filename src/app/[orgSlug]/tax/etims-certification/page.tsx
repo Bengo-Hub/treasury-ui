@@ -17,6 +17,7 @@
 
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { FormField } from '@/components/ui/form-field';
+import { apiClient } from '@/lib/api/client';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useAssignEtimsDeviceOutlet, useEtimsDevices, useInitEtimsDevice, useRefreshCodeLists } from '@/hooks/use-tax';
 import {
@@ -50,7 +51,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { WIZARD_STEPS } from './steps';
 
 interface OutletOption {
@@ -264,6 +266,7 @@ export default function EtimsCertificationPage() {
   const [testPin, setTestPin] = useState('');
   const [custPinInput, setCustPinInput] = useState('');
   const [invcNoInput, setInvcNoInput] = useState('');
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
 
   const step = WIZARD_STEPS[current];
   const setStatus = (id: string, status: StepStatus, data?: any) => {
@@ -276,7 +279,24 @@ export default function EtimsCertificationPage() {
 
   const devicesQuery = useEtimsDevices(tenantSlug);
   const devices = devicesQuery.data?.devices ?? [];
-  const activeDevice = devices.find((d) => d.status === 'active') ?? devices[0];
+  // The branch/device under test — an explicit local selector, not just "whichever device
+  // happens to be first". Defaults to the first active device once devices load, but a
+  // multi-branch tenant (e.g. branch 00 vs branch 01) can switch which one every step in this
+  // wizard actually targets.
+  const activeDevice = devices.find((d) => d.id === selectedDeviceId) ?? devices.find((d) => d.status === 'active') ?? devices[0];
+  useEffect(() => {
+    if (!selectedDeviceId && activeDevice) setSelectedDeviceId(activeDevice.id);
+  }, [selectedDeviceId, activeDevice]);
+  // Every step's lookup/action call is outlet-scoped server-side via the X-Outlet-ID header
+  // (ResolveOutletForRequest) — apiClient.setOutletID is the same mechanism the header's own
+  // outlet filter drives, kept in sync with whichever branch is selected here so a step
+  // actually resolves the branch 01/TS03 (or whichever) device, not just the tenant default.
+  useEffect(() => {
+    if (activeDevice) apiClient.setOutletID(activeDevice.outlet_id ?? null);
+    // activeDevice is a fresh object every render (a .find() result, not memoized); only its
+    // outlet_id should re-trigger this, so it's deliberately excluded from the deps array below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDevice?.outlet_id]);
 
   // Multi-branch outlet mapping (2026-09-16): each KRA branch/device can be tied to one
   // POS/inventory outlet, scoping eTIMS catalog sync to that outlet's own warehouse. Fetches
@@ -290,6 +310,50 @@ export default function EtimsCertificationPage() {
     staleTime: 5 * 60_000,
   });
   const assignOutlet = useAssignEtimsDeviceOutlet();
+
+  // Quick session-credential override (2026-09-22): pushes straight to the SAME platform
+  // service_config rows the real KRAClient reads (gavaconnect.OSCU.consumer_key/secret,
+  // etims.apigee_app_id) — a genuine override, not just an audit-trail field, so a fresh
+  // GavaConnect Test session's values take effect immediately without a separate trip to
+  // Platform -> Gateways & Secrets. Platform-owner only, since these are platform-wide settings.
+  const [quickApigeeAppId, setQuickApigeeAppId] = useState('');
+  const [quickConsumerKey, setQuickConsumerKey] = useState('');
+  const [quickConsumerSecret, setQuickConsumerSecret] = useState('');
+  const [quickTestPin, setQuickTestPin] = useState('');
+  const [pushingCreds, setPushingCreds] = useState(false);
+  async function pushQuickCredentials() {
+    setPushingCreds(true);
+    try {
+      const puts: Promise<any>[] = [];
+      if (quickApigeeAppId.trim()) {
+        puts.push(apiClient.put('/api/v1/platform/settings/etims.apigee_app_id', {
+          config_value: quickApigeeAppId.trim(), config_type: 'string', is_secret: false,
+        }));
+      }
+      if (quickConsumerKey.trim()) {
+        puts.push(apiClient.put('/api/v1/platform/settings/gavaconnect.OSCU.consumer_key', {
+          config_value: quickConsumerKey.trim(), config_type: 'string', is_secret: true,
+        }));
+      }
+      if (quickConsumerSecret.trim()) {
+        puts.push(apiClient.put('/api/v1/platform/settings/gavaconnect.OSCU.consumer_secret', {
+          config_value: quickConsumerSecret.trim(), config_type: 'string', is_secret: true,
+        }));
+      }
+      if (puts.length === 0) {
+        toast.error('Enter at least one value to push');
+        return;
+      }
+      await Promise.all(puts);
+      await apiClient.post('/api/v1/platform/etims/config-reload', {});
+      if (quickTestPin.trim()) setTestPin(quickTestPin.trim());
+      toast.success('Session credentials pushed to platform settings and reloaded');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to push session credentials');
+    } finally {
+      setPushingCreds(false);
+    }
+  }
 
   const initDevice = useInitEtimsDevice();
   const refreshCodeLists = useRefreshCodeLists();
@@ -657,17 +721,67 @@ export default function EtimsCertificationPage() {
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
             1. On developer.go.ke, open <span className="font-medium text-foreground">My Apps → your OSCU app → Validation</span> and start a
-            new Automated Testing session — note its <span className="font-medium text-foreground">Apigee App ID</span> and{' '}
+            new Automated Testing session — note its <span className="font-medium text-foreground">Apigee App ID</span>,{' '}
+            <span className="font-medium text-foreground">OSCU Consumer Key/Secret</span>, and{' '}
             <span className="font-medium text-foreground">Application Test Pin</span>.
           </p>
           <p>
-            2. Push the session&apos;s Apigee App ID into platform settings via{' '}
-            <span className="font-medium text-foreground">Platform → Gateways &amp; Secrets</span> before running any step below — early
+            2. Pick the branch you&apos;re certifying and push the session&apos;s values in the panel below before running any step — early
             calls won&apos;t attribute to the scored session otherwise.
           </p>
-          <p>3. Enter the Application Test Pin where a step below asks for it (used for imported-item lookups, per KRA&apos;s own requirement).</p>
+          <p>3. The Application Test Pin auto-fills the imported-item step once pushed below (KRA requires it there, not your own TIN).</p>
         </CardContent>
       </Card>
+
+      {devices.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold">Certifying branch &amp; session credentials</h2>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField label="Branch / device under test">
+              <select
+                value={selectedDeviceId}
+                onChange={(e) => setSelectedDeviceId(e.target.value)}
+                className={inputClass}
+              >
+                {devices.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    branch {d.branch_id ?? '00'} — {d.device_serial}
+                    {d.outlet_id ? ` — ${outletOptionsQuery.data?.find((o) => o.id === d.outlet_id)?.name ?? d.outlet_id}` : ' — no outlet mapped'}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            {isPlatformOwner && (
+              <div className="space-y-3 border-t border-border pt-3">
+                <p className="text-xs text-muted-foreground">
+                  Genuinely overrides the live platform config used by every KRA call (writes to the same settings
+                  Platform → Gateways &amp; Secrets does) — not just an audit note. Leave a field blank to keep its current value.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <FormField label="Apigee App ID (this session)">
+                    <input value={quickApigeeAppId} onChange={(e) => setQuickApigeeAppId(e.target.value)} className={inputClass} placeholder="from the Validation session page" />
+                  </FormField>
+                  <FormField label="Application Test Pin">
+                    <input value={quickTestPin} onChange={(e) => setQuickTestPin(e.target.value)} className={inputClass} placeholder="e.g. P600004242A" />
+                  </FormField>
+                  <FormField label="OSCU Consumer Key">
+                    <input value={quickConsumerKey} onChange={(e) => setQuickConsumerKey(e.target.value)} className={inputClass} type="password" />
+                  </FormField>
+                  <FormField label="OSCU Consumer Secret">
+                    <input value={quickConsumerSecret} onChange={(e) => setQuickConsumerSecret(e.target.value)} className={inputClass} type="password" />
+                  </FormField>
+                </div>
+                <Button size="sm" onClick={pushQuickCredentials} disabled={pushingCreds}>
+                  {pushingCreds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                  Push to platform settings
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {devices.length > 1 && (
         <Card>
