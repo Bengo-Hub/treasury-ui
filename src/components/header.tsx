@@ -60,20 +60,28 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between">
-      <div className="flex items-center gap-3 flex-1">
+      <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
         <button
           type="button"
           onClick={onMenuClick}
-          className="md:hidden inline-flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="md:hidden inline-flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
           aria-label="Open menu"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="flex items-center gap-4">
-          <h1 className="text-base sm:text-lg font-bold text-foreground truncate max-w-40 sm:max-w-none">
+        <div className="flex items-center gap-4 min-w-0 shrink-0">
+          {/* truncate needs an actual bound to do anything — `sm:max-w-none` used to remove it
+              outright from 640px up, right where TenantFilter and OutletFilter start competing
+              for the same row (they reveal at md: — tablet). */}
+          <h1 className="text-base sm:text-lg font-bold text-foreground truncate max-w-24 md:max-w-32 lg:max-w-none">
             {getServiceTitle('Treasury')}
           </h1>
-          <div className="hidden md:flex relative w-72 max-w-full group ml-2">
+          {/* Deferred to lg: (was md:) — at tablet width this search box's fixed 288px plus
+              TenantFilter's and OutletFilter's own minimums (160-180px each) left no room to
+              reveal all three at once without overflowing; search is the least essential of the
+              three (tenant/outlet context is more load-bearing), so it waits for genuine desktop
+              width — matches pos-ui's own header, which already deferred its search box to lg:. */}
+          <div className="hidden lg:flex relative w-72 max-w-full group ml-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
             <input
               placeholder="Search transactions, accounts..."
