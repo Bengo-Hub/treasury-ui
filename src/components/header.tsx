@@ -64,7 +64,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         <button
           type="button"
           onClick={onMenuClick}
-          className="md:hidden inline-flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+          className="lg:hidden inline-flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
           aria-label="Open menu"
         >
           <Menu className="h-5 w-5" />
