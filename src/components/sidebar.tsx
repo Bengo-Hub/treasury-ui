@@ -427,8 +427,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           </div>
         )}
       </div>
-      {/* Close Button (mobile) */}
-      <div className="flex justify-end px-3 pt-2 md:hidden">
+      {/* Close Button (mobile/tablet — sidebar is a drawer below lg, see the aside below) */}
+      <div className="flex justify-end px-3 pt-2 lg:hidden">
         <button
           type="button"
           onClick={onClose}
@@ -486,15 +486,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     <>
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
           onClick={onClose}
           aria-hidden
         />
       )}
+      {/* Drawer below lg (was md) — the fleet convention (pos-ui, inventory-ui) gates the
+          permanent-vs-drawer sidebar at lg:/1024px, and the shared bottom nav bar both this app
+          and its siblings use is independently fixed at `lg:hidden` (shared-ui-lib) regardless of
+          this component's own breakpoint. At md: this sidebar used to go permanent WHILE the
+          bottom nav bar was still showing too (it doesn't hide until lg:) — a portrait tablet
+          (768-1023px) got both a full-width static sidebar AND the fixed bottom nav simultaneously. */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col transition-transform duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:z-auto md:translate-x-0',
-          open ? 'translate-x-0 animate-in slide-in-from-left' : '-translate-x-full md:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:z-auto lg:translate-x-0',
+          open ? 'translate-x-0 animate-in slide-in-from-left' : '-translate-x-full lg:translate-x-0',
         )}
       >
         {content}
