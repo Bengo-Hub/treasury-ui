@@ -11,6 +11,9 @@ import { StatementDialog } from '@/components/statement-dialog';
 import { OpeningBalanceDialog } from '@/components/opening-balance-dialog';
 import { VendorRefundDialog } from '@/components/vendor-refund-dialog';
 import { PayoutVendorCreditDialog } from '@/components/payout-vendor-credit-dialog';
+import { PayBillDialog } from '@/components/bills/PayBillDialog';
+import { VendorOpenBillsDialog } from '@/components/bills/VendorOpenBillsDialog';
+import { isBillPayable } from '../bills/bill-columns';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import {
@@ -69,6 +72,8 @@ export default function VendorsPage() {
   const [openingVendor, setOpeningVendor] = useState<{ id?: string; name: string } | null>(null);
   const [refundVendor, setRefundVendor] = useState<{ id?: string; name: string } | null>(null);
   const [payoutVendor, setPayoutVendor] = useState<{ id?: string; name: string; creditAvailable: number; currency: string } | null>(null);
+  const [payPickerVendor, setPayPickerVendor] = useState<string | null>(null);
+  const [payBillId, setPayBillId] = useState<string | null>(null);
 
   // Vendors have no dedicated backend resource — they're derived by grouping the tenant's ENTIRE
   // bill history by vendor_name (below). useAllBills pages through the backend until exhausted so
@@ -89,6 +94,19 @@ export default function VendorsPage() {
     });
     return m;
   }, [vendorBalances]);
+
+  // Each vendor's currently payable bills, oldest due first — drives the row's Pay action.
+  const payableBillsByVendor = useMemo(() => {
+    const m = new Map<string, Bill[]>();
+    bills.forEach((b: Bill) => {
+      if (!isBillPayable(b)) return;
+      const name = b.vendor_name || 'Unknown Vendor';
+      m.set(name, [...(m.get(name) ?? []), b]);
+    });
+    m.forEach((list) => list.sort((a, b) => (a.due_date || a.bill_date).localeCompare(b.due_date || b.bill_date)));
+    return m;
+  }, [bills]);
+  const payTarget = useMemo(() => bills.find((b: Bill) => b.id === payBillId) ?? null, [bills, payBillId]);
 
   // Derive vendors from bill history (no dedicated vendor service yet).
   const vendors = useMemo(() => {
@@ -132,9 +150,10 @@ export default function VendorsPage() {
         archived: _allCancelled,
         vendorId: bal?.vendor_id,
         balanceOwed: bal ? parseFloat(bal.balance_owed) || 0 : undefined,
+        payableBillCount: payableBillsByVendor.get(v.name)?.length ?? 0,
       };
     });
-  }, [bills, balanceByName]);
+  }, [bills, balanceByName, payableBillsByVendor]);
 
   const currencies = useMemo(
     () => Array.from(new Set(vendors.map((v) => v.currency))).sort(),
@@ -204,6 +223,11 @@ export default function VendorsPage() {
     .map((v) => ({ value: v, label: v || '(none)' }));
 
   const vendorColumns = buildVendorColumns(industryOptions, {
+    onPay: (vendor) => {
+      const open = payableBillsByVendor.get(vendor.name) ?? [];
+      if (open.length === 1) setPayBillId(open[0].id);
+      else if (open.length > 1) setPayPickerVendor(vendor.name);
+    },
     onPayoutCredit: (vendor) =>
       setPayoutVendor({
         id: vendor.vendorId,
@@ -570,6 +594,22 @@ export default function VendorsPage() {
           currency={payoutVendor.currency}
         />
       )}
+
+      {payPickerVendor && (
+        <VendorOpenBillsDialog
+          vendorName={payPickerVendor}
+          bills={payableBillsByVendor.get(payPickerVendor) ?? []}
+          onPick={(bill) => { setPayPickerVendor(null); setPayBillId(bill.id); }}
+          onClose={() => setPayPickerVendor(null)}
+        />
+      )}
+
+      <PayBillDialog
+        tenant={effectiveTenant}
+        orgSlug={orgSlug}
+        bill={payTarget}
+        onClose={() => setPayBillId(null)}
+      />
     </div>
   );
 }

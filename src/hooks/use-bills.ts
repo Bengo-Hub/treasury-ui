@@ -77,8 +77,11 @@ export function usePayBill(tenantIdOrSlug: string | undefined) {
       payBill(tenantIdOrSlug!, id, data),
     onSuccess: (_res, { id }) => {
       qc.invalidateQueries({ queryKey: ['bills', 'list', tenantIdOrSlug] });
+      qc.invalidateQueries({ queryKey: ['bills', 'all', tenantIdOrSlug ?? ''] });
       qc.invalidateQueries({ queryKey: ['bills', 'aging', tenantIdOrSlug] });
       qc.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenantIdOrSlug ?? '') });
+      qc.invalidateQueries({ queryKey: arpaKeys.apSummary(tenantIdOrSlug ?? '') });
+      qc.invalidateQueries({ queryKey: ['inventory', tenantIdOrSlug, 'vendors'] });
       qc.invalidateQueries({ queryKey: ['bill-payments', tenantIdOrSlug, id] });
       toast.success('Payment recorded');
     },

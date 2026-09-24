@@ -8,7 +8,7 @@
 import { Badge, Button } from '@/components/ui/base';
 import type { DataTableColumn, FilterOption } from '@bengo-hub/shared-ui-lib/data-table';
 import { formatCurrency } from '@/lib/utils/currency';
-import { FileText, HandCoins, Undo2, Wallet } from 'lucide-react';
+import { CreditCard, FileText, HandCoins, Undo2, Wallet } from 'lucide-react';
 
 export interface VendorSummary {
   name: string;
@@ -27,6 +27,8 @@ export interface VendorSummary {
   vendorId?: string;
   /** Running AP balance owed from the operational ledger (/ap/vendors), if known. */
   balanceOwed?: number;
+  /** How many of this vendor's bills can be paid right now (same rule as the Bills page's Pay). */
+  payableBillCount?: number;
 }
 
 const EMPTY = '—';
@@ -42,6 +44,7 @@ export const VENDOR_ACCESSORS: Record<string, (v: VendorSummary) => unknown> = {
 };
 
 export interface VendorColumnCallbacks {
+  onPay: (v: VendorSummary) => void;
   onPayoutCredit: (v: VendorSummary) => void;
   onOpeningBalance: (v: VendorSummary) => void;
   onRefund: (v: VendorSummary) => void;
@@ -143,6 +146,19 @@ export function buildVendorColumns(
       exportable: false,
       render: (vendor) => (
         <div className="inline-flex items-center justify-end gap-2 whitespace-nowrap">
+          {(vendor.payableBillCount ?? 0) > 0 && (
+            <Button
+              size="sm"
+              title="Record / initiate a payment to this vendor against one of their open bills"
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                cb.onPay(vendor);
+              }}
+            >
+              <CreditCard className="h-3.5 w-3.5 mr-1" />
+              Pay
+            </Button>
+          )}
           {vendor.balanceOwed !== undefined && vendor.balanceOwed < -0.0001 && (
             <Button
               variant="outline"

@@ -23,6 +23,7 @@ import {
 import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { vendorOptionHint } from '@/lib/vendor-balance';
 
 interface PurchaseLine {
   description: string;
@@ -66,7 +67,7 @@ export default function NewPurchasePage() {
   const createBill = useCreateBill(effectiveTenant);
   const { data: vendorData } = useVendors(effectiveTenant, undefined, !!effectiveTenant);
   const vendorOptions = useMemo(
-    () => (vendorData?.vendors ?? []).map((v) => ({ value: v.id, label: v.business_name, hint: v.country })),
+    () => (vendorData?.vendors ?? []).map((v) => ({ value: v.id, label: v.business_name, hint: vendorOptionHint(v) })),
     [vendorData],
   );
   const searchVendors = useVendorSearch(effectiveTenant);

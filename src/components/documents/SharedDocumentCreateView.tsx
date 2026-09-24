@@ -25,6 +25,7 @@ import { TermsNotesSection } from './sections/TermsNotesSection';
 import { CreateItemModal } from './CreateItemModal';
 import { CreateClientModal } from './CreateClientModal';
 import { BankDetailsPicker, type BankDetailsSnapshot } from './BankDetailsPicker';
+import { vendorOptionHint } from '@/lib/vendor-balance';
 
 export interface DocTypeConfig {
   invoiceType: string;
@@ -186,7 +187,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   // Carriers/couriers for the delivery-cost vendor picker (invoices only). Best-effort: an empty
   // list just degrades the picker to a free-text carrier field in the section.
   const { data: vendorsResp } = useVendors(effectiveTenant, undefined, !isQuotation);
-  const carrierVendors = (vendorsResp?.vendors ?? []).map((v) => ({ id: v.id, name: v.business_name }));
+  const carrierVendors = (vendorsResp?.vendors ?? []).map((v) => ({ id: v.id, name: v.business_name, hint: vendorOptionHint(v) }));
   const searchCarrierVendors = useVendorSearch(effectiveTenant);
 
   const today = new Date().toISOString().slice(0, 10);

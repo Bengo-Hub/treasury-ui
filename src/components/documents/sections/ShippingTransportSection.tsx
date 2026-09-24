@@ -34,6 +34,8 @@ export interface TransportDetails {
 export interface VendorOption {
   id: string;
   name: string;
+  /** Secondary text on the row, e.g. the amount currently owed to the vendor. */
+  hint?: string;
 }
 
 interface Props {
@@ -163,7 +165,7 @@ export function ShippingTransportSection({
                 <label className={labelCls}>Carrier / courier</label>
                 {vendors.length > 0 ? (
                   <Combobox
-                    options={vendors.map((v) => ({ value: v.id, label: v.name }))}
+                    options={vendors.map((v) => ({ value: v.id, label: v.name, hint: v.hint }))}
                     value={transport.delivery_cost_vendor_id ?? ''}
                     onChange={(id) => {
                       const name = vendors.find((v) => v.id === id)?.name;

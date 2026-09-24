@@ -362,6 +362,11 @@ export interface Vendor {
   linked_contact_ids?: string[];
   created_at: string;
   updated_at: string;
+  /** What the business currently owes this supplier (treasury AP, attached by inventory-api from
+   *  its VendorBalanceCache). Signed: positive = owed, negative = supplier credit. Absent when
+   *  treasury has no AP record for the supplier yet. */
+  balance_owed?: number;
+  balance_currency?: string;
 }
 
 export interface VendorsResponse {
@@ -425,9 +430,12 @@ interface SupplierDTO {
   vat_number?: string;
   payment_terms_days?: number;
   created_at: string;
+  balance_owed?: string;
+  balance_currency?: string;
 }
 
 function supplierToVendor(s: SupplierDTO): Vendor {
+  const owed = s.balance_owed != null && s.balance_owed !== '' ? parseFloat(s.balance_owed) : undefined;
   return {
     id: s.id,
     tenant_id: '',
@@ -461,6 +469,8 @@ function supplierToVendor(s: SupplierDTO): Vendor {
     },
     created_at: s.created_at,
     updated_at: s.created_at,
+    balance_owed: owed != null && Number.isFinite(owed) ? owed : undefined,
+    balance_currency: s.balance_currency,
   };
 }
 
