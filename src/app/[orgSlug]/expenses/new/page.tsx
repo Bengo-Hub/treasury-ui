@@ -18,6 +18,7 @@ import { ArrowLeft, Loader2, Paperclip, Plus } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { vendorOptionHint } from '@/lib/vendor-balance';
 
 const ADD_NEW = '__ADD_NEW__';
 
@@ -121,7 +122,7 @@ export default function NewExpenditurePage() {
   const { data: expenseNoPreview } = usePreviewNextNumber(effectiveTenant, 'expense', !!effectiveTenant);
 
   const vendorOptions = useMemo(() => {
-    const vendors = (vendorData?.vendors ?? []).map((v) => ({ value: v.id, label: v.business_name }));
+    const vendors = (vendorData?.vendors ?? []).map((v) => ({ value: v.id, label: v.business_name, hint: vendorOptionHint(v) }));
     return [{ value: ADD_NEW, label: '+ Add New Vendor' }, ...vendors];
   }, [vendorData]);
 

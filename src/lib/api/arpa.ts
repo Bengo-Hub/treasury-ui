@@ -197,14 +197,6 @@ export async function getVendorBalances(tenant: string): Promise<VendorBalance[]
   return fetchAllViaApiClient<VendorBalance>(`${BASE}/${tenant}/ap/vendors`);
 }
 
-// Single-page, name-filtered lookup — for a vendor typeahead that needs "how much do we owe THIS
-// vendor" without pulling the tenant's whole AP ledger client-side the way getVendorBalances does.
-// Backed by ListVendorBalances' `search` param (vendor_name, case-insensitive contains).
-export async function searchVendorBalances(tenant: string, search: string, limit = 20): Promise<VendorBalance[]> {
-  const res = await apiClient.get<{ data?: VendorBalance[] }>(`${BASE}/${tenant}/ap/vendors`, { search, limit });
-  return res.data ?? [];
-}
-
 export function getVendorStatement(
   tenant: string,
   vendorId: string,
