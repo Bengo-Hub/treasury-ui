@@ -235,18 +235,17 @@ export function useSetDeviceInvoiceCounter() {
   });
 }
 
-// The invoice-number counter is genuinely shared per-TIN, so setting/syncing ONE device's
-// counter always applies to every other device row sharing that TIN too (confirmed live
-// 2026-09-17). Without this, a sibling branch's counter can visibly change with zero
-// explanation beyond a server log line — this turns that into an explicit toast naming
-// exactly which other branch(es) moved and by how much.
+// KRA runs one invoice-number sequence per (TIN, branch). Setting/syncing ONE device's counter
+// also moves any other device row on the same TIN and branch (e.g. a second tenant pointed at
+// the same branch); this names those rows in a toast instead of leaving a silent side effect.
+// Other branches keep their own counters and never appear here.
 function describeSiblingCounterChanges(changes: DeviceCounterChange[] | undefined, targetDeviceId: string) {
   const siblings = (changes ?? []).filter((c) => c.device_id !== targetDeviceId);
   if (siblings.length === 0) return;
   const summary = siblings
     .map((c) => `branch ${c.branch_id} (${c.device_serial}): ${c.previous_no} → ${c.new_no}`)
     .join(', ');
-  toast.info(`Also updated (shared per-TIN counter): ${summary}`);
+  toast.info(`Also updated (same branch sequence): ${summary}`);
 }
 
 // Assigns (or clears) the POS outlet a device/branch serves — the multi-branch mapping that

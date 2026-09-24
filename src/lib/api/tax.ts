@@ -43,10 +43,9 @@ export interface TaxPeriod {
   filed_at?: string;
 }
 
-/** One EtimsDevice row's invoice-counter value before/after a change that always applies to
- * every device row sharing a TIN together (KRA's sequence is per-TIN, not per-branch —
- * confirmed live 2026-09-17: KRA's own transmitted-sales list for one TIN is a single
- * contiguous invcNo sequence spanning every branch). */
+/** One EtimsDevice row's invoice-counter value before/after a change that applies to every
+ * device row in the same (TIN, branch) sequence together. KRA runs a separate invcNo sequence
+ * per branch (confirmed live 2026-09-24, treasury-api runbook section 3.30). */
 export interface DeviceCounterChange {
   device_id: string;
   branch_id: string;
@@ -424,7 +423,7 @@ export function revealEtimsDeviceCmcKey(tenantSlug: string, deviceId: string): P
 }
 
 /** Admin correction: directly sets a device's local invoice-number counter. Use sparingly — the
- * counter is normally allocated automatically (a locked per-TIN sequence) and kept in sync via
+ * counter is normally allocated automatically (a locked per-branch sequence) and kept in sync via
  * syncEtimsDeviceInvoiceCounter below; this exists for the rare case where KRA's own state and
  * ours have genuinely diverged and an operator needs to force a specific next value. */
 export function setEtimsDeviceInvoiceCounter(
@@ -436,10 +435,9 @@ export function setEtimsDeviceInvoiceCounter(
 }
 
 /** Fast-forwards a device's local invoice-number counter to match KRA's own transmitted-sales
- * history when it's drifted behind (the real source of truth). affected_devices lists every
- * OTHER device sharing this TIN whose counter also moved as a side effect - the sync is
- * forward-only TIN-wide (it will never silently move a sibling backward), but it can still
- * fast-forward a sibling that was genuinely behind. */
+ * history for this device's own branch when it's drifted behind (the real source of truth).
+ * affected_devices lists every OTHER device row on the same TIN and branch whose counter also
+ * moved - the sync is forward-only (it never silently moves a row backward). */
 export function syncEtimsDeviceInvoiceCounter(
   tenantSlug: string,
   deviceId: string,
