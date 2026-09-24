@@ -322,6 +322,13 @@ export default function EtimsCertificationPage() {
   const [quickTestPin, setQuickTestPin] = useState('');
   const [pushingCreds, setPushingCreds] = useState(false);
   async function pushQuickCredentials() {
+    // KRA credits each call to the app its token was minted for, so the App ID, key and secret
+    // must all come from the SAME session app. Pushing only some of them pairs the new App ID with
+    // the previous app's key/secret, and calls score on the wrong session.
+    if (!quickApigeeAppId.trim() || !quickConsumerKey.trim() || !quickConsumerSecret.trim()) {
+      toast.error("Enter the Apigee App ID, consumer key and consumer secret of this session's app together");
+      return;
+    }
     setPushingCreds(true);
     try {
       const puts: Promise<any>[] = [];
