@@ -27,7 +27,7 @@ export function buildStatementColumns(currency = 'KES'): DataTableColumn<Stateme
       header: 'Type',
       mobileHidden: true,
       accessor: (l) => l.doc_type,
-      render: (l) => l.doc_type || '—',
+      render: (l) => <span className="capitalize">{l.doc_type ? l.doc_type.replace(/_/g, ' ') : '—'}</span>,
     },
     {
       key: 'reference',

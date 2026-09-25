@@ -87,10 +87,14 @@ export function StatementDialog(props: StatementDialogProps) {
   // Vendor has no backend field yet (no pagination there either), so it still derives locally
   // from the full (always-unpaginated) lines array — safe only because vendor never pages
   // server-side.
-  const vendorNetMovement = allLines.reduce((sum, l) => sum + num(l.debit) - num(l.credit), 0);
-  const openingBalance = isVendor
+  // AP runs the other way to AR: a bill (credit) raises what is owed, a payment or credit note
+  // (debit) lowers it. Prefer the backend's opening_balance (vendor statements carry one since
+  // 2026-09-25); derive it with the AP sign only for an older API response without it.
+  const vendorNetMovement = allLines.reduce((sum, l) => sum + num(l.credit) - num(l.debit), 0);
+  const backendOpening = (data as { opening_balance?: string } | undefined)?.opening_balance;
+  const openingBalance = isVendor && backendOpening === undefined
     ? closingBalance - vendorNetMovement
-    : num((data as { opening_balance?: string } | undefined)?.opening_balance);
+    : num(backendOpening);
 
   const { openPreview, previewProps } = useDocumentPreview({
     onError: (m) => toast.error(m),

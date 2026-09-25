@@ -142,6 +142,57 @@ export interface PayBillRequest {
   paid_at?: string;
 }
 
+/** One consolidated payment to a supplier, spread across its open bills oldest due first (the
+ * supplier's unapplied credit notes, e.g. purchase returns, are applied first). */
+export interface SettleVendorBillsRequest extends Omit<PayBillRequest, 'amount' | 'payment_intent_id' | 'user_id'> {
+  vendor_id?: string;
+  vendor_name?: string;
+  /** Client-generated, stable across retries: keys the approval request and makes a double submit record nothing twice. */
+  settlement_id?: string;
+  /** Cash paid now; may be 0 when only applying credit. */
+  amount: number;
+  /** Restrict to these bills (still settled oldest due first); omit for all open bills. */
+  bill_ids?: string[];
+  apply_credits?: boolean;
+  /** Plan only (live preview), nothing is written. */
+  dry_run?: boolean;
+}
+
+export interface VendorSettlementLine {
+  bill_id: string;
+  bill_number: string;
+  bill_date: string;
+  due_date: string;
+  open_before: string;
+  credit_applied: string;
+  cash_applied: string;
+  open_after: string;
+  outcome: 'paid' | 'partial' | 'untouched';
+}
+
+export interface VendorSettlementResult {
+  settlement_id: string;
+  reference: string;
+  dry_run: boolean;
+  already_recorded?: boolean;
+  vendor_name: string;
+  currency: string;
+  total_open: string;
+  credit_available: string;
+  credit_applied: string;
+  max_cash: string;
+  cash_amount: string;
+  remaining_open: string;
+  bills_paid: number;
+  bills_partial: number;
+  lines: VendorSettlementLine[];
+  credits: { credit_note_id: string; credit_note_number: string; available: string; applied: string }[];
+}
+
+export function settleVendorBills(tenantIdOrSlug: string, data: SettleVendorBillsRequest): Promise<VendorSettlementResult> {
+  return apiClient.post<VendorSettlementResult>(`${BASE}/${tenantIdOrSlug}/ap/vendors/settle`, data);
+}
+
 /** payment_method values PayBill dispatches for real via the payout Dispatcher rather than merely recording. */
 export const ONLINE_PAYMENT_METHODS = ['mpesa_b2b', 'mpesa_b2c', 'paystack_bank', 'paystack_mobile'] as const;
 
