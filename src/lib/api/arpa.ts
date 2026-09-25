@@ -92,6 +92,12 @@ export interface VendorStatement {
   from: string;
   to: string;
   total_billed: string;
+  /** Payments made to the supplier in the period (credit-note applications excluded). */
+  total_paid?: string;
+  /** Credit notes (e.g. purchase returns) raised in the period. */
+  total_credits?: string;
+  /** Balance owed at `from`; opening + lines = closing. */
+  opening_balance?: string;
   closing_balance: string;
   lines: StatementLine[];
 }

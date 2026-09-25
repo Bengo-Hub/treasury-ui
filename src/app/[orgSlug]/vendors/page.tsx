@@ -13,6 +13,7 @@ import { VendorRefundDialog } from '@/components/vendor-refund-dialog';
 import { PayoutVendorCreditDialog } from '@/components/payout-vendor-credit-dialog';
 import { PayBillDialog } from '@/components/bills/PayBillDialog';
 import { VendorOpenBillsDialog } from '@/components/bills/VendorOpenBillsDialog';
+import { SettleVendorDialog } from '@/components/bills/SettleVendorDialog';
 import { isBillPayable } from '../bills/bill-columns';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
@@ -74,6 +75,7 @@ export default function VendorsPage() {
   const [payoutVendor, setPayoutVendor] = useState<{ id?: string; name: string; creditAvailable: number; currency: string } | null>(null);
   const [payPickerVendor, setPayPickerVendor] = useState<string | null>(null);
   const [payBillId, setPayBillId] = useState<string | null>(null);
+  const [settleVendor, setSettleVendor] = useState<{ id?: string; name: string } | null>(null);
 
   // Vendors have no dedicated backend resource — they're derived by grouping the tenant's ENTIRE
   // bill history by vendor_name (below). useAllBills pages through the backend until exhausted so
@@ -209,7 +211,14 @@ export default function VendorsPage() {
   const totalPages = Math.max(1, Math.ceil(filteredVendors.length / pageSize));
   const pagedVendors = filteredVendors.slice((page - 1) * pageSize, page * pageSize);
 
-  useMemo(() => { setPage(1); }, [archivedTab, currencyFilter, searchQuery, funnel, pageSize]);
+  // Back to page 1 whenever the filters change, adjusted during render (same pattern as the
+  // platform audit/payouts pages; setState inside useMemo or an effect is flagged by the linter).
+  const filterKey = JSON.stringify([archivedTab, currencyFilter, searchQuery, funnel, pageSize]);
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setPage(1);
+  }
 
   const clearAllFilters = () => {
     setSearchQuery('');
@@ -225,8 +234,13 @@ export default function VendorsPage() {
   const vendorColumns = buildVendorColumns(industryOptions, {
     onPay: (vendor) => {
       const open = payableBillsByVendor.get(vendor.name) ?? [];
-      if (open.length === 1) setPayBillId(open[0].id);
-      else if (open.length > 1) setPayPickerVendor(vendor.name);
+      // Credit the bills don't reflect yet (e.g. a purchase return): the supplier balance is
+      // lower than what its open bills add up to. Offer the consolidated settle so that credit is
+      // applied instead of paying the full bill in cash.
+      const billsOpen = open.reduce((sum, b) => sum + (Number(b.balance_due ?? b.total_amount) || 0), 0);
+      const hasCredit = vendor.balanceOwed !== undefined && billsOpen - vendor.balanceOwed > 0.009;
+      if (open.length === 1 && !hasCredit) setPayBillId(open[0].id);
+      else if (open.length >= 1) setPayPickerVendor(vendor.name);
     },
     onPayoutCredit: (vendor) =>
       setPayoutVendor({
@@ -600,9 +614,23 @@ export default function VendorsPage() {
           vendorName={payPickerVendor}
           bills={payableBillsByVendor.get(payPickerVendor) ?? []}
           onPick={(bill) => { setPayPickerVendor(null); setPayBillId(bill.id); }}
+          onSettleAll={() => {
+            const name = payPickerVendor;
+            setPayPickerVendor(null);
+            setSettleVendor({ id: balanceByName.get(name)?.vendor_id, name });
+          }}
           onClose={() => setPayPickerVendor(null)}
         />
       )}
+
+      <SettleVendorDialog
+        key={settleVendor?.name ?? 'none'}
+        tenant={effectiveTenant}
+        orgSlug={orgSlug}
+        vendor={settleVendor}
+        bills={settleVendor ? payableBillsByVendor.get(settleVendor.name) ?? [] : []}
+        onClose={() => setSettleVendor(null)}
+      />
 
       <PayBillDialog
         tenant={effectiveTenant}
