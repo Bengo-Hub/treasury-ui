@@ -129,7 +129,8 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
         item_sku: item.sku,
         item_type: item.item_type,
         unit: item.unit,
-        unit_price: parseFloat(item.unit_price ?? '0') || 0,
+        // The selling price the user just typed wins if the created item's price didn't come back.
+        unit_price: parseFloat(item.unit_price ?? form.unit_price ?? '0') || parseFloat(form.unit_price || '0') || 0,
         unit_cost: item.cost_price != null
           ? (parseFloat(item.cost_price) || 0)
           : (form.cost_price ? (parseFloat(form.cost_price) || 0) : undefined),

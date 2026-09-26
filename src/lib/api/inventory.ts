@@ -137,7 +137,11 @@ interface InventoryItemDTO {
 }
 
 function dtoToInventoryItem(d: InventoryItemDTO): InventoryItem {
-  const price = d.selling_price ?? d.suggested_price ?? d.cost_price ?? undefined;
+  // The customer price is the item's selling price (or inventory's cost-plus-margin suggestion).
+  // It must NEVER fall back to cost_price: that made an item with no selling price quote its
+  // COST as the invoice rate (a service costing 20,000 billed at 20,000, zero margin). With no
+  // price the rate stays empty for the user to fill in; cost stays in cost_price for margins.
+  const price = d.selling_price ?? d.suggested_price ?? undefined;
   return {
     id: d.id,
     name: d.name,
