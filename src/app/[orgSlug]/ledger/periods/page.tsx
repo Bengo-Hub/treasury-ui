@@ -4,20 +4,19 @@ import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
+import { StatCard } from '@/components/charts/StatCard';
+import { money } from '@/components/charts/chart-theme';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildPeriodColumns } from './period-columns';
-import {
-  useAccountingPeriods,
-  useCreatePeriod,
-  useClosePeriod,
-} from '@/hooks/use-ledger';
+import { usePeriodSummary, useCreatePeriod, useClosePeriod } from '@/hooks/use-ledger';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import type { AccountingPeriod } from '@/lib/api/ledger';
+import type { PeriodSummary } from '@/lib/api/ledger';
 import { cn } from '@/lib/utils';
-import { CalendarRange, Loader2, Plus, RefreshCw } from 'lucide-react';
+import { Banknote, CalendarClock, CalendarRange, Loader2, Plus, Receipt, RefreshCw, TrendingUp } from 'lucide-react';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-const periodTypes = ['monthly', 'quarterly', 'yearly'] as const;
+const periodTypes = ['monthly', 'quarterly', 'custom'] as const;
 
 interface PeriodFormData {
   name: string;
@@ -28,26 +27,40 @@ interface PeriodFormData {
 
 const emptyForm: PeriodFormData = {
   name: '',
-  period_type: 'monthly',
+  period_type: 'custom',
   start_date: '',
   end_date: '',
 };
 
+/**
+ * Accounting Periods: periods are generated automatically from the Financial Year settings (start
+ * and monthly/quarterly frequency) and every journal entry is linked to its period. Each period
+ * shows its revenue, expenses and net profit; ended periods are flagged "Ready to close" and must
+ * be closed in order. Earlier fiscal years stay browsable through the year selector.
+ */
 export default function AccountingPeriodsPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
   // Default to the platform owner's own tenant (codevertex); drill-down overrides.
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
 
-  const { data, isLoading, isError, refetch, isFetching } = useAccountingPeriods(effectiveTenant);
+  const [fiscalYear, setFiscalYear] = useState<string | undefined>(undefined);
+  const { data, isLoading, isError, refetch, isFetching } = usePeriodSummary(effectiveTenant, fiscalYear);
   const createMutation = useCreatePeriod();
   const closeMutation = useClosePeriod();
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [closePeriodTarget, setClosePeriodTarget] = useState<AccountingPeriod | null>(null);
+  const [closePeriodTarget, setClosePeriodTarget] = useState<PeriodSummary | null>(null);
   const [formData, setFormData] = useState<PeriodFormData>(emptyForm);
 
   const periods = data?.periods ?? [];
-  const columns = useMemo(() => buildPeriodColumns({ onClose: (period) => setClosePeriodTarget(period) }), []);
+  const pendingClose = data?.pending_close ?? 0;
+  // Periods close strictly in order, so only the oldest ended-but-open period in view is closable.
+  const nextToCloseId = periods.find((p) => p.needs_closing)?.id;
+  const columns = useMemo(
+    () => buildPeriodColumns({ onClose: (period) => setClosePeriodTarget(period), nextToCloseId }),
+    [nextToCloseId],
+  );
+  const net = Number(data?.totals?.net_profit ?? 0);
 
   const inputClasses =
     'w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none';
@@ -83,19 +96,36 @@ export default function AccountingPeriodsPage() {
   return (
     <SubscriptionGate feature="ledger_posting">
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Accounting Periods</h1>
           <p className="text-muted-foreground mt-1">
-            Define and close fiscal periods to lock posted entries.
+            Generated from your{' '}
+            <Link href={`/${orgSlug}/settings?tab=financial-year`} className="text-primary hover:underline">
+              financial year settings
+            </Link>{' '}
+            ({data?.period_frequency ?? 'monthly'}). Every journal entry is linked to its period.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <select
+            className="bg-card border border-border rounded-lg py-2 px-3 text-sm outline-none focus:ring-1 focus:ring-primary"
+            value={fiscalYear ?? data?.fiscal_year?.label ?? ''}
+            onChange={(e) => setFiscalYear(e.target.value || undefined)}
+            aria-label="Fiscal year"
+          >
+            {(data?.fiscal_years ?? []).map((fy) => (
+              <option key={fy.label} value={fy.label}>
+                {fy.label}{fy.is_current ? ' (current)' : ''}
+              </option>
+            ))}
+            {!data?.fiscal_years?.length && <option value="">Current fiscal year</option>}
+          </select>
           <Button variant="outline" disabled={isFetching} onClick={() => refetch()} title="Refresh periods">
             <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
           </Button>
-          <Button className="gap-2 shadow-lg shadow-primary/20" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> New Period
+          <Button variant="outline" className="gap-2" onClick={openCreate} title="Add a custom period">
+            <Plus className="h-4 w-4" /> Custom Period
           </Button>
         </div>
       </div>
@@ -106,28 +136,63 @@ export default function AccountingPeriodsPage() {
         </div>
       )}
 
+      {pendingClose > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <p>
+            <span className="font-semibold">
+              {pendingClose} period{pendingClose === 1 ? ' has' : 's have'} ended and {pendingClose === 1 ? 'is' : 'are'} ready to close.
+            </span>{' '}
+            <span className="text-muted-foreground">
+              Review each period&apos;s figures and close them oldest first. Closing locks the period against new or
+              backdated journal entries.
+            </span>
+          </p>
+        </div>
+      )}
+
       {isError && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           Failed to load accounting periods. Check your connection and try again.
         </div>
       )}
 
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard
+          label={`Revenue${data?.fiscal_year ? ` ${data.fiscal_year.label}` : ''}`}
+          value={money(data?.totals?.revenue)}
+          tone="success"
+          loading={isLoading}
+          icon={<Banknote className="h-5 w-5" />}
+        />
+        <StatCard label="Expenses" value={money(data?.totals?.expenses)} tone="warning" loading={isLoading} icon={<Receipt className="h-5 w-5" />} />
+        <StatCard
+          label="Net Profit"
+          value={money(data?.totals?.net_profit)}
+          tone={net < 0 ? 'destructive' : 'primary'}
+          loading={isLoading}
+          icon={<TrendingUp className="h-5 w-5" />}
+        />
+      </div>
+
       <Card>
         <CardHeader className="flex flex-row items-center gap-2 py-4">
           <CalendarRange className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-bold uppercase tracking-tight">Periods</h3>
+          <h3 className="text-sm font-bold uppercase tracking-tight">
+            Periods{data?.fiscal_year ? ` · ${data.fiscal_year.label}` : ''}
+          </h3>
         </CardHeader>
         <CardContent className="p-0">
           <div className="px-2 pb-2">
-            <DataTable<AccountingPeriod>
+            <DataTable<PeriodSummary>
               columns={columns}
               rows={periods}
               rowKey={(p) => p.id}
               loading={isLoading}
               loadingRows={8}
               error={isError}
-              storageKey="accounting-periods-table"
-              emptyText="No accounting periods defined yet."
+              storageKey="accounting-periods-summary-table"
+              emptyText="No accounting periods for this fiscal year yet. They are generated automatically from the financial year settings."
             />
           </div>
         </CardContent>
@@ -136,15 +201,15 @@ export default function AccountingPeriodsPage() {
       {/* Create Period Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent
-          title="New Accounting Period"
-          description="Define a fiscal period for the ledger."
+          title="Custom Accounting Period"
+          description="Regular periods are generated automatically. Add a custom one only for a range the automatic periods do not cover."
           onClose={() => setCreateOpen(false)}
         >
           <div className="space-y-4">
             <FormField label="Name" required>
               <input
                 className={inputClasses}
-                placeholder="e.g. June 2026"
+                placeholder="e.g. Opening balances 2025"
                 value={formData.name}
                 onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
               />
@@ -201,13 +266,31 @@ export default function AccountingPeriodsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Close Period Confirmation */}
+      {/* Close Period Confirmation, with the period's summary */}
       <Dialog open={!!closePeriodTarget} onOpenChange={(open) => !open && setClosePeriodTarget(null)}>
         <DialogContent title="Close Period" onClose={() => setClosePeriodTarget(null)}>
-          <p className={cn('text-sm text-muted-foreground mb-4')}>
-            Are you sure you want to close{' '}
-            <span className="font-bold text-foreground">{closePeriodTarget?.name}</span>? Once
-            closed, no further journal entries can be posted in this date range.
+          {closePeriodTarget && (
+            <div className="mb-4 grid grid-cols-3 gap-3 rounded-lg border border-border bg-accent/10 p-3 text-center">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Revenue</p>
+                <p className="text-sm font-semibold">{money(closePeriodTarget.revenue)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Expenses</p>
+                <p className="text-sm font-semibold">{money(closePeriodTarget.expenses)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Net Profit</p>
+                <p className={cn('text-sm font-semibold', Number(closePeriodTarget.net_profit) < 0 ? 'text-destructive' : 'text-emerald-600')}>
+                  {money(closePeriodTarget.net_profit)}
+                </p>
+              </div>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground mb-4">
+            Close <span className="font-bold text-foreground">{closePeriodTarget?.name}</span>
+            {closePeriodTarget ? ` (${closePeriodTarget.entry_count} journal entr${closePeriodTarget.entry_count === 1 ? 'y' : 'ies'})` : ''}?
+            Once closed, no journal entry can be approved into this date range.
           </p>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setClosePeriodTarget(null)}>
