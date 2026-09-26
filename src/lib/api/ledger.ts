@@ -96,6 +96,47 @@ export interface AccountingPeriod {
   created_at: string;
 }
 
+/** A period with its booked-GL profit and loss (revenue, expenses incl. cost of sales, net). */
+export interface PeriodSummary extends AccountingPeriod {
+  fiscal_year: string;
+  revenue: string | number;
+  expenses: string | number;
+  net_profit: string | number;
+  entry_count: number;
+  is_current: boolean;
+  /** Ended but still open: the close reminder. */
+  needs_closing: boolean;
+}
+
+export interface FiscalYearRef {
+  label: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
+}
+
+export interface PeriodTotals {
+  revenue: string | number;
+  expenses: string | number;
+  net_profit: string | number;
+}
+
+/** One fiscal year's periods with summaries, plus every fiscal year that has periods. */
+export interface PeriodOverview {
+  fiscal_year?: FiscalYearRef;
+  fiscal_years: FiscalYearRef[];
+  period_frequency: 'monthly' | 'quarterly';
+  periods: PeriodSummary[];
+  totals: PeriodTotals;
+  pending_close: number;
+}
+
+/** Ended-but-open periods, oldest first (the order they must be closed in). */
+export interface PendingClosePeriods {
+  count: number;
+  periods: PeriodSummary[];
+}
+
 export interface CreatePeriodRequest {
   name: string;
   period_type: string;
@@ -196,6 +237,17 @@ export function listPeriods(
   tenantSlug: string,
 ): Promise<{ periods: AccountingPeriod[]; total: number }> {
   return apiClient.get(`${BASE}/${tenantSlug}/ledger/periods`);
+}
+
+export function getPeriodSummary(tenantSlug: string, fiscalYear?: string): Promise<PeriodOverview> {
+  return apiClient.get(
+    `${BASE}/${tenantSlug}/ledger/periods/summary`,
+    fiscalYear ? { fiscal_year: fiscalYear } : undefined,
+  );
+}
+
+export function getPendingClosePeriods(tenantSlug: string): Promise<PendingClosePeriods> {
+  return apiClient.get(`${BASE}/${tenantSlug}/ledger/periods/pending-close`);
 }
 
 export function createPeriod(

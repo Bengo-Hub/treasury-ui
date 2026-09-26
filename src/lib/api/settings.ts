@@ -49,6 +49,16 @@ export interface FiscalYearConfig {
   fy_end: string;
   /** Selectable presets (Calendar Jan-Dec, Government Jul-Jun) for quick-select. */
   presets?: { key: string; label: string; start_month: number; start_day: number; description?: string }[];
+  /** How the fiscal year is divided into accounting periods (monthly when never set). */
+  period_frequency?: PeriodFrequency;
+}
+
+export type PeriodFrequency = 'monthly' | 'quarterly';
+
+export interface UpdateFiscalYearRequest {
+  start_month: number;
+  start_day: number;
+  period_frequency?: PeriodFrequency;
 }
 
 /** Read the tenant's fiscal-year config + the derived current FY window. */
@@ -56,10 +66,10 @@ export async function getFiscalYear(tenantSlug: string): Promise<FiscalYearConfi
   return apiClient.get<FiscalYearConfig>(`${BASE}/${tenantSlug}/settings/fiscal-year`);
 }
 
-/** Upsert the tenant's fiscal-year config (start month/day). */
+/** Upsert the tenant's fiscal-year config (start month/day and period frequency). */
 export async function updateFiscalYear(
   tenantSlug: string,
-  body: { start_month: number; start_day: number },
+  body: UpdateFiscalYearRequest,
 ): Promise<FiscalYearConfig> {
   return apiClient.put<FiscalYearConfig>(`${BASE}/${tenantSlug}/settings/fiscal-year`, body);
 }

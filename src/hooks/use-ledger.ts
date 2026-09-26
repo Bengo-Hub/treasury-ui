@@ -111,6 +111,32 @@ export function useAccountingPeriods(tenantSlug: string) {
   });
 }
 
+/**
+ * Period summaries for one fiscal year (current when omitted) plus the list of fiscal years with
+ * periods. Keyed under 'accounting-periods' so every period mutation refreshes it.
+ */
+export function usePeriodSummary(tenantSlug: string, fiscalYear?: string) {
+  return useQuery({
+    queryKey: ['accounting-periods', tenantSlug, 'summary', fiscalYear ?? 'current'],
+    queryFn: () => ledgerApi.getPeriodSummary(tenantSlug, fiscalYear),
+    enabled: !!tenantSlug,
+  });
+}
+
+/**
+ * Ended-but-open periods (the close reminder behind the sidebar badge and dashboard banner).
+ * Quiet on failure: a plan without the ledger feature just shows no reminder.
+ */
+export function usePendingClosePeriods(tenantSlug: string, enabled = true) {
+  return useQuery({
+    queryKey: ['accounting-periods', tenantSlug, 'pending-close'],
+    queryFn: () => ledgerApi.getPendingClosePeriods(tenantSlug),
+    enabled: !!tenantSlug && enabled,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+}
+
 export function useCreatePeriod() {
   const qc = useQueryClient();
   return useMutation({

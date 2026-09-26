@@ -39,6 +39,11 @@ export default function SettingsPage() {
   const settings = settingsData?.settings;
 
   const [activeTab, setActiveTab] = useState('general');
+  // Deep links (e.g. Accounting Periods -> ?tab=financial-year) open the named tab.
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (tab) setActiveTab(tab);
+  }, []);
 
   // ---- General ----
   const [defaultCurrency, setDefaultCurrency] = useState('KES');

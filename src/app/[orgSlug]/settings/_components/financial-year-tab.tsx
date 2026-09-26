@@ -3,6 +3,7 @@
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { FormField } from '@/components/ui/form-field';
 import { useFiscalYear, useUpdateFiscalYear } from '@/hooks/use-settings';
+import type { PeriodFrequency } from '@/lib/api/settings';
 import { CalendarRange, Loader2, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -17,9 +18,10 @@ const inputClass =
   'w-full bg-accent/10 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary outline-none';
 
 /**
- * FinancialYearTab lets a tenant pick the month/day their financial year begins.
- * This is configuration only — it does NOT (yet) change report/period behavior;
- * it stores the window and shows the derived current fiscal year for reference.
+ * FinancialYearTab sets when the tenant's financial year begins and how it is divided into
+ * accounting periods (monthly or quarterly). Periods are generated automatically from these
+ * settings, the current and next year ahead of time; a tenant that never saves them gets a
+ * calendar year with monthly periods.
  */
 export function FinancialYearTab({ tenantSlug }: { tenantSlug: string }) {
   const { data, isLoading } = useFiscalYear(tenantSlug);
@@ -27,16 +29,18 @@ export function FinancialYearTab({ tenantSlug }: { tenantSlug: string }) {
 
   const [startMonth, setStartMonth] = useState(1);
   const [startDay, setStartDay] = useState(1);
+  const [frequency, setFrequency] = useState<PeriodFrequency>('monthly');
 
   useEffect(() => {
     if (!data) return;
     setStartMonth(data.start_month || 1);
     setStartDay(data.start_day || 1);
+    setFrequency(data.period_frequency === 'quarterly' ? 'quarterly' : 'monthly');
   }, [data]);
 
   const handleSave = () => {
     updateFY.mutate(
-      { start_month: startMonth, start_day: startDay },
+      { start_month: startMonth, start_day: startDay, period_frequency: frequency },
       {
         onSuccess: () => toast.success('Financial year saved'),
         onError: (err: any) =>
@@ -65,9 +69,10 @@ export function FinancialYearTab({ tenantSlug }: { tenantSlug: string }) {
       </CardHeader>
       <CardContent className="p-6 space-y-6">
         <p className="text-xs text-muted-foreground">
-          Choose the month (and optionally the day) your financial year begins. In Kenya this is
-          commonly January or July. This setting is used to label and bound future financial-year
-          reporting — it does not change existing reports yet.
+          Choose the month (and optionally the day) your financial year begins, and how the year is
+          divided into accounting periods. In Kenya the year commonly starts in January or July.
+          Periods are generated automatically and every journal entry is linked to its period. A
+          new frequency applies to years that have no periods yet; existing periods are kept.
         </p>
 
         {data?.presets && data.presets.length > 0 && (
@@ -118,6 +123,16 @@ export function FinancialYearTab({ tenantSlug }: { tenantSlug: string }) {
               onChange={(e) => setStartDay(parseInt(e.target.value) || 1)}
               className={`${inputClass} w-40 font-mono`}
             />
+          </FormField>
+          <FormField label="Accounting Periods" description="How the financial year is divided for period close.">
+            <select
+              value={frequency}
+              onChange={(e) => setFrequency(e.target.value === 'quarterly' ? 'quarterly' : 'monthly')}
+              className={inputClass}
+            >
+              <option value="monthly">Monthly (12 periods)</option>
+              <option value="quarterly">Quarterly (4 periods)</option>
+            </select>
           </FormField>
         </div>
 

@@ -17,6 +17,7 @@ import { MoneyFlow } from '@/components/dashboard/MoneyFlow';
 import { PlatformMoneyFlow } from '@/components/dashboard/PlatformMoneyFlow';
 import { TopCustomers } from '@/components/dashboard/TopCustomers';
 import { BooksBalancedBadge } from '@/components/dashboard/BooksBalancedBadge';
+import { PeriodCloseReminder } from '@/components/dashboard/PeriodCloseReminder';
 import { RangePicker, rangeFor, type RangeKey } from '@/components/dashboard/RangePicker';
 import { Banknote, CheckCircle2, Activity, Users, Loader2, Printer } from 'lucide-react';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
@@ -74,6 +75,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      <PeriodCloseReminder tenant={dashTenant} orgSlug={orgSlug} />
       <KpiCards tenant={dashTenant} from={from} to={to} outletId={outletId} />
       <FinancialPerformanceChart tenant={dashTenant} from={from} to={to} outletId={outletId} />
       {showRevenueByOutlet && <RevenueByOutlet tenant={dashTenant} from={from} to={to} />}

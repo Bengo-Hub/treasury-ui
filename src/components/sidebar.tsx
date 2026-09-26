@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { usePendingClosePeriods } from '@/hooks/use-ledger';
 import { userHasPermission } from '@/lib/auth/permissions';
 import { useBranding } from '@/providers/branding-provider';
 import { useAuthStore } from '@/store/auth';
@@ -47,6 +48,8 @@ interface NavItem {
   active: boolean;
   /** Subscription feature code that unlocks this item (exempt tenants always pass). */
   feature?: string;
+  /** Reminder count shown as a pill (e.g. periods waiting to be closed); hidden when 0. */
+  badge?: number;
 }
 
 interface NavGroup {
@@ -103,6 +106,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   })();
 
   const userRole = (user as any)?.roles?.[0] || 'Accountant';
+
+  // Close reminder: periods that have ended but are still open.
+  const { data: pendingClose } = usePendingClosePeriods(orgSlug, !!user);
+  const periodsToClose = pendingClose?.count ?? 0;
 
   const tenantNav: NavEntry[] = [
     {
@@ -276,6 +283,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: CalendarRange,
           href: `/${orgSlug}/ledger/periods`,
           active: pathname.startsWith(`/${orgSlug}/ledger/periods`),
+          badge: periodsToClose,
         },
         {
           label: 'Cost Centers',
@@ -549,6 +557,19 @@ function NavFeatureLock({ feature, children }: { feature?: string; children: Rea
   );
 }
 
+/** Reminder count pill on a nav entry; renders nothing for 0 or undefined. */
+function NavBadge({ count }: { count?: number }) {
+  if (!count) return null;
+  return (
+    <span
+      className="ml-auto inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white"
+      title={`${count} to review`}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
 function NavLinkItem({ item, onItemClick }: { item: NavItem; onItemClick?: () => void }) {
   const Icon = item.icon;
   return (
@@ -573,6 +594,7 @@ function NavLinkItem({ item, onItemClick }: { item: NavItem; onItemClick?: () =>
           <Icon className="size-4.5" />
         </div>
         <span className="truncate">{item.label}</span>
+        <NavBadge count={item.badge} />
       </Link>
       </NavFeatureLock>
     </li>
@@ -589,6 +611,8 @@ function NavGroupItem({
   pathname: string;
 }) {
   const hasActiveChild = group.children.some((c) => c.active);
+  // A collapsed group carries its children's reminders so they are not hidden.
+  const groupBadge = group.children.reduce((n, c) => n + (c.badge ?? 0), 0);
   const [expanded, setExpanded] = useState(hasActiveChild || (group.defaultOpen ?? false));
 
   // Auto-expand when a child becomes active via navigation
@@ -622,6 +646,7 @@ function NavGroupItem({
           <Icon className="size-4.5" />
         </div>
         <span className="flex-1 text-left truncate">{group.label}</span>
+        {!expanded && <NavBadge count={groupBadge} />}
         <ChevronDown
           className={cn(
             'size-4 text-sidebar-foreground/25 transition-transform duration-200',
@@ -654,6 +679,7 @@ function NavGroupItem({
               >
                 <ChildIcon className="size-4 shrink-0" />
                 <span className="text-sm">{child.label}</span>
+                <NavBadge count={child.badge} />
               </Link>
               </NavFeatureLock>
             </li>

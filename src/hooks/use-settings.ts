@@ -7,7 +7,7 @@ import {
   getFYClosePreview,
   postFYClose,
 } from '@/lib/api/settings';
-import type { ServiceConfig } from '@/lib/api/settings';
+import type { ServiceConfig, UpdateFiscalYearRequest } from '@/lib/api/settings';
 
 export function useSettings(tenantSlug: string) {
   return useQuery({
@@ -39,9 +39,12 @@ export function useFiscalYear(tenantSlug: string) {
 export function useUpdateFiscalYear(tenantSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { start_month: number; start_day: number }) =>
-      updateFiscalYear(tenantSlug, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal-year', tenantSlug] }),
+    mutationFn: (body: UpdateFiscalYearRequest) => updateFiscalYear(tenantSlug, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fiscal-year', tenantSlug] });
+      // Saving (re)generates the year's periods.
+      qc.invalidateQueries({ queryKey: ['accounting-periods', tenantSlug] });
+    },
   });
 }
 
