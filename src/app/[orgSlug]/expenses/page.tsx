@@ -15,9 +15,13 @@ import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/p
 import { EXPENSE_ACCESSORS, buildExpenseColumns } from './expense-columns';
 import { ExpensePaymentModal } from '@/components/expenses/ExpensePaymentModal';
 import { MarkExpensePaidModal } from '@/components/expenses/MarkExpensePaidModal';
+import { ExpenseStatsPanel } from '@/components/expenses/ExpenseStatsPanel';
+import { ListTotalsBar } from '@/components/ui/list-totals-bar';
+import { money } from '@/components/charts/chart-theme';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
   useExpenses,
+  useExpenseStats,
   useSubmitExpense,
   useApproveExpense,
   useRejectExpense,
@@ -98,6 +102,9 @@ export default function ExpensesPage() {
   }), [dateRange, statusFilter, costCenterFilter, page, pageSize]);
 
   const { data, isLoading, error } = useExpenses(effectiveTenant, queryParams, !!effectiveTenant);
+  // Summary for the same filters (the stats endpoint ignores paging), so cards, charts and the
+  // totals bar describe every matching expense, not just this page.
+  const { data: stats, isLoading: statsLoading } = useExpenseStats(effectiveTenant, queryParams, !!effectiveTenant);
   // active_only: hide archived centers from the selector/filter.
   const { data: costCenterData } = useCostCenters(effectiveTenant, { active_only: true });
 
@@ -367,6 +374,8 @@ export default function ExpensesPage() {
         </div>
       )}
 
+      <ExpenseStatsPanel stats={stats} loading={statsLoading} />
+
       <Card>
         <CardHeader className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between py-4">
           <div className="relative w-full max-w-sm group">
@@ -434,6 +443,18 @@ export default function ExpensesPage() {
             onPageChange={setPage}
             total={total}
           />
+          {stats && (
+            <ListTotalsBar
+              caption={`Totals for ${stats.total_count} matching expense${stats.total_count === 1 ? '' : 's'}`}
+              totals={[
+                { label: 'Total spend', value: money(stats.total_spend, stats.currency), tone: 'destructive' },
+                { label: 'Tax', value: money(stats.tax_amount, stats.currency) },
+                { label: 'Paid', value: money(stats.paid, stats.currency), tone: 'success' },
+                { label: 'Outstanding', value: money(stats.outstanding, stats.currency), tone: 'warning' },
+                { label: 'Pending approval', value: money(stats.pending_approval, stats.currency) },
+              ]}
+            />
+          )}
         </CardContent>
       </Card>
 

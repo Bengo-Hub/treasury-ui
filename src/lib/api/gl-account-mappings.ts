@@ -1,7 +1,8 @@
 /**
  * GL Account Mapping API — tenant-configurable overrides of which chart-of-accounts leaf a
  * (service, event_type, leg) monetary event posts to (ResolveAccountCode's tier-3 lookup, ahead
- * of the built-in hardcoded default). Base path: /api/v1/{tenantIdOrSlug}/gl-account-mappings.
+ * of the built-in hardcoded default). Base path: /api/v1/{tenantIdOrSlug}/ledger/gl-account-mappings (the API mounts it under
+ * /ledger beside the chart of accounts; the bare path returned 404).
  *
  * Mirrors the Go structs in treasury-api/internal/modules/ledger/models.go.
  */
@@ -65,14 +66,14 @@ export function listGLAccountMappings(
   params?: ListGLAccountMappingsParams,
 ): Promise<GLAccountMappingsResponse> {
   const query = params?.active_only ? { active_only: 'true' } : undefined;
-  return apiClient.get<GLAccountMappingsResponse>(`${BASE}/${tenantIdOrSlug}/gl-account-mappings`, query);
+  return apiClient.get<GLAccountMappingsResponse>(`${BASE}/${tenantIdOrSlug}/ledger/gl-account-mappings`, query);
 }
 
 export function createGLAccountMapping(
   tenantIdOrSlug: string,
   data: CreateGLAccountMappingRequest,
 ): Promise<GLAccountMapping> {
-  return apiClient.post<GLAccountMapping>(`${BASE}/${tenantIdOrSlug}/gl-account-mappings`, data);
+  return apiClient.post<GLAccountMapping>(`${BASE}/${tenantIdOrSlug}/ledger/gl-account-mappings`, data);
 }
 
 export function updateGLAccountMapping(
@@ -80,12 +81,12 @@ export function updateGLAccountMapping(
   id: string,
   data: UpdateGLAccountMappingRequest,
 ): Promise<GLAccountMapping> {
-  return apiClient.put<GLAccountMapping>(`${BASE}/${tenantIdOrSlug}/gl-account-mappings/${id}`, data);
+  return apiClient.put<GLAccountMapping>(`${BASE}/${tenantIdOrSlug}/ledger/gl-account-mappings/${id}`, data);
 }
 
 export function deleteGLAccountMapping(
   tenantIdOrSlug: string,
   id: string,
 ): Promise<{ status: string }> {
-  return apiClient.delete<{ status: string }>(`${BASE}/${tenantIdOrSlug}/gl-account-mappings/${id}`);
+  return apiClient.delete<{ status: string }>(`${BASE}/${tenantIdOrSlug}/ledger/gl-account-mappings/${id}`);
 }
