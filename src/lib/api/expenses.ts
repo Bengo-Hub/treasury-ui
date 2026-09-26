@@ -174,6 +174,30 @@ export async function getExpenses(tenantIdOrSlug: string, params?: ExpensesParam
   };
 }
 
+/**
+ * Summary of the expenses matching the list filters (server-side SQL aggregates over every
+ * matching row, not just the current page). total_spend is incurred cost: approved, reimbursed
+ * and paid, the same definition the P&L uses.
+ */
+export interface ExpenseStats {
+  currency: string;
+  total_count: number;
+  total_spend: string;
+  tax_amount: string;
+  paid: string;
+  outstanding: string;
+  pending_approval: string;
+  by_status: { status: string; count: number; amount: string }[];
+  by_category: { category_id?: string; category_name: string; count: number; amount: string }[];
+  monthly: { month: string; count: number; amount: string }[];
+}
+
+/** Stats accept the list filters; paging params are ignored. */
+export function getExpenseStats(tenantIdOrSlug: string, params?: ExpensesParams): Promise<ExpenseStats> {
+  const { page: _page, limit: _limit, offset: _offset, ...filters } = params ?? {};
+  return apiClient.get<ExpenseStats>(`${BASE}/${tenantIdOrSlug}/expenses/stats`, filters);
+}
+
 export function getExpense(tenantIdOrSlug: string, id: string): Promise<Expense> {
   return apiClient.get<Expense>(`${BASE}/${tenantIdOrSlug}/expenses/${id}`);
 }

@@ -2,6 +2,7 @@
 
 import {
   getExpenses,
+  getExpenseStats,
   getExpense,
   getExpenseCategories,
   createExpense,
@@ -33,7 +34,21 @@ export const expenseKeys = {
     ['expenses', 'detail', tenantIdOrSlug, id] as const,
   categories: (tenantIdOrSlug: string) =>
     ['expenses', 'categories', tenantIdOrSlug] as const,
+  // Under the 'list' prefix on purpose: every expense mutation invalidates
+  // ['expenses', 'list', tenant], so the summary refreshes with the table.
+  stats: (tenantIdOrSlug: string, params?: ExpensesParams) =>
+    ['expenses', 'list', tenantIdOrSlug, 'stats', params] as const,
 };
+
+/** Summary stats (totals, status, categories, monthly) for the list's current filters. */
+export function useExpenseStats(tenantIdOrSlug: string | undefined, params?: ExpensesParams, enabled = true) {
+  return useQuery({
+    queryKey: expenseKeys.stats(tenantIdOrSlug ?? '', params),
+    queryFn: () => getExpenseStats(tenantIdOrSlug!, params),
+    enabled: !!tenantIdOrSlug && enabled,
+    staleTime: STALE_MS,
+  });
+}
 
 export function useExpense(
   tenantIdOrSlug: string | undefined,
