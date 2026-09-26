@@ -165,11 +165,14 @@ export function useAccountLedger(
 export function useClosePeriod() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ tenantSlug, periodID }: { tenantSlug: string; periodID: string }) =>
-      ledgerApi.closePeriod(tenantSlug, periodID),
-    onSuccess: (_, vars) => {
+    // through: close this period and every earlier ended one in a single action.
+    mutationFn: async ({ tenantSlug, periodID, through }: { tenantSlug: string; periodID: string; through?: boolean }) =>
+      through
+        ? (await ledgerApi.closePeriodsThrough(tenantSlug, periodID)).closed
+        : (await ledgerApi.closePeriod(tenantSlug, periodID), 1),
+    onSuccess: (closed, vars) => {
       qc.invalidateQueries({ queryKey: ['accounting-periods', vars.tenantSlug] });
-      toast.success('Period closed');
+      toast.success(closed > 1 ? `${closed} periods closed` : 'Period closed');
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to close period'),
   });
