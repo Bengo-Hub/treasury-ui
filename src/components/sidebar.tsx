@@ -50,6 +50,11 @@ interface NavItem {
   feature?: string;
   /** Reminder count shown as a pill (e.g. periods waiting to be closed); hidden when 0. */
   badge?: number;
+  /**
+   * Sub-heading this entry sits under inside its group. Consecutive children sharing a section
+   * render under one heading, so a long group reads as classified blocks.
+   */
+  section?: string;
 }
 
 interface NavGroup {
@@ -157,15 +162,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       // No group-level gate: tier 1 includes Quotations + Customers + Payment Receipts, so
       // gating the whole group on invoice_generation (tier 2) would wrongly lock them.
       // Each child carries its own feature code per the use-case PowerSuite matrix.
+      // Sectioned in the order a sale flows: quote, order, bill, deliver and collect.
       children: [
         {
-          label: 'Invoices',
-          icon: FileText,
-          href: `/${orgSlug}/invoices`,
-          active: pathname.startsWith(`/${orgSlug}/invoices`),
-          feature: 'invoice_generation',
-        },
-        {
+          section: 'Pre-sale',
           label: 'Quotations & Estimates',
           icon: ClipboardCheck,
           href: `/${orgSlug}/quotations`,
@@ -173,6 +173,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           feature: 'quotations',
         },
         {
+          section: 'Pre-sale',
           label: 'Proforma Invoices',
           icon: FileCheck,
           href: `/${orgSlug}/proforma-invoices`,
@@ -180,13 +181,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           feature: 'invoice_generation',
         },
         {
-          label: 'Credit Notes',
-          icon: FileMinus,
-          href: `/${orgSlug}/credit-notes`,
-          active: pathname.startsWith(`/${orgSlug}/credit-notes`),
-          feature: 'credit_notes',
-        },
-        {
+          section: 'Pre-sale',
           label: 'Sales Orders',
           icon: ShoppingCart,
           href: `/${orgSlug}/sales-orders`,
@@ -194,18 +189,37 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           feature: 'invoice_generation',
         },
         {
-          label: 'Payment Receipts',
-          icon: Banknote,
-          href: `/${orgSlug}/payment-receipts`,
-          active: pathname.startsWith(`/${orgSlug}/payment-receipts`),
+          section: 'Billing',
+          label: 'Invoices',
+          icon: FileText,
+          href: `/${orgSlug}/invoices`,
+          active: pathname.startsWith(`/${orgSlug}/invoices`),
+          feature: 'invoice_generation',
         },
         {
+          section: 'Billing',
+          label: 'Credit Notes',
+          icon: FileMinus,
+          href: `/${orgSlug}/credit-notes`,
+          active: pathname.startsWith(`/${orgSlug}/credit-notes`),
+          feature: 'credit_notes',
+        },
+        {
+          section: 'Fulfilment & receipts',
           label: 'Delivery Challans',
           icon: Truck,
           href: `/${orgSlug}/delivery-challans`,
           active: pathname.startsWith(`/${orgSlug}/delivery-challans`),
         },
         {
+          section: 'Fulfilment & receipts',
+          label: 'Payment Receipts',
+          icon: Banknote,
+          href: `/${orgSlug}/payment-receipts`,
+          active: pathname.startsWith(`/${orgSlug}/payment-receipts`),
+        },
+        {
+          section: 'Customers',
           label: 'Customers',
           icon: Users,
           href: `/${orgSlug}/customers`,
@@ -244,14 +258,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       label: 'Accounting',
       icon: BookOpen,
       feature: 'ledger_posting',
+      // Sectioned: day-to-day books, banking, setup, then period control and audit.
       children: [
         {
-          label: 'Chart of Accounts',
-          icon: Landmark,
-          href: `/${orgSlug}/accounts`,
-          active: pathname.startsWith(`/${orgSlug}/accounts`),
-        },
-        {
+          section: 'Books',
           label: 'Journal Entries',
           icon: BookOpen,
           href: `/${orgSlug}/ledger/journals`,
@@ -260,6 +270,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             (pathname.startsWith(`/${orgSlug}/ledger/accounts`) && pathname !== `/${orgSlug}/ledger/accounts`),
         },
         {
+          section: 'Books',
           label: 'Vouchers',
           icon: Receipt,
           href: `/${orgSlug}/ledger/vouchers`,
@@ -267,52 +278,67 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           feature: 'vouchers',
         },
         {
-          label: 'Trial Balance',
-          icon: Calculator,
-          href: `/${orgSlug}/ledger/journals?view=trial-balance`,
-          active: false,
-        },
-        {
+          section: 'Books',
           label: 'General Ledger',
           icon: BookOpen,
           href: `/${orgSlug}/reports/general-ledger`,
           active: pathname.startsWith(`/${orgSlug}/reports/general-ledger`),
         },
         {
-          label: 'Accounting Periods',
-          icon: CalendarRange,
-          href: `/${orgSlug}/ledger/periods`,
-          active: pathname.startsWith(`/${orgSlug}/ledger/periods`),
-          badge: periodsToClose,
+          section: 'Books',
+          label: 'Trial Balance',
+          icon: Calculator,
+          href: `/${orgSlug}/ledger/journals?view=trial-balance`,
+          active: false,
         },
         {
-          label: 'Cost Centers',
-          icon: Target,
-          href: `/${orgSlug}/settings/cost-centers`,
-          active: pathname.startsWith(`/${orgSlug}/settings/cost-centers`),
-        },
-        {
-          label: 'GL Account Mappings',
-          icon: GitBranch,
-          href: `/${orgSlug}/settings/gl-account-mappings`,
-          active: pathname.startsWith(`/${orgSlug}/settings/gl-account-mappings`),
-        },
-        {
-          label: 'Accounts',
+          section: 'Banking',
+          label: 'Bank & Cash Accounts',
           icon: Landmark,
           href: `/${orgSlug}/banking/accounts`,
           active: pathname.startsWith(`/${orgSlug}/banking/accounts`),
         },
         {
+          section: 'Banking',
           label: 'Reconciliation',
           icon: ClipboardCheck,
           href: `/${orgSlug}/banking/reconciliation`,
           active: pathname.startsWith(`/${orgSlug}/banking/reconciliation`),
           feature: 'reconciliation',
         },
+        {
+          section: 'Setup',
+          label: 'Chart of Accounts',
+          icon: Landmark,
+          href: `/${orgSlug}/accounts`,
+          active: pathname.startsWith(`/${orgSlug}/accounts`),
+        },
+        {
+          section: 'Setup',
+          label: 'GL Account Mappings',
+          icon: GitBranch,
+          href: `/${orgSlug}/settings/gl-account-mappings`,
+          active: pathname.startsWith(`/${orgSlug}/settings/gl-account-mappings`),
+        },
+        {
+          section: 'Setup',
+          label: 'Cost Centers',
+          icon: Target,
+          href: `/${orgSlug}/settings/cost-centers`,
+          active: pathname.startsWith(`/${orgSlug}/settings/cost-centers`),
+        },
+        {
+          section: 'Control',
+          label: 'Accounting Periods',
+          icon: CalendarRange,
+          href: `/${orgSlug}/ledger/periods`,
+          active: pathname.startsWith(`/${orgSlug}/ledger/periods`),
+          badge: periodsToClose,
+        },
         ...(canViewAudit
           ? [
               {
+                section: 'Control',
                 label: 'Audit History',
                 icon: ShieldCheck,
                 href: `/${orgSlug}/accounting/audit-history`,
@@ -659,13 +685,20 @@ function NavGroupItem({
       <ul
         className={cn(
           'overflow-hidden transition-all duration-200',
-          expanded ? 'max-h-160 opacity-100' : 'max-h-0 opacity-0'
+          // Room for the tallest sectioned group (items plus section headings).
+          expanded ? 'max-h-[56rem] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
-        {group.children.map((child) => {
+        {group.children.map((child, i) => {
           const ChildIcon = child.icon;
+          const heading = child.section && child.section !== group.children[i - 1]?.section ? child.section : null;
           return (
             <li key={child.href}>
+              {heading && (
+                <p className="pl-10 pr-3 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
+                  {heading}
+                </p>
+              )}
               <NavFeatureLock feature={child.feature}>
               <Link
                 href={child.href}
