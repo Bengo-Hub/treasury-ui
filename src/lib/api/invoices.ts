@@ -105,6 +105,11 @@ export interface Invoice {
   payment_status: string;
   /** Cumulative amount received (sum of active payment records) — drives paid/partial. */
   amount_paid?: string;
+  /** Total of the non-void credit notes raised against this invoice (server-computed). */
+  amount_credited?: string;
+  /** What is still owed after payments AND credit notes (server-computed, the same figure the AR
+   *  reports use). Prefer this over re-deriving total minus paid; see invoiceAmountDue. */
+  amount_due?: string;
   /** Delivery-note goods-dispatch lifecycle: draft | dispatched | delivered | cancelled.
    *  Only meaningful for delivery_challan / delivery_note documents. */
   delivery_status?: string;
@@ -395,6 +400,9 @@ export interface PublicInvoice {
   discount_amount?: string;
   total_amount: string;
   amount_paid: string;
+  amount_credited?: string;
+  /** Outstanding after payments and credit notes; the amount the pay page should charge. */
+  amount_due?: string;
   currency: string;
   status: string;
   payment_status: string;
@@ -829,6 +837,36 @@ export interface ARAgingRow {
   days_61_to_90: string;
   over_90: string;
   total: string;
+  /** total minus current: everything past its due date. */
+  overdue?: string;
+  oldest_due_date?: string;
+  /** Where the debt lives: "balance" = the customer ledger (settle via Receive payment),
+   *  "invoices" = open invoices of a customer with no ledger row (settle via Record Payment). */
+  source?: 'balance' | 'invoices';
+  customer_balance_id?: string;
+  open_invoices?: ARAgingOpenInvoice[];
+}
+
+/** One open invoice inside an AR aging row, netted of payments and credit notes. */
+export interface ARAgingOpenInvoice {
+  id: string;
+  invoice_number: string;
+  due_date: string;
+  total: string;
+  paid: string;
+  credited: string;
+  open: string;
+  currency: string;
+  settlement_account_id?: string;
+}
+
+/** What is still owed on an invoice: the server's amount_due (payments AND credit notes netted),
+ *  falling back to total minus paid for an older API response. The one place the UI derives it. */
+export function invoiceAmountDue(inv: Pick<Invoice, 'total_amount' | 'amount_paid' | 'amount_due'>): number {
+  if (inv.amount_due !== undefined && inv.amount_due !== null && inv.amount_due !== '') {
+    return Math.max(0, Number(inv.amount_due) || 0);
+  }
+  return Math.max(0, (Number(inv.total_amount) || 0) - (Number(inv.amount_paid) || 0));
 }
 
 export interface ARAgingReport {

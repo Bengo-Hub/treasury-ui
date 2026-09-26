@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/base';
 import { FileText } from 'lucide-react';
 import { RowActionMenu } from '@/components/ui/action-menu';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
+import { invoiceAmountDue } from '@/lib/api/invoices';
 import {
   deliveryVariant,
   fmt,
@@ -136,9 +137,11 @@ export function buildDocumentColumns({
         header: 'Amount Due',
         align: 'right',
         sortable: true,
-        accessor: (r) => Math.max(0, Number(r.total_amount) - Number(r.amount_paid ?? 0)),
+        // Server amount_due nets credit notes as well as payments (a part-paid invoice whose
+        // remainder was credited owes nothing); invoiceAmountDue falls back for older responses.
+        accessor: (r) => invoiceAmountDue(r),
         render: (r) => {
-          const due = Math.max(0, Number(r.total_amount) - Number(r.amount_paid ?? 0));
+          const due = invoiceAmountDue(r);
           return (
             <span className={`font-mono text-xs font-bold whitespace-nowrap ${due > 0 ? 'text-amber-600' : 'text-muted-foreground'}`}>
               {fmt(due, r.currency)}

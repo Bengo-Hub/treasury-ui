@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { SettlementModal, RECEIVE_METHODS, resolveDefaultAccount } from '@bengo-hub/shared-ui-lib/payments';
 import { useRecordCustomerPayment } from '@/hooks/use-invoices';
@@ -45,19 +45,12 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
         .map((a) => ({ value: a.id, label: a.account_name, hint: bankAccountHint(a) })),
     [bankAccountsData],
   );
-  const [accountId, setAccountId] = useState('');
-  const [accountTouched, setAccountTouched] = useState(false);
-  // Preload from the tenant's own BankAccount.default_payment_methods mapping for whichever
-  // method SettlementModal shows selected by default (its own initial state is always
-  // methods[0], i.e. RECEIVE_METHODS[0] = cash) — still fully editable via the picker below, and
-  // never re-applied once the user has touched it. Doesn't react to a later in-modal method
-  // change, since SettlementModal's internal method selection isn't exposed to this parent.
-  useEffect(() => {
-    if (accountTouched || accountId || !bankAccountsData?.bank_accounts?.length) return;
-    const def = resolveDefaultAccount(bankAccountsData.bank_accounts, RECEIVE_METHODS[0]?.value);
-    if (def) setAccountId(def.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bankAccountsData]);
+  // The account follows the selected method's tenant default (BankAccount.default_payment_methods,
+  // reported by SettlementModal's onMethodChange) until the user picks one explicitly; still fully
+  // editable via the picker below.
+  const [method, setMethod] = useState<string>(RECEIVE_METHODS[0]?.value ?? 'cash');
+  const [pickedAccount, setPickedAccount] = useState('');
+  const accountId = pickedAccount || resolveDefaultAccount(bankAccountsData?.bank_accounts, method)?.id || '';
 
   // Optional — for a payment actually received in a different currency (e.g. Uganda MTN Mobile
   // Money against a KES AR ledger). Recorded structurally (exchange_rate/base_amount on the
@@ -83,6 +76,7 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
       allowOverpayment
       currency={target.currency}
       methods={RECEIVE_METHODS}
+      onMethodChange={setMethod}
       isPending={recordPay.isPending}
       onClose={onClose}
       extraFields={
@@ -93,7 +87,7 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
               <Combobox
                 options={accountOptions}
                 value={accountId}
-                onChange={(v) => { setAccountId(v ?? ''); setAccountTouched(true); }}
+                onChange={(v) => setPickedAccount(v ?? '')}
                 placeholder="Select cash / bank account"
                 searchPlaceholder="Search accounts…"
                 emptyText="No matching accounts"

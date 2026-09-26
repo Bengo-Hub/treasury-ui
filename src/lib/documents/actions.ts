@@ -60,16 +60,20 @@ export interface DocContext {
   hasDeliveryNote?: boolean;
   /** Whether a payment receipt has already been generated for this document. */
   hasReceipt?: boolean;
+  /** Server amount_due is known and zero: payments plus credit notes already cover the total,
+   *  so there is nothing left to pay or to credit (even while payment_status catches up). */
+  nothingDue?: boolean;
 }
 
 const isVoided = (s: string) => s === 'void' || s === 'cancelled';
 const isFinalized = (s: string) => s === 'sent' || s === 'paid' || s === 'overdue' || s === 'partially_paid';
 // A document is ISSUED once it has cleared approval and become a real fiscal supply: approved (not
 // yet emailed), sent, overdue, or partially paid. draft/pending_approval are NOT issued.
-const isIssued = (s: string) => s === 'approved' || s === 'sent' || s === 'overdue' || s === 'partially_paid';
-// Payments may only be recorded against an ISSUED, not-fully-paid document — never a draft or a
-// document still awaiting approval sign-off.
-const isPayable = (c: DocContext) => !isVoided(c.status) && isIssued(c.status) && c.payment_status !== 'paid';
+const isIssued = (s: string) => s === 'approved' || s === 'sent' || s === 'viewed' || s === 'overdue' || s === 'partially_paid';
+// Payments may only be recorded against an ISSUED, not-fully-settled document — never a draft or a
+// document still awaiting approval sign-off, and never one whose balance is already covered by
+// payments and credit notes.
+const isPayable = (c: DocContext) => !isVoided(c.status) && isIssued(c.status) && c.payment_status !== 'paid' && !c.nothingDue;
 
 /**
  * Ordered list of action keys valid for a document type + context. The order here is the
@@ -116,7 +120,9 @@ export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
         // UNLESS the prior credit note(s) didn't cover the full total (backend's own remainder
         // guard still enforces the cap — this just keeps the button visible while a remainder
         // exists so a genuine partial credit can still be raised).
-        out.push(ctx.hasCreditNote && ctx.fullyCredited ? 'view_credit_note' : 'create_credit_note');
+        // Nothing creditable once payments + credit notes cover the total (the backend's
+        // creditableCeiling would reject it), so link to the existing note instead.
+        out.push(ctx.hasCreditNote && (ctx.fullyCredited || ctx.nothingDue) ? 'view_credit_note' : 'create_credit_note');
         out.push(ctx.hasDebitNote ? 'view_debit_note' : 'create_debit_note');
       }
       if (ctx.payment_status === 'paid' || ctx.status === 'paid') {

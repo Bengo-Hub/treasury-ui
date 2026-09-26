@@ -27,6 +27,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { toast } from 'sonner';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadPublicInvoicePdf } from '@/lib/api/documents';
+import { invoiceAmountDue } from '@/lib/api/invoices';
 import { CreditNoteDialog } from '@/components/documents/CreditNoteDialog';
 import { RecordPaymentModal } from '@/components/documents/RecordPaymentModal';
 import { DocumentApprovalCard } from '@/components/documents/DocumentApprovalCard';
@@ -435,9 +436,12 @@ export default function InvoiceDetailPage() {
               {invoice.payment_status !== 'paid' && Number(invoice.amount_paid) > 0 && (
                 <p className="text-xs font-semibold text-emerald-600">Paid: {fmtAmount(invoice.amount_paid ?? 0)}</p>
               )}
+              {Number(invoice.amount_credited) > 0 && (
+                <p className="text-xs font-semibold text-sky-600">Credited: {fmtAmount(invoice.amount_credited ?? 0)}</p>
+              )}
               {invoice.payment_status !== 'paid' && (
                 <p className="text-sm font-black text-amber-600 tabular-nums">
-                  Due: {fmtAmount(Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid ?? 0)))}
+                  Due: {fmtAmount(invoiceAmountDue(invoice))}
                 </p>
               )}
             </div>
@@ -528,11 +532,14 @@ export default function InvoiceDetailPage() {
                 {invoice.payment_status !== 'paid' && Number(invoice.amount_paid) > 0 && (
                   <DetailRow label="Amount Paid" value={<span className="text-emerald-600">{fmtAmount(invoice.amount_paid ?? 0)}</span>} />
                 )}
+                {Number(invoice.amount_credited) > 0 && (
+                  <DetailRow label="Credited (credit notes)" value={<span className="text-sky-600">{fmtAmount(invoice.amount_credited ?? 0)}</span>} />
+                )}
                 {invoice.payment_status !== 'paid' && (
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-xs font-black text-amber-600">Balance Due</span>
                     <span className="text-xs font-black text-amber-600 tabular-nums">
-                      {fmtAmount(Math.max(0, Number(invoice.total_amount) - Number(invoice.amount_paid ?? 0)))}
+                      {fmtAmount(invoiceAmountDue(invoice))}
                     </span>
                   </div>
                 )}
@@ -673,10 +680,7 @@ export default function InvoiceDetailPage() {
       {showPayModal && invoice && (
         <RecordPaymentModal
           tenant={effectiveTenant}
-          invoiceId={invoice.id}
-          invoiceTotal={invoice.total_amount}
-          currency={invoice.currency}
-          settlementAccountId={invoice.settlement_account_id}
+          invoice={invoice}
           onClose={() => setShowPayModal(false)}
         />
       )}

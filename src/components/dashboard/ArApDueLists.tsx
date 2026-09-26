@@ -3,9 +3,10 @@
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { money } from '@/components/charts/chart-theme';
 import { ReceivePaymentModal } from '@/components/clients/ReceivePaymentModal';
-import { useCustomerBalances } from '@/hooks/use-invoices';
+import { RecordPaymentModal, type PayableInvoice } from '@/components/documents/RecordPaymentModal';
+import { useARAging, useCustomerBalances } from '@/hooks/use-invoices';
 import { useBills } from '@/hooks/use-bills';
-import type { CustomerBalance } from '@/lib/api/invoices';
+import type { ARAgingRow, CustomerBalance } from '@/lib/api/invoices';
 import type { Bill } from '@/lib/api/bills';
 import { cn } from '@/lib/utils';
 import { ArrowUpRight, Banknote, ChevronLeft, ChevronRight, Loader2, ReceiptText } from 'lucide-react';
@@ -53,25 +54,43 @@ function Pager({ page, pages, onPage }: { page: number; pages: number; onPage: (
 }
 
 /**
- * Receivables due/overdue — paginated list of customers owing money (operational AR:
- * CustomerBalance, which includes POS credit sales), each with a Record-payment action.
- * Replaces the old AR aging bar chart (GoDigital "Sales Payment Due" pattern).
+ * Receivables due/overdue — paginated list of customers owing money, from the AR aging: the SAME
+ * source as Total Receivable, the aging chips and Top Debtors, so the dashboard can never say
+ * "all settled" beside a non-zero receivable again. It used to read only the customer ledger
+ * (CustomerBalance), so every customer owing on invoices alone (no ledger row) was missing.
+ * Ledger debt settles via Receive payment (AR receipt); invoice debt via Record Payment against
+ * that debtor's open invoices, prefilled with each invoice's real balance.
  */
 export function ReceivablesDueList({ tenant }: { tenant: string }) {
-  const { data: balances, isLoading } = useCustomerBalances(tenant, !!tenant);
-  const [payTarget, setPayTarget] = useState<CustomerBalance | null>(null);
+  const { data: aging, isLoading } = useARAging(tenant, !!tenant);
+  const { data: balances } = useCustomerBalances(tenant, !!tenant);
+  const [payBalance, setPayBalance] = useState<CustomerBalance | null>(null);
+  const [payInvoices, setPayInvoices] = useState<PayableInvoice[] | null>(null);
 
   const rows = useMemo(() => {
-    const open = (balances ?? []).filter((b) => (parseFloat(b.balance_due) || 0) > 0.0001);
+    const open = (aging?.rows ?? []).filter((r) => (Number(r.total) || 0) > 0.0001);
     // Overdue first, then largest balance.
     return open.sort((a, b) => {
-      const ao = parseFloat(a.overdue_amount ?? '0') || 0;
-      const bo = parseFloat(b.overdue_amount ?? '0') || 0;
+      const ao = Number(a.overdue ?? 0) || 0;
+      const bo = Number(b.overdue ?? 0) || 0;
       if ((ao > 0) !== (bo > 0)) return ao > 0 ? -1 : 1;
-      return (parseFloat(b.balance_due) || 0) - (parseFloat(a.balance_due) || 0);
+      return (Number(b.total) || 0) - (Number(a.total) || 0);
     });
-  }, [balances]);
+  }, [aging]);
   const pager = usePager(rows);
+
+  const settle = (r: ARAgingRow) => {
+    if (r.source === 'invoices' && r.open_invoices?.length) {
+      setPayInvoices(r.open_invoices.map((inv) => ({
+        id: inv.id, invoice_number: inv.invoice_number, customer_name: r.entity_name, currency: inv.currency,
+        total_amount: inv.total, amount_paid: inv.paid, amount_due: inv.open,
+        settlement_account_id: inv.settlement_account_id,
+      })));
+      return;
+    }
+    const bal = (balances ?? []).find((b) => b.id === r.customer_balance_id);
+    if (bal) setPayBalance(bal);
+  };
 
   return (
     <Card>
@@ -91,35 +110,43 @@ export function ReceivablesDueList({ tenant }: { tenant: string }) {
         {!isLoading && rows.length === 0 && (
           <p className="py-8 text-center text-sm text-muted-foreground">No customer balances due — all settled.</p>
         )}
-        {!isLoading && pager.slice.map((b) => {
-          const due = parseFloat(b.balance_due) || 0;
-          const overdue = parseFloat(b.overdue_amount ?? '0') || 0;
-          const oldest = b.oldest_due_date ? new Date(b.oldest_due_date) : null;
+        {!isLoading && pager.slice.map((r, i) => {
+          const due = Number(r.total) || 0;
+          const overdue = Number(r.overdue ?? 0) || 0;
+          const oldest = r.oldest_due_date ? new Date(r.oldest_due_date) : null;
+          const invoiceCount = r.open_invoices?.length ?? 0;
+          const canSettle = r.source === 'invoices'
+            ? invoiceCount > 0
+            : !!(balances ?? []).find((b) => b.id === r.customer_balance_id);
           return (
-            <div key={b.id} className="px-4 py-2.5 flex items-center justify-between gap-3 border-t border-border/60 first:border-t-0">
+            <div key={r.customer_balance_id ?? `${r.entity_name}-${i}`} className="px-4 py-2.5 flex items-center justify-between gap-3 border-t border-border/60 first:border-t-0">
               <div className="min-w-0">
-                <p className="text-sm font-semibold truncate">{b.customer_name || b.customer_identifier || 'Customer'}</p>
+                <p className="text-sm font-semibold truncate">{r.entity_name || 'Customer'}</p>
                 <p className="text-[11px] text-muted-foreground">
                   {overdue > 0.0001
                     ? `Overdue ${money(overdue)}`
                     : oldest
                       ? `Due ${oldest.toLocaleDateString()}`
                       : 'Within credit terms'}
+                  {invoiceCount > 0 && ` · ${invoiceCount} open invoice${invoiceCount > 1 ? 's' : ''}`}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 <span className={cn('text-sm font-bold tabular-nums', overdue > 0.0001 ? 'text-destructive' : 'text-amber-600')}>
                   {money(due)}
                 </span>
-                <Button size="sm" onClick={() => setPayTarget(b)}>Record payment</Button>
+                <Button size="sm" disabled={!canSettle} onClick={() => settle(r)}>Record payment</Button>
               </div>
             </div>
           );
         })}
         <Pager page={pager.page} pages={pager.pages} onPage={pager.setPage} />
       </CardContent>
-      {payTarget && (
-        <ReceivePaymentModal tenant={tenant} target={payTarget} onClose={() => setPayTarget(null)} />
+      {payBalance && (
+        <ReceivePaymentModal tenant={tenant} target={payBalance} onClose={() => setPayBalance(null)} />
+      )}
+      {payInvoices && (
+        <RecordPaymentModal tenant={tenant} choices={payInvoices} onClose={() => setPayInvoices(null)} />
       )}
     </Card>
   );
