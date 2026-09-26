@@ -21,6 +21,7 @@ import {
   type UpdateTenantMpesaConfigRequest,
 } from '@/lib/api/revenue';
 import { cn } from '@/lib/utils';
+import { PaystackAccountCard, useTenantPaystackConfig } from './paystack-account-card';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
@@ -115,6 +116,10 @@ export function PaymentsTab({
   const deactivateMutation = useDeactivateTenantGateway(tenantSlug);
   const { data: payoutConfig, isLoading: loadingPayout } = useTenantPayoutConfig(tenantSlug, hasPaystack);
   const upsertPayout = useUpsertTenantPayoutConfig(tenantSlug);
+  // A tenant on its own Paystack account is paid by Paystack directly, so platform payout
+  // settings do not apply to it.
+  const { data: paystackConfig } = useTenantPaystackConfig(tenantSlug, hasPaystack);
+  const ownPaystack = !!paystackConfig?.own_account;
 
   const [payoutCurrency, setPayoutCurrency] = useState('NGN');
   const bankCountry = currencyToCountry[payoutCurrency] || '';
@@ -378,6 +383,9 @@ export function PaymentsTab({
 
               {hasPaystack && (
                 <TabsContent value="paystack">
+                  <div className="space-y-6">
+                  <PaystackAccountCard tenantSlug={tenantSlug} />
+                  {!ownPaystack && (
                   <Card>
                     <CardContent className="p-6 space-y-6">
                       <div className="flex items-center gap-2">
@@ -652,6 +660,8 @@ export function PaymentsTab({
                       )}
                     </CardContent>
                   </Card>
+                  )}
+                  </div>
                 </TabsContent>
               )}
 

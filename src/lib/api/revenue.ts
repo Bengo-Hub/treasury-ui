@@ -147,6 +147,39 @@ export function registerMpesaC2BURLs(tenantSlug: string): Promise<RegisterC2BRes
     );
 }
 
+// ─── Tenant-owned Paystack account ────────────────────────────────────────────
+
+/**
+ * Whether the tenant collects on its own Paystack account (money lands there directly, no
+ * platform payouts) or on the platform account (platform collects, then pays out).
+ * The secret key is never returned, only its last 4 characters.
+ */
+export interface TenantPaystackConfig {
+    own_account: boolean;
+    mode?: 'test' | 'live';
+    public_key?: string;
+    secret_key_last4?: string;
+    webhook_url: string;
+    collected_by: 'platform' | 'tenant';
+}
+
+export function getTenantPaystackConfig(tenantSlug: string): Promise<TenantPaystackConfig> {
+    return apiClient.get<TenantPaystackConfig>(`${BASE}/${tenantSlug}/gateways/paystack/config`);
+}
+
+/** Connect or replace the tenant's own Paystack account. Keys are verified with Paystack first. */
+export function updateTenantPaystackConfig(
+    tenantSlug: string,
+    body: { secret_key: string; public_key: string },
+): Promise<TenantPaystackConfig> {
+    return apiClient.put<TenantPaystackConfig>(`${BASE}/${tenantSlug}/gateways/paystack/config`, body);
+}
+
+/** Stop using the tenant's own Paystack account; new payments go back to the platform account. */
+export function disconnectTenantPaystack(tenantSlug: string): Promise<TenantPaystackConfig> {
+    return apiClient.delete<TenantPaystackConfig>(`${BASE}/${tenantSlug}/gateways/paystack/config`);
+}
+
 /** Get or generate a static M-Pesa QR code for the tenant. */
 export function getTenantMpesaQR(tenantSlug: string): Promise<MpesaQRResponse> {
     return apiClient.get<MpesaQRResponse>(`${BASE}/${tenantSlug}/gateways/mpesa/qr`);
