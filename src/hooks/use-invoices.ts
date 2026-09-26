@@ -87,6 +87,25 @@ export const invoiceKeys = {
   graph: (tenant: string) => ['invoices', tenant, 'graph'] as const,
 };
 
+// Every query whose figures move when an invoice is issued, paid, credited or voided: the invoice
+// lists/stats, the AR summary/aging/customer ledger, and the dashboard P&L, money-flow, series
+// and tax cards built from them. Invalidating only the invoice list (as these mutations used to)
+// left the dashboard showing the old receivable until its cache expired.
+const RECEIVABLE_DEPENDENT_KEYS = [
+  'ar-summary', 'ar-aging', 'ar-customer-balances', 'report-pl-summary', 'report-pl',
+  'report-revenue-by-outlet', 'analytics-money-flow', 'analytics-timeseries', 'tax-position-estimate',
+  'tax-eligibility', 'tax-vat-return',
+] as const;
+
+export function invalidateReceivables(queryClient: ReturnType<typeof useQueryClient>, tenant: string, invoiceId?: string) {
+  if (invoiceId) queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
+  queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+  queryClient.invalidateQueries({ queryKey: ['platform-invoices'] });
+  for (const key of RECEIVABLE_DEPENDENT_KEYS) {
+    queryClient.invalidateQueries({ queryKey: [key] });
+  }
+}
+
 export const platformInvoiceKeys = {
   all: ['platform-invoices'] as const,
   list: (filters?: PlatformInvoiceFilters) => ['platform-invoices', 'list', filters] as const,
@@ -245,9 +264,8 @@ export function useRecordCustomerPayment(tenant: string) {
         foreign_amount: foreignAmount, exchange_rate: exchangeRate, foreign_currency: foreignCurrency,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ar-customer-balances', tenant] });
-      queryClient.invalidateQueries({ queryKey: ['ar-summary', tenant] });
-      queryClient.invalidateQueries({ queryKey: ['ar-aging', tenant] });
+      // AR receipt moves the ledger, the aging and the money-flow collections alike.
+      invalidateReceivables(queryClient, tenant);
     },
   });
 }
@@ -444,8 +462,7 @@ export function useSendInvoice(tenant: string) {
     },
     onSuccess: (_data, vars) => {
       const invoiceId = typeof vars === 'string' ? vars : vars.invoiceId;
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      invalidateReceivables(queryClient, tenant, invoiceId);
     },
   });
 }
@@ -454,10 +471,7 @@ export function useVoidInvoice(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (invoiceId: string) => voidInvoice(tenant, invoiceId),
-    onSuccess: (_data, invoiceId) => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
-    },
+    onSuccess: (_data, invoiceId) => invalidateReceivables(queryClient, tenant, invoiceId),
   });
 }
 
@@ -468,8 +482,7 @@ export function useRecordPayment(tenant: string) {
     mutationFn: ({ invoiceId, ...input }: { invoiceId: string } & RecordPaymentInput) =>
       recordPayment(tenant, invoiceId, input),
     onSuccess: (_data, { invoiceId }) => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      invalidateReceivables(queryClient, tenant, invoiceId);
       queryClient.invalidateQueries({ queryKey: ['invoice-payments', tenant, invoiceId] });
     },
   });
@@ -504,8 +517,7 @@ export function useVoidInvoicePayment(tenant: string) {
       voidInvoicePayment(tenant, invoiceId, paymentId, reason),
     onSuccess: (_d, { invoiceId }) => {
       queryClient.invalidateQueries({ queryKey: ['invoice-payments', tenant, invoiceId] });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
+      invalidateReceivables(queryClient, tenant, invoiceId);
     },
   });
 }
@@ -654,10 +666,7 @@ export function useMarkPaid(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (invoiceId: string) => markPaid(tenant, invoiceId),
-    onSuccess: (_data, invoiceId) => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
-    },
+    onSuccess: (_data, invoiceId) => invalidateReceivables(queryClient, tenant, invoiceId),
   });
 }
 
@@ -668,9 +677,10 @@ export function useCreateCreditNote(tenant: string) {
       typeof input === 'string'
         ? createCreditNote(tenant, input)
         : createCreditNote(tenant, input.invoiceId, input.lines),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
-    },
+    // A credit note settles its source invoice (the balance due drops, a fully covered invoice
+    // flips to paid), so everything built on receivables must refresh, not just the list.
+    onSuccess: (_data, input) =>
+      invalidateReceivables(queryClient, tenant, typeof input === 'string' ? input : input.invoiceId),
   });
 }
 
@@ -678,9 +688,7 @@ export function useCreateDebitNote(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (invoiceId: string) => createDebitNote(tenant, invoiceId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
-    },
+    onSuccess: (_data, invoiceId) => invalidateReceivables(queryClient, tenant, invoiceId),
   });
 }
 

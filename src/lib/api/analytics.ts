@@ -179,10 +179,16 @@ export function getTimeseries(
 }
 
 export interface MoneyFlowService {
+  /** Stable key: a source service for money in, a kind (expenses, supplier_payments, refunds,
+   *  payouts) for money out. */
   source_service: string;
+  /** Display name from the server, identical on the money-flow PDF. */
+  label?: string;
   money_in: string;
+  /** Money out: cash paid out for out-rows, gateway fees for in-rows. */
   costs: string;
   net: string;
+  count?: number;
 }
 
 export interface MoneyFlowResponse {

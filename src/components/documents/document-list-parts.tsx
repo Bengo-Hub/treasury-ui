@@ -33,9 +33,11 @@ export interface DocumentRow {
   total_amount: string;
   status: string;
   payment_status?: string;
-  /** How much of total_amount has actually been paid — lets the list show a real Amount Due
-   *  column (total_amount − amount_paid) without opening the detail page for every row. */
+  /** How much of total_amount has actually been paid (the Paid column). */
   amount_paid?: string;
+  /** Server-computed outstanding balance: total minus payments AND credit notes. The Amount Due
+   *  column and Record Payment's default read this (via invoiceAmountDue), never total − paid. */
+  amount_due?: string;
   /** Delivery-note goods-dispatch lifecycle (delivery_challan/delivery_note docs only). */
   delivery_status?: string;
   doc_date: string;
@@ -218,6 +220,7 @@ export function invoiceToDocumentRow(inv: Invoice): DocumentRow {
     status: inv.status,
     payment_status: inv.payment_status,
     amount_paid: inv.amount_paid,
+    amount_due: inv.amount_due,
     delivery_status: inv.delivery_status,
     doc_date: inv.invoice_date,
     due_date: inv.due_date,

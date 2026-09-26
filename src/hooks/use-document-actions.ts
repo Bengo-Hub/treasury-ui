@@ -36,6 +36,7 @@ interface RelatedDocsSource {
   status: string;
   payment_status?: string;
   total_amount: string;
+  amount_due?: string;
   related_documents?: RelatedDocuments;
 }
 
@@ -57,5 +58,8 @@ export function docContextFromRow(row: RelatedDocsSource): DocContext {
     hasDebitNote: !!rd?.debit_note_ids?.length,
     hasDeliveryNote: !!rd?.delivery_note_id,
     hasReceipt: !!rd?.receipt_id,
+    // Only when the server reported a balance: an older response without amount_due keeps the
+    // status-based gating.
+    nothingDue: row.amount_due !== undefined && row.amount_due !== '' && (parseFloat(row.amount_due) || 0) <= 0.0001,
   };
 }

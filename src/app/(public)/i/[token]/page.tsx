@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { fetchPublicInvoice, type PublicInvoice } from '@/lib/api/invoices';
+import { fetchPublicInvoice, invoiceAmountDue, type PublicInvoice } from '@/lib/api/invoices';
 import { InvoiceActions } from './InvoiceActions';
 import { PublicDocFooter } from '@/components/public/PublicDocFooter';
 
@@ -63,10 +63,9 @@ export default async function PublicInvoicePage({ params }: Props) {
   }
 
   const totalAmount = parseFloat(invoice.total_amount) || 0;
-  const amountPaid = parseFloat(invoice.amount_paid) || 0;
-  // Charge the outstanding balance, not the full total — otherwise a partially-paid invoice's
-  // "Pay Now" link re-charges the customer for the whole invoice, including what they already paid.
-  const balanceDue = Math.max(totalAmount - amountPaid, 0);
+  // Charge the outstanding balance, not the full total: the server's amount_due nets payments AND
+  // credit notes, so neither what was already paid nor a credited remainder is charged again.
+  const balanceDue = invoiceAmountDue(invoice);
   const fmt = (v: number) => Number(v).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const badge = statusBadge(invoice.status, invoice.payment_status);
 

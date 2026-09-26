@@ -13,6 +13,10 @@ interface Props { tenant: string; from: string; to: string }
  * MoneyFlow — Outstanding vs Collections KPIs + money-in/out by service. Reuses the money-flow
  * endpoint + AR summary (data ownership: treasury owns AR). Collection rate = collected / (collected
  * + still outstanding).
+ *
+ * The server classifies each row by cash direction (expenses paid, supplier payments, refunds and
+ * payouts are money OUT) and names it (`label`, the same wording as the money-flow PDF). Paid
+ * expenses used to arrive as a "Treasury" money-in bar and inflate Collections.
  */
 export function MoneyFlow({ tenant, from, to }: Props) {
   const flow = useMoneyFlow(tenant, { from, to });
@@ -23,18 +27,8 @@ export function MoneyFlow({ tenant, from, to }: Props) {
   const denom = collections + outstanding;
   const rate = denom > 0 ? (collections / denom) * 100 : 0;
 
-  // Friendly labels for the synthetic finance-module rows the backend appends alongside the
-  // gateway services (see treasury-api MoneyFlow): direct (non-gateway) sales + GL expenses.
-  const SERVICE_LABELS: Record<string, string> = {
-    direct_sales: 'Direct sales',
-    expenses: 'Expenses',
-    pos: 'POS',
-    ordering: 'Ordering',
-    treasury: 'Treasury',
-    subscription: 'Subscriptions',
-  };
   const data = (flow.data?.services ?? []).map((s) => ({
-    name: SERVICE_LABELS[s.source_service] ?? s.source_service,
+    name: s.label || s.source_service,
     in: Number(s.money_in),
     out: Number(s.costs),
   }));
