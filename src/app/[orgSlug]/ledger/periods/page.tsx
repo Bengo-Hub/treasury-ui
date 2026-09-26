@@ -18,6 +18,12 @@ import { useMemo, useState } from 'react';
 
 const periodTypes = ['monthly', 'quarterly', 'custom'] as const;
 
+/** "2026-05" as "May 2026". */
+function periodMonth(ym: string): string {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, (m || 1) - 1, 1)).toLocaleDateString(undefined, { timeZone: 'UTC', month: 'short', year: 'numeric' });
+}
+
 interface PeriodFormData {
   name: string;
   period_type: string;
@@ -85,10 +91,17 @@ export default function AccountingPeriodsPage() {
     );
   }
 
+  // A later ready period closes together with every earlier open one (the server closes them in
+  // order); earlierOpen counts those visible in this fiscal year for the confirmation text.
+  const closeThrough = !!closePeriodTarget && closePeriodTarget.id !== nextToCloseId;
+  const earlierOpen = closePeriodTarget
+    ? periods.filter((p) => p.status !== 'closed' && p.start_date < closePeriodTarget.start_date).length
+    : 0;
+
   function handleClose() {
     if (!closePeriodTarget) return;
     closeMutation.mutate(
-      { tenantSlug: effectiveTenant, periodID: closePeriodTarget.id },
+      { tenantSlug: effectiveTenant, periodID: closePeriodTarget.id, through: closeThrough },
       { onSuccess: () => setClosePeriodTarget(null) },
     );
   }
@@ -104,7 +117,8 @@ export default function AccountingPeriodsPage() {
             <Link href={`/${orgSlug}/settings?tab=financial-year`} className="text-primary hover:underline">
               financial year settings
             </Link>{' '}
-            ({data?.period_frequency ?? 'monthly'}). Every journal entry is linked to its period.
+            ({data?.period_frequency ?? 'monthly'}
+            {data?.books_start ? `, books start ${periodMonth(data.books_start)}` : ''}). Every journal entry is linked to its period.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -290,7 +304,10 @@ export default function AccountingPeriodsPage() {
           <p className="text-sm text-muted-foreground mb-4">
             Close <span className="font-bold text-foreground">{closePeriodTarget?.name}</span>
             {closePeriodTarget ? ` (${closePeriodTarget.entry_count} journal entr${closePeriodTarget.entry_count === 1 ? 'y' : 'ies'})` : ''}?
-            Once closed, no journal entry can be approved into this date range.
+            {closeThrough && earlierOpen > 0 && (
+              <> This also closes the {earlierOpen} earlier open period{earlierOpen === 1 ? '' : 's'}, oldest first.</>
+            )}{' '}
+            Once closed, no journal entry can be approved into these dates.
           </p>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setClosePeriodTarget(null)}>

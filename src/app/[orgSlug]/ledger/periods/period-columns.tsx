@@ -30,11 +30,20 @@ export function PeriodStateBadge({ period }: { period: PeriodSummary }) {
   return <Badge variant={periodStatusVariant[period.status] ?? 'outline'} className="capitalize">{period.status}</Badge>;
 }
 
+/**
+ * Period boundaries are UTC instants (end = 23:59:59.999 UTC on the last day). Rendering them in
+ * the browser's zone showed a period ending on the NEXT day in Kenya (UTC+3), e.g. Feb ending
+ * "3/1/2026", so dates are always shown in UTC.
+ */
+export function periodDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export function buildPeriodColumns(cb: PeriodColumnCallbacks): DataTableColumn<PeriodSummary>[] {
   return [
     { key: 'name', header: 'Period', primary: true, cellClassName: 'font-bold', accessor: (p) => p.name },
-    { key: 'start_date', header: 'Start', mobileHidden: true, accessor: (p) => p.start_date, render: (p) => new Date(p.start_date).toLocaleDateString() },
-    { key: 'end_date', header: 'End', mobileHidden: true, accessor: (p) => p.end_date, render: (p) => new Date(p.end_date).toLocaleDateString() },
+    { key: 'start_date', header: 'Start', mobileHidden: true, accessor: (p) => p.start_date, render: (p) => periodDate(p.start_date) },
+    { key: 'end_date', header: 'End', mobileHidden: true, accessor: (p) => p.end_date, render: (p) => periodDate(p.end_date) },
     { key: 'revenue', header: 'Revenue', align: 'right', accessor: (p) => Number(p.revenue), render: (p) => money(p.revenue) },
     { key: 'expenses', header: 'Expenses', align: 'right', accessor: (p) => Number(p.expenses), render: (p) => money(p.expenses) },
     {
@@ -62,17 +71,18 @@ export function buildPeriodColumns(cb: PeriodColumnCallbacks): DataTableColumn<P
           );
         }
         if (!period.needs_closing) return <span className="text-xs text-muted-foreground">In progress</span>;
-        const canClose = period.id === cb.nextToCloseId;
+        // Periods close in order: the oldest ready one closes alone, a later one closes together
+        // with every earlier ended period ("up to here").
+        const isNext = period.id === cb.nextToCloseId;
         return (
           <Button
             size="sm"
-            variant={canClose ? 'outline' : 'ghost'}
+            variant="outline"
             className="gap-1.5"
-            disabled={!canClose}
             onClick={(e: React.MouseEvent) => { e.stopPropagation(); cb.onClose(period); }}
-            title={canClose ? 'Close period' : 'Close the earlier periods first'}
+            title={isNext ? 'Close this period' : 'Close this period and every earlier open period'}
           >
-            <Lock className="h-3.5 w-3.5" /> Close
+            <Lock className="h-3.5 w-3.5" /> {isNext ? 'Close' : 'Close up to here'}
           </Button>
         );
       },

@@ -51,6 +51,8 @@ export interface FiscalYearConfig {
   presets?: { key: string; label: string; start_month: number; start_day: number; description?: string }[];
   /** How the fiscal year is divided into accounting periods (monthly when never set). */
   period_frequency?: PeriodFrequency;
+  /** Pinned first month with books ("YYYY-MM"); absent means automatic. */
+  books_start?: string;
 }
 
 export type PeriodFrequency = 'monthly' | 'quarterly';
@@ -59,6 +61,8 @@ export interface UpdateFiscalYearRequest {
   start_month: number;
   start_day: number;
   period_frequency?: PeriodFrequency;
+  /** "YYYY-MM" pins the books start, "" returns to automatic, omitted keeps the stored value. */
+  books_start?: string;
 }
 
 /** Read the tenant's fiscal-year config + the derived current FY window. */

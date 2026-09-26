@@ -17,6 +17,7 @@ import {
   useTaxPositionEstimate,
 } from '@/hooks/use-tax';
 import { formatDateRange } from '@/lib/utils/date';
+import type { TaxObligations } from '@/lib/api/tax';
 
 interface Props { tenantSlug: string }
 
@@ -27,6 +28,17 @@ function money(v?: string | number) {
   // Delegate to the shared 2-decimal formatter so tax figures never render 3-dp
   // artefacts (e.g. 275.862) from toLocaleString()'s default maximumFractionDigits.
   return formatCurrency(Number(v ?? 0));
+}
+
+/** Labels for the taxes the tenant files (server-resolved obligations). */
+function obligationChips(o: TaxObligations): string[] {
+  const out: string[] = [];
+  if (o.income_tax) out.push('Income tax (instalments, return)');
+  if (o.vat) out.push('VAT');
+  if (o.tot) out.push('Turnover Tax');
+  if (o.paye) out.push('PAYE, NSSF, SHIF, AHL');
+  if (o.wht) out.push('Withholding tax');
+  return out;
 }
 
 /**
@@ -168,21 +180,44 @@ export function TaxProfileTab({ tenantSlug }: Props) {
           </div>
         </div>
 
+        {position?.obligations && (
+          <div className="pt-1">
+            <p className={label}>You file</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {obligationChips(position.obligations).map((c) => (
+                <span key={c} className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">{c}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-2 pt-2">
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={!!profile?.vat_registered}
               onChange={(e) => update.mutate({ vat_registered: e.target.checked })} />
-            VAT registered (allows charging & claiming VAT)
+            VAT registered (allows charging &amp; claiming VAT; ends Turnover Tax)
           </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={!!profile?.auto_charge_vat}
+          <label className={`flex items-center gap-2 text-sm ${!profile?.vat_registered ? 'opacity-50' : ''}`}>
+            <input type="checkbox" checked={!!profile?.vat_registered && !!profile?.auto_charge_vat}
+              disabled={!profile?.vat_registered}
               onChange={(e) => update.mutate({ auto_charge_vat: e.target.checked })} />
-            Charge VAT on sales & invoices
+            Charge VAT on sales &amp; invoices{!profile?.vat_registered && ' (requires VAT registration)'}
+          </label>
+          <label className={`flex items-center gap-2 text-sm ${profile?.vat_registered ? 'opacity-50' : ''}`}>
+            <input type="checkbox" checked={!!profile?.tot_registered && !profile?.vat_registered}
+              disabled={!!profile?.vat_registered}
+              onChange={(e) => update.mutate({ tot_registered: e.target.checked })} />
+            Turnover Tax (TOT) registered (in place of income tax on business income)
           </label>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={!!profile?.tot_registered}
-              onChange={(e) => update.mutate({ tot_registered: e.target.checked })} />
-            Turnover Tax (TOT) registered
+            <input type="checkbox" checked={!!profile?.metadata?.paye_registered}
+              onChange={(e) => update.mutate({ paye_registered: e.target.checked })} />
+            Employer (PAYE, NSSF, SHIF and housing levy by the 9th; also set automatically once payroll runs)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={!!profile?.metadata?.wht_agent}
+              onChange={(e) => update.mutate({ wht_agent: e.target.checked })} />
+            Withholding tax agent (withholding returns by the 20th)
           </label>
         </div>
 

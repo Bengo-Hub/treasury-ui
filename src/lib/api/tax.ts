@@ -742,7 +742,22 @@ export function fileNILReturn(tenantSlug: string, req: NILReturnRequest): Promis
 
 // ---- Tax eligibility / registration profile (Phase 2) ----
 
+/**
+ * The taxes a tenant files, resolved server-side from its registration profile, synced KRA
+ * obligations, the PAYE / withholding switches and payroll activity (tax.TenantObligations). The
+ * compliance calendar and the period estimate show only these.
+ */
+export interface TaxObligations {
+  income_tax: boolean;
+  vat: boolean;
+  tot: boolean;
+  paye: boolean;
+  wht: boolean;
+  profile_known: boolean;
+}
+
 export interface EligibilityPosition {
+  obligations?: TaxObligations;
   tenant_id: string;
   rolling_turnover_12m: string;
   currency: string;
@@ -774,8 +789,16 @@ export interface TaxProfile {
   // Generic settings bag — auto_sync_etims (whether sales/invoices/receipts fiscalise to KRA
   // eTIMS AUTOMATICALLY) lives here rather than its own column. Absent/undefined means the
   // default (true, today's always-on behaviour) — only an explicit `false` turns it off.
-  metadata?: { auto_sync_etims?: boolean; [key: string]: unknown };
+  // paye_registered (employer) and wht_agent (withholding agent) are obligation switches kept in
+  // the same bag.
+  metadata?: { auto_sync_etims?: boolean; paye_registered?: boolean; wht_agent?: boolean; [key: string]: unknown };
 }
+
+export type UpdateTaxProfileRequest = Partial<Pick<TaxProfile, 'kra_pin' | 'vat_registered' | 'tot_registered' | 'auto_charge_vat'>> & {
+  auto_sync_etims?: boolean;
+  paye_registered?: boolean;
+  wht_agent?: boolean;
+};
 
 export function getEligibilityPosition(tenantSlug: string): Promise<EligibilityPosition> {
   return apiClient.get(`${BASE}/${tenantSlug}/tax/eligibility-position`);
@@ -787,7 +810,7 @@ export function getTaxProfile(tenantSlug: string): Promise<TaxProfile> {
 
 export function updateTaxProfile(
   tenantSlug: string,
-  body: Partial<Pick<TaxProfile, 'kra_pin' | 'vat_registered' | 'tot_registered' | 'auto_charge_vat'>> & { auto_sync_etims?: boolean },
+  body: UpdateTaxProfileRequest,
 ): Promise<TaxProfile> {
   return apiClient.put(`${BASE}/${tenantSlug}/tax/profile`, body);
 }

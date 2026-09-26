@@ -425,12 +425,17 @@ export function useTaxProfile(tenantSlug: string) {
 export function useUpdateTaxProfile(tenantSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Partial<{ kra_pin: string; vat_registered: boolean; tot_registered: boolean; auto_charge_vat: boolean; auto_sync_etims: boolean }>) =>
-      taxApi.updateTaxProfile(tenantSlug, body),
+    mutationFn: (body: taxApi.UpdateTaxProfileRequest) => taxApi.updateTaxProfile(tenantSlug, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tax-profile', tenantSlug] });
       qc.invalidateQueries({ queryKey: ['tax-eligibility', tenantSlug] });
+      // Obligations drive the compliance calendar and the period estimate.
+      qc.invalidateQueries({ queryKey: ['tax-position-estimate', tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['tax-compliance-calendar', tenantSlug] });
     },
+    // The server enforces the registration rules (no VAT and TOT together, no VAT charging while
+    // unregistered); surface its message instead of silently leaving the toggle unchanged.
+    onError: (err: any) => toast.error(err?.response?.data?.error || err?.message || 'Failed to update tax profile'),
   });
 }
 

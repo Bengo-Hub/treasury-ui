@@ -126,6 +126,8 @@ export interface PeriodOverview {
   fiscal_year?: FiscalYearRef;
   fiscal_years: FiscalYearRef[];
   period_frequency: 'monthly' | 'quarterly';
+  /** First month with books ("YYYY-MM"): pinned in settings or automatic. No period precedes it. */
+  books_start?: string;
   periods: PeriodSummary[];
   totals: PeriodTotals;
   pending_close: number;
@@ -262,6 +264,14 @@ export function closePeriod(
   periodID: string,
 ): Promise<{ status: string }> {
   return apiClient.post(`${BASE}/${tenantSlug}/ledger/periods/${periodID}/close`);
+}
+
+/** Closes every open, ended period up to and including periodID, oldest first. */
+export function closePeriodsThrough(
+  tenantSlug: string,
+  periodID: string,
+): Promise<{ status: string; closed: number }> {
+  return apiClient.post(`${BASE}/${tenantSlug}/ledger/periods/${periodID}/close-through`);
 }
 
 /**

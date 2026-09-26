@@ -30,17 +30,20 @@ export function FinancialYearTab({ tenantSlug }: { tenantSlug: string }) {
   const [startMonth, setStartMonth] = useState(1);
   const [startDay, setStartDay] = useState(1);
   const [frequency, setFrequency] = useState<PeriodFrequency>('monthly');
+  // "" = automatic (the earlier of registration and the first booked transaction).
+  const [booksStart, setBooksStart] = useState('');
 
   useEffect(() => {
     if (!data) return;
     setStartMonth(data.start_month || 1);
     setStartDay(data.start_day || 1);
     setFrequency(data.period_frequency === 'quarterly' ? 'quarterly' : 'monthly');
+    setBooksStart(data.books_start ?? '');
   }, [data]);
 
   const handleSave = () => {
     updateFY.mutate(
-      { start_month: startMonth, start_day: startDay, period_frequency: frequency },
+      { start_month: startMonth, start_day: startDay, period_frequency: frequency, books_start: booksStart },
       {
         onSuccess: () => toast.success('Financial year saved'),
         onError: (err: any) =>
@@ -133,6 +136,25 @@ export function FinancialYearTab({ tenantSlug }: { tenantSlug: string }) {
               <option value="monthly">Monthly (12 periods)</option>
               <option value="quarterly">Quarterly (4 periods)</option>
             </select>
+          </FormField>
+          <FormField
+            label="Books Start"
+            description="First month the business traded. Leave empty for automatic (registration or first transaction, whichever is earlier). No periods are kept before it."
+          >
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={booksStart}
+                max={new Date().toISOString().slice(0, 7)}
+                onChange={(e) => setBooksStart(e.target.value)}
+                className={`${inputClass} w-48`}
+              />
+              {booksStart && (
+                <button type="button" className="text-xs text-primary hover:underline" onClick={() => setBooksStart('')}>
+                  Use automatic
+                </button>
+              )}
+            </div>
           </FormField>
         </div>
 
