@@ -34,7 +34,18 @@ export function ExpenseStatsPanel({ stats, loading }: { stats?: ExpenseStats; lo
           loading={loading}
           icon={<Receipt className="h-5 w-5" />}
         />
-        <StatCard label="Paid" value={money(stats?.paid, cur)} hint="Paid or reimbursed" tone="success" loading={loading} icon={<CheckCircle2 className="h-5 w-5" />} />
+        <StatCard
+          label="Paid"
+          value={money(stats?.paid, cur)}
+          // Job-cost payments (goods bought for a job, service costs of an invoice) are money out
+          // but not spend: their cost is on the P&L with the invoice.
+          hint={Number(stats?.job_cost_payments ?? 0) > 0
+            ? `Includes ${money(stats?.job_cost_payments, cur)} of job costs (not spend)`
+            : 'Paid or reimbursed'}
+          tone="success"
+          loading={loading}
+          icon={<CheckCircle2 className="h-5 w-5" />}
+        />
         <StatCard label="Outstanding" value={money(stats?.outstanding, cur)} hint="Approved, not yet paid" tone="warning" loading={loading} icon={<Clock className="h-5 w-5" />} />
         <StatCard label="Pending Approval" value={money(stats?.pending_approval, cur)} hint="Submitted, not yet spend" tone="primary" loading={loading} icon={<Hourglass className="h-5 w-5" />} />
       </div>
