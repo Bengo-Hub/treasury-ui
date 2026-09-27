@@ -1,8 +1,8 @@
 # Treasury UI - Sprint MVP Launch
 
 **Target**: March 2026 (aligned with Codevertex MVP)  
-**Status**: ✅ Complete (2026-04-18)  
-**Last updated**: 2026-05-09  
+**Status**: Partially done (re-verified against code 2026-09-27). Everything is in code except the budgets page. The budgets line below was wrongly marked done and is now unticked; see `docs/backlog.md`.  
+**Last updated**: 2026-09-27  
 **Goal**: Ship Codevertex Books (treasury-ui) with SSO, gateway management, transaction visibility, and payout/equity flows for platform and tenant admins.
 
 ---
@@ -39,9 +39,9 @@
 - [x] Platform equity page: add/edit equity holders and royalties; list equity payout history; payout run
 - [x] Permission-based menu and action buttons (from GET /me); protect platform routes
 - [x] Shared public pay page (`/pay`): invoice summary, gateway picker (Paystack, M-Pesa, COD) with official logos; payment modals with QR option and “I paid at till” (see [payment-workflow.md](../../../../shared-docs/payment-workflow.md))
-- [ ] Payout management (rider/merchant)
-- [ ] Export (CSV/Excel) for transactions
-- [ ] Branding from notifications-api (logo, theme)
+- [x] Payout management (rider/merchant) (`platform/payouts` page, verified 2026-09-27)
+- [x] Export (CSV/Excel) for transactions (CSV export on the Transactions page)
+- [x] Branding (logo, theme). Comes from the tenant record via `branding-provider.tsx`, not notifications-api.
 
 ### Completed in this sprint (2026-04-06)
 
@@ -61,7 +61,7 @@
 - [x] Journal Entries page: CRUD + submit/approve/post/reverse + trial balance
 - [x] Reports page: P&L, Balance Sheet, Cash Flow, Tax Summary (tabbed)
 - [x] Tax page: Tax Codes, Tax Periods, eTIMS Devices (tabbed)
-- [x] Budgets page: CRUD + approve + budget vs actual tracking
+- [ ] Budgets page: CRUD + approve + budget vs actual tracking. **Corrected 2026-09-27:** only create, list, approve and recompute actuals exist. There is no edit or delete (treasury-api has no update or delete route), and budget vs actual shows 0 for every UI-created budget because the form never sends `account_id`. In progress (plan budgets-planning-projects-bi-2026-09-27).
 - [x] Accounts page: full CRUD (create/edit/deactivate)
 - [x] Reconciliation page: bank accounts, statement import, auto/manual reconcile
 - [x] Referral Programs page: programs CRUD, referrals, rewards
@@ -82,10 +82,10 @@
 
 ### Nice to Have (P2)
 
-- [ ] Show transaction cost per transaction in list/detail
-- [ ] Recharts dashboards (revenue by gateway, over time)
-- [ ] Reconciliation tools
-- [ ] Audit log viewer
+- [x] Show transaction cost per transaction in list/detail
+- [x] Recharts dashboards (platform analytics revenue trend and stream mix, Business Insights)
+- [x] Reconciliation tools (`banking/reconciliation`)
+- [x] Audit log viewer (`platform/audit`, `accounting/audit-history`)
 
 ---
 

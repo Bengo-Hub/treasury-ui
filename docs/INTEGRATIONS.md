@@ -82,10 +82,11 @@ Payment gateway configuration is **owned by treasury-api and treasury-ui**. Auth
 - [x] Settlements list wired to treasury-api (usePayoutHistory → GET /api/v1/{tenant}/payout/history)
 - [x] Platform equity page: real Paystack balance (usePlatformBalance → GET /api/v1/platform/balance), editable URLs, real payout schedule
 - [x] Fee configuration wired to real fee rules API (usePlatformFeeRules)
-- [x] Invoices, Quotations, Expenses, Bills, Vendors, Journals, Reports, Tax (codes/periods/eTIMS devices), Budgets, Accounts, Reconciliation, Referrals pages
+- [x] Invoices, Quotations, Expenses, Bills, Vendors, Journals, Reports, Tax (codes/periods/eTIMS devices), Accounts, Reconciliation, Referrals pages
+- [ ] Budgets page. Corrected 2026-09-27: create, list, approve and recompute only, with no edit or delete, and actuals show 0 because no `account_id` is sent. In progress (plan budgets-planning-projects-bi-2026-09-27).
 - [x] CSV export for transactions (exportTransactionsCSV → GET /api/v1/{tenant}/analytics/transactions/export)
-- [ ] Payout management (rider/merchant payouts)
-- [ ] eTIMS transmission status UI (Sprint 8 dependency on treasury-api)
-- [ ] Transaction cost column per transaction row
-- [ ] Reconciliation and reporting views (enhanced Recharts dashboards)
-- [ ] Branding from notifications-api (optional)
+- [x] Payout management (rider/merchant payouts) (verified 2026-09-27)
+- [x] eTIMS transmission status UI (Tax page eTIMS sync tab)
+- [x] Transaction cost column per transaction row
+- [x] Reconciliation and reporting views (Recharts on platform analytics and Business Insights)
+- [x] Branding (from the tenant record, not notifications-api)

@@ -59,15 +59,15 @@
 - [x] Real-time transaction list with status filters (GET /api/v1/{tenant}/analytics/transactions).
 - [x] Dashboard metrics and recent transactions (GET /api/v1/{tenant}/analytics/summary, transactions).
 - [ ] Detailed payment intent view.
-- [ ] Reconciliation tools.
-- [ ] Show transaction cost per transaction where applicable.
+- [x] Reconciliation tools (`banking/reconciliation`, verified 2026-09-27).
+- [x] Show transaction cost per transaction where applicable.
 
 ### Sprint 3: Payouts & Settlements
 - [x] Payout/settlement history (GET /api/v1/{tenant}/payout/history).
 - [x] Tenant payout config UI: select Paystack (or gateway), configure payout method (dropdown: Paystack-supported methods), account details, threshold, cycle; show "transaction cost borne by you".
-- [ ] Rider payout management.
-- [ ] Merchant settlement dashboard.
-- [ ] Integration with bank/mobile money APIs.
+- [x] Rider payout management (`platform/payouts`, verified 2026-09-27).
+- [x] Merchant settlement dashboard (`settlements`).
+- [x] Integration with bank/mobile money APIs (bank resolution, M-Pesa and Paystack payouts through treasury-api).
 
 ### Platform & Permissions
 - [x] Platform section (gateways, equity) for super_admin only; redirect from auth-ui.
@@ -83,14 +83,18 @@
 
 **MVP docs (March 2026):** [ux-ui.md](ux-ui.md), [sprint-mvp-launch.md](sprints/sprint-mvp-launch.md), [INTEGRATIONS.md](INTEGRATIONS.md), [mvp-critical-path.md](mvp-critical-path.md). Payment gateway configuration moved from auth-ui to treasury-ui; auth-ui redirects platform admins here.
 
-**Last updated**: 2026-05-09
+**Last updated**: 2026-09-27 (re-verified against code)
 
 ### Sprint Summary
 
 | Sprint | Status | Notes |
 |--------|--------|-------|
-| Sprint 1: Foundation & SSO | ✅ Complete | SSO, layout, gateway management |
-| Sprint 2: Payment Monitoring | ✅ Complete (P0/P1) | Transactions list, dashboard metrics wired to treasury-api. ❌ Pending: detailed payment intent view, reconciliation tools, transaction cost per transaction |
-| Sprint 3: Payouts & Settlements | 🟡 Partial | Payout/settlement history ✅, tenant payout config UI ✅. ❌ Pending: rider payout management, merchant settlement dashboard |
-| Platform & Permissions | ✅ Complete | Platform gateways, equity, RBAC |
-| Sprint MVP Launch | ✅ Complete (2026-04-18) | All P0+P1 items shipped. ❌ Pending (P2): transaction cost per row, Recharts dashboards, audit log viewer |
+| Sprint 1: Foundation & SSO | Done | SSO, layout, gateway management |
+| Sprint 2: Payment Monitoring | Done except the payment intent detail view | Transactions, dashboard metrics, reconciliation and transaction cost are live |
+| Sprint 3: Payouts & Settlements | Done | Payout history, tenant payout config, platform payouts, settlements |
+| Platform & Permissions | Done | Platform gateways, equity, RBAC |
+| Sprint MVP Launch | Partially done | Everything except the budgets page. It only creates, lists and approves; there is no edit or delete, and actuals show 0 |
+| Financial documents platform (docs/sprints/sprint-2) | Partially done | See that doc |
+| Budgets, planning and BI | In progress (plan budgets-planning-projects-bi-2026-09-27) | Budget builder, variance, cash forecast, nine BI reports |
+
+Open items: [backlog.md](backlog.md).
