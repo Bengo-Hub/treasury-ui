@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 interface NavItem {
   label: string;
@@ -353,6 +353,13 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       icon: PieChart,
       children: [
         {
+          // Management view: performance, position, trends, ratios, recurring costs, forecast.
+          label: 'Business Insights',
+          icon: TrendingUp,
+          href: `/${orgSlug}/reports/insights`,
+          active: pathname.startsWith(`/${orgSlug}/reports/insights`),
+        },
+        {
           label: 'Financial Statements',
           icon: PieChart,
           href: `/${orgSlug}/reports`,
@@ -641,10 +648,13 @@ function NavGroupItem({
   const groupBadge = group.children.reduce((n, c) => n + (c.badge ?? 0), 0);
   const [expanded, setExpanded] = useState(hasActiveChild || (group.defaultOpen ?? false));
 
-  // Auto-expand when a child becomes active via navigation
-  useEffect(() => {
+  // Auto-expand when a child becomes active via navigation (adjusted during render when the
+  // active state changes, not in an effect, so there is no extra render pass).
+  const [prevActive, setPrevActive] = useState(hasActiveChild);
+  if (hasActiveChild !== prevActive) {
+    setPrevActive(hasActiveChild);
     if (hasActiveChild) setExpanded(true);
-  }, [hasActiveChild]);
+  }
 
   const toggle = useCallback(() => setExpanded((v) => !v), []);
 

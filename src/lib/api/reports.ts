@@ -196,3 +196,111 @@ export function getRevenueByOutlet(
 ): Promise<RevenueByOutletReport> {
   return apiClient.get(`${BASE}/${tenantSlug}/reports/revenue-by-outlet`, params);
 }
+
+// ---- Business Insights ----
+
+/** A money figure as the API sends it (decimal string). */
+type Money = string;
+
+export interface InsightsTotals {
+  revenue: Money;
+  cost_of_sales: Money;
+  gross_profit: Money;
+  expenses: Money;
+  net_profit: Money;
+  months: number;
+}
+
+export interface InsightsPosition {
+  cash: Money;
+  receivables: Money;
+  inventory: Money;
+  current_assets: Money;
+  fixed_assets: Money;
+  payables: Money;
+  current_liabilities: Money;
+  equity: Money;
+}
+
+export interface InsightsRatios {
+  gross_margin_pct: number | null;
+  net_margin_pct: number | null;
+  expense_ratio_pct: number | null;
+  current_ratio: number | null;
+  quick_ratio: number | null;
+  days_sales_outstanding: number | null;
+  days_payables_outstanding: number | null;
+  monthly_burn: number | null;
+  runway_months: number | null;
+}
+
+export interface InsightsMonth {
+  month: string;
+  revenue: Money;
+  cost_of_sales: Money;
+  expenses: Money;
+  net_profit: Money;
+  cash_change: Money;
+  cash_balance: Money;
+}
+
+export interface InsightsLine {
+  account_id: string;
+  code: string;
+  name: string;
+  amount: Money;
+  previous: Money;
+  change_pct: number | null;
+  share_pct: number | null;
+}
+
+export interface InsightsForecastMonth {
+  month: string;
+  revenue: Money;
+  revenue_low: Money;
+  revenue_high: Money;
+  cost_of_sales: Money;
+  expenses: Money;
+  net_profit: Money;
+  collections: Money;
+  supplier_payout: Money;
+  cash_balance: Money;
+}
+
+export interface InsightsReport {
+  from: string;
+  to: string;
+  compare: 'previous' | 'last_year';
+  compare_from: string;
+  compare_to: string;
+  current: InsightsTotals;
+  previous: InsightsTotals;
+  changes: Partial<Record<'revenue' | 'gross_profit' | 'expenses' | 'net_profit', number | null>>;
+  position: InsightsPosition;
+  previous_position: InsightsPosition;
+  ratios: InsightsRatios;
+  health_score: number;
+  health: { name: string; score: number; detail: string }[];
+  monthly: InsightsMonth[] | null;
+  revenue_lines: InsightsLine[] | null;
+  expense_lines: InsightsLine[] | null;
+  top_customers: { customer: string; invoices: number; sales: Money }[] | null;
+  recurring: { name: string; source: 'template' | 'pattern'; frequency: string; monthly_average: Money; months_seen: number; last_amount: Money }[] | null;
+  recurring_monthly: Money;
+  forecast: InsightsForecastMonth[] | null;
+  forecast_method: string;
+  findings: { level: 'good' | 'warning' | 'info'; text: string }[] | null;
+}
+
+export interface InsightsParams {
+  from?: string;
+  to?: string;
+  compare?: 'previous' | 'last_year';
+  /** Forecast months, 1 to 12. */
+  horizon?: number;
+}
+
+/** Business Insights: performance, position, ratios, trends, recurring costs and a forecast. */
+export function getInsights(tenantSlug: string, params: InsightsParams): Promise<InsightsReport> {
+  return apiClient.get(`${BASE}/${tenantSlug}/reports/insights`, params);
+}
