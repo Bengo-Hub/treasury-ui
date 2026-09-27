@@ -207,6 +207,15 @@ export function getExpenseStats(tenantIdOrSlug: string, params?: ExpensesParams)
  * to buy. Services: SERVICE/VOUCHER line costs accrued with the revenue (Dr 5410 / Cr 2150), paid
  * and outstanding.
  */
+/** One good to buy (or bought) for a job. */
+export interface JobGoodsLine {
+  item_id?: string;
+  sku?: string;
+  description: string;
+  quantity: string | number;
+  unit_cost: string | number;
+}
+
 export interface InvoiceJobCosts {
   invoice_id: string;
   goods: {
@@ -214,29 +223,49 @@ export interface InvoiceJobCosts {
     from_stock: string;
     bought: string;
     to_buy: string;
+    /** Closed: purchasing complete; variance = actual (from stock + bought) minus costed. */
+    variance: string;
+    closed: boolean;
     /** False: inventory has not reported the stock position, so all goods count as to buy. */
     evaluated: boolean;
     po_numbers: string[];
+    to_buy_lines: JobGoodsLine[];
   };
-  services: { accrued: string; paid: string; outstanding: string };
+  /** own_staff: labour done by the business's own staff (wages reassigned, no bank movement). */
+  services: { accrued: string; paid: string; own_staff: string; outstanding: string };
 }
 
-export type JobCostKind = 'goods' | 'service';
+/** service_own_staff covers a service cost with own staff: no bank account, wages reassigned. */
+export type JobCostKind = 'goods' | 'service' | 'service_own_staff';
 
 export function getInvoiceJobCosts(tenantIdOrSlug: string, invoiceId: string): Promise<InvoiceJobCosts> {
   return apiClient.get<InvoiceJobCosts>(`${BASE}/${tenantIdOrSlug}/expenses/job-costs/${invoiceId}`);
 }
 
+export interface PayJobCostBody {
+  kind: JobCostKind;
+  amount: number;
+  /** Required except for service_own_staff. */
+  paid_from_account_id?: string;
+  paid_at?: string;
+  description?: string;
+  /** Goods: what was bought (received into stock for the sale). */
+  lines?: JobGoodsLine[];
+  /** Goods: this completes the purchasing (the actual price may differ; the variance is posted). */
+  close_after_pay?: boolean;
+}
+
 /**
- * Pays a job cost from a real bank or cash account: goods bought for the job (a linked expense
- * against Inventory) or the accrued service cost (against the accrual). Capped at what is unpaid.
+ * Records a job cost: goods bought for the job (paid from a bank against Inventory), the accrued
+ * service cost paid from a bank, or a service cost covered by own staff. Capped at what is unpaid.
  */
-export function payInvoiceJobCost(
-  tenantIdOrSlug: string,
-  invoiceId: string,
-  body: { kind: JobCostKind; amount: number; paid_from_account_id: string; paid_at?: string; description?: string },
-): Promise<Expense> {
-  return apiClient.post<Expense>(`${BASE}/${tenantIdOrSlug}/expenses/job-costs/${invoiceId}/pay`, body);
+export function payInvoiceJobCost(tenantIdOrSlug: string, invoiceId: string, body: PayJobCostBody): Promise<Expense | { status: string }> {
+  return apiClient.post<Expense | { status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/job-costs/${invoiceId}/pay`, body);
+}
+
+/** Completes (closed=true) or reopens the goods purchasing of a job. */
+export function closeInvoiceJobGoods(tenantIdOrSlug: string, invoiceId: string, closed: boolean): Promise<InvoiceJobCosts> {
+  return apiClient.post<InvoiceJobCosts>(`${BASE}/${tenantIdOrSlug}/expenses/job-costs/${invoiceId}/close`, { closed });
 }
 
 export function getExpense(tenantIdOrSlug: string, id: string): Promise<Expense> {

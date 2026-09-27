@@ -8,6 +8,7 @@ import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { PaymentsTab } from './_components/payments-tab';
 import { PaymentDetailsTab } from './_components/payment-details-tab';
 import { FinancialYearTab } from './_components/financial-year-tab';
+import { InventoryPolicyCard } from './_components/inventory-policy-card';
 import {
   Banknote,
   Bell,
@@ -323,8 +324,9 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* Financial Year — per-tenant fiscal-year start month/day */}
-        <TabsContent value="financial-year">
+        <TabsContent value="financial-year" className="space-y-6">
           <FinancialYearTab tenantSlug={tenantSlug} />
+          <InventoryPolicyCard tenantSlug={tenantSlug} />
         </TabsContent>
 
         {/* Notifications */}

@@ -40,7 +40,12 @@ export interface LineRow {
  * committed, or record the purchase from the invoice's Job Costs panel).
  */
 function StockHint({ line }: { line: LineRow }) {
-  if (line.on_hand == null || itemTypeKind(line.item_type) !== 'goods') return null;
+  if (itemTypeKind(line.item_type) !== 'goods') return null;
+  // No buying cost: the sale would record a cost of goods of zero and overstate the profit.
+  if (!line.unit_cost) {
+    return <p className="text-[10px] text-rose-600 mt-0.5 pl-5">No cost price: set the buying cost so the profit is right</p>;
+  }
+  if (line.on_hand == null) return null;
   const onHand = Math.max(0, line.on_hand);
   const short = Math.max(0, (line.quantity || 0) - onHand);
   if (short <= 0) {

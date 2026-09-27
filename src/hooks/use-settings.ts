@@ -6,8 +6,10 @@ import {
   updateFiscalYear,
   getFYClosePreview,
   postFYClose,
+  getInventoryPolicy,
+  updateInventoryPolicy,
 } from '@/lib/api/settings';
-import type { ServiceConfig, UpdateFiscalYearRequest } from '@/lib/api/settings';
+import type { InventoryPolicy, ServiceConfig, UpdateFiscalYearRequest } from '@/lib/api/settings';
 
 export function useSettings(tenantSlug: string) {
   return useQuery({
@@ -45,6 +47,23 @@ export function useUpdateFiscalYear(tenantSlug: string) {
       // Saving (re)generates the year's periods.
       qc.invalidateQueries({ queryKey: ['accounting-periods', tenantSlug] });
     },
+  });
+}
+
+/** When sold goods leave stock (invoice or delivery). */
+export function useInventoryPolicy(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['inventory-policy', tenantSlug],
+    queryFn: () => getInventoryPolicy(tenantSlug),
+    enabled: !!tenantSlug,
+  });
+}
+
+export function useUpdateInventoryPolicy(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: InventoryPolicy) => updateInventoryPolicy(tenantSlug, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['inventory-policy', tenantSlug] }),
   });
 }
 
