@@ -136,6 +136,11 @@ export interface FYClosePreview {
   periods_to_close: FYPeriodRef[];
   already_closed: boolean;
   warning?: string;
+  /** First day the tenant has books for. */
+  books_start?: string;
+  /** False for a year that ends before the books start or has not ended yet (see reason). */
+  closable?: boolean;
+  reason?: string;
 }
 
 export interface FYCloseResult {

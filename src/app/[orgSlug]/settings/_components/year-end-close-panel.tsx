@@ -32,6 +32,9 @@ export function YearEndClosePanel({ tenantSlug }: { tenantSlug: string }) {
 
   const data = preview.data;
   const alreadyClosed = data?.already_closed === true;
+  // Older API responses sent null for empty lists; treat them as empty.
+  const periods = data?.periods_to_close ?? [];
+  const closable = data?.closable !== false;
 
   const runPreview = () => {
     setPreviewYear(year);
@@ -130,15 +133,21 @@ export function YearEndClosePanel({ tenantSlug }: { tenantSlug: string }) {
               <Metric label="Net Income" value={data.net_income} highlight />
             </div>
 
-            <ClosingTable lines={data.closing_lines} debit={data.closing_total_debit} credit={data.closing_total_credit} />
+            {!closable && !alreadyClosed && data.reason && (
+              <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3 text-xs text-sky-800 dark:text-sky-300" role="status">
+                {data.reason}
+              </div>
+            )}
 
-            {data.periods_to_close.length > 0 && (
+            <ClosingTable lines={data.closing_lines ?? []} debit={data.closing_total_debit} credit={data.closing_total_credit} />
+
+            {periods.length > 0 && (
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                  Periods to close ({data.periods_to_close.length})
+                  Periods to close ({periods.length})
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {data.periods_to_close.map((p) => (
+                  {periods.map((p) => (
                     <Badge key={p.id} variant={p.status === 'closed' ? 'secondary' : 'outline'}>
                       {p.name}
                       {p.status === 'closed' ? ' ✓' : ''}
@@ -157,11 +166,11 @@ export function YearEndClosePanel({ tenantSlug }: { tenantSlug: string }) {
                 <Badge variant="success" className="self-center">
                   <ShieldCheck className="h-3 w-3 inline mr-1" /> Closed
                 </Badge>
-              ) : (
+              ) : closable ? (
                 <Button size="sm" variant="destructive" onClick={() => setConfirmOpen(true)}>
                   Close {data.fiscal_year_label}…
                 </Button>
-              )}
+              ) : null}
             </div>
           </div>
         )}
@@ -177,7 +186,7 @@ export function YearEndClosePanel({ tenantSlug }: { tenantSlug: string }) {
             <div className="rounded-lg bg-accent/10 border border-border p-3 text-sm space-y-1">
               <Row k="Net income → Retained Earnings" v={data?.net_income ?? '—'} />
               <Row k="Closing entry total (Dr=Cr)" v={data?.closing_total_debit ?? '—'} />
-              <Row k="Periods sealed" v={String(data?.periods_to_close.length ?? 0)} />
+              <Row k="Periods sealed" v={String(periods.length)} />
             </div>
             <p className="text-xs text-muted-foreground">
               This cannot be undone from here. If you posted in error, reverse the closing journal
