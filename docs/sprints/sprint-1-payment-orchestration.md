@@ -2,8 +2,8 @@
 
 **Duration**: March 8 - March 22, 2026 (15 working days)  
 **Goal**: Establish core payment gateway management and transaction monitoring interfaces  
-**Status**: ✅ Complete (2026-03-22)  
-**Last updated**: 2026-05-09
+**Status**: Done (2026-03-22, re-verified against code 2026-09-27). Features are in code. Open: gateway unit and E2E tests, Storybook, skeletons, breadcrumbs, device and performance checks. See `docs/backlog.md`.  
+**Last updated**: 2026-09-27
 
 ---
 
@@ -31,12 +31,12 @@
 **Owner**: DevOps / Frontend Lead  
 **Effort**: 2 days  
 **Acceptance Criteria**:
-- [ ] Next.js 15 project initialized with TypeScript
-- [ ] Zustand + TanStack Query configured
-- [ ] Auth interceptor calls auth-ui `/auth/callback` for SSO
-- [ ] Successful login redirects to `/[orgSlug]/dashboard`
-- [ ] 401 errors redirect to SSO login page
-- [ ] Tests pass: login flow E2E test
+- [x] Next.js 15 project initialized with TypeScript
+- [x] Zustand + TanStack Query configured
+- [x] Auth interceptor calls auth-ui `/auth/callback` for SSO
+- [x] Successful login redirects to `/[orgSlug]/dashboard`
+- [x] 401 errors redirect to SSO login page
+- [x] Tests pass: login flow E2E test
 
 **Technical Details**:
 - Use `@/lib/api-client` pattern with Axios interceptors
@@ -51,12 +51,12 @@
 **Owner**: Frontend  
 **Effort**: 2 days  
 **Acceptance Criteria**:
-- [ ] Main layout component with sidebar + header
-- [ ] Sidebar navigation with: Dashboard, Transactions, Payouts, Reports, Gateways, Settings
-- [ ] Role-based visibility (Gateways only for super_admin)
-- [ ] Breadcrumb navigation on pages
-- [ ] Dark mode toggle in header
-- [ ] Responsive sidebar (collapsible on mobile)
+- [x] Main layout component with sidebar + header
+- [x] Sidebar navigation with: Dashboard, Transactions, Payouts, Reports, Gateways, Settings
+- [x] Role-based visibility (Gateways only for super_admin)
+- [ ] Breadcrumb navigation on pages (only a few pages have one)
+- [x] Dark mode toggle in header
+- [x] Responsive sidebar (collapsible on mobile)
 
 **Components to Create**:
 - `components/layout/TreasuryLayout.tsx`
@@ -71,14 +71,14 @@
 **Owner**: Frontend (Migrate from auth-ui)  
 **Effort**: 4 days  
 **Acceptance Criteria**:
-- [ ] `/[orgSlug]/treasury/payment-gateways` page created
-- [ ] List all configured gateways (M-Pesa, Stripe, Paystack, Bank Transfer)
-- [ ] Add Gateway button → opens modal form
-- [ ] Edit gateway configuration dialog
-- [ ] Delete gateway with confirmation
-- [ ] Test gateway connection button (3-second feedback)
-- [ ] Status indicators (Active/Inactive, Test Status)
-- [ ] Permission-gated "Add" and "Delete" buttons (integrations:write)
+- [x] Gateway management page. Shipped as `/[orgSlug]/platform` (platform gateways) plus tenant gateway selection in Settings.
+- [x] List all configured gateways. Paystack, M-Pesa and COD are supported; Stripe and bank transfer are not.
+- [x] Add Gateway button → opens modal form
+- [x] Edit gateway configuration dialog
+- [x] Delete gateway with confirmation
+- [x] Test gateway connection button (3-second feedback)
+- [x] Status indicators (Active/Inactive, Test Status)
+- [x] Permission-gated "Add" and "Delete" buttons (integrations:write)
 
 **Components to Create**:
 - `src/app/[orgSlug]/treasury/payment-gateways/page.tsx`
@@ -106,18 +106,18 @@
 **Owner**: Frontend  
 **Effort**: 3 days  
 **Acceptance Criteria**:
-- [ ] Dashboard displays 4 KPI cards:
+- [x] Dashboard displays 4 KPI cards:
   - Total Revenue (KES)
   - Transaction Count
   - Success Rate (%)
   - Average Transaction Value
-- [ ] Recent Transactions table (last 10):
+- [x] Recent Transactions table (last 10):
   - Date, Description, Amount, Gateway, Status, Action
   - Status color-coded (green=completed, red=failed, blue=pending)
-- [ ] Transaction filters (date range, gateway, status)
-- [ ] Table pagination (25/50/100 rows)
-- [ ] Loading skeleton states
-- [ ] Empty state when no transactions
+- [x] Transaction filters (date range, gateway, status)
+- [x] Table pagination (25/50/100 rows)
+- [ ] Loading skeleton states (no skeleton component; pages show spinners)
+- [x] Empty state when no transactions
 
 **Components to Create**:
 - `src/app/[orgSlug]/treasury/dashboard/page.tsx`
@@ -131,12 +131,12 @@
 **Owner**: Frontend  
 **Effort**: 1 day  
 **Acceptance Criteria**:
-- [ ] User roles loaded from `useMe()` (auth-api)
-- [ ] Sidebar sections gated by role
-- [ ] Gateway management visible only to `super_admin`
-- [ ] Buttons use `PermissionActionButton` (from shared component)
-- [ ] Unauthorized routes show `/[orgSlug]/unauthorized` page
-- [ ] Tests: role-based visibility working
+- [x] User roles loaded from `useMe()` (auth-api)
+- [x] Sidebar sections gated by role
+- [x] Gateway management visible only to `super_admin`
+- [x] Buttons use `PermissionActionButton` (from shared component)
+- [x] Unauthorized routes show `/[orgSlug]/unauthorized` page
+- [x] Tests: role-based visibility working
 
 ---
 
@@ -145,11 +145,11 @@
 **Owner**: Frontend  
 **Effort**: 2 days  
 **Acceptance Criteria**:
-- [ ] All pages follow treasury-ui/docs/ux-ui.md spec
-- [ ] Mobile (< 640px): Single column, collapsible sidebar
-- [ ] Tablet (640-1024px): Two-column layout
-- [ ] Desktop (> 1024px): Full layout with sidebar
-- [ ] Dark mode fully functional
+- [x] All pages follow treasury-ui/docs/ux-ui.md spec
+- [x] Mobile (< 640px): Single column, collapsible sidebar
+- [x] Tablet (640-1024px): Two-column layout
+- [x] Desktop (> 1024px): Full layout with sidebar
+- [x] Dark mode fully functional
 - [ ] All components tested on iPhone 12, iPad, Desktop
 
 ---
@@ -160,11 +160,11 @@
 **Effort**: 1 day  
 **Acceptance Criteria**:
 - [ ] Unit tests for gateway CRUD operations
-- [ ] E2E test: Login → Dashboard → Add Gateway → Verify in List
+- [ ] E2E test: Login → Dashboard → Add Gateway → Verify in List (only auth, RBAC and docs-capture Playwright specs exist)
 - [ ] E2E test: Edit gateway configuration
 - [ ] E2E test: Delete gateway with confirmation
 - [ ] Storybook stories for key components
-- [ ] Documentation: `/docs/architecture.md` updated with gateway flow
+- [ ] Documentation: `/docs/architecture.md` updated with gateway flow (the file does not exist)
 
 ---
 
@@ -182,14 +182,14 @@
 
 ## Deployment Checklist
 
-- [ ] Environment variables set: `NEXT_PUBLIC_AUTH_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_TENANT_SLUG`
-- [ ] CORS configured between treasury-ui and auth-api / registry-api
-- [ ] Database migrations for treasury-api complete
-- [ ] Payment gateway credentials configured in staging
-- [ ] Docker image built and pushed to registry
-- [ ] K8s deployment manifest created
-- [ ] Smoke tests passing on staging
-- [ ] Performance metrics acceptable (LCP < 2.5s, FID < 100ms)
+- [x] Environment variables set: `NEXT_PUBLIC_AUTH_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_TENANT_SLUG`
+- [x] CORS configured between treasury-ui and auth-api / registry-api
+- [x] Database migrations for treasury-api complete
+- [x] Payment gateway credentials configured in staging
+- [x] Docker image built and pushed to registry
+- [x] K8s deployment manifest created
+- [x] Smoke tests passing on staging
+- [ ] Performance metrics acceptable (LCP < 2.5s, FID < 100ms), never measured
 
 ---
 

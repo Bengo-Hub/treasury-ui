@@ -30,9 +30,9 @@
 - [x] Real Paystack balance on equity page (live from `GET /platform/balance`)
 - [x] Editable auto-generated integration URLs (inline edit + save)
 - [x] Real payout schedule projection (computed from holder frequencies)
-- [ ] Payout management (rider/merchant payouts)
-- [ ] Export (CSV/Excel) for transactions
-- [ ] Branding from notifications-api (optional)
+- [x] Payout management (rider/merchant payouts) (verified 2026-09-27)
+- [x] Export (CSV/Excel) for transactions (CSV)
+- [x] Branding (from the tenant record, not notifications-api)
 
 ---
 

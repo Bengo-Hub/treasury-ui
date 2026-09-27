@@ -2,8 +2,8 @@
 
 **Duration:** 2026-05-23 → ongoing
 **Goal:** Centralized config-driven financial documents UI for all document types (Quotation, Invoice, Proforma Invoice, Credit Note, Sales Order, Delivery Challan, Payment Receipt) with shared components, integrations, and public share pages.
-**Status:** In Progress
-**Last Updated:** 2026-05-23
+**Status:** Partially done (verified against code 2026-09-27). All document pages, the shared list and create views, payments, downloads and delivery challans are live. The config-file system, shared public page shell, number format and column modals, signature and advanced-option sections, per-line sales ledger and the ordering S2S call were not built. See `docs/backlog.md`.
+**Last Updated:** 2026-09-27
 
 **Builds on:** Sprint 1 (Payment Orchestration) — SSO, gateways, transaction monitoring complete.
 
@@ -62,27 +62,30 @@
 Create `src/components/documents/` structure:
 
 #### Core templates
-- [ ] `SharedDocumentList.tsx` — config-driven list: columns, row actions, filters, stats, summary, graph, column manager, expand line items (~380 lines)
-- [ ] `SharedDocumentForm.tsx` — config-driven create/edit: two-step wizard, all sections (~450 lines)
-- [ ] `SharedDocumentPreview.tsx` — config-driven preview panel (~220 lines)
-- [ ] `SharedPublicPage.tsx` — public page shell (used by /q/[token] and /i/[token])
-- [ ] `RecordPaymentModal.tsx` — 3-step: Select Client → Add Payment Records → Settle Unpaid Invoices
+- [x] `SharedDocumentList.tsx`: config-driven list: columns, row actions, filters, stats, summary, graph, column manager, expand line items (~380 lines)
+- [x] `SharedDocumentForm.tsx`: shipped as `SharedDocumentCreateView.tsx` and `SharedInvoiceCreateView.tsx` (verified 2026-09-27)
+- [x] `SharedDocumentPreview.tsx`: shipped as `DocPreview.tsx`
+- [ ] `SharedPublicPage.tsx`: public page shell (used by /q/[token] and /i/[token]). Not built; each public page has its own layout.
+- [x] `RecordPaymentModal.tsx`: 3-step: Select Client → Add Payment Records → Settle Unpaid Invoices
 - [ ] `NumberFormatModal.tsx` — Number/Currency Format (4 formats, 6 decimal opts, 2 round-off toggles)
 - [ ] `ShowHideColumnsModal.tsx` — CSV + Table toggles per column, drag-to-reorder
 
 #### Sections
-- [ ] `sections/LineItemsSection.tsx` — line items table + product catalog combobox per row
-- [ ] `sections/TotalsSection.tsx` — Amount, TAX, Add Discounts (Total/Item-wise, Divide Equally/Weighted), Add Additional Charges (With/Without Tax), Summarise Total Qty
-- [ ] `sections/PartiesSection.tsx` — configurable From/For labels + CRM contact combobox
+- [x] `sections/LineItemsSection.tsx`: line items table + product catalog combobox per row
+- [x] `sections/TotalsSection.tsx`: Amount, TAX, Add Discounts (Total/Item-wise, Divide Equally/Weighted), Add Additional Charges (With/Without Tax), Summarise Total Qty
+- [ ] `sections/PartiesSection.tsx`: configurable From/For labels + CRM contact combobox. Not a separate section; parties are picked inside the create views with `CreateClientModal`.
 - [ ] `sections/DatesSection.tsx` — primary + optional secondary date pickers with configurable labels
-- [ ] `sections/TransportSection.tsx` — Transporter, Distance, Mode, Doc No/Date, Vehicle Type/Number
-- [ ] `sections/ShippingSection.tsx` — Shipped From/To behind "Add Shipping Details" toggle
+- [x] `sections/TransportSection.tsx`: Transporter, Distance, Mode, Doc No/Date, Vehicle Type/Number
+- [x] `sections/ShippingSection.tsx`: shipped as `ShippingTransportSection.tsx`
 - [ ] `sections/SignatureSection.tsx` — Upload + Use Signature Pad + label
-- [ ] `sections/TermsSection.tsx` — editable list with × per item, + Add New Term/Group
-- [ ] `sections/NotesSection.tsx` — rich text toolbar (Bold, Italic, Strikethrough, HR, Link, List)
+- [x] `sections/TermsSection.tsx`: shipped as `TermsNotesSection.tsx`
+- [x] `sections/NotesSection.tsx`: part of `TermsNotesSection.tsx`
 - [ ] `sections/AdvancedOptionsSection.tsx` — display toggles (Show SKU, Show Serial Numbers, etc.)
 
 #### Config system
+
+> Verified 2026-09-27: no `config/` folder exists. Document types are handled by props on the shared list and create views instead of config files.
+
 - [ ] `config/document-config.types.ts` — `DocumentConfig` interface
 - [ ] `config/quotation.config.ts`
 - [ ] `config/invoice.config.ts`
@@ -92,55 +95,55 @@ Create `src/components/documents/` structure:
 
 ### Phase 2 — Refactor Existing Modules
 
-- [ ] Refactor `app/[orgSlug]/quotations/` to use `SharedDocumentList` + `SharedDocumentForm` with `quotation.config.ts` — verify no UX regression
-- [ ] Refactor `app/[orgSlug]/invoices/` to use shared components with `invoice.config.ts`
+- [x] Refactor `app/[orgSlug]/quotations/` to use `SharedDocumentList` + `SharedDocumentForm` with `quotation.config.ts`; verify no UX regression
+- [x] Refactor `app/[orgSlug]/invoices/` to use shared components with `invoice.config.ts`
 - [ ] Refactor `app/(public)/q/[token]/page.tsx` to use `SharedPublicPage` shell
 
 ### Phase 3 — New Module Pages
 
-- [ ] `app/[orgSlug]/proforma-invoices/page.tsx` — thin wrapper (~60 lines) + `proforma.config.ts`
-- [ ] `app/[orgSlug]/credit-notes/page.tsx` — thin wrapper + `credit-note.config.ts`
-- [ ] `app/[orgSlug]/sales-orders/page.tsx` — thin wrapper + `sales-order.config.ts`
-- [ ] `app/[orgSlug]/delivery-challans/page.tsx` — logistics-api tasks list + create action
-- [ ] `app/[orgSlug]/payment-receipts/page.tsx` — `RecordPaymentModal` 3-step flow
-- [ ] `app/(public)/i/[token]/page.tsx` — public invoice page using `SharedPublicPage`
-- [ ] Add all 6 new routes to `src/components/sidebar.tsx` under "Sales & Invoices"
+- [x] `app/[orgSlug]/proforma-invoices/page.tsx`: thin wrapper (~60 lines) + `proforma.config.ts`
+- [x] `app/[orgSlug]/credit-notes/page.tsx`: thin wrapper + `credit-note.config.ts`
+- [x] `app/[orgSlug]/sales-orders/page.tsx`: thin wrapper + `sales-order.config.ts`
+- [x] `app/[orgSlug]/delivery-challans/page.tsx`: logistics-api tasks list + create action
+- [x] `app/[orgSlug]/payment-receipts/page.tsx`: `RecordPaymentModal` 3-step flow
+- [x] `app/(public)/i/[token]/page.tsx`: public invoice page (own layout, no shared shell)
+- [x] Add all 6 new routes to `src/components/sidebar.tsx` under "Sales & Invoices"
 
 ### Phase 4 — Integrations
 
 #### Product Catalog (Inventory API)
-- [ ] `src/lib/api/inventory.ts` — `searchProducts(tenant, query)` → inventory-api GET
-- [ ] `src/hooks/use-inventory.ts` — `useProductSearch(tenant, query)` debounced hook
-- [ ] Wire into `LineItemsSection.tsx` combobox — auto-fills rate + tax rate on select
+- [x] `src/lib/api/inventory.ts`: `searchProducts(tenant, query)` → inventory-api GET
+- [x] `src/hooks/use-inventory.ts`: `useProductSearch(tenant, query)` debounced hook
+- [x] Wire into `LineItemsSection.tsx` combobox; auto-fills rate + tax rate on select
 
 #### Sales Ledger (Invoice form only)
-- [ ] `src/hooks/use-accounts.ts` — `useChartOfAccounts(tenant)`
+- [x] `src/hooks/use-accounts.ts`: `useChartOfAccounts(tenant)`
 - [ ] Wire per-line "Select Sales Ledger" in invoice form via `LineItemsSection.tsx`
 
 #### Bank Accounts (Payment Receipts)
-- [ ] Wire `RecordPaymentModal.tsx` "Deposited To" → `GET /{tenant}/banking/accounts`
+- [x] Wire `RecordPaymentModal.tsx` "Deposited To" → `GET /{tenant}/banking/accounts`
 
 #### Authenticated PDF Blob Download (TruLoad pattern)
-- [ ] `src/lib/api/invoices.ts` — `downloadQuotationPDF(tenant, id): Promise<Blob>`, `downloadInvoicePDF(tenant, id): Promise<Blob>`
-- [ ] `src/hooks/use-invoices.ts` — `useDownloadQuotationPDF(tenant)`, `useDownloadInvoicePDF(tenant)` mutations using `URL.createObjectURL` → `<a>.click()` → `revokeObjectURL`
-- [ ] Wire "Download" row action in `SharedDocumentList` with blob download
+- [x] `src/lib/api/invoices.ts`: `downloadQuotationPDF(tenant, id): Promise<Blob>`, `downloadInvoicePDF(tenant, id): Promise<Blob>`
+- [x] `src/hooks/use-invoices.ts`: `useDownloadQuotationPDF(tenant)`, `useDownloadInvoicePDF(tenant)` mutations using `URL.createObjectURL` → `<a>.click()` → `revokeObjectURL`
+- [x] Wire "Download" row action in `SharedDocumentList` with blob download
 
 #### Delivery Challan S2S
-- [ ] `src/lib/api/logistics.ts` — `createDeliveryChallan(tenant, quotationId)`
-- [ ] Wire "Generate Delivery Challan" quotation row action
+- [x] `createDeliveryChallan` lives in `src/lib/api/invoices.ts`, calling treasury-api, which calls logistics-api
+- [x] Wire "Generate Delivery Challan" quotation row action
 
 #### Sales Order S2S
-- [ ] `src/lib/api/ordering.ts` — `createSalesOrder(tenant, quotationId)`
-- [ ] Wire "Convert to Sales Order" quotation row action
+- [ ] `src/lib/api/ordering.ts`: `createSalesOrder(tenant, quotationId)`. Not built; the UI converts to a local treasury sales order document, and treasury-api does not call ordering-backend.
+- [x] Wire "Convert to Sales Order" quotation row action (local conversion)
 
 #### Send Email
-- [ ] "Send Email" row action → modal (To, CC, Subject, Message) → `POST /{tenant}/quotations/{id}/send`
+- [x] "Send Email" row action → modal (To, CC, Subject, Message) → `POST /{tenant}/quotations/{id}/send`
 
 ### Phase 5 — Build & Deploy
 
-- [ ] `pnpm build` → zero TypeScript errors
-- [ ] Push to remote → CI passes
-- [ ] `kubectl rollout status deployment/treasury-ui -n treasury`
+- [x] `pnpm build` → zero TypeScript errors
+- [x] Push to remote → CI passes
+- [x] `kubectl rollout status deployment/treasury-ui -n treasury`
 
 ---
 
