@@ -1,6 +1,5 @@
 'use client';
 
-import { useCallback } from 'react';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { usePlatformOverview } from '@/hooks/use-platform-analytics';
 import { useOutletFilterStore } from '@/store/outlet-filter';
@@ -19,10 +18,8 @@ import { TopCustomers } from '@/components/dashboard/TopCustomers';
 import { BooksBalancedBadge } from '@/components/dashboard/BooksBalancedBadge';
 import { PeriodCloseReminder } from '@/components/dashboard/PeriodCloseReminder';
 import { RangePicker, useRange, type RangeState } from '@/components/dashboard/RangePicker';
-import { Banknote, CheckCircle2, Activity, Users, Loader2, Printer } from 'lucide-react';
-import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
-import { downloadRevenueReport } from '@/lib/api/documents';
-import { toast } from 'sonner';
+import { Banknote, CheckCircle2, Activity, Users, Loader2 } from 'lucide-react';
+import { ExportMenu } from '@/components/documents/ExportMenu';
 
 /**
  * Dashboard — a thin shell that composes self-contained, reusable analytics widgets (each owns
@@ -63,14 +60,16 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
           <BooksBalancedBadge tenant={dashTenant} />
         </div>
-        <div className="flex items-center gap-2">
-          <RevenueReportButton tenant={dashTenant} from={from} to={to} />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Detailed Business Performance Report for the range and outlet (PDF / CSV / Excel). */}
+          <ExportMenu tenant={dashTenant} path="analytics/revenue-report" fileBase="Business Performance Report"
+            title="Business Performance Report" params={{ from, to }} />
           <RangePicker range={range} />
         </div>
       </header>
@@ -95,32 +94,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
-  );
-}
-
-/**
- * RevenueReportButton previews the tenant's branded Revenue report PDF (from the treasury reports
- * engine) in the shared PdfPreview modal — Download / Print / Open-in-tab — for the active range.
- */
-function RevenueReportButton({ tenant, from, to }: { tenant: string; from: string; to: string }) {
-  const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
-  const onClick = useCallback(() => {
-    openPreview(() => downloadRevenueReport(tenant, 'pdf', from, to).then((r) => r.blob), {
-      fileName: 'revenue-report.pdf',
-      title: 'Revenue Report',
-    });
-  }, [openPreview, tenant, from, to]);
-  return (
-    <>
-      <button
-        type="button"
-        onClick={onClick}
-        className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent/50 transition-colors"
-      >
-        <Printer className="h-4 w-4" /> Print / Export
-      </button>
-      <PdfPreview {...previewProps} />
-    </>
   );
 }
 

@@ -57,48 +57,28 @@ export function downloadPublicQuotationPdf(
   return apiClient.getBlob(`${BASE}/public/quotations/${publicToken}/pdf`, `${fallbackName}.pdf`);
 }
 
-/**
- * Analytics report documents (PDF/CSV) — tabular, tenant-branded reports rendered by the
- * treasury reports engine. Streamed inline (no ?download) so they preview-first in the shared
- * PdfPreview modal, mirroring the invoice endpoints. `format` defaults to pdf.
- */
-export function downloadRevenueReport(
-  tenant: string,
-  format: 'pdf' | 'csv' = 'pdf',
-  from?: string,
-  to?: string
-): Promise<{ blob: Blob; fileName: string }> {
-  return apiClient.getBlob(`${BASE}/${tenant}/analytics/revenue-report`, `revenue-report.${format}`, { format, from, to });
-}
-
 /** Formats every server-side document export supports (central report engine). */
 export type ExportFormat = 'pdf' | 'csv' | 'xlsx';
 
 /**
  * Generic document export: GETs `/{tenant}/{path}?format=` plus the page's filters and returns the
- * file. Every accounting export (journals, trial balance, periods, expenses, statements, bank
- * statements, ...) goes through this one call; see treasury-api docs/general-ledger.md "5e".
+ * file. Every report export (journals, trial balance, periods, expenses, statements, bank
+ * statements, Business Insights, the dashboard's Business Performance Report, ...) goes through
+ * this one call; see treasury-api docs/general-ledger.md "5e" and "5k".
  */
 export function downloadExport(
   tenant: string,
   path: string,
   format: ExportFormat,
-  fileBase: string,
+  fallbackName: string,
   params?: Record<string, string | number | boolean | undefined>,
 ): Promise<{ blob: Blob; fileName: string }> {
   const clean = Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== ''));
-  return apiClient.getBlob(`${BASE}/${tenant}/${path.replace(/^\//, '')}`, `${fileBase}.${format}`, { ...clean, format });
+  // The server names the file (tenant, outlet, document, date); fallbackName is used only without one.
+  return apiClient.getBlob(`${BASE}/${tenant}/${path.replace(/^\//, '')}`, fallbackName, { ...clean, format });
 }
 
-export function downloadMoneyFlowReport(
-  tenant: string,
-  format: 'pdf' | 'csv' = 'pdf',
-  from?: string,
-  to?: string
-): Promise<{ blob: Blob; fileName: string }> {
-  return apiClient.getBlob(`${BASE}/${tenant}/analytics/money-flow-report`, `money-flow-report.${format}`, { format, from, to });
-}
-
+/** Platform commission / revenue-by-tenant report (superuser). Streamed inline for the preview. */
 export function downloadPlatformRevenueReport(
   format: 'pdf' | 'csv' = 'pdf',
   from?: string,

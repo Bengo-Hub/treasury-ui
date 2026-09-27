@@ -1,5 +1,6 @@
 'use client';
 
+import { useExportFileName } from '@/hooks/use-export-file-name';
 import { Card, CardContent, CardHeader } from '@/components/ui/base';
 import { usePlatformByService, usePlatformByTenant, usePlatformOverview } from '@/hooks/use-platform-analytics';
 import { useDateRangeFilter } from '@/hooks/use-date-range-filter';
@@ -45,12 +46,13 @@ export default function PlatformAnalyticsPage() {
   );
 
   const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
+  const nameFor = useExportFileName({ outletScoped: false });
   const previewPlatformReport = useCallback(() => {
     openPreview(
       () => downloadPlatformRevenueReport('pdf', from || undefined, to || undefined, tenantIds || undefined).then((r) => r.blob),
-      { fileName: 'platform-revenue-report.pdf', title: 'Platform Revenue Report' }
+      { fileName: nameFor('Platform Revenue Report', 'pdf'), title: 'Platform Revenue Report' }
     );
-  }, [openPreview, from, to, tenantIds]);
+  }, [openPreview, from, to, tenantIds, nameFor]);
 
   // "Tenant Summary" reuses the exact same platform-revenue report the header's Print/Export
   // button downloads — it already IS the per-tenant GMV/commission/net-payable/transaction-count
@@ -58,9 +60,9 @@ export default function PlatformAnalyticsPage() {
   const previewTenantSummary = useCallback(() => {
     openPreview(
       () => downloadPlatformRevenueReport('pdf', from || undefined, to || undefined, tenantIds || undefined).then((r) => r.blob),
-      { fileName: 'tenant-summary.pdf', title: 'Tenant Summary' }
+      { fileName: nameFor('Tenant Summary', 'pdf'), title: 'Tenant Summary' }
     );
-  }, [openPreview, from, to, tenantIds]);
+  }, [openPreview, from, to, tenantIds, nameFor]);
 
   // "Transaction Details" is a raw CSV of every payment transaction in the period — too large/
   // tabular for the PDF preview modal, so it opens as a direct browser download, matching the
