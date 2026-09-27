@@ -6,13 +6,15 @@ import { toast } from 'sonner';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadExport, type ExportFormat } from '@/lib/api/documents';
 import { downloadBlob } from '@/lib/utils/download-blob';
+import { useExportFileName } from '@/hooks/use-export-file-name';
 import { cn } from '@/lib/utils';
 
 interface ExportMenuProps {
   tenant: string;
   /** Export path under the tenant, e.g. "ledger/trial-balance/export". */
   path: string;
-  /** Base file name, e.g. "trial-balance". */
+  /** Document name used for the file when the server sends none, e.g. "Trial Balance". The
+   *  server normally names the file (tenant, document, generation date). */
   fileBase: string;
   /** Title shown on the PDF preview. */
   title: string;
@@ -31,20 +33,26 @@ interface ExportMenuProps {
 export function ExportMenu({ tenant, path, fileBase, title, params, className, disabled }: ExportMenuProps) {
   const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
   const [busy, setBusy] = useState<ExportFormat | null>(null);
+  const nameFor = useExportFileName();
+  // The preview opens before the file arrives, so its download name starts as the local
+  // convention and switches to the server's name (Content-Disposition) once it is known.
+  const [pdfName, setPdfName] = useState<string | null>(null);
 
   const run = useCallback(
     async (format: ExportFormat) => {
       if (!tenant) return;
       if (format === 'pdf') {
-        openPreview(() => downloadExport(tenant, path, 'pdf', fileBase, params).then((r) => r.blob), {
-          fileName: `${fileBase}.pdf`,
-          title,
-        });
+        const fallback = nameFor(fileBase, 'pdf');
+        setPdfName(null);
+        openPreview(() => downloadExport(tenant, path, 'pdf', fallback, params).then((r) => {
+          setPdfName(r.fileName);
+          return r.blob;
+        }), { fileName: fallback, title });
         return;
       }
       setBusy(format);
       try {
-        const { blob, fileName } = await downloadExport(tenant, path, format, fileBase, params);
+        const { blob, fileName } = await downloadExport(tenant, path, format, nameFor(fileBase, format), params);
         downloadBlob(blob, fileName);
       } catch (e: any) {
         toast.error(e?.message || `Failed to export ${format.toUpperCase()}`);
@@ -52,7 +60,7 @@ export function ExportMenu({ tenant, path, fileBase, title, params, className, d
         setBusy(null);
       }
     },
-    [tenant, path, fileBase, title, params, openPreview],
+    [tenant, path, fileBase, title, params, openPreview, nameFor],
   );
 
   const btn =
@@ -70,7 +78,7 @@ export function ExportMenu({ tenant, path, fileBase, title, params, className, d
           {busy === 'xlsx' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />} Excel
         </button>
       </div>
-      <PdfPreview {...previewProps} />
+      <PdfPreview {...previewProps} fileName={pdfName ?? previewProps.fileName} />
     </>
   );
 }

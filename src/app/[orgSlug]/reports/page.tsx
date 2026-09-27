@@ -1,5 +1,6 @@
 'use client';
 
+import { useExportFileName } from '@/hooks/use-export-file-name';
 import { Badge, Card, CardContent } from '@/components/ui/base';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -477,6 +478,7 @@ function ProfitLossTab({ tenantSlug, window }: { tenantSlug: string; window: Rep
 // ---- P&L Summary (source-document aggregation) ----
 
 function ProfitLossSummaryTab({ tenantSlug, window }: { tenantSlug: string; window: ReportWindow }) {
+  const nameFor = useExportFileName();
   const { data, isLoading, isError } = useProfitLossSummary(tenantSlug, window);
 
   return (
@@ -575,7 +577,7 @@ function ProfitLossSummaryTab({ tenantSlug, window }: { tenantSlug: string; wind
                       periodLabel={periodLabel}
                       kpis={kpis}
                       csv={{
-                        filename: `profit-and-loss-summary_${suffix}.csv`,
+                        filename: nameFor(`Profit and Loss Summary ${suffix}`, 'csv'),
                         title: 'Profit & Loss Summary',
                         periodLabel,
                         columns: [{ header: 'Item' }, { header: 'Amount', align: 'right' as const }],

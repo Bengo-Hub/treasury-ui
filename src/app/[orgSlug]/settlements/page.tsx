@@ -1,5 +1,6 @@
 'use client';
 
+import { useExportFileName } from '@/hooks/use-export-file-name';
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildPayoutColumns } from './payout-columns';
@@ -17,6 +18,7 @@ import {
 import { useMemo, useState } from 'react';
 
 export default function SettlementsPage() {
+  const nameFor = useExportFileName({ outletScoped: false }); // payouts are tenant-wide
   const { tenantPathId, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
   // Default to the platform owner's own tenant (codevertex); drill-down overrides.
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
@@ -49,7 +51,7 @@ export default function SettlementsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `settlements-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = nameFor('Settlements', 'csv');
     a.click();
     URL.revokeObjectURL(url);
   }

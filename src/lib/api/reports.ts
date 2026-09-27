@@ -289,6 +289,8 @@ export interface InsightsReport {
   recurring_monthly: Money;
   forecast: InsightsForecastMonth[] | null;
   forecast_method: string;
+  /** False when the comparison period has no activity: hide comparison columns and changes. */
+  has_comparison: boolean;
   findings: { level: 'good' | 'warning' | 'info'; text: string }[] | null;
 }
 

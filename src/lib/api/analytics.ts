@@ -3,6 +3,7 @@
  * Base path: /api/v1/{tenantIdOrSlug} — tenant from URL (slug supported via JWT fallback in backend).
  */
 
+import { exportFileName } from '@/lib/utils/export-file-name';
 import { apiClient } from './client';
 
 const BASE = '/api/v1';
@@ -120,15 +121,18 @@ export function exportTransactionsCSV(
   fetch(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
-    .then(res => {
+    .then(async res => {
       if (!res.ok) throw new Error(`Export failed: ${res.status}`);
-      return res.blob();
+      // The server names the file (tenant, document, date); fall back to the same convention.
+      const cd = res.headers.get('Content-Disposition') ?? '';
+      const name = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i)?.[1];
+      return { blob: await res.blob(), name: name || exportFileName('', '', 'Payment Transactions', 'csv') };
     })
-    .then(blob => {
+    .then(({ blob, name }) => {
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = `transactions_${params?.from ?? 'all'}_${params?.to ?? 'all'}.csv`;
+      a.download = name;
       document.body.appendChild(a);
       a.click();
       a.remove();

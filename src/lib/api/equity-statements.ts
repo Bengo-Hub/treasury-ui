@@ -81,7 +81,7 @@ export function getHolderStatement(
 
 /**
  * Export a holder's statement as PDF or CSV, streamed inline (matching every
- * other report export in this codebase — see `downloadRevenueReport` in
+ * other report export in this codebase — see `downloadExport` in
  * `lib/api/documents.ts`). Callers decide what to do with the blob: PDF goes
  * through the shared preview-first flow (`useDocumentPreview`/`PdfPreview`),
  * CSV triggers a direct browser download (too tabular to preview inline).

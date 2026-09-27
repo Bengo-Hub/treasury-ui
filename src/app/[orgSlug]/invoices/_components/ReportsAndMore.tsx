@@ -1,5 +1,6 @@
 'use client';
 
+import { useExportFileName } from '@/hooks/use-export-file-name';
 import { BarChart3, Download, TrendingUp, Clock, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react';
 import { useInvoiceStats, useInvoiceGraph, useInvoiceSummary, useARSummary, useARAging } from '@/hooks/use-invoices';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
@@ -29,6 +30,7 @@ export function ReportsAndMore({ effectiveTenant }: ReportsAndMoreProps) {
   const { data: ar } = useARSummary(effectiveTenant, enabled);
   const { data: aging } = useARAging(effectiveTenant, enabled);
   const [exporting, setExporting] = useState(false);
+  const nameFor = useExportFileName();
 
   if (!effectiveTenant) return null;
 
@@ -85,7 +87,7 @@ export function ReportsAndMore({ effectiveTenant }: ReportsAndMoreProps) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `invoices-${effectiveTenant}-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = nameFor('Invoices', 'csv');
       a.click();
       URL.revokeObjectURL(url);
     } finally {
