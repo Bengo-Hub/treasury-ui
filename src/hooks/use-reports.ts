@@ -95,3 +95,13 @@ export function useRevenueByOutlet(tenantSlug: string, window: ReportWindow, ena
     enabled: enabled && !!tenantSlug && windowReady(window),
   });
 }
+
+/** Business Insights report for a window, comparison basis and forecast horizon. */
+export function useInsights(tenantSlug: string, params: reportsApi.InsightsParams, outletId?: string) {
+  return useQuery({
+    queryKey: ['report-insights', tenantSlug, params.from ?? '', params.to ?? '', params.compare ?? '', params.horizon ?? 0, outletId ?? ''],
+    queryFn: () => reportsApi.getInsights(tenantSlug, params),
+    enabled: !!tenantSlug && !!params.from && !!params.to,
+    staleTime: 60_000,
+  });
+}
