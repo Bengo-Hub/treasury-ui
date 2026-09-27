@@ -78,7 +78,7 @@ export function JobCostsPanel({ tenant, invoiceId, invoiceNumber, currency = 'KE
           {goods.toBuy > 0 && (
             <Button size="sm" onClick={() => setPaying('goods')}>Buy goods for this job</Button>
           )}
-          {(!data.goods.evaluated || data.goods.po_numbers.length > 0) && (
+          {((!data.goods.evaluated && goods.toBuy > 0) || data.goods.po_numbers.length > 0) && (
             <p className="w-full text-[11px] text-muted-foreground">
               {data.goods.po_numbers.length > 0
                 ? `Purchase orders raised in inventory: ${data.goods.po_numbers.join(', ')}. Receiving them records the purchase; buying here instead cancels the drafts.`
