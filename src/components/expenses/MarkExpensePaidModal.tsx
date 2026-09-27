@@ -1,15 +1,14 @@
 'use client';
 
 import { Button } from '@/components/ui/base';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
+import { Combobox } from '@/components/ui/combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
-import { useBankAccounts } from '@/hooks/use-bank-accounts';
-import { bankAccountHint } from '@/lib/api/bank-accounts';
+import { usePaidFromAccounts } from '@/hooks/use-paid-from-accounts';
 import type { Expense } from '@/lib/api/expenses';
 import { formatCurrency } from '@/lib/utils/currency';
-import { nowDatetimeLocal, datetimeLocalToISO, resolveDefaultAccount } from '@bengo-hub/shared-ui-lib/payments';
-import { useMemo, useState } from 'react';
+import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/payments';
+import { useState } from 'react';
 
 interface Props {
   tenant: string;
@@ -31,19 +30,8 @@ interface Props {
 // such — internally consistent, but meant a payment "from" a real bank account never posted
 // against that account's own leaf).
 export function MarkExpensePaidModal({ tenant, expense, onClose, onConfirm, pending }: Props) {
-  const { data: bankAccountsData } = useBankAccounts(tenant);
-  const options = useMemo<ComboboxOption[]>(
-    () =>
-      (bankAccountsData?.bank_accounts ?? [])
-        .filter((a) => a.is_active !== false)
-        .map((a) => ({ value: a.id, label: a.account_name, hint: bankAccountHint(a) })),
-    [bankAccountsData],
-  );
   // Default to a cash-type account when present, else leave empty (backend default).
-  const defaultAccount = useMemo(
-    () => resolveDefaultAccount(bankAccountsData?.bank_accounts)?.id ?? '',
-    [bankAccountsData],
-  );
+  const { options, defaultAccountId: defaultAccount } = usePaidFromAccounts(tenant);
   const [accountId, setAccountId] = useState<string>('');
   const [paidAtLocal, setPaidAtLocal] = useState(nowDatetimeLocal());
   const effective = accountId || defaultAccount;
