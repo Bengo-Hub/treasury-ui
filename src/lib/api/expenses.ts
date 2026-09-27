@@ -187,6 +187,9 @@ export interface ExpenseStats {
   paid: string;
   outstanding: string;
   pending_approval: string;
+  /** Payments settling an invoice's job cost: cash out, never spend (counted in paid only). */
+  job_cost_payments: string;
+  job_cost_count: number;
   by_status: { status: string; count: number; amount: string }[];
   by_category: { category_id?: string; category_name: string; count: number; amount: string }[];
   monthly: { month: string; count: number; amount: string }[];
