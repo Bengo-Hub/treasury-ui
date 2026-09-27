@@ -8,7 +8,7 @@ import { useDocRowAction } from '@/hooks/use-doc-row-action';
 import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
 import {
   sendInvoice, voidInvoice, duplicateInvoice, markPaid, recordPayment,
-  convertProformaToInvoice, createCreditNote,
+  convertToInvoice, createCreditNote,
 } from '@/lib/api/invoices';
 import { Ban, CheckCircle, Copy, DollarSign, ExternalLink, FileText, FileMinus, Loader2, Pencil, Send, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -49,7 +49,7 @@ export default function ProformaInvoicesPage() {
     view_public: { label: 'View Public Page', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank') },
     edit: { label: 'Edit', icon: <Pencil className="h-3.5 w-3.5" />, onClick: (r) => setEdit({ id: r.id, tenant: src.rowTenant(r) || src.docTenant }) },
     send: { label: 'Send', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => run(() => sendInvoice(src.rowTenant(r), r.id), `Proforma ${r.doc_number} sent`) },
-    convert_to_invoice: { label: 'Convert to Invoice', icon: <FileText className="h-3.5 w-3.5" />, onClick: (r) => run(() => convertProformaToInvoice(src.rowTenant(r), r.id), `Converted ${r.doc_number} to invoice`) },
+    convert_to_invoice: { label: 'Convert to Invoice', icon: <FileText className="h-3.5 w-3.5" />, onClick: (r) => run(() => convertToInvoice(src.rowTenant(r), r.id), `Converted ${r.doc_number} to invoice`) },
     record_payment: { label: 'Record Payment', icon: <DollarSign className="h-3.5 w-3.5" />, onClick: (r) => setPaymentDialog({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) },
     mark_paid: { label: 'Mark as Paid', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (r) => run(() => markPaid(src.rowTenant(r), r.id), `${r.doc_number} marked paid`) },
     create_credit_note: { label: 'Create Credit Note', icon: <FileMinus className="h-3.5 w-3.5" />, onClick: (r) => run(() => createCreditNote(src.rowTenant(r), r.id), `Credit note created for ${r.doc_number}`) },

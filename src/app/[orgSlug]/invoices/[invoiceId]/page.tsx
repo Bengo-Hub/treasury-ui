@@ -37,7 +37,7 @@ import { EtimsResponseModal } from '@/components/tax/etims-response-modal';
 import { useTransmitInvoice, useIsEtimsActive } from '@/hooks/use-tax';
 import { MarginPanel } from '@/components/documents/MarginPanel';
 import { LinkedCostsPanel } from '@/components/documents/LinkedCostsPanel';
-import { ServiceCostPanel } from '@/components/documents/ServiceCostPanel';
+import { JobCostsPanel } from '@/components/documents/JobCostsPanel';
 import { moduleForDocType } from '@/lib/documents/approvals';
 
 function StatusBadge({ status }: { status: string }) {
@@ -564,7 +564,7 @@ export default function InvoiceDetailPage() {
 
         {/* Business-only linked costs (e.g. the delivery/transport cost recorded as a Freight &
             Shipping expense for this invoice). Internal — never on the customer PDF. */}
-        <ServiceCostPanel tenant={effectiveTenant} invoiceId={invoice.id} invoiceNumber={invoice.invoice_number} currency={invoice.currency} />
+        <JobCostsPanel tenant={effectiveTenant} invoiceId={invoice.id} invoiceNumber={invoice.invoice_number} currency={invoice.currency} />
         <LinkedCostsPanel tenant={effectiveTenant} invoiceId={invoice.id} currency={invoice.currency} />
 
         {/* Notes & Terms */}

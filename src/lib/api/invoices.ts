@@ -736,7 +736,8 @@ export function setDeliveryStatus(
   return apiClient.post<{ status: string }>(`${BASE}/${tenant}/invoices/${invoiceId}/delivery-status`, body);
 }
 
-export function convertProformaToInvoice(tenant: string, invoiceId: string): Promise<{ status: string; invoice: Invoice }> {
+/** Converts a proforma invoice or a sales order into a draft invoice (once; 409 on a repeat). */
+export function convertToInvoice(tenant: string, invoiceId: string): Promise<{ status: string; invoice: Invoice }> {
   return apiClient.post<{ status: string; invoice: Invoice }>(`${BASE}/${tenant}/invoices/${invoiceId}/convert-to-invoice`, {});
 }
 

@@ -6,8 +6,8 @@ import { useDocumentListSource } from '@/hooks/use-document-list-source';
 import { useDocumentActions } from '@/hooks/use-document-actions';
 import { useDocRowAction } from '@/hooks/use-doc-row-action';
 import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
-import { sendInvoice, voidInvoice, duplicateInvoice, generateDeliveryNote } from '@/lib/api/invoices';
-import { Ban, Copy, ExternalLink, Pencil, Send, Truck } from 'lucide-react';
+import { sendInvoice, voidInvoice, duplicateInvoice, generateDeliveryNote, convertToInvoice } from '@/lib/api/invoices';
+import { Ban, Copy, ExternalLink, FileText, Pencil, Send, Truck } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -36,7 +36,10 @@ export default function SalesOrdersPage() {
     view_details: { label: 'View Details', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => router.push(`/${src.detailHrefTenant(r)}/invoices/${r.id}`) },
     view_public: { label: 'View Public Page', icon: <ExternalLink className="h-3.5 w-3.5" />, onClick: (r) => r.public_token && window.open(`/i/${r.public_token}`, '_blank') },
     edit: { label: 'Edit', icon: <Pencil className="h-3.5 w-3.5" />, onClick: (r) => setEdit({ id: r.id, tenant: src.rowTenant(r) || src.docTenant }) },
-    send: { label: 'Send', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => run(() => sendInvoice(src.rowTenant(r), r.id), `Sales order ${r.doc_number} sent`) },
+    // Confirming commits the business to supplying the goods: inventory raises purchase orders
+    // for whatever is not in stock.
+    send: { label: 'Confirm Order', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => run(() => sendInvoice(src.rowTenant(r), r.id), `Sales order ${r.doc_number} confirmed; goods not in stock will be ordered`) },
+    convert_to_invoice: { label: 'Convert to Invoice', icon: <FileText className="h-3.5 w-3.5" />, onClick: (r) => run(() => convertToInvoice(src.rowTenant(r), r.id), `Invoice created from ${r.doc_number}`) },
     generate_delivery_note: { label: 'Generate Delivery Note', icon: <Truck className="h-3.5 w-3.5" />, onClick: (r) => run(() => generateDeliveryNote(src.rowTenant(r), r.id), `Delivery note generated for ${r.doc_number}`) },
     duplicate: { label: 'Duplicate', icon: <Copy className="h-3.5 w-3.5" />, onClick: (r) => run(() => duplicateInvoice(src.rowTenant(r), r.id), 'Sales order duplicated') },
     void: { label: 'Void', icon: <Ban className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => voidInvoice(src.rowTenant(r), r.id), `Sales order ${r.doc_number} voided`) },
@@ -50,7 +53,9 @@ export default function SalesOrdersPage() {
     <>
     <SharedDocumentList
       title="Sales Orders"
-      subtitle={src.isAggregate ? 'All tenants — confirmed customer orders ready for fulfilment.' : 'Confirmed customer orders ready for fulfilment.'}
+      subtitle={src.isAggregate
+        ? 'All tenants: customer orders the business has committed to supply.'
+        : 'Commit to supplying a customer before invoicing. Confirming an order has goods not in stock ordered; convert it to the invoice and delivery note when ready.'}
       createLabel={src.isAggregate ? undefined : 'Create Sales Order'}
       onCreateClick={src.isAggregate ? undefined : () => setShowCreate(true)}
       rows={filtered}

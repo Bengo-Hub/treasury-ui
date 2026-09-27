@@ -199,27 +199,41 @@ export function getExpenseStats(tenantIdOrSlug: string, params?: ExpensesParams)
 }
 
 /**
- * An invoice's service cost: the SERVICE/VOUCHER line costs accrued with the revenue (Dr 5410 /
- * Cr 2150), how much has been paid from a bank or cash account, and what is still owed.
+ * An invoice's job costs. Goods: the COGS it expensed, what came from stock already held, what was
+ * bought for the job (purchase-order bills, purchases paid here, tagged journals) and what is still
+ * to buy. Services: SERVICE/VOUCHER line costs accrued with the revenue (Dr 5410 / Cr 2150), paid
+ * and outstanding.
  */
-export interface InvoiceServiceCost {
+export interface InvoiceJobCosts {
   invoice_id: string;
-  accrued: string;
-  paid: string;
-  outstanding: string;
+  goods: {
+    cost: string;
+    from_stock: string;
+    bought: string;
+    to_buy: string;
+    /** False: inventory has not reported the stock position, so all goods count as to buy. */
+    evaluated: boolean;
+    po_numbers: string[];
+  };
+  services: { accrued: string; paid: string; outstanding: string };
 }
 
-export function getInvoiceServiceCost(tenantIdOrSlug: string, invoiceId: string): Promise<InvoiceServiceCost> {
-  return apiClient.get<InvoiceServiceCost>(`${BASE}/${tenantIdOrSlug}/expenses/service-cost/${invoiceId}`);
+export type JobCostKind = 'goods' | 'service';
+
+export function getInvoiceJobCosts(tenantIdOrSlug: string, invoiceId: string): Promise<InvoiceJobCosts> {
+  return apiClient.get<InvoiceJobCosts>(`${BASE}/${tenantIdOrSlug}/expenses/job-costs/${invoiceId}`);
 }
 
-/** Pays (part of) the service cost from a real account: a linked expense against the accrual. */
-export function payInvoiceServiceCost(
+/**
+ * Pays a job cost from a real bank or cash account: goods bought for the job (a linked expense
+ * against Inventory) or the accrued service cost (against the accrual). Capped at what is unpaid.
+ */
+export function payInvoiceJobCost(
   tenantIdOrSlug: string,
   invoiceId: string,
-  body: { amount: number; paid_from_account_id: string; paid_at?: string; description?: string },
+  body: { kind: JobCostKind; amount: number; paid_from_account_id: string; paid_at?: string; description?: string },
 ): Promise<Expense> {
-  return apiClient.post<Expense>(`${BASE}/${tenantIdOrSlug}/expenses/service-cost/${invoiceId}/pay`, body);
+  return apiClient.post<Expense>(`${BASE}/${tenantIdOrSlug}/expenses/job-costs/${invoiceId}/pay`, body);
 }
 
 export function getExpense(tenantIdOrSlug: string, id: string): Promise<Expense> {

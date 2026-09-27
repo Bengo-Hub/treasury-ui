@@ -134,6 +134,8 @@ export function CreateItemModal({ tenant, initialName = '', onCreated, onClose }
         unit_cost: item.cost_price != null
           ? (parseFloat(item.cost_price) || 0)
           : (form.cost_price ? (parseFloat(form.cost_price) || 0) : undefined),
+        // A newly created item holds no stock: the line shows it must be bought for the job.
+        on_hand: 0,
         tax_code: item.tax_code || form.tax_code || undefined,
         // inventory persists the code, not the rate — carry the rate derived from
         // the selected treasury tax code so the line taxes correctly.
