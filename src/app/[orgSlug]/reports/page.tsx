@@ -22,6 +22,7 @@ import type {
   ReportSection,
 } from '@/lib/api/reports';
 import { ReportDocument, type ReportKpi } from '@/components/reports/ReportDocument';
+import { ExportMenu } from '@/components/documents/ExportMenu';
 import { ReportTable, type ReportTableSection } from '@/components/reports/ReportTable';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { CHART_COLORS, SERIES, compactNumber, money } from '@/components/charts/chart-theme';
@@ -85,6 +86,31 @@ const LEDGER_COLUMNS = [
   { header: 'Account' },
   { header: 'Amount', align: 'right' as const, className: 'w-40' },
 ];
+
+const STATEMENT_TITLE: Record<string, string> = {
+  'profit-loss': 'Profit & Loss Statement', 'balance-sheet': 'Balance Sheet',
+  'cash-flow': 'Cash Flow Statement', 'tax-summary': 'Tax Summary',
+};
+
+/**
+ * Server export (PDF / CSV / Excel) of a statement, built by the same function as the screen,
+ * for the ReportDocument exporter slot (replaces the browser print and client CSV).
+ */
+function StatementExport({ tenantSlug, statement, params }: {
+  tenantSlug: string;
+  statement: 'profit-loss' | 'balance-sheet' | 'cash-flow' | 'tax-summary';
+  params: object;
+}) {
+  return (
+    <ExportMenu
+      tenant={tenantSlug}
+      path={`reports/${statement}/export`}
+      fileBase={statement}
+      title={STATEMENT_TITLE[statement]}
+      params={params as Record<string, string | undefined>}
+    />
+  );
+}
 
 // ---- Reporting basis (date range / fiscal year / accounting period) ----
 
@@ -386,7 +412,6 @@ function ProfitLossTab({ tenantSlug, window }: { tenantSlug: string; window: Rep
   ];
 
   const periodLabel = reportPeriodLabel(data);
-  const suffix = windowSuffix(data, data?.from, data?.to);
 
   return (
     <div className="space-y-6">
@@ -434,16 +459,9 @@ function ProfitLossTab({ tenantSlug, window }: { tenantSlug: string; window: Rep
             return (
               <ReportDocument
                 title="Profit & Loss Statement"
+                exporter={<StatementExport tenantSlug={tenantSlug} statement="profit-loss" params={window} />}
                 periodLabel={periodLabel}
                 kpis={kpis}
-                csv={{
-                  filename: `profit-and-loss_${suffix}.csv`,
-                  title: 'Profit & Loss Statement',
-                  periodLabel,
-                  columns: LEDGER_COLUMNS,
-                  sections: displaySections,
-                  grandTotal,
-                }}
               >
                 <ReportTable columns={LEDGER_COLUMNS} sections={displaySections} grandTotal={grandTotal} />
               </ReportDocument>
@@ -726,7 +744,6 @@ function BalanceSheetTab({
     : data?.fiscal_year
       ? `Fiscal year ${data.fiscal_year}${asOf ? ` (as at ${formatDate(asOf)})` : ''}`
       : asOfLabel(asOf);
-  const suffix = windowSuffix(data, asOf, undefined) || asOf;
 
   return (
     <div className="space-y-6">
@@ -737,15 +754,9 @@ function BalanceSheetTab({
       {!isLoading && !isError && data && (
         <ReportDocument
           title="Balance Sheet"
+          exporter={<StatementExport tenantSlug={tenantSlug} statement="balance-sheet" params={params} />}
           periodLabel={periodLabel}
           kpis={kpis}
-          csv={{
-            filename: `balance-sheet_${suffix}.csv`,
-            title: 'Balance Sheet',
-            periodLabel,
-            columns: LEDGER_COLUMNS,
-            sections,
-          }}
         >
           {/* Accounting check: Assets = Liabilities + Equity */}
           <div
@@ -807,7 +818,6 @@ function CashFlowTab({ tenantSlug, window }: { tenantSlug: string; window: Repor
   ];
 
   const periodLabel = reportPeriodLabel(data);
-  const suffix = windowSuffix(data, data?.from, data?.to);
 
   return (
     <div className="space-y-6">
@@ -839,16 +849,9 @@ function CashFlowTab({ tenantSlug, window }: { tenantSlug: string; window: Repor
             return (
               <ReportDocument
                 title="Cash Flow Statement"
+                exporter={<StatementExport tenantSlug={tenantSlug} statement="cash-flow" params={window} />}
                 periodLabel={periodLabel}
                 kpis={kpis}
-                csv={{
-                  filename: `cash-flow_${suffix}.csv`,
-                  title: 'Cash Flow Statement',
-                  periodLabel,
-                  columns: LEDGER_COLUMNS,
-                  sections,
-                  grandTotal,
-                }}
               >
                 <ReportTable columns={LEDGER_COLUMNS} sections={sections} grandTotal={grandTotal} />
               </ReportDocument>
@@ -874,7 +877,6 @@ function TaxSummaryTab({ tenantSlug, window }: { tenantSlug: string; window: Rep
 
   const sections = data ? sectionsToTable(data.sections) : [];
   const periodLabel = reportPeriodLabel(data);
-  const suffix = windowSuffix(data, data?.from, data?.to);
 
   return (
     <div className="space-y-6">
@@ -885,15 +887,9 @@ function TaxSummaryTab({ tenantSlug, window }: { tenantSlug: string; window: Rep
       {!isLoading && !isError && data && (
         <ReportDocument
           title="Tax Summary"
+          exporter={<StatementExport tenantSlug={tenantSlug} statement="tax-summary" params={window} />}
           periodLabel={periodLabel}
           kpis={kpis.length ? kpis : undefined}
-          csv={{
-            filename: `tax-summary_${suffix}.csv`,
-            title: 'Tax Summary',
-            periodLabel,
-            columns: LEDGER_COLUMNS,
-            sections,
-          }}
         >
           <ReportTable columns={LEDGER_COLUMNS} sections={sections} />
         </ReportDocument>

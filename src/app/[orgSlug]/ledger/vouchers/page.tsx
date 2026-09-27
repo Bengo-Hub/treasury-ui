@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { CreateLedgerEntryDialog } from '@/components/ledger/CreateLedgerEntryDialog';
+import { ExportMenu } from '@/components/documents/ExportMenu';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
@@ -11,6 +12,7 @@ import type { JournalEntry } from '@/lib/api/ledger';
 import { cn } from '@/lib/utils';
 import { BookOpen, Plus, Receipt, RefreshCw, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { usePageReset } from '@/hooks/use-page-reset';
 
 const voucherTypes = ['payment', 'receipt', 'journal', 'sales', 'purchase'] as const;
 
@@ -24,24 +26,24 @@ export default function VouchersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
 
+  const [pageSize, setPageSize] = useState(50);
+  // Search and paging run server-side across every entry; the voucher-type chip narrows the page.
+  const filterParams = useMemo(() => ({
+    ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+    ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+  }), [statusFilter, searchQuery]);
+  const [page, setPage] = usePageReset([filterParams, pageSize]);
   const { data, isLoading, error, refetch, isFetching } = useJournalEntries(
     effectiveTenant,
-    statusFilter !== 'all' ? { status: statusFilter } : undefined,
+    { ...filterParams, page, limit: pageSize },
   );
 
   const entries = data?.entries ?? [];
-  const voucherEntries = useMemo(() => {
-    const query = searchQuery.toLowerCase();
-    return entries.filter((entry) => {
-      const voucherType = voucherTypeOf(entry);
-      const matchesType = typeFilter === 'all' || voucherType === typeFilter;
-      const matchesSearch =
-        entry.entry_number.toLowerCase().includes(query) ||
-        entry.description?.toLowerCase().includes(query) ||
-        voucherType.includes(query);
-      return matchesType && matchesSearch;
-    });
-  }, [entries, searchQuery, typeFilter]);
+  const total = data?.total ?? 0;
+  const voucherEntries = useMemo(
+    () => entries.filter((entry) => typeFilter === 'all' || voucherTypeOf(entry) === typeFilter),
+    [entries, typeFilter],
+  );
 
   const summaryByType = useMemo(() => {
     return voucherTypes.reduce(
@@ -159,8 +161,21 @@ export default function VouchersPage() {
                   loadingRows={8}
                   error={!!error}
                   storageKey="vouchers-table"
-                  showExportCsv
-                  exportFileName="vouchers"
+                  page={page}
+                  totalPages={Math.max(1, Math.ceil(total / pageSize))}
+                  onPageChange={setPage}
+                  total={total}
+                  pageSize={pageSize}
+                  onPageSizeChange={setPageSize}
+                  toolbarActions={
+                    <ExportMenu
+                      tenant={effectiveTenant}
+                      path="ledger/journal-entries/export"
+                      fileBase="vouchers"
+                      title="Vouchers"
+                      params={filterParams}
+                    />
+                  }
                   emptyState={
                     <div className="text-center">
                       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-accent/30">

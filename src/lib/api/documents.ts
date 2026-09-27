@@ -71,6 +71,25 @@ export function downloadRevenueReport(
   return apiClient.getBlob(`${BASE}/${tenant}/analytics/revenue-report`, `revenue-report.${format}`, { format, from, to });
 }
 
+/** Formats every server-side document export supports (central report engine). */
+export type ExportFormat = 'pdf' | 'csv' | 'xlsx';
+
+/**
+ * Generic document export: GETs `/{tenant}/{path}?format=` plus the page's filters and returns the
+ * file. Every accounting export (journals, trial balance, periods, expenses, statements, bank
+ * statements, ...) goes through this one call; see treasury-api docs/general-ledger.md "5e".
+ */
+export function downloadExport(
+  tenant: string,
+  path: string,
+  format: ExportFormat,
+  fileBase: string,
+  params?: Record<string, string | number | boolean | undefined>,
+): Promise<{ blob: Blob; fileName: string }> {
+  const clean = Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== ''));
+  return apiClient.getBlob(`${BASE}/${tenant}/${path.replace(/^\//, '')}`, `${fileBase}.${format}`, { ...clean, format });
+}
+
 export function downloadMoneyFlowReport(
   tenant: string,
   format: 'pdf' | 'csv' = 'pdf',

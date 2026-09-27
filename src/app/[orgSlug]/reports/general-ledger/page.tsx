@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useTrialBalance } from '@/hooks/use-ledger';
 import { ReportDocument } from '@/components/reports/ReportDocument';
+import { ExportMenu } from '@/components/documents/ExportMenu';
 import { ReportTable, type ReportTableSection, type ReportTableColumn, type ReportTableRow } from '@/components/reports/ReportTable';
 import { money } from '@/components/charts/chart-theme';
 import { FormField } from '@/components/ui/form-field';
@@ -74,6 +75,9 @@ export default function GeneralLedgerPage() {
       <ReportDocument
         title="General Ledger"
         periodLabel={`As at ${new Date(asOf).toLocaleDateString()}`}
+        exporter={
+          <ExportMenu tenant={tenantPathId} path="ledger/trial-balance/export" fileBase={`general-ledger-${asOf}`} title="General Ledger" params={{ as_of: asOf }} />
+        }
         kpis={[
           { label: 'Total Debits', value: money(num(tb?.total_debit)), tone: 'primary' },
           { label: 'Total Credits', value: money(num(tb?.total_credit)), tone: 'primary' },

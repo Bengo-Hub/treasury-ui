@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { ExportMenu } from '@/components/documents/ExportMenu';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
@@ -185,9 +186,13 @@ export default function AccountsPage() {
             Manage your treasury ledger accounts and balances.
           </p>
         </div>
-        <Button className="gap-2 shadow-lg shadow-primary/20" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Add Account
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Server export with each account's balance (matches the trial balance). */}
+          <ExportMenu tenant={effectiveTenant} path="ledger/accounts/export" fileBase="chart-of-accounts" title="Chart of Accounts" />
+          <Button className="gap-2 shadow-lg shadow-primary/20" onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Add Account
+          </Button>
+        </div>
       </div>
 
       {isPlatformOwner && !tenantQueryParam && (
@@ -241,8 +246,6 @@ export default function AccountsPage() {
               onRowClick={(a) => openEdit(a)}
               rowClassName={() => 'group cursor-pointer'}
               storageKey="accounts-table"
-              showExportCsv
-              exportFileName={`chart-of-accounts-${orgSlug || 'export'}`}
               emptyText="No accounts match your search."
             />
           </div>

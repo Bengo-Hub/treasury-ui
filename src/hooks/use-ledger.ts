@@ -17,7 +17,8 @@ export function useJournalEntries(tenantSlug: string, params?: ledgerApi.ListJou
 export function useDocumentJournal(tenantSlug: string, referenceID?: string, enabled = true) {
   return useQuery({
     queryKey: ['document-journal', tenantSlug, referenceID],
-    queryFn: () => ledgerApi.listJournalEntries(tenantSlug, { reference_id: referenceID }),
+    // A document has a handful of entries; the server page cap (100) covers them all.
+    queryFn: () => ledgerApi.listJournalEntries(tenantSlug, { reference_id: referenceID, limit: 100 }),
     enabled: !!tenantSlug && !!referenceID && enabled,
   });
 }

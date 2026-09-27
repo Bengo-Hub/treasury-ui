@@ -33,6 +33,12 @@ interface ReportDocumentProps {
    * compatible: reports without this prop simply omit the button.
    */
   csv?: ReportCsvData;
+  /**
+   * Server export control (ExportMenu: PDF, CSV, Excel from the central report engine). When set
+   * it REPLACES the browser Print and client CSV buttons, so a report never offers two export
+   * paths; reports without a server export keep Print/CSV.
+   */
+  exporter?: ReactNode;
   className?: string;
 }
 
@@ -51,13 +57,18 @@ export function ReportDocument({
   children,
   disclaimer,
   csv,
+  exporter,
   className,
 }: ReportDocumentProps) {
   return (
     <Card className={cn('report-document p-6 sm:p-8 print:shadow-none print:border-0', className)}>
       <div className="mb-4 flex justify-end gap-2 print-hidden">
-        {csv && <ExportCsvButton csv={csv} />}
-        <PrintButton />
+        {exporter ?? (
+          <>
+            {csv && <ExportCsvButton csv={csv} />}
+            <PrintButton />
+          </>
+        )}
       </div>
 
       <ReportHeader title={title} periodLabel={periodLabel} />
