@@ -198,6 +198,30 @@ export function getExpenseStats(tenantIdOrSlug: string, params?: ExpensesParams)
   return apiClient.get<ExpenseStats>(`${BASE}/${tenantIdOrSlug}/expenses/stats`, filters);
 }
 
+/**
+ * An invoice's service cost: the SERVICE/VOUCHER line costs accrued with the revenue (Dr 5410 /
+ * Cr 2150), how much has been paid from a bank or cash account, and what is still owed.
+ */
+export interface InvoiceServiceCost {
+  invoice_id: string;
+  accrued: string;
+  paid: string;
+  outstanding: string;
+}
+
+export function getInvoiceServiceCost(tenantIdOrSlug: string, invoiceId: string): Promise<InvoiceServiceCost> {
+  return apiClient.get<InvoiceServiceCost>(`${BASE}/${tenantIdOrSlug}/expenses/service-cost/${invoiceId}`);
+}
+
+/** Pays (part of) the service cost from a real account: a linked expense against the accrual. */
+export function payInvoiceServiceCost(
+  tenantIdOrSlug: string,
+  invoiceId: string,
+  body: { amount: number; paid_from_account_id: string; paid_at?: string; description?: string },
+): Promise<Expense> {
+  return apiClient.post<Expense>(`${BASE}/${tenantIdOrSlug}/expenses/service-cost/${invoiceId}/pay`, body);
+}
+
 export function getExpense(tenantIdOrSlug: string, id: string): Promise<Expense> {
   return apiClient.get<Expense>(`${BASE}/${tenantIdOrSlug}/expenses/${id}`);
 }

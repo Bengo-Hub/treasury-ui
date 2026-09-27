@@ -3,6 +3,8 @@
 import {
   getExpenses,
   getExpenseStats,
+  getInvoiceServiceCost,
+  payInvoiceServiceCost,
   getExpense,
   getExpenseCategories,
   createExpense,
@@ -24,6 +26,7 @@ import {
   type UpdateCategoryRequest,
 } from '@/lib/api/expenses';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const STALE_MS = 2 * 60 * 1000;
 
@@ -39,6 +42,33 @@ export const expenseKeys = {
   stats: (tenantIdOrSlug: string, params?: ExpensesParams) =>
     ['expenses', 'list', tenantIdOrSlug, 'stats', params] as const,
 };
+
+/** An invoice's service cost position (accrued, paid, outstanding). */
+export function useInvoiceServiceCost(tenantIdOrSlug: string | undefined, invoiceId: string | undefined) {
+  return useQuery({
+    // Under the 'list' prefix so expense mutations (which change linked costs) refresh it.
+    queryKey: ['expenses', 'list', tenantIdOrSlug ?? '', 'service-cost', invoiceId],
+    queryFn: () => getInvoiceServiceCost(tenantIdOrSlug!, invoiceId!),
+    enabled: !!tenantIdOrSlug && !!invoiceId,
+    staleTime: STALE_MS,
+  });
+}
+
+/** Pays an invoice's service cost from a bank / cash account. */
+export function usePayInvoiceServiceCost(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invoiceId, ...body }: { invoiceId: string; amount: number; paid_from_account_id: string; paid_at?: string; description?: string }) =>
+      payInvoiceServiceCost(tenantIdOrSlug!, invoiceId, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
+      // The bank account balance and statement change.
+      qc.invalidateQueries({ queryKey: ['bank-accounts'] });
+      toast.success('Service cost paid');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || err?.message || 'Failed to pay service cost'),
+  });
+}
 
 /** Summary stats (totals, status, categories, monthly) for the list's current filters. */
 export function useExpenseStats(tenantIdOrSlug: string | undefined, params?: ExpensesParams, enabled = true) {
