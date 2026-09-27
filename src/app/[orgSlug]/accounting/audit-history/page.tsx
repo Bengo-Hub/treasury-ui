@@ -44,7 +44,7 @@ export default function AuditHistoryPage() {
             </div>
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Audit trail</p>
-              <h1 className="text-3xl font-bold tracking-tight">Audit History</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Audit Trail</h1>
               <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
                 Review the ledger and system activity that shaped your financial records.
               </p>

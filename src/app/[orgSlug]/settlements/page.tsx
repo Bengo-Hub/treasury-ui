@@ -73,7 +73,7 @@ export default function SettlementsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Settlements</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Settlements &amp; Payouts</h1>
           <p className="text-muted-foreground mt-1">Track settlement batches and payout status across gateways.</p>
         </div>
         <Button variant="outline" className="gap-2" onClick={handleExport} disabled={filtered.length === 0}>

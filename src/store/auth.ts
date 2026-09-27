@@ -83,8 +83,24 @@ export const useAuthStore = create<AuthState>()(
 
         set({ status: 'loading' });
 
+        // The access token expired (8 hour lifetime): renew it silently with the refresh token
+        // instead of sending the user back through the SSO sign-in. A known profile is kept as
+        // is, so a reload after expiry costs one small refresh call, not a sign-in plus /me.
+        // Dynamic import: token-refresh imports this store.
+        const { refreshAccessToken } = await import('@/lib/auth/token-refresh');
+        const renewed = session.refreshToken ? await refreshAccessToken() : null;
+        if (renewed) {
+          apiClient.setAccessToken(renewed);
+          if (user) {
+            apiClient.setTenantContext(user.tenantId || null, user.tenantSlug || null);
+            apiClient.setPlatformOwner(user.isPlatformOwner || user.tenantSlug === 'codevertex');
+            set({ status: 'authenticated', lastAuthenticatedAt: Date.now() });
+            return;
+          }
+        }
+
         try {
-          const freshUser = await fetchProfile(session.accessToken);
+          const freshUser = await fetchProfile(renewed ?? session.accessToken);
           apiClient.setTenantContext(freshUser.tenantId || null, freshUser.tenantSlug || null);
           apiClient.setPlatformOwner(freshUser.isPlatformOwner || freshUser.tenantSlug === 'codevertex');
           set({ user: freshUser, status: 'authenticated', lastAuthenticatedAt: Date.now() });
