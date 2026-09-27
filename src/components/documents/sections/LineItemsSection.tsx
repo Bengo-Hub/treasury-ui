@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Package, Plus, Search, X } from 'lucide-react';
 import { SearchableCombobox, type ComboboxOption } from '@bengo-hub/shared-ui-lib';
 import { useInventoryItems } from '@/hooks/use-inventory';
-import type { InventoryItem } from '@/lib/api/inventory';
+import { itemTypeKind, type InventoryItem } from '@/lib/api/inventory';
 import { useTaxCodes } from '@/hooks/use-tax';
 import type { TaxCode } from '@/lib/api/tax';
 import { MarginPanel } from '../MarginPanel';
@@ -23,6 +23,8 @@ export interface LineRow {
   unit_price: number;
   /** Buying / cost price per unit (business-only — drives the internal margin panel). */
   unit_cost?: number;
+  /** Stock on hand when the item was picked (UI hint only; goods not in stock must be bought). */
+  on_hand?: number;
   tax_code?: string;
   tax_rate: number;
   discount_amount: number;
@@ -30,6 +32,25 @@ export interface LineRow {
    *  Especially useful for SERVICE items (e.g. "40% of the contract amount"). Sent to the
    *  backend as completion_percent (transient) which folds it into the billed line total. */
   completion_percent?: number;
+}
+
+/**
+ * StockHint: for a goods line, whether the business holds the quantity. Goods not in stock have to
+ * be bought for the job (inventory raises a purchase order for the shortfall once the sale is
+ * committed, or record the purchase from the invoice's Job Costs panel).
+ */
+function StockHint({ line }: { line: LineRow }) {
+  if (line.on_hand == null || itemTypeKind(line.item_type) !== 'goods') return null;
+  const onHand = Math.max(0, line.on_hand);
+  const short = Math.max(0, (line.quantity || 0) - onHand);
+  if (short <= 0) {
+    return <p className="text-[10px] text-emerald-600 mt-0.5 pl-5">{onHand} in stock</p>;
+  }
+  return (
+    <p className="text-[10px] text-amber-600 mt-0.5 pl-5">
+      {onHand > 0 ? `Only ${onHand} in stock: ${short} to buy for this job` : 'No stock: will need buying for this job'}
+    </p>
+  );
 }
 
 // effectiveCompletion clamps a line's completion % to a billing multiplier in (0,1].
@@ -64,24 +85,33 @@ interface ComboboxProps {
 }
 
 function ItemCombobox({ tenant, line, onUpdate, onRequestCreate }: ComboboxProps) {
-  const [state, setState] = useState<SearchState>(line.item_id ? 'LINKED' : 'EMPTY');
+  const [linked, setLinked] = useState(!!line.item_id);
+  // True between a keystroke and the debounced search it schedules.
+  const [debouncing, setDebouncing] = useState(false);
   const [query, setQuery] = useState('');
   const [enabled, setEnabled] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, isFetching } = useInventoryItems(tenant, { q: query, limit: 10 }, enabled && query.length >= 2);
 
-  useEffect(() => {
-    if (isFetching) setState('SEARCHING');
-    else if (enabled && data) setState(data.items.length > 0 ? 'RESULTS_FOUND' : 'EMPTY');
-  }, [isFetching, data, enabled]);
+  // Derived, not synced in an effect: the search state follows the query's own status.
+  const state: SearchState = linked
+    ? 'LINKED'
+    : debouncing || isFetching
+      ? 'SEARCHING'
+      : enabled && data && data.items.length > 0
+        ? 'RESULTS_FOUND'
+        : 'EMPTY';
 
   const handleInput = (v: string) => {
     setQuery(v);
     onUpdate({ description: v, item_id: undefined });
-    setState('SEARCHING');
+    setDebouncing(true);
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setEnabled(true), 300);
+    timerRef.current = setTimeout(() => {
+      setEnabled(true);
+      setDebouncing(false);
+    }, 300);
   };
 
   const selectItem = (item: InventoryItem) => {
@@ -96,18 +126,20 @@ function ItemCombobox({ tenant, line, onUpdate, onRequestCreate }: ComboboxProps
       unit: item.unit,
       unit_price: parseFloat(item.unit_price ?? '0') || 0,
       unit_cost: item.cost_price != null ? (parseFloat(item.cost_price) || 0) : undefined,
+      on_hand: item.on_hand ?? 0,
       tax_code: item.tax_code,
       tax_rate: parseFloat(item.tax_rate ?? '0') || 0,
     });
     setQuery('');
     setEnabled(false);
-    setState('LINKED');
+    setLinked(true);
   };
 
   const unlink = () => {
     onUpdate({ item_id: undefined, description: '' });
     setQuery('');
-    setState('EMPTY');
+    setEnabled(false);
+    setLinked(false);
   };
 
   if (state === 'LINKED') {
@@ -126,6 +158,7 @@ function ItemCombobox({ tenant, line, onUpdate, onRequestCreate }: ComboboxProps
           </button>
         </div>
         {detail && <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2 pl-5">{detail}</p>}
+        <StockHint line={line} />
       </div>
     );
   }

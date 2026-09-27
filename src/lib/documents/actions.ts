@@ -139,7 +139,10 @@ export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
       break;
     }
     case 'sales_order': {
+      // Sending a sales order confirms it: the business commits to supplying its goods, so the
+      // shortfall is procured. It then converts to the invoice (once) and to a delivery note.
       if (canSend) out.push('send');
+      if (!isVoided(ctx.status)) out.push('convert_to_invoice');
       out.push('generate_delivery_note', 'duplicate');
       if (!isVoided(ctx.status)) out.push('void');
       break;

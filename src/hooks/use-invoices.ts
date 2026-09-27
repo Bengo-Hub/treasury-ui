@@ -48,7 +48,6 @@ import {
   createDebitNote,
   convertQuotationToProforma,
   convertQuotationToSalesOrder,
-  convertProformaToInvoice,
   generateDeliveryChallan,
   generateDeliveryNote,
   dispatchDeliveryNote,
@@ -775,16 +774,6 @@ export function useCancelDeliveryNote(tenant: string) {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(tenant, invoiceId) });
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
       queryClient.invalidateQueries({ queryKey: platformInvoiceKeys.all });
-    },
-  });
-}
-
-export function useConvertProformaToInvoice(tenant: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (invoiceId: string) => convertProformaToInvoice(tenant, invoiceId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all(tenant) });
     },
   });
 }
