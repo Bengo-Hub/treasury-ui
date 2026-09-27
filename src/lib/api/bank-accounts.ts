@@ -163,15 +163,3 @@ export function getAccountStatement(
   );
 }
 
-/** Returns the statement.csv endpoint URL for a direct browser download link. */
-export function accountStatementCsvUrl(
-  tenantIdOrSlug: string,
-  id: string,
-  params?: { from?: string; to?: string },
-): string {
-  const query = new URLSearchParams();
-  if (params?.from) query.set('from', params.from);
-  if (params?.to) query.set('to', params.to);
-  const qs = query.toString();
-  return `${BASE}/${tenantIdOrSlug}/bank-accounts/${id}/statement.csv${qs ? `?${qs}` : ''}`;
-}

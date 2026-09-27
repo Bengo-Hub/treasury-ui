@@ -1,6 +1,7 @@
 'use client';
 
 import { CreateLedgerEntryDialog } from '@/components/ledger/CreateLedgerEntryDialog';
+import { ExportMenu } from '@/components/documents/ExportMenu';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { usePageReset } from '@/hooks/use-page-reset';
 
 export default function JournalsPage() {
   const { tenantPathId, isPlatformOwner, tenantQueryParam, orgSlug } = useResolvedTenant();
@@ -42,29 +44,25 @@ export default function JournalsPage() {
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
 
-  const listParams = useMemo(() => {
+  const [pageSize, setPageSize] = useState(50);
+
+  // Every filter, including the entry number / description search, runs server-side across ALL
+  // entries (the list used to load at most the latest 100 and search only those).
+  const filterParams = useMemo(() => {
     const p: Record<string, string> = {};
     if (statusFilter !== 'all') p.status = statusFilter;
     if (dateFrom) p.from = dateFrom;
     if (dateTo) p.to = dateTo;
     if (refType !== 'all') p.reference_type = refType;
-    return Object.keys(p).length ? p : undefined;
-  }, [statusFilter, dateFrom, dateTo, refType]);
+    if (search.trim()) p.search = search.trim();
+    return p;
+  }, [statusFilter, dateFrom, dateTo, refType, search]);
+  const [page, setPage] = usePageReset([filterParams, pageSize]);
+  const listParams = useMemo(() => ({ ...filterParams, page, limit: pageSize }), [filterParams, page, pageSize]);
 
   const { data, isLoading, isError, refetch, isFetching } = useJournalEntries(effectiveTenant, listParams);
-  const entries = data?.entries ?? [];
-
-  // Free-text search (entry #, description, reference id) is applied client-side over the
-  // server-filtered set (status/date/reference_type are server-side).
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter((e) =>
-      (e.entry_number ?? '').toLowerCase().includes(q) ||
-      (e.description ?? '').toLowerCase().includes(q) ||
-      (e.reference_type ?? '').toLowerCase().includes(q) ||
-      (e.reference_id ?? '').toLowerCase().includes(q));
-  }, [entries, search]);
+  const filtered = data?.entries ?? [];
+  const total = data?.total ?? 0;
 
   const statusOptions = ['all', 'draft', 'submitted', 'approved', 'posted', 'reversed'];
   // Common reference types posted by the platform (POS credit sales/returns, AR receipts, openings).
@@ -129,6 +127,12 @@ export default function JournalsPage() {
           search={search}
           setSearch={setSearch}
           tenantSlug={effectiveTenant}
+          page={page}
+          setPage={setPage}
+          pageSize={pageSize}
+          setPageSize={setPageSize}
+          total={total}
+          exportParams={filterParams}
         />
       ) : (
         <TrialBalanceView tenantSlug={effectiveTenant} />
@@ -164,6 +168,12 @@ function JournalEntriesList({
   search,
   setSearch,
   tenantSlug,
+  page,
+  setPage,
+  pageSize,
+  setPageSize,
+  total,
+  exportParams,
 }: {
   entries: JournalEntry[];
   isLoading: boolean;
@@ -181,6 +191,12 @@ function JournalEntriesList({
   search: string;
   setSearch: (s: string) => void;
   tenantSlug: string;
+  page: number;
+  setPage: (p: number) => void;
+  pageSize: number;
+  setPageSize: (n: number) => void;
+  total: number;
+  exportParams: Record<string, string>;
 }) {
   const submitMutation = useSubmitJournalEntry();
   const approveMutation = useApproveJournalEntry();
@@ -209,6 +225,13 @@ function JournalEntriesList({
           <div className="flex items-center gap-2">
             <BookOpen className="h-4 w-4 text-primary" />
             <h3 className="font-bold text-sm uppercase tracking-tight">Entries</h3>
+            <ExportMenu
+              tenant={tenantSlug}
+              path="ledger/journal-entries/export"
+              fileBase="journal-entries"
+              title="Journal Entries"
+              params={exportParams}
+            />
           </div>
           <div className="flex flex-wrap gap-2">
             {statusOptions.map((s) => (
@@ -280,9 +303,13 @@ function JournalEntriesList({
             loadingRows={8}
             error={isError}
             storageKey="journal-entries-table"
-            showExportCsv
-            exportFileName="journal-entries"
             emptyText="No journal entries found."
+            page={page}
+            totalPages={Math.max(1, Math.ceil(total / pageSize))}
+            onPageChange={setPage}
+            total={total}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
           />
         </div>
       </CardContent>
@@ -303,6 +330,7 @@ function TrialBalanceView({ tenantSlug }: { tenantSlug: string }) {
           <h3 className="font-bold text-sm uppercase tracking-tight">Trial Balance</h3>
         </div>
         <div className="flex items-center gap-2">
+          <ExportMenu tenant={tenantSlug} path="ledger/trial-balance/export" fileBase="trial-balance" title="Trial Balance" />
           {data && (
             <Badge variant={data.is_balanced ? 'success' : 'error'}>
               {data.is_balanced ? 'Balanced' : 'Unbalanced'}

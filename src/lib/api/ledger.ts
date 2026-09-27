@@ -58,6 +58,11 @@ export interface ListJournalEntriesParams {
   to?: string;
   reference_type?: string;
   reference_id?: string;
+  /** Entry number or description, matched server-side across all entries. */
+  search?: string;
+  /** 1-based page and page size (server max 100). */
+  page?: number;
+  limit?: number;
 }
 
 export interface TrialBalanceRow {
@@ -182,7 +187,7 @@ export interface AccountLedgerParams {
 export function listJournalEntries(
   tenantSlug: string,
   params?: ListJournalEntriesParams,
-): Promise<{ entries: JournalEntry[]; total: number }> {
+): Promise<{ entries: JournalEntry[]; total: number; page?: number; limit?: number }> {
   return apiClient.get(`${BASE}/${tenantSlug}/ledger/journal-entries`, params);
 }
 

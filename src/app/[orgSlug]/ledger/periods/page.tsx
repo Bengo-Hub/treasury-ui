@@ -5,6 +5,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { StatCard } from '@/components/charts/StatCard';
+import { ExportMenu } from '@/components/documents/ExportMenu';
 import { money } from '@/components/charts/chart-theme';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildPeriodColumns } from './period-columns';
@@ -135,6 +136,13 @@ export default function AccountingPeriodsPage() {
             ))}
             {!data?.fiscal_years?.length && <option value="">Current fiscal year</option>}
           </select>
+          <ExportMenu
+            tenant={effectiveTenant}
+            path="ledger/periods/export"
+            fileBase={`accounting-periods-${(fiscalYear ?? data?.fiscal_year?.label ?? 'current').toLowerCase()}`}
+            title="Accounting Periods"
+            params={{ fiscal_year: fiscalYear ?? data?.fiscal_year?.label }}
+          />
           <Button variant="outline" disabled={isFetching} onClick={() => refetch()} title="Refresh periods">
             <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
           </Button>

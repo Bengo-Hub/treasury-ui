@@ -2,6 +2,7 @@
 
 import { Badge, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
+import { ExportMenu } from '@/components/documents/ExportMenu';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildLedgerLineColumns, type LedgerLineRow } from './ledger-line-columns';
 import { useAccountLedger } from '@/hooks/use-ledger';
@@ -56,6 +57,12 @@ export default function AccountLedgerPage() {
             Per-account transaction history with running balance.
           </p>
         </div>
+        <ExportMenu
+          tenant={effectiveTenant}
+          path={`ledger/accounts/${accountId}/ledger/export`}
+          fileBase={`account-ledger-${data?.account_code || accountId}`}
+          title="Account Ledger"
+        />
         <button
           type="button"
           onClick={() => refetch()}
@@ -142,8 +149,6 @@ export default function AccountLedgerPage() {
               loadingRows={8}
               error={isError}
               storageKey="account-ledger-table"
-              showExportCsv
-              exportFileName={`account-ledger-${data?.account_code || accountId}`}
               emptyText="No transactions posted to this account yet."
             />
           </div>

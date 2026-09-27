@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useAccountStatement, useLinkAccountLedger } from '@/hooks/use-bank-accounts';
 import { ReportDocument, type ReportKpi } from '@/components/reports/ReportDocument';
+import { ExportMenu } from '@/components/documents/ExportMenu';
 import {
   ReportTable,
   type ReportTableColumn,
@@ -164,13 +165,15 @@ export default function AccountStatementPage() {
           title={title}
           periodLabel={periodLabel}
           kpis={kpis}
-          csv={{
-            filename: `account-statement-${accountId}.csv`,
-            title,
-            periodLabel,
-            columns,
-            sections: [{ rows }],
-          }}
+          exporter={
+            <ExportMenu
+              tenant={effectiveTenant}
+              path={`bank-accounts/${accountId}/statement/export`}
+              fileBase={`account-statement-${accountId}`}
+              title={title}
+              params={{ from: from || undefined, to: to || undefined }}
+            />
+          }
         >
           <ReportTable
             columns={columns}

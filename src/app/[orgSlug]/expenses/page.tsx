@@ -17,6 +17,7 @@ import { ExpensePaymentModal } from '@/components/expenses/ExpensePaymentModal';
 import { MarkExpensePaidModal } from '@/components/expenses/MarkExpensePaidModal';
 import { ExpenseStatsPanel } from '@/components/expenses/ExpenseStatsPanel';
 import { ListTotalsBar } from '@/components/ui/list-totals-bar';
+import { ExportMenu } from '@/components/documents/ExportMenu';
 import { money } from '@/components/charts/chart-theme';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
@@ -49,6 +50,7 @@ import {
   X,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { usePageReset } from '@/hooks/use-page-reset';
 import { toast } from 'sonner';
 
 function defaultDateRange(): { from: string; to: string } {
@@ -67,12 +69,13 @@ export default function ExpensesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [costCenterFilter, setCostCenterFilter] = useState<string>('all');
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   // DataTable header state (controlled so sorting/funnel-filtering run over the WHOLE
   // loaded list before client pagination, not just the visible page).
   const [sort, setSort] = useState<SortState | null>(null);
   const [funnel, setFunnel] = useState<FilterMap>({});
+  // Back to page 1 whenever a filter or the page size changes.
+  const [page, setPage] = usePageReset([searchQuery, statusFilter, costCenterFilter, funnel, pageSize]);
   const [rejectOpen, setRejectOpen] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   // Row-action dialog state (status-aware confirmations).
@@ -105,6 +108,11 @@ export default function ExpensesPage() {
   // Summary for the same filters (the stats endpoint ignores paging), so cards, charts and the
   // totals bar describe every matching expense, not just this page.
   const { data: stats, isLoading: statsLoading } = useExpenseStats(effectiveTenant, queryParams, !!effectiveTenant);
+  // The export takes the list filters without paging.
+  const exportParams = useMemo(() => {
+    const { page: _p, limit: _l, ...rest } = queryParams;
+    return rest;
+  }, [queryParams]);
   // active_only: hide archived centers from the selector/filter.
   const { data: costCenterData } = useCostCenters(effectiveTenant, { active_only: true });
 
@@ -155,7 +163,6 @@ export default function ExpensesPage() {
   const total = data?.total ?? filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, costCenterFilter, funnel, pageSize]);
 
   const statusOptions = ['all', 'draft', 'submitted', 'approved', 'rejected', 'paid'];
 
@@ -351,6 +358,14 @@ export default function ExpensesPage() {
           <p className="text-muted-foreground mt-1">Track, submit, and manage expense claims.</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Server export of every matching expense (not just this page), PDF / CSV / Excel. */}
+          <ExportMenu
+            tenant={effectiveTenant}
+            path="expenses/export"
+            fileBase="expenses"
+            title="Expenses"
+            params={exportParams}
+          />
           {isPlatformOwner && (
             <Button variant="outline" className="gap-2" onClick={handleReconcile} disabled={reconcileMutation.isPending}>
               {reconcileMutation.isPending ? 'Reconciling…' : 'Reconcile journals'}
@@ -433,9 +448,6 @@ export default function ExpensesPage() {
             filters={funnel}
             onFiltersChange={setFunnel}
             storageKey="expenses-table"
-            showExportCsv
-            exportFileName="expenses"
-            onExportAll={() => Promise.resolve(filtered)}
             pageSize={pageSize}
             onPageSizeChange={setPageSize}
             page={page}
