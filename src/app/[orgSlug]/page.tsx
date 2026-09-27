@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { usePlatformOverview } from '@/hooks/use-platform-analytics';
 import { useOutletFilterStore } from '@/store/outlet-filter';
@@ -18,7 +18,7 @@ import { PlatformMoneyFlow } from '@/components/dashboard/PlatformMoneyFlow';
 import { TopCustomers } from '@/components/dashboard/TopCustomers';
 import { BooksBalancedBadge } from '@/components/dashboard/BooksBalancedBadge';
 import { PeriodCloseReminder } from '@/components/dashboard/PeriodCloseReminder';
-import { RangePicker, rangeFor, type RangeKey } from '@/components/dashboard/RangePicker';
+import { RangePicker, useRange, type RangeState } from '@/components/dashboard/RangePicker';
 import { Banknote, CheckCircle2, Activity, Users, Loader2, Printer } from 'lucide-react';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadRevenueReport } from '@/lib/api/documents';
@@ -32,8 +32,8 @@ import { toast } from 'sonner';
 export default function DashboardPage() {
   const { tenantPathId, tenantQueryParam, tenantIdsParam, isPlatformOwner, isAllTenants, orgSlug } =
     useResolvedTenant();
-  const [rangeKey, setRangeKey] = useState<RangeKey>('30d');
-  const { from, to } = rangeFor(rangeKey);
+  const range = useRange('30d');
+  const { from, to } = range;
   // OutletFilter (header dropdown, HQ/admin only): selectedOutlet null = "All Outlets". Widgets
   // below get the outlet id so they scope to the chosen branch instead of always showing the
   // tenant-wide aggregate; the "Revenue by Outlet" breakdown only makes sense in the "All
@@ -47,7 +47,7 @@ export default function DashboardPage() {
   // Platform owner: only the explicit "All Tenants" selection shows the cross-tenant
   // aggregate. By default the owner sees their OWN treasury dashboard, like any tenant.
   if (isPlatformOwner && isAllTenants) {
-    return <PlatformDashboard from={from} to={to} tenantIds={tenantIdsParam || undefined} rangeKey={rangeKey} onRange={setRangeKey} />;
+    return <PlatformDashboard from={from} to={to} tenantIds={tenantIdsParam || undefined} range={range} />;
   }
 
   // Own-tenant view: for a platform owner this is the selected tenant (drill-down) or
@@ -71,7 +71,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <RevenueReportButton tenant={dashTenant} from={from} to={to} />
-          <RangePicker value={rangeKey} onChange={setRangeKey} />
+          <RangePicker range={range} />
         </div>
       </header>
 
@@ -124,7 +124,7 @@ function RevenueReportButton({ tenant, from, to }: { tenant: string; from: strin
   );
 }
 
-function PlatformDashboard({ from, to, tenantIds, rangeKey, onRange }: { from: string; to: string; tenantIds?: string; rangeKey: RangeKey; onRange: (k: RangeKey) => void }) {
+function PlatformDashboard({ from, to, tenantIds, range }: { from: string; to: string; tenantIds?: string; range: RangeState }) {
   const overview = usePlatformOverview(from, to, tenantIds);
   const d = overview.data as any;
   const loading = overview.isLoading;
@@ -136,7 +136,7 @@ function PlatformDashboard({ from, to, tenantIds, rangeKey, onRange }: { from: s
           <h1 className="text-2xl font-bold tracking-tight">Platform Dashboard</h1>
           <p className="text-sm text-muted-foreground">Across all tenants</p>
         </div>
-        <RangePicker value={rangeKey} onChange={onRange} />
+        <RangePicker range={range} />
       </header>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Revenue" value={money(d?.total_revenue)} tone="success" loading={loading} icon={<Banknote className="h-5 w-5" />} />
