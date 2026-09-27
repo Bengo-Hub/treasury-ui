@@ -4,6 +4,7 @@ import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/ba
 import { useTransactions } from '@/hooks/use-analytics';
 import { usePlatformTransactions, getTransactionsExportURL } from '@/hooks/use-platform-analytics';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
+import { usePageReset } from '@/hooks/use-page-reset';
 import { useAuthStore } from '@/store/auth';
 import { exportTransactionsCSV, type TransactionItem } from '@/lib/api/analytics';
 import { apiClient } from '@/lib/api/client';
@@ -12,7 +13,7 @@ import { buildTransactionColumns } from './transaction-columns';
 import { cn } from '@/lib/utils';
 import { StatCard } from '@/components/charts/StatCard';
 import { money } from '@/components/charts/chart-theme';
-import { RangePicker, rangeFor, type RangeKey } from '@/components/dashboard/RangePicker';
+import { RangePicker, useRange } from '@/components/dashboard/RangePicker';
 import {
     Banknote,
     Calendar,
@@ -94,11 +95,11 @@ export default function TransactionsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [serviceFilter, setServiceFilter] = useState<string>('all');
-  const [page, setPage] = useState(1);
   // Same preset picker + rangeFor() the Dashboard uses (single source of truth for date-range
   // math) rather than a bespoke fixed 30-day window with no way to change it.
-  const [rangeKey, setRangeKey] = useState<RangeKey>('30d');
-  const dateRange = useMemo(() => rangeFor(rangeKey), [rangeKey]);
+  const range = useRange('30d');
+  const [page, setPage] = usePageReset([searchQuery, statusFilter, typeFilter, serviceFilter, range.from, range.to]);
+  const dateRange = useMemo(() => ({ from: range.from, to: range.to }), [range.from, range.to]);
 
   // Platform admins: use platform endpoint (all tenants by default; tenant_ids filter optional)
   // Regular tenants: use tenant-scoped endpoint
@@ -175,9 +176,6 @@ export default function TransactionsPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginatedItems = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
-  // Reset to page 1 when filters change
-  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, typeFilter, serviceFilter, rangeKey]);
-
   // Summary stats over the currently filtered set (same rows the table/CSV export use — the
   // list is fetched whole for the selected range, then paginated client-side, so this reflects
   // every matching transaction, not just the current page).
@@ -246,7 +244,7 @@ export default function TransactionsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <RangePicker value={rangeKey} onChange={setRangeKey} />
+          <RangePicker range={range} />
           <Button
             variant="outline"
             className="gap-2"
