@@ -7,12 +7,14 @@ import { useBranding } from '@/providers/branding-provider';
 import { useAuthStore } from '@/store/auth';
 import { FeatureLock } from '@bengo-hub/shared-ui-lib/subscription';
 import {
+  ArrowLeftRight,
   Banknote,
   BookOpen,
   Briefcase,
   Calculator,
   CalendarRange,
   ChevronDown,
+  ChevronRight,
   ClipboardCheck,
   DatabaseBackup,
   FileCheck,
@@ -20,11 +22,14 @@ import {
   FilePlus,
   FileText,
   GitBranch,
+  HandCoins,
+  History,
   Landmark,
   LayoutDashboard,
   LogOut,
   PieChart,
   Receipt,
+  Scale,
   Settings,
   Shield,
   ShieldCheck,
@@ -51,8 +56,8 @@ interface NavItem {
   /** Reminder count shown as a pill (e.g. periods waiting to be closed); hidden when 0. */
   badge?: number;
   /**
-   * Sub-heading this entry sits under inside its group. Consecutive children sharing a section
-   * render under one heading, so a long group reads as classified blocks.
+   * Sub-group this entry sits in inside its module. Consecutive children sharing a section form a
+   * collapsible sub-group (a lone item renders as a plain link).
    */
   section?: string;
 }
@@ -116,6 +121,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const { data: pendingClose } = usePendingClosePeriods(orgSlug, !!user);
   const periodsToClose = pendingClose?.count ?? 0;
 
+  // Modules follow standard accounting software (QuickBooks, Xero, Zoho Books, Sage): Sales /
+  // Receivables, Purchases / Payables, Banking, Accounting (general ledger), Tax, Reports. Inside
+  // a module, items sharing a `section` form a collapsible sub-group, in the order the work flows.
   const tenantNav: NavEntry[] = [
     {
       label: 'Dashboard',
@@ -124,22 +132,103 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       active: pathname === `/${orgSlug}`,
     },
     {
-      label: 'Transactions',
-      icon: Banknote,
+      label: 'Sales & Receivables',
+      icon: FileText,
+      // No module-level gate: tier 1 includes Quotations + Customers + Receipts, so gating the
+      // whole module on invoice_generation (tier 2) would wrongly lock them. Each child carries
+      // its own feature code per the use-case PowerSuite matrix.
       children: [
         {
-          label: 'Transactions',
-          icon: Banknote,
-          href: `/${orgSlug}/transactions`,
-          active: pathname.startsWith(`/${orgSlug}/transactions`),
+          label: 'Customers',
+          icon: Users,
+          href: `/${orgSlug}/customers`,
+          active: pathname.startsWith(`/${orgSlug}/customers`),
+          feature: 'customer_management',
         },
         {
-          label: 'Settlements',
-          icon: Wallet,
-          href: `/${orgSlug}/settlements`,
-          active: pathname.startsWith(`/${orgSlug}/settlements`),
+          section: 'Quotes & Orders',
+          label: 'Quotations & Estimates',
+          icon: ClipboardCheck,
+          href: `/${orgSlug}/quotations`,
+          active: pathname.startsWith(`/${orgSlug}/quotations`),
+          feature: 'quotations',
         },
         {
+          section: 'Quotes & Orders',
+          label: 'Proforma Invoices',
+          icon: FileCheck,
+          href: `/${orgSlug}/proforma-invoices`,
+          active: pathname.startsWith(`/${orgSlug}/proforma-invoices`),
+          feature: 'invoice_generation',
+        },
+        {
+          section: 'Quotes & Orders',
+          label: 'Sales Orders',
+          icon: ShoppingCart,
+          href: `/${orgSlug}/sales-orders`,
+          active: pathname.startsWith(`/${orgSlug}/sales-orders`),
+          feature: 'invoice_generation',
+        },
+        {
+          section: 'Invoicing',
+          label: 'Sales Invoices',
+          icon: FileText,
+          href: `/${orgSlug}/invoices`,
+          active: pathname.startsWith(`/${orgSlug}/invoices`),
+          feature: 'invoice_generation',
+        },
+        {
+          section: 'Invoicing',
+          label: 'Credit Notes',
+          icon: FileMinus,
+          href: `/${orgSlug}/credit-notes`,
+          active: pathname.startsWith(`/${orgSlug}/credit-notes`),
+          feature: 'credit_notes',
+        },
+        {
+          section: 'Invoicing',
+          label: 'Delivery Notes',
+          icon: Truck,
+          href: `/${orgSlug}/delivery-challans`,
+          active: pathname.startsWith(`/${orgSlug}/delivery-challans`),
+        },
+        {
+          label: 'Customer Receipts',
+          icon: HandCoins,
+          href: `/${orgSlug}/payment-receipts`,
+          active: pathname.startsWith(`/${orgSlug}/payment-receipts`),
+        },
+      ],
+    },
+    {
+      label: 'Purchases & Payables',
+      icon: Briefcase,
+      children: [
+        {
+          label: 'Suppliers',
+          icon: Users,
+          href: `/${orgSlug}/vendors`,
+          active: pathname.startsWith(`/${orgSlug}/vendors`),
+          feature: 'vendor_management',
+        },
+        {
+          section: 'Bills',
+          label: 'Supplier Bills',
+          icon: Briefcase,
+          href: `/${orgSlug}/bills`,
+          active: pathname.startsWith(`/${orgSlug}/bills`),
+          feature: 'ap_tracking',
+        },
+        {
+          section: 'Bills',
+          label: 'Debit Notes',
+          icon: FilePlus,
+          href: `/${orgSlug}/debit-notes`,
+          active: pathname.startsWith(`/${orgSlug}/debit-notes`),
+          feature: 'ap_tracking',
+        },
+        {
+          section: 'Expenses',
           label: 'Expenses',
           icon: Receipt,
           href: `/${orgSlug}/expenses`,
@@ -149,6 +238,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             !pathname.startsWith(`/${orgSlug}/expenses/categories`),
         },
         {
+          section: 'Expenses',
           label: 'Expense Categories',
           icon: Tags,
           href: `/${orgSlug}/expenses/categories`,
@@ -157,100 +247,35 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       ],
     },
     {
-      label: 'Sales & Invoicing',
-      icon: FileText,
-      // No group-level gate: tier 1 includes Quotations + Customers + Payment Receipts, so
-      // gating the whole group on invoice_generation (tier 2) would wrongly lock them.
-      // Each child carries its own feature code per the use-case PowerSuite matrix.
-      // Sectioned in the order a sale flows: quote, order, bill, deliver and collect.
+      label: 'Banking',
+      icon: Landmark,
       children: [
         {
-          section: 'Pre-sale',
-          label: 'Quotations & Estimates',
+          label: 'Bank & Cash Accounts',
+          icon: Landmark,
+          href: `/${orgSlug}/banking/accounts`,
+          active: pathname.startsWith(`/${orgSlug}/banking/accounts`),
+        },
+        {
+          label: 'Bank Reconciliation',
           icon: ClipboardCheck,
-          href: `/${orgSlug}/quotations`,
-          active: pathname.startsWith(`/${orgSlug}/quotations`),
-          feature: 'quotations',
+          href: `/${orgSlug}/banking/reconciliation`,
+          active: pathname.startsWith(`/${orgSlug}/banking/reconciliation`),
+          feature: 'reconciliation',
         },
         {
-          section: 'Pre-sale',
-          label: 'Proforma Invoices',
-          icon: FileCheck,
-          href: `/${orgSlug}/proforma-invoices`,
-          active: pathname.startsWith(`/${orgSlug}/proforma-invoices`),
-          feature: 'invoice_generation',
+          section: 'Payments',
+          label: 'Payment Transactions',
+          icon: ArrowLeftRight,
+          href: `/${orgSlug}/transactions`,
+          active: pathname.startsWith(`/${orgSlug}/transactions`),
         },
         {
-          section: 'Pre-sale',
-          label: 'Sales Orders',
-          icon: ShoppingCart,
-          href: `/${orgSlug}/sales-orders`,
-          active: pathname.startsWith(`/${orgSlug}/sales-orders`),
-          feature: 'invoice_generation',
-        },
-        {
-          section: 'Billing',
-          label: 'Invoices',
-          icon: FileText,
-          href: `/${orgSlug}/invoices`,
-          active: pathname.startsWith(`/${orgSlug}/invoices`),
-          feature: 'invoice_generation',
-        },
-        {
-          section: 'Billing',
-          label: 'Credit Notes',
-          icon: FileMinus,
-          href: `/${orgSlug}/credit-notes`,
-          active: pathname.startsWith(`/${orgSlug}/credit-notes`),
-          feature: 'credit_notes',
-        },
-        {
-          section: 'Fulfilment & receipts',
-          label: 'Delivery Challans',
-          icon: Truck,
-          href: `/${orgSlug}/delivery-challans`,
-          active: pathname.startsWith(`/${orgSlug}/delivery-challans`),
-        },
-        {
-          section: 'Fulfilment & receipts',
-          label: 'Payment Receipts',
-          icon: Banknote,
-          href: `/${orgSlug}/payment-receipts`,
-          active: pathname.startsWith(`/${orgSlug}/payment-receipts`),
-        },
-        {
-          section: 'Customers',
-          label: 'Customers',
-          icon: Users,
-          href: `/${orgSlug}/customers`,
-          active: pathname.startsWith(`/${orgSlug}/customers`),
-          feature: 'customer_management',
-        },
-      ],
-    },
-    {
-      label: 'Purchases & Payables',
-      icon: Briefcase,
-      feature: 'ap_tracking',
-      children: [
-        {
-          label: 'Purchases & Bills',
-          icon: Briefcase,
-          href: `/${orgSlug}/bills`,
-          active: pathname.startsWith(`/${orgSlug}/bills`),
-        },
-        {
-          label: 'Suppliers & Vendors',
-          icon: Users,
-          href: `/${orgSlug}/vendors`,
-          active: pathname.startsWith(`/${orgSlug}/vendors`),
-          feature: 'vendor_management',
-        },
-        {
-          label: 'Debit Notes',
-          icon: FilePlus,
-          href: `/${orgSlug}/debit-notes`,
-          active: pathname.startsWith(`/${orgSlug}/debit-notes`),
+          section: 'Payments',
+          label: 'Settlements & Payouts',
+          icon: Wallet,
+          href: `/${orgSlug}/settlements`,
+          active: pathname.startsWith(`/${orgSlug}/settlements`),
         },
       ],
     },
@@ -258,7 +283,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       label: 'Accounting',
       icon: BookOpen,
       feature: 'ledger_posting',
-      // Sectioned: day-to-day books, banking, setup, then period control and audit.
       children: [
         {
           section: 'Books',
@@ -287,24 +311,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {
           section: 'Books',
           label: 'Trial Balance',
-          icon: Calculator,
+          icon: Scale,
           href: `/${orgSlug}/ledger/journals?view=trial-balance`,
           active: false,
-        },
-        {
-          section: 'Banking',
-          label: 'Bank & Cash Accounts',
-          icon: Landmark,
-          href: `/${orgSlug}/banking/accounts`,
-          active: pathname.startsWith(`/${orgSlug}/banking/accounts`),
-        },
-        {
-          section: 'Banking',
-          label: 'Reconciliation',
-          icon: ClipboardCheck,
-          href: `/${orgSlug}/banking/reconciliation`,
-          active: pathname.startsWith(`/${orgSlug}/banking/reconciliation`),
-          feature: 'reconciliation',
         },
         {
           section: 'Setup',
@@ -315,20 +324,20 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         },
         {
           section: 'Setup',
-          label: 'GL Account Mappings',
+          label: 'Account Mappings',
           icon: GitBranch,
           href: `/${orgSlug}/settings/gl-account-mappings`,
           active: pathname.startsWith(`/${orgSlug}/settings/gl-account-mappings`),
         },
         {
           section: 'Setup',
-          label: 'Cost Centers',
+          label: 'Cost Centres',
           icon: Target,
           href: `/${orgSlug}/settings/cost-centers`,
           active: pathname.startsWith(`/${orgSlug}/settings/cost-centers`),
         },
         {
-          section: 'Control',
+          section: 'Period Close',
           label: 'Accounting Periods',
           icon: CalendarRange,
           href: `/${orgSlug}/ledger/periods`,
@@ -338,9 +347,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         ...(canViewAudit
           ? [
               {
-                section: 'Control',
-                label: 'Audit History',
-                icon: ShieldCheck,
+                section: 'Period Close',
+                label: 'Audit Trail',
+                icon: History,
                 href: `/${orgSlug}/accounting/audit-history`,
                 active: pathname.startsWith(`/${orgSlug}/accounting/audit-history`),
               },
@@ -349,10 +358,18 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       ],
     },
     {
-      label: 'Reports & Compliance',
+      label: 'Tax & Compliance',
+      icon: Calculator,
+      href: `/${orgSlug}/tax`,
+      active: pathname.startsWith(`/${orgSlug}/tax`),
+      feature: 'tax_codes',
+    },
+    {
+      label: 'Reports & Planning',
       icon: PieChart,
       children: [
         {
+          section: 'Reports',
           // Management view: performance, position, trends, ratios, recurring costs, forecast.
           label: 'Business Insights',
           icon: TrendingUp,
@@ -360,37 +377,26 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           active: pathname.startsWith(`/${orgSlug}/reports/insights`),
         },
         {
+          section: 'Reports',
           label: 'Financial Statements',
           icon: PieChart,
           href: `/${orgSlug}/reports`,
           active: pathname === `/${orgSlug}/reports`,
         },
         {
-          label: 'Receivables & Payables',
+          section: 'Reports',
+          label: 'Aged Receivables & Payables',
           icon: Landmark,
           href: `/${orgSlug}/reports/receivables-payables`,
           active: pathname.startsWith(`/${orgSlug}/reports/receivables-payables`),
         },
         {
-          label: 'Tax & Compliance',
-          icon: Calculator,
-          href: `/${orgSlug}/tax`,
-          active: pathname.startsWith(`/${orgSlug}/tax`),
-          feature: 'tax_codes',
-        },
-        {
           label: 'Budgets',
-          icon: TrendingUp,
+          icon: Target,
           href: `/${orgSlug}/budgets`,
           active: pathname.startsWith(`/${orgSlug}/budgets`),
         },
       ],
-    },
-    {
-      label: 'Backups',
-      icon: DatabaseBackup,
-      href: `/${orgSlug}/backups`,
-      active: pathname.startsWith(`/${orgSlug}/backups`),
     },
     {
       label: 'Approvals',
@@ -400,10 +406,26 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       feature: 'treasury_approvals',
     },
     {
-      label: 'Settings',
+      label: 'Administration',
       icon: Settings,
-      href: `/${orgSlug}/settings`,
-      active: pathname.startsWith(`/${orgSlug}/settings`),
+      children: [
+        {
+          label: 'Settings',
+          icon: Settings,
+          href: `/${orgSlug}/settings`,
+          // Account mappings and cost centres live under /settings but belong to Accounting.
+          active:
+            pathname.startsWith(`/${orgSlug}/settings`) &&
+            !pathname.startsWith(`/${orgSlug}/settings/gl-account-mappings`) &&
+            !pathname.startsWith(`/${orgSlug}/settings/cost-centers`),
+        },
+        {
+          label: 'Backups',
+          icon: DatabaseBackup,
+          href: `/${orgSlug}/backups`,
+          active: pathname.startsWith(`/${orgSlug}/backups`),
+        },
+      ],
     },
   ];
 
@@ -634,101 +656,164 @@ function NavLinkItem({ item, onItemClick }: { item: NavItem; onItemClick?: () =>
   );
 }
 
+/**
+ * Expands itself when `active` turns true (navigation into it), adjusting state during render
+ * rather than in an effect, so there is no extra render pass. Manual toggles are kept otherwise.
+ */
+function useAutoExpand(active: boolean, defaultOpen = false) {
+  const [expanded, setExpanded] = useState(active || defaultOpen);
+  const [prevActive, setPrevActive] = useState(active);
+  if (active !== prevActive) {
+    setPrevActive(active);
+    if (active) setExpanded(true);
+  }
+  const toggle = useCallback(() => setExpanded((v) => !v), []);
+  return [expanded, toggle] as const;
+}
+
+/** Height-agnostic open / close animation (grid rows 0fr to 1fr), for any number of children. */
+function Collapse({ open, id, children }: { open: boolean; id: string; children: React.ReactNode }) {
+  return (
+    <div
+      id={id}
+      className={cn(
+        'grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none',
+        open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+      )}
+      inert={!open}
+    >
+      <ul className="min-h-0 overflow-hidden">{children}</ul>
+    </div>
+  );
+}
+
+/** Consecutive children sharing a section, in order; items without a section stand alone. */
+function sectionBlocks(children: NavItem[]): { section?: string; items: NavItem[] }[] {
+  const blocks: { section?: string; items: NavItem[] }[] = [];
+  for (const child of children) {
+    const last = blocks[blocks.length - 1];
+    if (child.section && last?.section === child.section) last.items.push(child);
+    else blocks.push({ section: child.section, items: [child] });
+  }
+  return blocks;
+}
+
+function NavChildLink({ child, onItemClick, indent }: { child: NavItem; onItemClick?: () => void; indent: 'group' | 'section' }) {
+  const ChildIcon = child.icon;
+  return (
+    <li>
+      <NavFeatureLock feature={child.feature}>
+        <Link
+          href={child.href}
+          onClick={onItemClick}
+          aria-current={child.active ? 'page' : undefined}
+          className={cn(
+            'flex items-center gap-3 pr-3 py-2 rounded-xl transition-colors duration-200 text-sm',
+            indent === 'group' ? 'pl-10' : 'pl-14',
+            child.active
+              ? 'bg-primary/10 text-primary font-semibold'
+              : 'text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-foreground/8',
+          )}
+        >
+          <ChildIcon className="size-4 shrink-0" aria-hidden />
+          <span className="truncate">{child.label}</span>
+          <NavBadge count={child.badge} />
+        </Link>
+      </NavFeatureLock>
+    </li>
+  );
+}
+
+/** A collapsible sub-group inside a module (e.g. Accounting > Period Close). */
+function NavSection({ label, items, onItemClick }: { label: string; items: NavItem[]; onItemClick?: () => void }) {
+  const hasActive = items.some((c) => c.active);
+  const [expanded, toggle] = useAutoExpand(hasActive);
+  const badge = items.reduce((n, c) => n + (c.badge ?? 0), 0);
+  const id = `nav-section-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={expanded}
+        aria-controls={id}
+        className={cn(
+          'flex w-full items-center gap-2 pl-10 pr-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-[0.1em] transition-colors',
+          hasActive ? 'text-primary' : 'text-sidebar-foreground/40 hover:text-sidebar-foreground/70 hover:bg-sidebar-foreground/5',
+        )}
+      >
+        <ChevronRight className={cn('size-3.5 shrink-0 transition-transform duration-200', expanded && 'rotate-90')} aria-hidden />
+        <span className="flex-1 text-left truncate">{label}</span>
+        {!expanded && <NavBadge count={badge} />}
+      </button>
+      <Collapse open={expanded} id={id}>
+        {items.map((child) => (
+          <NavChildLink key={child.href} child={child} onItemClick={onItemClick} indent="section" />
+        ))}
+      </Collapse>
+    </li>
+  );
+}
+
 function NavGroupItem({
   group,
   onItemClick,
-  pathname,
+  pathname: _pathname,
 }: {
   group: NavGroup;
   onItemClick?: () => void;
   pathname: string;
 }) {
   const hasActiveChild = group.children.some((c) => c.active);
-  // A collapsed group carries its children's reminders so they are not hidden.
+  // A collapsed module carries its children's reminders so they are not hidden.
   const groupBadge = group.children.reduce((n, c) => n + (c.badge ?? 0), 0);
-  const [expanded, setExpanded] = useState(hasActiveChild || (group.defaultOpen ?? false));
-
-  // Auto-expand when a child becomes active via navigation (adjusted during render when the
-  // active state changes, not in an effect, so there is no extra render pass).
-  const [prevActive, setPrevActive] = useState(hasActiveChild);
-  if (hasActiveChild !== prevActive) {
-    setPrevActive(hasActiveChild);
-    if (hasActiveChild) setExpanded(true);
-  }
-
-  const toggle = useCallback(() => setExpanded((v) => !v), []);
-
+  const [expanded, toggle] = useAutoExpand(hasActiveChild, group.defaultOpen);
   const Icon = group.icon;
+  const id = `nav-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
   return (
     <li>
       <NavFeatureLock feature={group.feature}>
-      <button
-        type="button"
-        onClick={toggle}
-        className={cn(
-          'flex w-full items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm',
-          hasActiveChild
-            ? 'text-primary font-semibold'
-            : 'text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-foreground/8 font-medium'
-        )}
-      >
-        <div
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={expanded}
+          aria-controls={id}
           className={cn(
-            'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors',
-            hasActiveChild ? 'bg-primary/10 text-primary' : 'bg-transparent text-sidebar-foreground/40'
+            'flex w-full items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-sm',
+            hasActiveChild
+              ? 'text-primary font-semibold'
+              : 'text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-foreground/8 font-medium',
           )}
         >
-          <Icon className="size-4.5" />
-        </div>
-        <span className="flex-1 text-left truncate">{group.label}</span>
-        {!expanded && <NavBadge count={groupBadge} />}
-        <ChevronDown
-          className={cn(
-            'size-4 text-sidebar-foreground/25 transition-transform duration-200',
-            expanded && 'rotate-180'
-          )}
-        />
-      </button>
+          <div
+            className={cn(
+              'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors',
+              hasActiveChild ? 'bg-primary/10 text-primary' : 'bg-transparent text-sidebar-foreground/40',
+            )}
+          >
+            <Icon className="size-4.5" aria-hidden />
+          </div>
+          <span className="flex-1 text-left truncate">{group.label}</span>
+          {!expanded && <NavBadge count={groupBadge} />}
+          <ChevronDown
+            className={cn('size-4 text-sidebar-foreground/25 transition-transform duration-200', expanded && 'rotate-180')}
+            aria-hidden
+          />
+        </button>
       </NavFeatureLock>
 
-      <ul
-        className={cn(
-          'overflow-hidden transition-all duration-200',
-          // Room for the tallest sectioned group (items plus section headings).
-          expanded ? 'max-h-[56rem] opacity-100' : 'max-h-0 opacity-0'
+      <Collapse open={expanded} id={id}>
+        {sectionBlocks(group.children).map((block) =>
+          block.section && block.items.length > 1 ? (
+            <NavSection key={block.section} label={block.section} items={block.items} onItemClick={onItemClick} />
+          ) : (
+            block.items.map((child) => (
+              <NavChildLink key={child.href} child={child} onItemClick={onItemClick} indent="group" />
+            ))
+          ),
         )}
-      >
-        {group.children.map((child, i) => {
-          const ChildIcon = child.icon;
-          const heading = child.section && child.section !== group.children[i - 1]?.section ? child.section : null;
-          return (
-            <li key={child.href}>
-              {heading && (
-                <p className="pl-10 pr-3 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
-                  {heading}
-                </p>
-              )}
-              <NavFeatureLock feature={child.feature}>
-              <Link
-                href={child.href}
-                onClick={onItemClick}
-                className={cn(
-                  'flex items-center gap-3 pl-10 pr-3 py-2 rounded-xl transition-all duration-200 text-sm',
-                  child.active
-                    ? 'bg-primary/10 text-primary font-semibold'
-                    : 'text-sidebar-foreground/45 hover:text-sidebar-foreground hover:bg-sidebar-foreground/8'
-                )}
-              >
-                <ChildIcon className="size-4 shrink-0" />
-                <span className="text-sm">{child.label}</span>
-                <NavBadge count={child.badge} />
-              </Link>
-              </NavFeatureLock>
-            </li>
-          );
-        })}
-      </ul>
+      </Collapse>
     </li>
   );
 }

@@ -116,7 +116,7 @@ export default function DeliveryChallansPage() {
   return (
     <>
       <SharedDocumentList
-        title="Delivery Challans"
+        title="Delivery Notes"
         subtitle={src.isAggregate ? 'All tenants — track goods dispatched to customers.' : 'Track goods dispatched to customers.'}
         rows={filtered}
         isLoading={src.isLoading}

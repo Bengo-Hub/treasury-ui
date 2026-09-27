@@ -143,7 +143,7 @@ export default function GLAccountMappingsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">GL Account Mappings</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Account Mappings</h1>
           <p className="text-muted-foreground mt-1">
             Override which ledger account a service&apos;s event posts to, instead of the platform&apos;s
             built-in default — e.g. route inventory purchases to a different GL code than the standard one.

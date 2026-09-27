@@ -65,7 +65,7 @@ export default function PaymentReceiptsPage() {
       {showRecordPayment && <RecordPaymentModal tenant={src.docTenant} onClose={() => setShowRecordPayment(false)} />}
 
       <div className="px-6 pt-6 pb-0 flex items-center justify-between gap-3">
-        <h1 className="text-lg font-black text-foreground">Payment Receipts</h1>
+        <h1 className="text-lg font-black text-foreground">Customer Receipts</h1>
         <Button variant="outline" size="sm" onClick={() => reconcileMutation.mutate()} disabled={reconcileMutation.isPending}
           title="Re-verify pending payments against the gateway and settle any that completed">
           <RefreshCw className={`h-3.5 w-3.5 mr-2 ${reconcileMutation.isPending ? 'animate-spin' : ''}`} />
@@ -75,7 +75,7 @@ export default function PaymentReceiptsPage() {
 
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <SharedDocumentList
-          title="Payment Receipts"
+          title="Customer Receipts"
           subtitle={src.isAggregate ? 'All tenants — receipts issued for payments received.' : 'Receipts issued to customers for payments received.'}
           createLabel={src.isAggregate ? undefined : 'Create Payment Receipt'}
           onCreateClick={src.isAggregate ? undefined : () => setShowCreate(true)}

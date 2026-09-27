@@ -117,7 +117,7 @@ export default function CostCentersPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Cost Centers</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Cost Centres</h1>
           <p className="text-muted-foreground mt-1">
             Manage cost centers to tag expenses to an organizational unit for reporting.
           </p>
