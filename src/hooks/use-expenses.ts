@@ -5,7 +5,8 @@ import {
   getExpenseStats,
   getInvoiceJobCosts,
   payInvoiceJobCost,
-  type JobCostKind,
+  closeInvoiceJobGoods,
+  type PayJobCostBody,
   getExpense,
   getExpenseCategories,
   createExpense,
@@ -55,19 +56,32 @@ export function useInvoiceJobCosts(tenantIdOrSlug: string | undefined, invoiceId
   });
 }
 
-/** Pays an invoice's goods or service cost from a bank / cash account. */
+/** Records an invoice's goods or service cost (bank payment, or own staff for services). */
 export function usePayInvoiceJobCost(tenantIdOrSlug: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ invoiceId, ...body }: { invoiceId: string; kind: JobCostKind; amount: number; paid_from_account_id: string; paid_at?: string; description?: string }) =>
+    mutationFn: ({ invoiceId, ...body }: PayJobCostBody & { invoiceId: string }) =>
       payInvoiceJobCost(tenantIdOrSlug!, invoiceId, body),
     onSuccess: (_d, { kind }) => {
       qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
       // The bank account balance and statement change.
       qc.invalidateQueries({ queryKey: ['bank-accounts'] });
-      toast.success(kind === 'goods' ? 'Goods purchase recorded' : 'Service cost paid');
+      toast.success(kind === 'goods' ? 'Goods purchase recorded' : kind === 'service_own_staff' ? 'Covered by own staff' : 'Service cost paid');
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || err?.message || 'Failed to record the payment'),
+  });
+}
+
+/** Completes or reopens a job's goods purchasing (posts / reverses the price variance). */
+export function useCloseInvoiceJobGoods(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invoiceId, closed }: { invoiceId: string; closed: boolean }) => closeInvoiceJobGoods(tenantIdOrSlug!, invoiceId, closed),
+    onSuccess: (_d, { closed }) => {
+      qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
+      toast.success(closed ? 'Goods purchasing closed' : 'Goods purchasing reopened');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || err?.message || 'Failed to update the job'),
   });
 }
 

@@ -78,6 +78,25 @@ export async function updateFiscalYear(
   return apiClient.put<FiscalYearConfig>(`${BASE}/${tenantSlug}/settings/fiscal-year`, body);
 }
 
+/**
+ * When sold goods leave stock. "invoice" (default): with the invoice, delivery note or not.
+ * "delivery": only when a delivery note is dispatched. Either way the invoice carries the cost of
+ * sales; goods between the two sit in Goods Delivered Not Invoiced (1510).
+ */
+export type StockOutOn = 'invoice' | 'delivery';
+
+export interface InventoryPolicy {
+  stock_out_on: StockOutOn;
+}
+
+export function getInventoryPolicy(tenantSlug: string): Promise<InventoryPolicy> {
+  return apiClient.get<InventoryPolicy>(`${BASE}/${tenantSlug}/settings/inventory-policy`);
+}
+
+export function updateInventoryPolicy(tenantSlug: string, body: InventoryPolicy): Promise<InventoryPolicy> {
+  return apiClient.put<InventoryPolicy>(`${BASE}/${tenantSlug}/settings/inventory-policy`, body);
+}
+
 // ── Fiscal Year-End Close ───────────────────────────────────────────────────────
 
 /** One proposed (or posted) journal line of the close. Amounts are pre-formatted strings. */
