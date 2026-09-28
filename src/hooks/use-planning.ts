@@ -24,7 +24,7 @@ export function useRollingForecast(tenantSlug: string, horizon: number) {
   });
 }
 
-export function useDimensionPnL(tenantSlug: string, params: { by: 'cost_center' | 'project'; from?: string; to?: string }) {
+export function useDimensionPnL(tenantSlug: string, params: planningApi.DimensionPnLParams) {
   return useQuery({
     queryKey: ['bi-dimension-pnl', tenantSlug, params],
     queryFn: () => planningApi.getDimensionPnL(tenantSlug, params),
@@ -40,6 +40,16 @@ export function useBudgetUtilisation(tenantSlug: string) {
     queryFn: () => planningApi.getBudgetUtilisation(tenantSlug),
     enabled: !!tenantSlug,
     staleTime: STALE_MS,
+  });
+}
+
+export function useTaxCalendar(tenantSlug: string, months: number) {
+  return useQuery({
+    queryKey: ['tax-calendar', tenantSlug, months],
+    queryFn: () => planningApi.getTaxCalendar(tenantSlug, months),
+    enabled: !!tenantSlug,
+    staleTime: STALE_MS,
+    placeholderData: keepPreviousData,
   });
 }
 

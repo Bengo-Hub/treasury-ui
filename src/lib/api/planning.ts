@@ -123,13 +123,40 @@ export const getCashForecast = (tenant: string, scenario?: CashForecastScenario)
 export const getRollingForecast = (tenant: string, horizon = 12) =>
   apiClient.get<RollingForecast>(`${BASE}/${tenant}/planning/rolling-forecast`, { horizon });
 
-export const getDimensionPnL = (tenant: string, params: { by: 'cost_center' | 'project'; from?: string; to?: string }) =>
+export interface DimensionPnLParams {
+  by: 'cost_center' | 'project';
+  from?: string;
+  to?: string;
+  /** Narrows to one outlet (the header outlet filter). */
+  outlet_id?: string;
+}
+
+export const getDimensionPnL = (tenant: string, params: DimensionPnLParams) =>
   apiClient.get<DimensionReport>(`${BASE}/${tenant}/reports/bi/dimension-pnl`, params);
 
 export async function getBudgetUtilisation(tenant: string): Promise<UtilisationRow[]> {
   const raw = await apiClient.get<{ data?: UtilisationRow[] }>(`${BASE}/${tenant}/reports/bi/budget-utilisation`);
   return raw?.data ?? [];
 }
+
+export interface TaxPayment {
+  due: string;
+  kind: 'statutory' | 'vat' | 'tot' | 'wht' | 'instalment';
+  amount: Money;
+  basis: string;
+}
+
+export interface TaxCalendar {
+  from: string;
+  until: string;
+  payments: TaxPayment[];
+  by_month: Record<string, Money>;
+  total: Money;
+  warnings?: string[];
+}
+
+export const getTaxCalendar = (tenant: string, months: number) =>
+  apiClient.get<TaxCalendar>(`${BASE}/${tenant}/planning/tax-calendar`, { months });
 
 export interface SavedScenario extends Required<CashForecastScenario> {
   name: string;

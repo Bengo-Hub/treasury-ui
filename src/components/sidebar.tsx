@@ -40,7 +40,8 @@ import {
   Truck,
   Users,
   Wallet,
-  X
+  X,
+  CalendarDays
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
@@ -446,6 +447,15 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           icon: TrendingUp,
           href: `/${orgSlug}/planning/rolling-forecast`,
           active: pathname.startsWith(`/${orgSlug}/planning/rolling-forecast`),
+          feature: 'financial_planning',
+        },
+        {
+          section: 'Planning',
+          label: 'Tax Calendar',
+          hint: 'Tax payments due, with estimated amounts',
+          icon: CalendarDays,
+          href: `/${orgSlug}/planning/tax-calendar`,
+          active: pathname.startsWith(`/${orgSlug}/planning/tax-calendar`),
           feature: 'financial_planning',
         },
       ],
