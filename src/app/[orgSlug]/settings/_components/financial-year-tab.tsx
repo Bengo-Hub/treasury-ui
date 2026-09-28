@@ -5,7 +5,7 @@ import { FormField } from '@/components/ui/form-field';
 import { useFiscalYear, useUpdateFiscalYear } from '@/hooks/use-settings';
 import type { PeriodFrequency } from '@/lib/api/settings';
 import { CalendarRange, Loader2, Save } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { YearEndClosePanel } from './year-end-close-panel';
 
@@ -33,13 +33,16 @@ export function FinancialYearTab({ tenantSlug }: { tenantSlug: string }) {
   // "" = automatic (the earlier of registration and the first booked transaction).
   const [booksStart, setBooksStart] = useState('');
 
-  useEffect(() => {
-    if (!data) return;
+  // Hydrate the form from the saved settings whenever they (re)load. Adjusting state during render
+  // when the source changes (not in an effect) avoids an extra render pass.
+  const [hydratedFrom, setHydratedFrom] = useState<typeof data>(undefined);
+  if (data && data !== hydratedFrom) {
+    setHydratedFrom(data);
     setStartMonth(data.start_month || 1);
     setStartDay(data.start_day || 1);
     setFrequency(data.period_frequency === 'quarterly' ? 'quarterly' : 'monthly');
     setBooksStart(data.books_start ?? '');
-  }, [data]);
+  }
 
   const handleSave = () => {
     updateFY.mutate(
