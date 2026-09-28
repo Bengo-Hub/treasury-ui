@@ -24,11 +24,19 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <SettingsView />
+    </Suspense>
+  );
+}
+
+function SettingsView() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
@@ -39,12 +47,9 @@ export default function SettingsPage() {
   const updateSetting = useUpdateSetting(tenantSlug);
   const settings = settingsData?.settings;
 
-  const [activeTab, setActiveTab] = useState('general');
   // Deep links (e.g. Accounting Periods -> ?tab=financial-year) open the named tab.
-  useEffect(() => {
-    const tab = new URLSearchParams(window.location.search).get('tab');
-    if (tab) setActiveTab(tab);
-  }, []);
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams?.get('tab') || 'general');
 
   // ---- General ----
   const [defaultCurrency, setDefaultCurrency] = useState('KES');
@@ -67,9 +72,11 @@ export default function SettingsPage() {
   const [requireApproval, setRequireApproval] = useState(false);
   const [approvalThreshold, setApprovalThreshold] = useState(100000);
 
-  // Hydrate from API data
-  useEffect(() => {
-    if (!settings) return;
+  // Hydrate the form from the saved settings whenever they (re)load, adjusting state during render
+  // when the source changes (not in an effect, which costs an extra render pass).
+  const [hydratedFrom, setHydratedFrom] = useState<typeof settings>(undefined);
+  if (settings && settings !== hydratedFrom) {
+    setHydratedFrom(settings);
     setDefaultCurrency(getSettingValue(settings, 'default_currency', 'KES'));
     setWebhookUrl(getSettingValue(settings, 'webhook_url', ''));
     setAutoSettlement(getSettingValue(settings, 'auto_settlement', true));
@@ -81,7 +88,7 @@ export default function SettingsPage() {
     setSettlementConfirmation(getSettingValue(settings, 'settlement_confirmation', true));
     setRequireApproval(getSettingValue(settings, 'require_approval_large_payouts', false));
     setApprovalThreshold(getSettingValue(settings, 'approval_threshold', 100000));
-  }, [settings]);
+  }
 
   const saveSetting = (key: string, value: any, configType?: string) => {
     updateSetting.mutate(

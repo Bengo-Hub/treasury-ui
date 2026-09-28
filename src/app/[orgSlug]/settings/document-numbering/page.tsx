@@ -14,7 +14,7 @@ import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { DOC_TYPES, type DocType } from '@/lib/api/sequences';
 import { AlertTriangle, FileText, Hash, Loader2, RefreshCw, Save } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 const DOC_TYPE_LABELS: Record<DocType, string> = {
@@ -119,19 +119,21 @@ function DocTypeCard({ tenant, docType }: { tenant: string; docType: DocType }) 
   // number so the next document picks up at value+1. Empty until the user types one.
   const [counterInput, setCounterInput] = useState('');
 
-  useEffect(() => {
-    if (cfg) {
-      const isPrefixed = Boolean(cfg.prefix || cfg.date_format);
-      setFormat(isPrefixed ? 'prefixed' : 'numeric');
-      setForm({
-        prefix: cfg.prefix ?? '',
-        separator: cfg.separator ?? '-',
-        date_format: cfg.date_format ?? '',
-        padding: cfg.padding ?? 6,
-        reset_freq: cfg.reset_freq ?? 'never',
-      });
-    }
-  }, [cfg, docType]);
+  // Hydrate the form when the saved configuration (or the document type) changes, during render
+  // rather than in an effect.
+  const [hydratedFrom, setHydratedFrom] = useState<{ cfg: typeof cfg; docType: typeof docType } | null>(null);
+  if (cfg && (hydratedFrom?.cfg !== cfg || hydratedFrom?.docType !== docType)) {
+    setHydratedFrom({ cfg, docType });
+    const isPrefixed = Boolean(cfg.prefix || cfg.date_format);
+    setFormat(isPrefixed ? 'prefixed' : 'numeric');
+    setForm({
+      prefix: cfg.prefix ?? '',
+      separator: cfg.separator ?? '-',
+      date_format: cfg.date_format ?? '',
+      padding: cfg.padding ?? 6,
+      reset_freq: cfg.reset_freq ?? 'never',
+    });
+  }
 
   // Switching format clears (numeric) or pre-fills (prefixed) the prefix/date fields.
   const selectNumeric = () => {

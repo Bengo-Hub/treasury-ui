@@ -19,7 +19,10 @@ import { toast } from 'sonner';
  * treasury.fiscalyear.close permission (or platform owner). Preview writes nothing.
  */
 export function YearEndClosePanel({ tenantSlug }: { tenantSlug: string }) {
-  const canClose = useHasPermission('treasury.fiscalyear.close') || useIsPlatformOwner();
+  // Both hooks run on every render (a `||` would skip the second one and change the hook order).
+  const hasClosePermission = useHasPermission('treasury.fiscalyear.close');
+  const isPlatformOwner = useIsPlatformOwner();
+  const canClose = hasClosePermission || isPlatformOwner;
   const defaultYear = new Date().getFullYear() - 1;
   const [year, setYear] = useState(defaultYear);
   const [previewYear, setPreviewYear] = useState<number | null>(null);
