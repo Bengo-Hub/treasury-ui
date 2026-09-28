@@ -4,6 +4,7 @@ import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { ExportMenu } from '@/components/documents/ExportMenu';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
+import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { cn } from '@/lib/utils';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
@@ -38,6 +39,8 @@ interface AccountFormData {
    *  list already displays `balance`). Posted via a journal entry against 3200 Opening Balance
    *  Equity, never stored directly — see ledger.Service.SetAccountOpeningBalance. */
   balance: string;
+  /** Revenue / expense accounts: cost centre untagged postings on this account default to. */
+  default_cost_center_id: string;
 }
 
 const emptyForm: AccountFormData = {
@@ -47,7 +50,10 @@ const emptyForm: AccountFormData = {
   currency: 'KES',
   description: '',
   balance: '',
+  default_cost_center_id: '',
 };
+
+const hasCostCentre = (type: string) => type === 'revenue' || type === 'expense';
 
 export default function AccountsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -110,6 +116,7 @@ export default function AccountsPage() {
       currency: 'KES', // backend doesn't store currency on account model; default
       description: account.description ?? '',
       balance: account.balance ?? '0',
+      default_cost_center_id: (account.metadata?.default_cost_center_id as string | undefined) ?? '',
     });
     setEditAccount(account);
   }
@@ -145,6 +152,8 @@ export default function AccountsPage() {
         data: {
           account_name: formData.account_name,
           description: formData.description || undefined,
+          // Merged into metadata server-side (empty clears it); other metadata links are kept.
+          ...(hasCostCentre(editAccount.account_type) ? { default_cost_center_id: formData.default_cost_center_id } : {}),
         },
       },
       {
@@ -360,6 +369,19 @@ export default function AccountsPage() {
                 onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
               />
             </FormField>
+            {hasCostCentre(formData.account_type) && (
+              <FormField
+                label="Default cost centre"
+                description="Postings on this account that arrive without a cost centre use this one. Leave empty to use the built-in rule (by account code and name)."
+              >
+                <CostCenterCombobox
+                  tenant={effectiveTenant}
+                  value={formData.default_cost_center_id}
+                  onChange={(v) => setFormData((p) => ({ ...p, default_cost_center_id: v }))}
+                  placeholder="Built-in rule"
+                />
+              </FormField>
+            )}
             <FormField label="Balance" description="Changing this posts a correcting journal entry against Opening Balance Equity — it never edits the balance directly, so the ledger stays double-entry-correct.">
               <input
                 type="number"

@@ -6,6 +6,7 @@ import {
   createGLAccountMapping,
   updateGLAccountMapping,
   deleteGLAccountMapping,
+  getGLMappingCatalog,
   type GLAccountMappingsResponse,
   type CreateGLAccountMappingRequest,
   type UpdateGLAccountMappingRequest,
@@ -24,6 +25,17 @@ export function useGLAccountMappings(tenantSlug: string, params?: ListGLAccountM
     queryFn: () => listGLAccountMappings(tenantSlug, params),
     enabled: !!tenantSlug,
     staleTime: STALE_MS,
+  });
+}
+
+/** Every posting key with its default account; static, so cached for the session. */
+export function useGLMappingCatalog(tenantSlug: string) {
+  return useQuery({
+    queryKey: [...glAccountMappingKeys.all(tenantSlug), 'catalog'],
+    queryFn: () => getGLMappingCatalog(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: Infinity,
+    select: (r) => r.keys,
   });
 }
 

@@ -45,6 +45,8 @@ export interface UpdateAccountRequest {
   description?: string;
   is_active?: boolean;
   metadata?: Record<string, any>;
+  /** Sets (empty string clears) metadata.default_cost_center_id without replacing other metadata. */
+  default_cost_center_id?: string;
 }
 
 // ---- API functions ----

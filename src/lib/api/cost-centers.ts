@@ -85,8 +85,30 @@ export function deleteCostCenter(
   return apiClient.delete<{ status: string }>(`${BASE}/${tenantIdOrSlug}/cost-centers/${id}`);
 }
 
+/** What the form knows about the record; the backend applies the same rules as posting. */
+export interface SuggestCostCenterParams {
+  account_id?: string;
+  project_id?: string;
+  /** Expense category; its name and default account are used. */
+  category_id?: string;
+  /** Category or line name, matched before the account. */
+  name?: string;
+  kind?: 'revenue' | 'expense';
+}
+
+/** GET /cost-centers/suggest: the default cost centre for a new record, or null. */
+export function suggestCostCenter(
+  tenantIdOrSlug: string,
+  params: SuggestCostCenterParams,
+): Promise<{ cost_center: CostCenter | null }> {
+  const query: Record<string, string> = {};
+  for (const [k, v] of Object.entries(params)) if (v) query[k] = v;
+  return apiClient.get<{ cost_center: CostCenter | null }>(`${BASE}/${tenantIdOrSlug}/cost-centers/suggest`, query);
+}
+
 export const costCentersApi = {
   list: listCostCenters,
+  suggest: suggestCostCenter,
   create: createCostCenter,
   update: updateCostCenter,
   delete: deleteCostCenter,
