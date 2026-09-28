@@ -130,3 +130,24 @@ export async function getBudgetUtilisation(tenant: string): Promise<UtilisationR
   const raw = await apiClient.get<{ data?: UtilisationRow[] }>(`${BASE}/${tenant}/reports/bi/budget-utilisation`);
   return raw?.data ?? [];
 }
+
+export interface SavedScenario extends Required<CashForecastScenario> {
+  name: string;
+  updated_by?: string;
+  updated_at?: string;
+}
+
+export async function listScenarios(tenant: string): Promise<SavedScenario[]> {
+  const raw = await apiClient.get<{ data?: SavedScenario[] }>(`${BASE}/${tenant}/planning/scenarios`);
+  return raw?.data ?? [];
+}
+
+export async function saveScenario(tenant: string, scenario: SavedScenario): Promise<SavedScenario[]> {
+  const raw = await apiClient.put<{ data?: SavedScenario[] }>(`${BASE}/${tenant}/planning/scenarios`, scenario);
+  return raw?.data ?? [];
+}
+
+export async function deleteScenario(tenant: string, name: string): Promise<SavedScenario[]> {
+  const raw = await apiClient.delete<{ data?: SavedScenario[] }>(`${BASE}/${tenant}/planning/scenarios?name=${encodeURIComponent(name)}`);
+  return raw?.data ?? [];
+}
