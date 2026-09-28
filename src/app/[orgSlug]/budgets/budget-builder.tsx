@@ -14,12 +14,14 @@ import {
   getAccountHistory,
   num,
   type Budget,
+  type BudgetTemplate,
   type BudgetControl,
   type BudgetInput,
   type BudgetType,
   type LineCategory,
 } from '@/lib/api/budgets';
 import { formatCurrency } from '@/lib/utils/currency';
+import { TemplatePicker } from './template-picker';
 
 const inputClass =
   'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring';
@@ -175,6 +177,19 @@ export function BudgetBuilder({
     }
   }
 
+  /** Replaces the lines with a template's, each line its share of the side's total. */
+  function applyTemplate(t: BudgetTemplate, spendTotal: number, revenueTotal: number) {
+    const next = t.lines.map((tl) => {
+      const total = tl.category === 'revenue' ? revenueTotal : spendTotal;
+      const amount = Math.round(((total * num(tl.share)) / 100) * 100) / 100;
+      return { ...blankLine(tl.category), name: tl.name, account_id: tl.account_id ?? '', planned: amount ? String(amount) : '' };
+    });
+    setLines(next.filter((l) => l.category !== 'revenue' || revenueTotal > 0));
+    if (!projectLocked && (t.budget_type === 'project' || t.budget_type === 'operating')) setBudgetType(t.budget_type);
+    if (!name.trim()) setName(t.name);
+    setFormError('');
+  }
+
   function submit() {
     setFormError('');
     if (!name.trim()) return setFormError('Give the budget a name.');
@@ -223,6 +238,7 @@ export function BudgetBuilder({
 
   return (
     <div className="space-y-6">
+      {!existing && <TemplatePicker tenant={tenant} onApply={applyTemplate} />}
       <Card>
         <CardHeader className="py-4">
           <h3 className="font-bold text-sm uppercase tracking-tight">Budget</h3>

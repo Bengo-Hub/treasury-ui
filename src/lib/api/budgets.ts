@@ -234,6 +234,39 @@ export const copyBudget = (
 ) => apiClient.post<Budget>(path(tenant, `/${id}/copy`), body);
 export const getBudgetVariance = (tenant: string, id: string) => apiClient.get<BudgetVariance>(path(tenant, `/${id}/variance`));
 
+export interface TemplateLine {
+  name: string;
+  category: LineCategory;
+  account_code?: string;
+  account_id?: string;
+  /** Percentage of its side's total (spend lines of spend, revenue lines of revenue). */
+  share: Money;
+}
+
+export interface BudgetTemplate {
+  key: string;
+  kind: 'starter' | 'tenant';
+  name: string;
+  industry?: string;
+  description?: string;
+  budget_type: BudgetType;
+  spend_total: Money;
+  revenue_total: Money;
+  lines: TemplateLine[];
+  missing_account_codes?: string[];
+}
+
+export async function listBudgetTemplates(tenant: string): Promise<BudgetTemplate[]> {
+  const raw = await apiClient.get<{ data?: BudgetTemplate[] }>(path(tenant, '/templates'));
+  return raw?.data ?? [];
+}
+
+export const saveBudgetTemplate = (tenant: string, budgetId: string, name: string) =>
+  apiClient.post<BudgetTemplate>(path(tenant, '/templates'), { budget_id: budgetId, name });
+
+export const deleteBudgetTemplate = (tenant: string, key: string) =>
+  apiClient.delete<void>(path(tenant, `/templates?key=${encodeURIComponent(key)}`));
+
 /** Booked amount per month on an account (KES, child accounts included), for seasonal spreads. */
 export async function getAccountHistory(tenant: string, accountId: string, from: string, to: string): Promise<{ month: string; amount: number }[]> {
   const raw = await apiClient.get<{ data?: { month: string; amount: Money }[] }>(path(tenant, '/account-history'), { account_id: accountId, from, to });
