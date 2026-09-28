@@ -2,10 +2,13 @@ import * as budgetsApi from '@/lib/api/budgets';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-export function useBudgets(tenantSlug: string) {
+const errorText = (err: unknown, fallback: string) =>
+  (err as { response?: { data?: { error?: string } } })?.response?.data?.error || fallback;
+
+export function useBudgets(tenantSlug: string, params?: budgetsApi.ListBudgetsParams) {
   return useQuery({
-    queryKey: ['budgets', tenantSlug],
-    queryFn: () => budgetsApi.listBudgets(tenantSlug),
+    queryKey: ['budgets', tenantSlug, params],
+    queryFn: () => budgetsApi.listBudgets(tenantSlug, params),
     enabled: !!tenantSlug,
   });
 }
@@ -18,43 +21,99 @@ export function useBudget(tenantSlug: string, budgetID: string) {
   });
 }
 
-export function useCreateBudget() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ tenantSlug, data }: { tenantSlug: string; data: budgetsApi.CreateBudgetRequest }) =>
-      budgetsApi.createBudget(tenantSlug, data),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['budgets', vars.tenantSlug] });
-      toast.success('Budget created');
-    },
-    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to create budget'),
+export function useBudgetVariance(tenantSlug: string, budgetID: string) {
+  return useQuery({
+    queryKey: ['budget-variance', tenantSlug, budgetID],
+    queryFn: () => budgetsApi.getBudgetVariance(tenantSlug, budgetID),
+    enabled: !!tenantSlug && !!budgetID,
   });
 }
 
-export function useRecomputeBudgetActuals() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ tenantSlug, budgetID }: { tenantSlug: string; budgetID: string }) =>
-      budgetsApi.recomputeBudgetActuals(tenantSlug, budgetID),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['budgets', vars.tenantSlug] });
-      qc.invalidateQueries({ queryKey: ['budget', vars.tenantSlug, vars.budgetID] });
-      toast.success('Budget actuals recomputed from the ledger');
-    },
-    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to recompute actuals'),
+export function useCommitments(tenantSlug: string, params: Parameters<typeof budgetsApi.listCommitments>[1], enabled = true) {
+  return useQuery({
+    queryKey: ['budget-commitments', tenantSlug, params],
+    queryFn: () => budgetsApi.listCommitments(tenantSlug, params),
+    enabled: enabled && !!tenantSlug,
   });
 }
 
-export function useApproveBudget() {
+function useInvalidateBudgets() {
   const qc = useQueryClient();
+  return (tenantSlug: string, budgetID?: string) => {
+    qc.invalidateQueries({ queryKey: ['budgets', tenantSlug] });
+    if (budgetID) {
+      qc.invalidateQueries({ queryKey: ['budget', tenantSlug, budgetID] });
+      qc.invalidateQueries({ queryKey: ['budget-variance', tenantSlug, budgetID] });
+    }
+  };
+}
+
+export function useSaveBudget() {
+  const invalidate = useInvalidateBudgets();
   return useMutation({
-    mutationFn: ({ tenantSlug, budgetID }: { tenantSlug: string; budgetID: string }) =>
-      budgetsApi.approveBudget(tenantSlug, budgetID),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['budgets', vars.tenantSlug] });
-      qc.invalidateQueries({ queryKey: ['budget', vars.tenantSlug, vars.budgetID] });
-      toast.success('Budget approved');
+    mutationFn: ({ tenantSlug, id, data }: { tenantSlug: string; id?: string; data: budgetsApi.BudgetInput }) =>
+      id ? budgetsApi.updateBudget(tenantSlug, id, data) : budgetsApi.createBudget(tenantSlug, data),
+    onSuccess: (b, vars) => {
+      invalidate(vars.tenantSlug, b.id);
+      toast.success(vars.id ? 'Budget saved' : 'Budget created');
     },
-    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to approve budget'),
+    onError: (err) => toast.error(errorText(err, 'Failed to save budget')),
+  });
+}
+
+type Action = 'submit' | 'approve' | 'reject' | 'revise' | 'cancel' | 'close' | 'delete';
+
+const actionLabels: Record<Action, string> = {
+  submit: 'Budget submitted for approval',
+  approve: 'Budget approved',
+  reject: 'Budget returned to its author',
+  revise: 'New draft version created',
+  cancel: 'Budget cancelled',
+  close: 'Budget closed',
+  delete: 'Budget deleted',
+};
+
+/** One mutation for every lifecycle action; returns the budget the action produced (if any). */
+export function useBudgetAction() {
+  const invalidate = useInvalidateBudgets();
+  return useMutation({
+    mutationFn: async ({ tenantSlug, budgetID, action, reason }: { tenantSlug: string; budgetID: string; action: Action; reason?: string }) => {
+      switch (action) {
+        case 'submit':
+          return (await budgetsApi.submitBudget(tenantSlug, budgetID)).budget;
+        case 'approve':
+          return budgetsApi.approveBudget(tenantSlug, budgetID);
+        case 'reject':
+          return budgetsApi.rejectBudget(tenantSlug, budgetID, reason ?? '');
+        case 'revise':
+          return budgetsApi.reviseBudget(tenantSlug, budgetID);
+        case 'cancel':
+          return budgetsApi.cancelBudget(tenantSlug, budgetID);
+        case 'close':
+          return budgetsApi.closeBudget(tenantSlug, budgetID);
+        case 'delete':
+          await budgetsApi.deleteBudget(tenantSlug, budgetID);
+          return undefined;
+      }
+    },
+    onSuccess: (b, vars) => {
+      invalidate(vars.tenantSlug, vars.budgetID);
+      if (b?.id && b.id !== vars.budgetID) invalidate(vars.tenantSlug, b.id);
+      toast.success(actionLabels[vars.action]);
+    },
+    onError: (err) => toast.error(errorText(err, 'Action failed')),
+  });
+}
+
+export function useCopyBudget() {
+  const invalidate = useInvalidateBudgets();
+  return useMutation({
+    mutationFn: ({ tenantSlug, budgetID, data }: { tenantSlug: string; budgetID: string; data: Parameters<typeof budgetsApi.copyBudget>[2] }) =>
+      budgetsApi.copyBudget(tenantSlug, budgetID, data),
+    onSuccess: (b, vars) => {
+      invalidate(vars.tenantSlug, b.id);
+      toast.success('Draft created from the budget');
+    },
+    onError: (err) => toast.error(errorText(err, 'Failed to copy budget')),
   });
 }
