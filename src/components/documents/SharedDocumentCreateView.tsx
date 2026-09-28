@@ -26,6 +26,8 @@ import { CreateItemModal } from './CreateItemModal';
 import { CreateClientModal } from './CreateClientModal';
 import { BankDetailsPicker, type BankDetailsSnapshot } from './BankDetailsPicker';
 import { vendorOptionHint } from '@/lib/vendor-balance';
+import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
+import { ProjectCombobox } from '@/components/ui/project-combobox';
 
 export interface DocTypeConfig {
   invoiceType: string;
@@ -203,6 +205,9 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     secondary_date: defaultSecondary,
     currency:       'KES',
     reference:      '', // contract / tender / PO number → metadata.reference (meta box "Reference")
+    // Budget dimensions → metadata.project_id / cost_center_id; the revenue journal carries them.
+    project_id:     '',
+    cost_center_id: '',
     terms:          '',
     notes:          '',
   });
@@ -253,6 +258,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       secondary_date: secondaryDate,
       currency:       existing.currency ?? 'KES',
       reference:      (existing.metadata?.reference as string) ?? '',
+      project_id:     (existing.metadata?.project_id as string) ?? '',
+      cost_center_id: (existing.metadata?.cost_center_id as string) ?? '',
       terms:          existing.terms ?? '',
       notes:          existing.notes ?? '',
     });
@@ -445,6 +452,11 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       exclude_bank_details: !includeBankDetails,
       ...(includeBankDetails && bankDetails ? { bank_details: bankDetails } : {}),
     };
+    // Set or clear explicitly: on edit the spread above still holds the old values.
+    for (const key of ['project_id', 'cost_center_id'] as const) {
+      if (form[key]) mergedMeta[key] = form[key];
+      else delete mergedMeta[key];
+    }
     const metadata = Object.keys(mergedMeta).length ? mergedMeta : undefined;
 
     // Originating outlet: prefer the header-selected branch; on edit fall back to the
@@ -704,6 +716,20 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
             />
             <p className="text-[10px] text-muted-foreground">Appears as the “Reference” row on the document — for tender, contract or purchase-order numbers.</p>
           </div>
+
+          {/* Budget dimensions: invoiced revenue counts toward the project and cost centre. */}
+          {!isQuotation && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground">Project</label>
+                <ProjectCombobox tenant={effectiveTenant} value={form.project_id} onChange={v => setForm(p => ({ ...p, project_id: v }))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground">Cost Centre</label>
+                <CostCenterCombobox tenant={effectiveTenant} value={form.cost_center_id} onChange={v => setForm(p => ({ ...p, cost_center_id: v }))} />
+              </div>
+            </div>
+          )}
 
           {/* Line items */}
           <LineItemsSection

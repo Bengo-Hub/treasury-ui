@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from 'recharts';
 import { ChartCard } from '@/components/charts/ChartCard';
@@ -11,6 +12,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useBudgetUtilisation, useDimensionPnL } from '@/hooks/use-planning';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { num } from '@/lib/api/budgets';
+import { listProjectOptions } from '@/lib/api/projects';
 import { cn } from '@/lib/utils';
 import { UtilisationBar, typeLabel } from '../../budgets/budget-columns';
 
@@ -37,9 +39,22 @@ export default function ProfitabilityPage() {
   const { data: pnl, isLoading, isFetching, error } = useDimensionPnL(tenant, { by, from, to });
   const { data: util, isLoading: utilLoading } = useBudgetUtilisation(tenant);
 
+  // projects-api owns project names; the report carries ids, so name them from the lookup the
+  // project pickers already cache.
+  const { data: projects } = useQuery({
+    queryKey: ['project-options', tenant],
+    queryFn: () => listProjectOptions(tenant),
+    enabled: !!tenant && by === 'project',
+    staleTime: 60 * 1000,
+  });
+  const projectNames = useMemo(() => new Map((projects ?? []).map((p) => [p.id, p.name])), [projects]);
+
   const dimName = by === 'project' ? 'Project' : 'Cost centre';
   const unassigned = by === 'project' ? 'Not tagged to a project' : 'No cost centre';
-  const rows = pnl?.rows ?? [];
+  const rows = useMemo(
+    () => (pnl?.rows ?? []).map((r) => (by === 'project' && r.id && projectNames.has(r.id) ? { ...r, name: projectNames.get(r.id)! } : r)),
+    [pnl, by, projectNames],
+  );
   const chart = rows.slice(0, 12).map((r) => ({
     name: r.name || unassigned,
     revenue: num(r.revenue),
