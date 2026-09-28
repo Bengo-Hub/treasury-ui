@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarRange, Loader2, Plus, Trash2 } from 'lucide-react';
+import { CalendarRange, History, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Combobox } from '@/components/ui/combobox';
 import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
@@ -11,6 +11,7 @@ import { ProjectCombobox } from '@/components/ui/project-combobox';
 import { useAccounts } from '@/hooks/use-accounts';
 import { useSaveBudget } from '@/hooks/use-budgets';
 import {
+  getAccountHistory,
   num,
   type Budget,
   type BudgetControl,
@@ -57,6 +58,24 @@ function spreadEvenly(total: number, months: string[]): Record<string, string> {
   });
   return out;
 }
+
+/** Splits total over months in proportion to last year's amounts; even when last year has none. */
+export function spreadLikeHistory(total: number, months: string[], history: Record<string, number>): Record<string, string> {
+  const weights = months.map((m) => Math.max(history[m] ?? 0, 0));
+  const sum = weights.reduce((a, b) => a + b, 0);
+  if (sum <= 0) return spreadEvenly(total, months);
+  const out: Record<string, string> = {};
+  let used = 0;
+  months.forEach((m, i) => {
+    const v = i === months.length - 1 ? total - used : Math.round((total * weights[i]) / sum * 100) / 100;
+    used += v;
+    out[m] = v.toFixed(2);
+  });
+  return out;
+}
+
+/** The same calendar month one year earlier (YYYY-MM). */
+const yearBefore = (ym: string) => `${Number(ym.slice(0, 4)) - 1}${ym.slice(4)}`;
 
 let seq = 0;
 const newKey = () => `l${Date.now()}-${seq++}`;
@@ -111,6 +130,7 @@ export function BudgetBuilder({
   const [thresholds, setThresholds] = useState((existing?.alert_thresholds ?? [80, 100]).join(', '));
   const [lines, setLines] = useState<LineState[]>(existing ? fromBudget(existing) : [blankLine()]);
   const [formError, setFormError] = useState('');
+  const [historyBusy, setHistoryBusy] = useState<string | null>(null);
 
   const months = useMemo(() => monthsBetween(start.slice(0, 7), end.slice(0, 7)), [start, end]);
 
@@ -132,6 +152,26 @@ export function BudgetBuilder({
       update(l.key, { phased: false, planned: String(lineTotal(l)), periods: {} });
     } else {
       update(l.key, { phased: true, periods: spreadEvenly(Number(l.planned) || 0, months) });
+    }
+  }
+
+  /** Phases a line by the account's booked profile over the same months last year. */
+  async function spreadLikeLastYear(l: LineState) {
+    if (!l.account_id || !months.length) return;
+    setHistoryBusy(l.key);
+    try {
+      const hist = await getAccountHistory(tenant, l.account_id, yearBefore(months[0]), yearBefore(months[months.length - 1]));
+      const byMonth: Record<string, number> = {};
+      hist.forEach((h) => {
+        byMonth[`${Number(h.month.slice(0, 4)) + 1}${h.month.slice(4)}`] = h.amount;
+      });
+      const total = lineTotal(l);
+      update(l.key, { phased: true, periods: spreadLikeHistory(total, months, byMonth) });
+      if (!hist.some((h) => h.amount > 0)) setFormError(`Nothing was booked on that account last year, so "${l.name || 'the line'}" was spread evenly.`);
+    } catch {
+      setFormError('Could not read last year for that account. Try again.');
+    } finally {
+      setHistoryBusy(null);
     }
   }
 
@@ -309,10 +349,22 @@ export function BudgetBuilder({
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <button type="button" className="inline-flex items-center gap-1 text-xs font-medium text-primary" onClick={() => togglePhasing(l)}>
-                  <CalendarRange className="h-3.5 w-3.5" />
-                  {l.phased ? 'Use one amount for the whole period' : 'Plan month by month'}
-                </button>
+                <div className="flex flex-wrap items-center gap-4">
+                  <button type="button" className="inline-flex items-center gap-1 text-xs font-medium text-primary" onClick={() => togglePhasing(l)}>
+                    <CalendarRange className="h-3.5 w-3.5" />
+                    {l.phased ? 'Use one amount for the whole period' : 'Plan month by month'}
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-primary disabled:opacity-50"
+                    disabled={!l.account_id || historyBusy === l.key || lineTotal(l) <= 0}
+                    title={!l.account_id ? 'Choose an account first' : 'Spread the amount by how this account was spent last year'}
+                    onClick={() => spreadLikeLastYear(l)}
+                  >
+                    {historyBusy === l.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <History className="h-3.5 w-3.5" />}
+                    Spread like last year
+                  </button>
+                </div>
                 <button
                   type="button"
                   className="inline-flex items-center gap-1 text-xs text-destructive"
