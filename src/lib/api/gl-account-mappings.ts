@@ -13,12 +13,20 @@ const BASE = '/api/v1';
 
 // ---- Types ----
 
-export type GLMappingLeg = 'debit' | 'credit';
+/** debit or credit, or a posting-specific leg such as tax, cogs or vat_input (see the catalog). */
+export type GLMappingLeg = string;
 
-/** The originating services a mapping may name — same set the backend's own
- *  validGLMappingServices enforces (service.go). */
-export const GL_MAPPING_SERVICES = ['pos', 'inventory', 'ordering', 'erp', 'expense', 'treasury', 'logistics'] as const;
-export type GLMappingService = (typeof GL_MAPPING_SERVICES)[number];
+/** One key a posting resolves (ledger/gl_mapping_catalog.go). */
+export interface GLMappingCatalogKey {
+  service: string;
+  event_type: string;
+  leg: string;
+  /** Account the posting uses without a mapping; empty for dynamic keys. */
+  default_code?: string;
+  label: string;
+  /** Chosen per document (invoice type, payment method); a row overrides every choice. */
+  dynamic?: boolean;
+}
 
 export interface GLAccountMapping {
   id: string;
@@ -31,6 +39,11 @@ export interface GLAccountMapping {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
+  /** Catalog annotations filled by the list endpoint. */
+  label?: string;
+  default_code?: string;
+  dynamic?: boolean;
+  is_system_default?: boolean;
 }
 
 export interface GLAccountMappingsResponse {
@@ -67,6 +80,12 @@ export function listGLAccountMappings(
 ): Promise<GLAccountMappingsResponse> {
   const query = params?.active_only ? { active_only: 'true' } : undefined;
   return apiClient.get<GLAccountMappingsResponse>(`${BASE}/${tenantIdOrSlug}/ledger/gl-account-mappings`, query);
+}
+
+export function getGLMappingCatalog(tenantIdOrSlug: string): Promise<{ keys: GLMappingCatalogKey[]; total: number }> {
+  return apiClient.get<{ keys: GLMappingCatalogKey[]; total: number }>(
+    `${BASE}/${tenantIdOrSlug}/ledger/gl-account-mappings/catalog`,
+  );
 }
 
 export function createGLAccountMapping(

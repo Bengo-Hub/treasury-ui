@@ -10,11 +10,12 @@ import { useAccounts } from '@/hooks/use-accounts';
 import { flattenAccounts } from '@/lib/api/accounts';
 import {
   useGLAccountMappings,
+  useGLMappingCatalog,
   useCreateGLAccountMapping,
   useUpdateGLAccountMapping,
   useDeleteGLAccountMapping,
 } from '@/hooks/use-gl-account-mappings';
-import { GL_MAPPING_SERVICES, type GLAccountMapping, type GLMappingLeg } from '@/lib/api/gl-account-mappings';
+import { type GLAccountMapping, type GLMappingLeg } from '@/lib/api/gl-account-mappings';
 import { ArrowUpRight, GitBranch, Loader2, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -28,7 +29,7 @@ interface MappingFormData {
 }
 
 const emptyForm: MappingFormData = {
-  service: GL_MAPPING_SERVICES[0],
+  service: '',
   event_type: '',
   leg: 'debit',
   account_code: '',
@@ -36,14 +37,14 @@ const emptyForm: MappingFormData = {
   is_active: true,
 };
 
+const keyOf = (m: { service: string; event_type: string; leg: string }) => `${m.service}|${m.event_type}|${m.leg}`;
+
 /**
- * GL Account Mappings — tenant-configurable overrides of which chart-of-accounts leaf a
- * (service, event_type, leg) monetary event posts to (ResolveAccountCode's tier-3 lookup, ahead
- * of the platform's built-in default for that event). Mirrors the Cost Centers settings page's
- * layout/interaction pattern. service/event_type/leg are immutable once created — the identity
- * key ResolveAccountCode looks up — so editing an existing mapping only offers account_code,
- * description, and active state; retargeting a different event means deactivating this row and
- * creating a new one.
+ * Account Mappings: which ledger account each posting (a service's event and leg) uses. Every
+ * posting with a fixed default is listed as a "System default" row the backend creates, so the
+ * tenant edits what already happens instead of building mappings from scratch. New rows are only
+ * needed for dynamic keys (chosen per document), picked from the backend catalog. The key is
+ * immutable; editing changes the account, description and active state.
  */
 export default function GLAccountMappingsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,7 +63,18 @@ export default function GLAccountMappingsPage() {
   const updateMutation = useUpdateGLAccountMapping(effectiveTenant);
   const deleteMutation = useDeleteGLAccountMapping(effectiveTenant);
 
+  const { data: catalog } = useGLMappingCatalog(effectiveTenant);
   const mappings = data?.gl_account_mappings ?? [];
+  // Keys without a row yet: dynamic ones, or static ones whose account the chart lacks.
+  const unmappedKeys = useMemo(() => {
+    const have = new Set(mappings.map(keyOf));
+    return (catalog ?? []).filter((k) => !have.has(keyOf(k)));
+  }, [catalog, mappings]);
+  const keyOptions = useMemo<ComboboxOption[]>(
+    () => unmappedKeys.map((k) => ({ value: keyOf(k), label: k.label, hint: k.default_code || 'per document' })),
+    [unmappedKeys],
+  );
+  const selectedKey = unmappedKeys.find((k) => keyOf(k) === keyOf(formData));
   const accountOptions = useMemo<ComboboxOption[]>(
     () =>
       flattenAccounts(accountsData?.accounts ?? [])
@@ -75,6 +87,7 @@ export default function GLAccountMappingsPage() {
   const filtered = mappings.filter((m) => {
     const q = searchQuery.toLowerCase();
     return (
+      (m.label ?? '').toLowerCase().includes(q) ||
       m.service.toLowerCase().includes(q) ||
       m.event_type.toLowerCase().includes(q) ||
       m.account_code.toLowerCase().includes(q) ||
@@ -136,7 +149,7 @@ export default function GLAccountMappingsPage() {
   const inputClasses =
     'w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none disabled:opacity-60';
 
-  const canCreate = !!formData.event_type.trim() && !!formData.account_code;
+  const canCreate = !!formData.service && !!formData.event_type.trim() && !!formData.account_code;
   const canUpdate = !!formData.account_code;
 
   return (
@@ -145,11 +158,11 @@ export default function GLAccountMappingsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Account Mappings</h1>
           <p className="text-muted-foreground mt-1">
-            Override which ledger account a service&apos;s event posts to, instead of the platform&apos;s
-            built-in default — e.g. route inventory purchases to a different GL code than the standard one.
+            Which ledger account each posting uses. Rows marked System default show what the books
+            use today; change the account on any row to re-point that posting.
           </p>
         </div>
-        <Button className="gap-2 shadow-lg shadow-primary/20" onClick={openCreate}>
+        <Button className="gap-2 shadow-lg shadow-primary/20" onClick={openCreate} disabled={keyOptions.length === 0}>
           <Plus className="h-4 w-4" /> Add Mapping
         </Button>
       </div>
@@ -214,17 +227,28 @@ export default function GLAccountMappingsPage() {
                     <div className="h-10 w-10 rounded-xl bg-accent/30 flex items-center justify-center border border-border">
                       <GitBranch className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-mono font-bold uppercase text-muted-foreground">{m.service}</span>
-                        <h4 className="text-sm font-bold group-hover:text-primary transition-colors">{m.event_type}</h4>
-                        <Badge className={cn(m.leg === 'debit' ? 'bg-blue-500/10 text-blue-600 border-blue-500/20' : 'bg-purple-500/10 text-purple-600 border-purple-500/20')}>
-                          {m.leg}
-                        </Badge>
+                        <h4 className="text-sm font-bold group-hover:text-primary transition-colors">
+                          {m.label || m.event_type}
+                        </h4>
+                        {m.is_system_default && m.account_code === m.default_code ? (
+                          <Badge className="bg-muted text-muted-foreground border-border">System default</Badge>
+                        ) : m.default_code && m.account_code !== m.default_code ? (
+                          <span title={`Default: ${accountName(m.default_code)} (${m.default_code})`}>
+                            <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">Changed from {m.default_code}</Badge>
+                          </span>
+                        ) : null}
+                        {m.dynamic && (
+                          <span title="Without this row the account is chosen per document">
+                            <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">Overrides per-document choice</Badge>
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        → {accountName(m.account_code)} ({m.account_code})
-                        {m.description && <span className="ml-1">· {m.description}</span>}
+                        <span className="font-mono">{m.service} · {m.event_type} · {m.leg}</span>
+                        <span className="ml-1">posts to {accountName(m.account_code)} ({m.account_code})</span>
+                        {m.description && !m.is_system_default && <span className="ml-1">· {m.description}</span>}
                       </p>
                     </div>
                   </div>
@@ -254,7 +278,7 @@ export default function GLAccountMappingsPage() {
               ))}
               {filtered.length === 0 && (
                 <div className="p-12 text-center text-muted-foreground">
-                  No GL account mappings yet — postings use the platform&apos;s built-in defaults until you add one.
+                  No mappings match. Defaults appear here once the chart of accounts is set up.
                 </div>
               )}
             </div>
@@ -266,43 +290,39 @@ export default function GLAccountMappingsPage() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent
           title="Add GL Account Mapping"
-          description="Override which account a service's event posts to."
+          description="Pick a posting that has no row yet and the account it should use."
           onClose={() => setCreateOpen(false)}
           className="max-w-lg"
         >
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField label="Service" required>
-                <select
-                  className={inputClasses}
-                  value={formData.service}
-                  onChange={(e) => setFormData((p) => ({ ...p, service: e.target.value }))}
-                >
-                  {GL_MAPPING_SERVICES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField label="Leg" required>
-                <select
-                  className={inputClasses}
-                  value={formData.leg}
-                  onChange={(e) => setFormData((p) => ({ ...p, leg: e.target.value as GLMappingLeg }))}
-                >
-                  <option value="debit">Debit</option>
-                  <option value="credit">Credit</option>
-                </select>
-              </FormField>
-            </div>
-            <FormField label="Event type" required description="Must match the event_type value the posting code actually sends, e.g. 'bill', 'invoice.payment'.">
-              <input
-                className={inputClasses}
-                placeholder="e.g. bill"
-                value={formData.event_type}
-                onChange={(e) => setFormData((p) => ({ ...p, event_type: e.target.value }))}
+            <FormField
+              label="Posting"
+              required
+              description={
+                selectedKey?.dynamic
+                  ? 'This posting normally picks its account per document. A mapping sends every one of them to the account below.'
+                  : `${formData.service} · ${formData.event_type} · ${formData.leg}`
+              }
+            >
+              <Combobox
+                options={keyOptions}
+                value={formData.service ? keyOf(formData) : ''}
+                onChange={(v) => {
+                  const k = unmappedKeys.find((x) => keyOf(x) === v);
+                  setFormData((p) => ({
+                    ...p,
+                    service: k?.service ?? '',
+                    event_type: k?.event_type ?? '',
+                    leg: k?.leg ?? 'debit',
+                    account_code: k?.default_code || p.account_code,
+                  }));
+                }}
+                placeholder="Select posting…"
+                searchPlaceholder="Search postings…"
+                emptyText="Every posting already has a mapping"
               />
             </FormField>
-            <FormField label="Account" required description="The ledger account this event should post to instead of the built-in default.">
+            <FormField label="Account" required description="The ledger account this posting should use.">
               <Combobox
                 options={accountOptions}
                 value={formData.account_code}
@@ -345,8 +365,12 @@ export default function GLAccountMappingsPage() {
       {/* Edit Mapping Dialog */}
       <Dialog open={!!editMapping} onOpenChange={(open) => !open && setEditMapping(null)}>
         <DialogContent
-          title="Edit GL Account Mapping"
-          description="Service, event type, and leg are the mapping's identity and can't be changed — deactivate this and create a new one to retarget a different event."
+          title={editMapping?.label || 'Edit GL Account Mapping'}
+          description={
+            editMapping?.default_code
+              ? `Default account: ${accountName(editMapping.default_code)} (${editMapping.default_code}). The posting key cannot be changed.`
+              : 'The posting key cannot be changed; deactivate this row to fall back to the per-document choice.'
+          }
           onClose={() => setEditMapping(null)}
           className="max-w-lg"
         >

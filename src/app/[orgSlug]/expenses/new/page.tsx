@@ -4,6 +4,7 @@ import { Button, Card, CardContent } from '@/components/ui/base';
 import { CategoryCombobox } from '@/components/ui/category-combobox';
 import { Combobox } from '@/components/ui/combobox';
 import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
+import { useCostCenterDefault } from '@/hooks/use-cost-centers';
 import { ProjectCombobox } from '@/components/ui/project-combobox';
 import { FormField } from '@/components/ui/form-field';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
@@ -183,6 +184,13 @@ export default function NewExpenditurePage() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringFrequency, setRecurringFrequency] = useState('monthly');
   const [errors, setErrors] = useState<{ vendor?: string; amount?: string }>({});
+  // Default cost centre from the category, ledger and project (the rules the ledger posts with).
+  const costCenterDefault = useCostCenterDefault(
+    effectiveTenant,
+    { category_id: categoryId || undefined, account_id: ledgerId || undefined, project_id: projectId || undefined, kind: 'expense' },
+    costCenterId,
+    setCostCenterId,
+  );
 
   const onSelectVendor = (value: string) => {
     if (value === ADD_NEW) {
@@ -264,6 +272,7 @@ export default function NewExpenditurePage() {
     setAmount('');
     setLedgerId('');
     setCostCenterId('');
+    costCenterDefault.reset();
     setProjectId('');
     setNotes('');
     setAttachmentName(null);
@@ -451,8 +460,15 @@ export default function NewExpenditurePage() {
                 </SubscriptionGate>
               </FormField>
 
-              <FormField label="Cost Centre" description="The department or unit this spend is budgeted under.">
-                <CostCenterCombobox tenant={effectiveTenant} value={costCenterId} onChange={setCostCenterId} />
+              <FormField
+                label="Cost Centre"
+                description={
+                  costCenterDefault.suggested && costCenterDefault.suggested.id === costCenterId
+                    ? 'Suggested from the category and account. Change it if this spend belongs elsewhere.'
+                    : 'The department or unit this spend is budgeted under.'
+                }
+              >
+                <CostCenterCombobox tenant={effectiveTenant} value={costCenterId} onChange={costCenterDefault.onUserChange} />
               </FormField>
 
               <FormField label="Project" description="Counts this spend against the project's budget.">

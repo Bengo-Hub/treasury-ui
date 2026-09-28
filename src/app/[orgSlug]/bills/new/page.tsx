@@ -3,6 +3,7 @@
 import { Button, Card, CardContent } from '@/components/ui/base';
 import { Combobox } from '@/components/ui/combobox';
 import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
+import { useCostCenterDefault } from '@/hooks/use-cost-centers';
 import { ProjectCombobox } from '@/components/ui/project-combobox';
 import { OverBudgetDialog } from '@/components/budgets/over-budget-dialog';
 import { budgetWarningOf, overBudgetOf, type BudgetCheckResult } from '@/lib/api/budgets';
@@ -72,6 +73,13 @@ export default function NewPurchasePage() {
   // Budget dimensions for the purchase, and a budget stop waiting for an approver's decision.
   const [costCenterId, setCostCenterId] = useState('');
   const [projectId, setProjectId] = useState('');
+  // Same default the bill posts with: the purchase account's centre, Projects for a project bill.
+  const costCenterDefault = useCostCenterDefault(
+    effectiveTenant ?? '',
+    { project_id: projectId || undefined, kind: 'expense' },
+    costCenterId,
+    setCostCenterId,
+  );
   const [overBudget, setOverBudget] = useState<{ result: BudgetCheckResult; after: 'list' | 'new' } | null>(null);
   const { data: vendorData } = useVendors(effectiveTenant, undefined, !!effectiveTenant);
   const vendorOptions = useMemo(
@@ -330,7 +338,7 @@ export default function NewPurchasePage() {
           {/* Budget dimensions + currency */}
           <div className="grid gap-4 md:grid-cols-3">
             <FormField label="Cost Centre" description="The unit this purchase is budgeted under.">
-              <CostCenterCombobox tenant={effectiveTenant ?? ''} value={costCenterId} onChange={setCostCenterId} />
+              <CostCenterCombobox tenant={effectiveTenant ?? ''} value={costCenterId} onChange={costCenterDefault.onUserChange} />
             </FormField>
             <FormField label="Project" description="Counts the purchase against the project's budget.">
               <ProjectCombobox tenant={effectiveTenant ?? ''} value={projectId} onChange={setProjectId} />

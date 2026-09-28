@@ -27,6 +27,7 @@ import { CreateClientModal } from './CreateClientModal';
 import { BankDetailsPicker, type BankDetailsSnapshot } from './BankDetailsPicker';
 import { vendorOptionHint } from '@/lib/vendor-balance';
 import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
+import { useCostCenterDefault } from '@/hooks/use-cost-centers';
 import { ProjectCombobox } from '@/components/ui/project-combobox';
 
 export interface DocTypeConfig {
@@ -211,6 +212,15 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     terms:          '',
     notes:          '',
   });
+  // New documents start on the revenue default (Sales, Projects for a project document), the same
+  // centre the issuance journal would use; editing keeps the stored value.
+  const costCenterDefault = useCostCenterDefault(
+    effectiveTenant,
+    { project_id: form.project_id || undefined, kind: 'revenue' },
+    form.cost_center_id,
+    (v) => setForm((p) => ({ ...p, cost_center_id: v })),
+    !isEdit,
+  );
   // Extra Billed-To details that have no dedicated invoice/quotation column — carried into
   // document metadata (customer_address/customer_country/customer_contact_person, matching the
   // keys treasury-api's PDF renderer already reads) and, for invoices, the typed
@@ -726,7 +736,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-foreground">Cost Centre</label>
-                <CostCenterCombobox tenant={effectiveTenant} value={form.cost_center_id} onChange={v => setForm(p => ({ ...p, cost_center_id: v }))} />
+                <CostCenterCombobox tenant={effectiveTenant} value={form.cost_center_id} onChange={costCenterDefault.onUserChange} />
               </div>
             </div>
           )}
