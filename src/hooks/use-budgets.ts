@@ -29,6 +29,29 @@ export function useBudgetVariance(tenantSlug: string, budgetID: string) {
   });
 }
 
+export function useBudgetVersions(tenantSlug: string, budgetID: string) {
+  return useQuery({
+    queryKey: ['budget-versions', tenantSlug, budgetID],
+    queryFn: () => budgetsApi.getBudgetVersions(tenantSlug, budgetID),
+    enabled: !!tenantSlug && !!budgetID,
+  });
+}
+
+/** Ledger lines behind one budget line's actual; enabled only while the drill panel is open. */
+export function useLineTransactions(
+  tenantSlug: string,
+  budgetID: string,
+  lineID: string | null,
+  params: { month?: string; page?: number; limit?: number },
+) {
+  return useQuery({
+    queryKey: ['budget-variance', tenantSlug, budgetID, 'drill', lineID, params],
+    queryFn: () => budgetsApi.getLineTransactions(tenantSlug, budgetID, lineID as string, params),
+    enabled: !!tenantSlug && !!budgetID && !!lineID,
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function useCommitments(tenantSlug: string, params: Parameters<typeof budgetsApi.listCommitments>[1], enabled = true) {
   return useQuery({
     queryKey: ['budget-commitments', tenantSlug, params],
@@ -41,6 +64,8 @@ function useInvalidateBudgets() {
   const qc = useQueryClient();
   return (tenantSlug: string, budgetID?: string) => {
     qc.invalidateQueries({ queryKey: ['budgets', tenantSlug] });
+    // Any action can add or retire a version somewhere in a chain.
+    qc.invalidateQueries({ queryKey: ['budget-versions', tenantSlug] });
     if (budgetID) {
       qc.invalidateQueries({ queryKey: ['budget', tenantSlug, budgetID] });
       qc.invalidateQueries({ queryKey: ['budget-variance', tenantSlug, budgetID] });

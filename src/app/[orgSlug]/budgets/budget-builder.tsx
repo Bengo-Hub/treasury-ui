@@ -10,6 +10,7 @@ import { FormField } from '@/components/ui/form-field';
 import { ProjectCombobox } from '@/components/ui/project-combobox';
 import { useAccounts } from '@/hooks/use-accounts';
 import { useSaveBudget } from '@/hooks/use-budgets';
+import { useSuggestedCostCenter } from '@/hooks/use-cost-centers';
 import {
   getAccountHistory,
   num,
@@ -103,6 +104,39 @@ function fromBudget(b: Budget): LineState[] {
 }
 
 const thisYear = new Date().getFullYear();
+
+/**
+ * Offers the cost centre the ledger would default this account to, without applying it: a blank
+ * cost centre budgets the account across every cost centre, so narrowing it stays the user's call.
+ */
+function CostCenterHint({
+  tenant,
+  line,
+  projectId,
+  onUse,
+}: {
+  tenant: string;
+  line: LineState;
+  projectId: string;
+  onUse: (id: string) => void;
+}) {
+  const open = !line.cost_center_id && !!line.account_id;
+  const { data } = useSuggestedCostCenter(
+    tenant,
+    {
+      account_id: line.account_id || undefined,
+      project_id: projectId || undefined,
+      kind: line.category === 'revenue' ? 'revenue' : 'expense',
+    },
+    open,
+  );
+  if (!open || !data) return null;
+  return (
+    <button type="button" className="mt-1 text-xs text-primary hover:underline" onClick={() => onUse(data.id)}>
+      Limit to {data.name}
+    </button>
+  );
+}
 
 export function BudgetBuilder({
   tenant,
@@ -348,6 +382,7 @@ export function BudgetBuilder({
                 <div className="md:col-span-2">
                   <label className="text-xs text-muted-foreground">Cost centre</label>
                   <CostCenterCombobox tenant={tenant} value={l.cost_center_id} onChange={(v) => update(l.key, { cost_center_id: v })} placeholder="Any" />
+                  <CostCenterHint tenant={tenant} line={l} projectId={projectId} onUse={(id) => update(l.key, { cost_center_id: id })} />
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-xs text-muted-foreground">Amount</label>

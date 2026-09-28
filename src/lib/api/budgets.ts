@@ -234,6 +234,60 @@ export const copyBudget = (
 ) => apiClient.post<Budget>(path(tenant, `/${id}/copy`), body);
 export const getBudgetVariance = (tenant: string, id: string) => apiClient.get<BudgetVariance>(path(tenant, `/${id}/variance`));
 
+/** One entry in a budget's revision history. */
+export interface BudgetVersion {
+  id: string;
+  version: number;
+  name: string;
+  status: BudgetStatus;
+  revision_of_id?: string;
+  created_by: string;
+  created_at: string;
+  approved_by?: string;
+  approved_at?: string;
+}
+
+/** Every version of a budget (original, revisions, cancelled branches), oldest first. */
+export const getBudgetVersions = (tenant: string, id: string) => apiClient.get<BudgetVersion[]>(path(tenant, `/${id}/versions`));
+
+/** A booked ledger line behind a budget line's actual; amount is its KES contribution. */
+export interface DrillLine {
+  id: string;
+  transaction_date: string;
+  journal_entry_id?: string;
+  entry_number?: string;
+  description?: string;
+  account_id: string;
+  account_code: string;
+  account_name: string;
+  debit: Money;
+  credit: Money;
+  currency: string;
+  amount: Money;
+  reference_type?: string;
+  reference_id?: string;
+  cost_center_id?: string;
+  project_id?: string;
+}
+
+export interface LineDrill {
+  budget_id: string;
+  line_id: string;
+  line_name: string;
+  month?: string;
+  /** Equals the line's actual in the variance report for the same window or month. */
+  total: Money;
+  count: number;
+  lines: DrillLine[];
+}
+
+export const getLineTransactions = (
+  tenant: string,
+  budgetId: string,
+  lineId: string,
+  params: { month?: string; page?: number; limit?: number },
+) => apiClient.get<LineDrill>(path(tenant, `/${budgetId}/lines/${lineId}/transactions`), params);
+
 export interface TemplateLine {
   name: string;
   category: LineCategory;
