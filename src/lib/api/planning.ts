@@ -30,6 +30,8 @@ export interface CashWeek {
   direct_spend: Money;
   payroll: Money;
   statutory: Money;
+  /** VAT or TOT on the 20th and income tax instalments. */
+  tax: Money;
   net_flow: Money;
   closing: Money;
   below_minimum: boolean;
@@ -52,8 +54,10 @@ export interface CashForecast {
     open_receivables: Money;
     open_payables: Money;
     trailing_weeks: number;
+    tax_payments: { due: string; amount: Money; kind: 'vat' | 'tot' | 'instalment' }[];
   };
   method: string;
+  warnings?: string[];
 }
 
 export interface RollingMonth {

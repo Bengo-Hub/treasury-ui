@@ -17,6 +17,12 @@ import { cn } from '@/lib/utils';
 const axis = { tick: { fontSize: 11 }, tickLine: false, axisLine: false } as const;
 const inputCls = 'h-9 w-full rounded-lg border border-border bg-card px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
+const taxKind: Record<string, string> = {
+  vat: "VAT for last month (last month's recorded amount)",
+  tot: 'Turnover Tax for last month',
+  instalment: 'Income tax instalment (a quarter of profit to date, annualised)',
+};
+
 const weekLabel = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
 /**
@@ -42,7 +48,7 @@ export default function CashForecastPage() {
   const chart = (f?.weeks ?? []).map((w) => ({
     week: weekLabel(w.start),
     inflow: num(w.trading_receipts) + num(w.collections),
-    outflow: -(num(w.supplier_payments) + num(w.direct_spend) + num(w.payroll) + num(w.statutory)),
+    outflow: -(num(w.supplier_payments) + num(w.direct_spend) + num(w.payroll) + num(w.statutory) + num(w.tax)),
     closing: num(w.closing),
   }));
   const a = f?.assumptions;
@@ -100,6 +106,12 @@ export default function CashForecastPage() {
           </div>
         )}
 
+        {f?.warnings?.map((msg) => (
+          <div key={msg} className="rounded-lg border border-border bg-accent/5 px-4 py-3 text-sm text-muted-foreground">
+            {msg}
+          </div>
+        ))}
+
         {f?.first_negative_week && (
           <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -151,6 +163,7 @@ export default function CashForecastPage() {
                   <th className="px-4 py-2 text-right">Other spending</th>
                   <th className="px-4 py-2 text-right">Payroll</th>
                   <th className="px-4 py-2 text-right">Statutory</th>
+                  <th className="px-4 py-2 text-right">Tax</th>
                   <th className="px-4 py-2 text-right">Closing</th>
                 </tr>
               </thead>
@@ -165,6 +178,7 @@ export default function CashForecastPage() {
                     <td className="px-4 py-2 text-right tabular-nums">{money(w.direct_spend, cur)}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{money(w.payroll, cur)}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{money(w.statutory, cur)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{money(w.tax, cur)}</td>
                     <td className={cn('px-4 py-2 text-right font-semibold tabular-nums', num(w.closing) < 0 && 'text-destructive')}>{money(w.closing, cur)}</td>
                   </tr>
                 ))}
@@ -172,6 +186,27 @@ export default function CashForecastPage() {
             </table>
           </CardContent>
         </Card>
+
+        {a && (a.tax_payments?.length ?? 0) > 0 && (
+          <Card>
+            <CardHeader className="py-4">
+              <h3 className="font-bold text-sm uppercase tracking-tight">Tax payments included</h3>
+            </CardHeader>
+            <CardContent className="p-0">
+              <table className="w-full text-sm">
+                <tbody>
+                  {(a.tax_payments ?? []).map((t, i) => (
+                    <tr key={`${t.due}-${t.kind}-${i}`} className="border-t border-border/60">
+                      <td className="px-4 py-2">{new Date(t.due).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{taxKind[t.kind] ?? t.kind}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">{money(t.amount, cur)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
 
         {a && (
           <p className="text-xs text-muted-foreground">
