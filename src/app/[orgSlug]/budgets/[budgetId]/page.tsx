@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, CheckCircle2, Copy, Loader2, Lock, Pencil, RotateCcw, Send, Trash2, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Copy, LayoutTemplate, Loader2, Lock, Pencil, RotateCcw, Send, Trash2, XCircle } from 'lucide-react';
 import { Area, Bar, CartesianGrid, ComposedChart, Legend, Line, Tooltip, XAxis, YAxis } from 'recharts';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { StatCard } from '@/components/charts/StatCard';
@@ -13,7 +13,7 @@ import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/ba
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useAccounts } from '@/hooks/use-accounts';
 import { useCostCenters } from '@/hooks/use-cost-centers';
-import { useBudgetAction, useBudgetVariance, useCommitments, useCopyBudget } from '@/hooks/use-budgets';
+import { useBudgetAction, useBudgetVariance, useCommitments, useCopyBudget, useSaveBudgetTemplate } from '@/hooks/use-budgets';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { num, type BudgetStatus } from '@/lib/api/budgets';
 import { cn } from '@/lib/utils';
@@ -27,7 +27,7 @@ const sourceLabel: Record<string, string> = {
   expense_claim: 'Staff claim',
 };
 
-type Pending = 'submit' | 'approve' | 'reject' | 'revise' | 'cancel' | 'close' | 'delete' | 'copy' | null;
+type Pending = 'submit' | 'approve' | 'reject' | 'revise' | 'cancel' | 'close' | 'delete' | 'copy' | 'template' | null;
 
 export default function BudgetDetailPage() {
   const { budgetId } = useParams<{ budgetId: string }>();
@@ -42,6 +42,8 @@ export default function BudgetDetailPage() {
   const { data: commitData } = useCommitments(tenant, { status: 'open', project_id: b?.project_id, limit: 50 }, !!b);
   const action = useBudgetAction();
   const copy = useCopyBudget();
+  const saveTemplate = useSaveBudgetTemplate();
+  const [templateName, setTemplateName] = useState('');
 
   const [pending, setPending] = useState<Pending>(null);
   const [reason, setReason] = useState('');
@@ -72,7 +74,7 @@ export default function BudgetDetailPage() {
     cum_actual: num(m.cum_actual),
   }));
 
-  function run(kind: Exclude<Pending, null | 'copy'>) {
+  function run(kind: Exclude<Pending, null | 'copy' | 'template'>) {
     action.mutate(
       { tenantSlug: tenant, budgetID: budgetId, action: kind, reason },
       {
@@ -185,6 +187,17 @@ export default function BudgetDetailPage() {
             )}
             <Button variant="outline" size="sm" className="gap-1" onClick={() => setPending('copy')}>
               <Copy className="h-4 w-4" /> Copy to new period
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={() => {
+                setTemplateName(b.name);
+                setPending('template');
+              }}
+            >
+              <LayoutTemplate className="h-4 w-4" /> Save as template
             </Button>
             {can.close && (
               <Button variant="outline" size="sm" className="gap-1" onClick={() => setPending('close')}>
@@ -350,7 +363,29 @@ export default function BudgetDetailPage() {
           </CardContent>
         </Card>
 
-        {pending && pending !== 'copy' && pending !== 'reject' && (
+        {pending === 'template' && (
+          <ConfirmDialog
+            open
+            onOpenChange={(o) => !o && setPending(null)}
+            title="Save as template"
+            description="Saves these lines as shares of the spend and revenue totals, so the template fits any total. A template with the same name is replaced."
+            confirmLabel="Save template"
+            isPending={saveTemplate.isPending}
+            confirmDisabled={!templateName.trim()}
+            onConfirm={() =>
+              saveTemplate.mutate({ tenantSlug: tenant, budgetID: budgetId, name: templateName.trim() }, { onSuccess: () => setPending(null) })
+            }
+          >
+            <input
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={templateName}
+              maxLength={80}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="Template name"
+            />
+          </ConfirmDialog>
+        )}
+        {pending && pending !== 'copy' && pending !== 'reject' && pending !== 'template' && (
           <ConfirmDialog
             open
             onOpenChange={(o) => !o && setPending(null)}

@@ -105,6 +105,40 @@ export function useBudgetAction() {
   });
 }
 
+export function useBudgetTemplates(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['budget-templates', tenantSlug],
+    queryFn: () => budgetsApi.listBudgetTemplates(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSaveBudgetTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, budgetID, name }: { tenantSlug: string; budgetID: string; name: string }) =>
+      budgetsApi.saveBudgetTemplate(tenantSlug, budgetID, name),
+    onSuccess: (t, vars) => {
+      qc.invalidateQueries({ queryKey: ['budget-templates', vars.tenantSlug] });
+      toast.success(`Saved as template "${t.name}"`);
+    },
+    onError: (err) => toast.error(errorText(err, 'Failed to save template')),
+  });
+}
+
+export function useDeleteBudgetTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, key }: { tenantSlug: string; key: string }) => budgetsApi.deleteBudgetTemplate(tenantSlug, key),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['budget-templates', vars.tenantSlug] });
+      toast.success('Template deleted');
+    },
+    onError: (err) => toast.error(errorText(err, 'Failed to delete template')),
+  });
+}
+
 export function useCopyBudget() {
   const invalidate = useInvalidateBudgets();
   return useMutation({
