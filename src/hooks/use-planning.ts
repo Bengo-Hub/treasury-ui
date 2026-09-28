@@ -1,5 +1,6 @@
 import * as planningApi from '@/lib/api/planning';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const STALE_MS = 5 * 60 * 1000;
 
@@ -39,5 +40,41 @@ export function useBudgetUtilisation(tenantSlug: string) {
     queryFn: () => planningApi.getBudgetUtilisation(tenantSlug),
     enabled: !!tenantSlug,
     staleTime: STALE_MS,
+  });
+}
+
+export function useScenarios(tenantSlug: string) {
+  return useQuery({
+    queryKey: ['cash-scenarios', tenantSlug],
+    queryFn: () => planningApi.listScenarios(tenantSlug),
+    enabled: !!tenantSlug,
+    staleTime: STALE_MS,
+  });
+}
+
+const scenarioError = (err: unknown) =>
+  (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Could not update scenarios';
+
+export function useSaveScenario(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (s: planningApi.SavedScenario) => planningApi.saveScenario(tenantSlug, s),
+    onSuccess: (list, s) => {
+      qc.setQueryData(['cash-scenarios', tenantSlug], list);
+      toast.success(`Scenario "${s.name}" saved`);
+    },
+    onError: (err) => toast.error(scenarioError(err)),
+  });
+}
+
+export function useDeleteScenario(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => planningApi.deleteScenario(tenantSlug, name),
+    onSuccess: (list, name) => {
+      qc.setQueryData(['cash-scenarios', tenantSlug], list);
+      toast.success(`Scenario "${name}" deleted`);
+    },
+    onError: (err) => toast.error(scenarioError(err)),
   });
 }

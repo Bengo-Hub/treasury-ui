@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, Save, Trash2 } from 'lucide-react';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, Tooltip, XAxis, YAxis } from 'recharts';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { StatCard } from '@/components/charts/StatCard';
 import { SERIES, compactNumber, money } from '@/components/charts/chart-theme';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
-import { Card, CardContent, CardHeader } from '@/components/ui/base';
-import { useCashForecast } from '@/hooks/use-planning';
+import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
+import { useCashForecast, useDeleteScenario, useSaveScenario, useScenarios } from '@/hooks/use-planning';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { num } from '@/lib/api/budgets';
 import type { CashForecastScenario } from '@/lib/api/planning';
@@ -41,6 +41,23 @@ export default function CashForecastPage() {
     minimum_cash: 0,
   });
   const { data: f, isLoading, isFetching, error } = useCashForecast(tenant, scenario);
+  const { data: saved } = useScenarios(tenant);
+  const saveScenario = useSaveScenario(tenant);
+  const removeScenario = useDeleteScenario(tenant);
+  const [scenarioName, setScenarioName] = useState('');
+  const pickScenario = (name: string) => {
+    setScenarioName(name);
+    const sc = (saved ?? []).find((x) => x.name === name);
+    if (sc) {
+      setScenario({
+        weeks: sc.weeks || 13,
+        collection_delay_days: sc.collection_delay_days ?? 0,
+        receipts_change_pct: sc.receipts_change_pct ?? 0,
+        spend_change_pct: sc.spend_change_pct ?? 0,
+        minimum_cash: sc.minimum_cash ?? 0,
+      });
+    }
+  };
   const set = (k: keyof CashForecastScenario) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setScenario((s) => ({ ...s, [k]: Number(e.target.value) || 0 }));
 
@@ -67,8 +84,47 @@ export default function CashForecastPage() {
         </div>
 
         <Card>
-          <CardHeader className="py-4">
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 py-4">
             <h3 className="font-bold text-sm uppercase tracking-tight">What if</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              {(saved ?? []).length > 0 && (
+                <select className={`${inputCls} w-48`} value={(saved ?? []).some((x) => x.name === scenarioName) ? scenarioName : ''} onChange={(e) => pickScenario(e.target.value)}>
+                  <option value="">Saved scenarios</option>
+                  {(saved ?? []).map((x) => (
+                    <option key={x.name} value={x.name}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <input
+                className={`${inputCls} w-44`}
+                placeholder="Scenario name"
+                value={scenarioName}
+                maxLength={60}
+                onChange={(e) => setScenarioName(e.target.value)}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                disabled={!scenarioName.trim() || saveScenario.isPending}
+                onClick={() => saveScenario.mutate({ name: scenarioName.trim(), ...scenario })}
+              >
+                <Save className="h-4 w-4" /> Save
+              </Button>
+              {(saved ?? []).some((x) => x.name === scenarioName) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1 text-destructive"
+                  disabled={removeScenario.isPending}
+                  onClick={() => removeScenario.mutate(scenarioName, { onSuccess: () => setScenarioName('') })}
+                >
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <label className="space-y-1 text-sm">
