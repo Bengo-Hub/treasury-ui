@@ -5,6 +5,9 @@ import { Check, ChevronDown, Loader2, Search, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+const MENU_MIN_WIDTH = 320;
+const VIEWPORT_GUTTER = 8;
+
 export interface ComboboxOption {
   value: string;
   label: string;
@@ -72,7 +75,11 @@ export function Combobox({
     const spaceAbove = r.top;
     const flip = spaceBelow < 260 && spaceAbove > spaceBelow;
     const maxHeight = Math.max(160, Math.min(360, (flip ? spaceAbove : spaceBelow) - 12));
-    setMenuPos({ top: r.bottom, left: r.left, width: r.width, maxHeight, flip });
+    // A narrow trigger (a grid cell) would squeeze option names to a few letters, so the menu is
+    // at least MENU_MIN_WIDTH wide and shifts left when it would run past the viewport edge.
+    const width = Math.min(Math.max(r.width, MENU_MIN_WIDTH), window.innerWidth - 2 * VIEWPORT_GUTTER);
+    const left = Math.max(VIEWPORT_GUTTER, Math.min(r.left, window.innerWidth - width - VIEWPORT_GUTTER));
+    setMenuPos({ top: r.bottom, left, width, maxHeight, flip });
   };
 
   useLayoutEffect(() => {
@@ -175,7 +182,7 @@ export function Combobox({
         )}
       >
         {selected ? (
-          <span className="flex-1 min-w-0 truncate">
+          <span className="flex-1 min-w-0 truncate" title={selected.label}>
             {selected.label}
             {selected.hint && <span className="text-muted-foreground font-mono ml-2 text-xs">{selected.hint}</span>}
           </span>
@@ -249,7 +256,7 @@ export function Combobox({
                     )}
                   >
                     <Check className={cn('h-3.5 w-3.5 shrink-0', isSelected ? 'opacity-100 text-primary' : 'opacity-0')} />
-                    <span className="flex-1 min-w-0 truncate">{opt.label}</span>
+                    <span className="flex-1 min-w-0 leading-snug line-clamp-2 break-words" title={opt.label}>{opt.label}</span>
                     {opt.hint && <span className="text-muted-foreground font-mono text-xs shrink-0">{opt.hint}</span>}
                   </button>
                 );
