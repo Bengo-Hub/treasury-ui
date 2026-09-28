@@ -47,7 +47,10 @@ import { useParams, usePathname } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
 interface NavItem {
+  /** Short name that fits the sidebar; its group gives the context. */
   label: string;
+  /** Full name, shown as the tooltip (e.g. "Aged Receivables & Payables" for "Aged Balances"). */
+  hint?: string;
   icon: React.ElementType;
   href: string;
   active: boolean;
@@ -64,6 +67,7 @@ interface NavItem {
 
 interface NavGroup {
   label: string;
+  hint?: string;
   icon: React.ElementType;
   children: NavItem[];
   defaultOpen?: boolean;
@@ -132,7 +136,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       active: pathname === `/${orgSlug}`,
     },
     {
-      label: 'Sales & Receivables',
+      label: 'Sales',
+      hint: 'Sales & Receivables',
       icon: FileText,
       // No module-level gate: tier 1 includes Quotations + Customers + Receipts, so gating the
       // whole module on invoice_generation (tier 2) would wrongly lock them. Each child carries
@@ -147,7 +152,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         },
         {
           section: 'Quotes & Orders',
-          label: 'Quotations & Estimates',
+          label: 'Quotations',
+          hint: 'Quotations & Estimates',
           icon: ClipboardCheck,
           href: `/${orgSlug}/quotations`,
           active: pathname.startsWith(`/${orgSlug}/quotations`),
@@ -155,7 +161,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         },
         {
           section: 'Quotes & Orders',
-          label: 'Proforma Invoices',
+          label: 'Proformas',
+          hint: 'Proforma Invoices',
           icon: FileCheck,
           href: `/${orgSlug}/proforma-invoices`,
           active: pathname.startsWith(`/${orgSlug}/proforma-invoices`),
@@ -171,7 +178,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         },
         {
           section: 'Invoicing',
-          label: 'Sales Invoices',
+          label: 'Invoices',
+          hint: 'Sales Invoices',
           icon: FileText,
           href: `/${orgSlug}/invoices`,
           active: pathname.startsWith(`/${orgSlug}/invoices`),
@@ -193,7 +201,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           active: pathname.startsWith(`/${orgSlug}/delivery-challans`),
         },
         {
-          label: 'Customer Receipts',
+          label: 'Receipts',
+          hint: 'Customer Receipts',
           icon: HandCoins,
           href: `/${orgSlug}/payment-receipts`,
           active: pathname.startsWith(`/${orgSlug}/payment-receipts`),
@@ -201,7 +210,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       ],
     },
     {
-      label: 'Purchases & Payables',
+      label: 'Purchases',
+      hint: 'Purchases & Payables',
       icon: Briefcase,
       children: [
         {
@@ -213,7 +223,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         },
         {
           section: 'Bills',
-          label: 'Supplier Bills',
+          label: 'Bills',
+          hint: 'Supplier Bills',
           icon: Briefcase,
           href: `/${orgSlug}/bills`,
           active: pathname.startsWith(`/${orgSlug}/bills`),
@@ -239,7 +250,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         },
         {
           section: 'Expenses',
-          label: 'Expense Categories',
+          label: 'Categories',
+          hint: 'Expense Categories',
           icon: Tags,
           href: `/${orgSlug}/expenses/categories`,
           active: pathname.startsWith(`/${orgSlug}/expenses/categories`),
@@ -251,13 +263,15 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       icon: Landmark,
       children: [
         {
-          label: 'Bank & Cash Accounts',
+          label: 'Accounts',
+          hint: 'Bank & Cash Accounts',
           icon: Landmark,
           href: `/${orgSlug}/banking/accounts`,
           active: pathname.startsWith(`/${orgSlug}/banking/accounts`),
         },
         {
-          label: 'Bank Reconciliation',
+          label: 'Reconciliation',
+          hint: 'Bank Reconciliation',
           icon: ClipboardCheck,
           href: `/${orgSlug}/banking/reconciliation`,
           active: pathname.startsWith(`/${orgSlug}/banking/reconciliation`),
@@ -265,14 +279,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         },
         {
           section: 'Payments',
-          label: 'Payment Transactions',
+          label: 'Transactions',
+          hint: 'Payment Transactions',
           icon: ArrowLeftRight,
           href: `/${orgSlug}/transactions`,
           active: pathname.startsWith(`/${orgSlug}/transactions`),
         },
         {
           section: 'Payments',
-          label: 'Settlements & Payouts',
+          label: 'Payouts',
+          hint: 'Settlements & Payouts',
           icon: Wallet,
           href: `/${orgSlug}/settlements`,
           active: pathname.startsWith(`/${orgSlug}/settlements`),
@@ -286,7 +302,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       children: [
         {
           section: 'Books',
-          label: 'Journal Entries',
+          label: 'Journals',
+          hint: 'Journal Entries',
           icon: BookOpen,
           href: `/${orgSlug}/ledger/journals`,
           active:
@@ -324,7 +341,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         },
         {
           section: 'Setup',
-          label: 'Account Mappings',
+          label: 'GL Mappings',
+          hint: 'Account Mappings',
           icon: GitBranch,
           href: `/${orgSlug}/settings/gl-account-mappings`,
           active: pathname.startsWith(`/${orgSlug}/settings/gl-account-mappings`),
@@ -338,7 +356,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         },
         {
           section: 'Period Close',
-          label: 'Accounting Periods',
+          label: 'Periods',
+          hint: 'Accounting Periods',
           icon: CalendarRange,
           href: `/${orgSlug}/ledger/periods`,
           active: pathname.startsWith(`/${orgSlug}/ledger/periods`),
@@ -358,34 +377,39 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       ],
     },
     {
-      label: 'Tax & Compliance',
+      label: 'Tax',
+      hint: 'Tax & Compliance',
       icon: Calculator,
       href: `/${orgSlug}/tax`,
       active: pathname.startsWith(`/${orgSlug}/tax`),
       feature: 'tax_codes',
     },
     {
-      label: 'Reports & Planning',
+      label: 'Reports',
+      hint: 'Reports & Planning',
       icon: PieChart,
       children: [
         {
           section: 'Reports',
           // Management view: performance, position, trends, ratios, recurring costs, forecast.
-          label: 'Business Insights',
+          label: 'Insights',
+          hint: 'Business Insights',
           icon: TrendingUp,
           href: `/${orgSlug}/reports/insights`,
           active: pathname.startsWith(`/${orgSlug}/reports/insights`),
         },
         {
           section: 'Reports',
-          label: 'Financial Statements',
+          label: 'Statements',
+          hint: 'Financial Statements',
           icon: PieChart,
           href: `/${orgSlug}/reports`,
           active: pathname === `/${orgSlug}/reports`,
         },
         {
           section: 'Reports',
-          label: 'Aged Receivables & Payables',
+          label: 'Aged Balances',
+          hint: 'Aged Receivables & Payables',
           icon: Landmark,
           href: `/${orgSlug}/reports/receivables-payables`,
           active: pathname.startsWith(`/${orgSlug}/reports/receivables-payables`),
@@ -393,7 +417,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {
           section: 'Reports',
           // Profit by cost centre or project, and every live budget's spend against time.
-          label: 'Profitability & Budget Health',
+          label: 'Profitability',
+          hint: 'Profitability & Budget Health',
           icon: Target,
           href: `/${orgSlug}/reports/profitability`,
           active: pathname.startsWith(`/${orgSlug}/reports/profitability`),
@@ -464,7 +489,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       active: pathname?.startsWith(`/${orgSlug}/platform/analytics`) ?? false,
     },
     {
-      label: 'Gateways & Secrets',
+      label: 'Gateways',
+      hint: 'Gateways & Secrets',
       icon: Shield,
       href: `/${orgSlug}/platform`,
       active: pathname === `/${orgSlug}/platform`,
@@ -477,7 +503,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     },
     {
       // Referrals + Agreements + the global payout schedule now live as tabs inside Equity.
-      label: 'Equity & Referrals',
+      label: 'Equity',
+      hint: 'Equity & Referrals',
       icon: Wallet,
       href: `/${orgSlug}/platform/equity`,
       active: pathname?.startsWith(`/${orgSlug}/platform/equity`) ?? false,
@@ -589,7 +616,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           (768-1023px) got both a full-width static sidebar AND the fixed bottom nav simultaneously. */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:z-auto lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] lg:w-64 xl:w-72 flex-col transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:z-auto lg:translate-x-0',
           open ? 'translate-x-0 animate-in slide-in-from-left' : '-translate-x-full lg:translate-x-0',
         )}
       >
@@ -660,6 +687,7 @@ function NavLinkItem({ item, onItemClick }: { item: NavItem; onItemClick?: () =>
       <Link
         href={item.href}
         onClick={onItemClick}
+        title={item.hint ?? item.label}
         className={cn(
           'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm',
           item.active
@@ -675,7 +703,7 @@ function NavLinkItem({ item, onItemClick }: { item: NavItem; onItemClick?: () =>
         >
           <Icon className="size-4.5" />
         </div>
-        <span className="truncate">{item.label}</span>
+        <span className="min-w-0 flex-1 leading-tight line-clamp-2 break-words">{item.label}</span>
         <NavBadge count={item.badge} />
       </Link>
       </NavFeatureLock>
@@ -733,17 +761,18 @@ function NavChildLink({ child, onItemClick, indent }: { child: NavItem; onItemCl
         <Link
           href={child.href}
           onClick={onItemClick}
+          title={child.hint ?? child.label}
           aria-current={child.active ? 'page' : undefined}
           className={cn(
             'flex items-center gap-3 pr-3 py-2 rounded-xl transition-colors duration-200 text-sm',
-            indent === 'group' ? 'pl-10' : 'pl-14',
+            indent === 'group' ? 'pl-9' : 'pl-12',
             child.active
               ? 'bg-primary/10 text-primary font-semibold'
               : 'text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-foreground/8',
           )}
         >
           <ChildIcon className="size-4 shrink-0" aria-hidden />
-          <span className="truncate">{child.label}</span>
+          <span className="min-w-0 flex-1 leading-tight line-clamp-2 break-words">{child.label}</span>
           <NavBadge count={child.badge} />
         </Link>
       </NavFeatureLock>
@@ -765,7 +794,7 @@ function NavSection({ label, items, onItemClick }: { label: string; items: NavIt
         aria-expanded={expanded}
         aria-controls={id}
         className={cn(
-          'flex w-full items-center gap-2 pl-10 pr-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-[0.1em] transition-colors',
+          'flex w-full items-center gap-2 pl-9 pr-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-[0.1em] transition-colors',
           hasActive ? 'text-primary' : 'text-sidebar-foreground/40 hover:text-sidebar-foreground/70 hover:bg-sidebar-foreground/5',
         )}
       >
@@ -806,6 +835,7 @@ function NavGroupItem({
           onClick={toggle}
           aria-expanded={expanded}
           aria-controls={id}
+          title={group.hint ?? group.label}
           className={cn(
             'flex w-full items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-sm',
             hasActiveChild
@@ -821,7 +851,7 @@ function NavGroupItem({
           >
             <Icon className="size-4.5" aria-hidden />
           </div>
-          <span className="flex-1 text-left truncate">{group.label}</span>
+          <span className="min-w-0 flex-1 text-left leading-tight line-clamp-2 break-words">{group.label}</span>
           {!expanded && <NavBadge count={groupBadge} />}
           <ChevronDown
             className={cn('size-4 text-sidebar-foreground/25 transition-transform duration-200', expanded && 'rotate-180')}
