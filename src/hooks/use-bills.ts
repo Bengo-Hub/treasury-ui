@@ -65,7 +65,8 @@ export function useAPAging(tenantIdOrSlug: string | undefined, enabled = true) {
 export function useCreateBill(tenantIdOrSlug: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: CreateBillRequest) => createBill(tenantIdOrSlug!, data),
+    mutationFn: (vars: CreateBillRequest | { data: CreateBillRequest; override?: boolean }) =>
+      'data' in vars ? createBill(tenantIdOrSlug!, vars.data, vars.override) : createBill(tenantIdOrSlug!, vars),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bills', 'list', tenantIdOrSlug] });
     },

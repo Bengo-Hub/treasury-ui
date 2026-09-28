@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from './client';
+import { budgetOverrideParams, type BudgetCheckResult } from './budgets';
 
 const BASE = '/api/v1';
 
@@ -292,12 +293,14 @@ export function deleteExpense(tenantIdOrSlug: string, id: string): Promise<{ sta
   return apiClient.delete<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/${id}`);
 }
 
-export function submitExpense(tenantIdOrSlug: string, id: string): Promise<{ status: string }> {
-  return apiClient.post<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/${id}/submit`);
+/** Submit and approve pass through the budget check: a Stop answers 409 over_budget unless a
+ *  budget approver re-sends with override (see overBudgetOf / OverBudgetDialog). */
+export function submitExpense(tenantIdOrSlug: string, id: string, override?: boolean): Promise<{ status: string; budget?: BudgetCheckResult }> {
+  return apiClient.post(`${BASE}/${tenantIdOrSlug}/expenses/${id}/submit`, undefined, { params: budgetOverrideParams(override) });
 }
 
-export function approveExpense(tenantIdOrSlug: string, id: string): Promise<{ status: string }> {
-  return apiClient.post<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/${id}/approve`);
+export function approveExpense(tenantIdOrSlug: string, id: string, override?: boolean): Promise<{ status: string; budget?: BudgetCheckResult }> {
+  return apiClient.post(`${BASE}/${tenantIdOrSlug}/expenses/${id}/approve`, undefined, { params: budgetOverrideParams(override) });
 }
 
 export function rejectExpense(tenantIdOrSlug: string, id: string, reason?: string): Promise<{ status: string }> {

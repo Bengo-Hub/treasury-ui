@@ -169,7 +169,8 @@ export function useDeleteExpense(tenantIdOrSlug: string | undefined) {
 export function useSubmitExpense(tenantIdOrSlug: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => submitExpense(tenantIdOrSlug!, id),
+    mutationFn: (vars: string | { id: string; override?: boolean }) =>
+      typeof vars === 'string' ? submitExpense(tenantIdOrSlug!, vars) : submitExpense(tenantIdOrSlug!, vars.id, vars.override),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
     },
@@ -179,7 +180,8 @@ export function useSubmitExpense(tenantIdOrSlug: string | undefined) {
 export function useApproveExpense(tenantIdOrSlug: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => approveExpense(tenantIdOrSlug!, id),
+    mutationFn: (vars: string | { id: string; override?: boolean }) =>
+      typeof vars === 'string' ? approveExpense(tenantIdOrSlug!, vars) : approveExpense(tenantIdOrSlug!, vars.id, vars.override),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
     },

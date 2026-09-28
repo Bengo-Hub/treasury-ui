@@ -3,6 +3,8 @@
 import { Button, Card, CardContent } from '@/components/ui/base';
 import { CategoryCombobox } from '@/components/ui/category-combobox';
 import { Combobox } from '@/components/ui/combobox';
+import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
+import { ProjectCombobox } from '@/components/ui/project-combobox';
 import { FormField } from '@/components/ui/form-field';
 import { useExpense, useUpdateExpense } from '@/hooks/use-expenses';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
@@ -60,6 +62,8 @@ export default function EditExpenditurePage() {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [billable, setBillable] = useState(false);
+  const [costCenterId, setCostCenterId] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [errors, setErrors] = useState<{ amount?: string; description?: string }>({});
   const [hydrated, setHydrated] = useState(false);
 
@@ -72,6 +76,9 @@ export default function EditExpenditurePage() {
     setAmount(expense.amount ?? '');
     setDescription(expense.description ?? '');
     setBillable(!!expense.billable);
+    setCostCenterId(expense.cost_center_id ?? '');
+    const metaProject = (expense.metadata as Record<string, any> | undefined)?.project_id;
+    setProjectId(typeof metaProject === 'string' ? metaProject : '');
     // Best-effort: restore the tax type from metadata if the create form stored it.
     const metaTax = (expense.metadata as Record<string, any> | undefined)?.tax_type;
     if (typeof metaTax === 'string' && TAX_TYPES.some((t) => t.value === metaTax)) {
@@ -101,9 +108,12 @@ export default function EditExpenditurePage() {
       expense_date: expenseDate || undefined,
       category_id: categoryId || undefined,
       billable,
+      // The nil UUID clears a cost centre that was set; undefined leaves it unchanged.
+      cost_center_id: costCenterId || (expense?.cost_center_id ? '00000000-0000-0000-0000-000000000000' : undefined),
       metadata: {
         ...(expense?.metadata ?? {}),
         tax_type: taxType,
+        project_id: projectId || undefined,
       },
     };
 
@@ -202,6 +212,12 @@ export default function EditExpenditurePage() {
                       <option key={t.value} value={t.value}>{t.label}</option>
                     ))}
                   </select>
+                </FormField>
+                <FormField label="Cost Centre" description="The department or unit this spend is budgeted under.">
+                  <CostCenterCombobox tenant={effectiveTenant} value={costCenterId} onChange={setCostCenterId} />
+                </FormField>
+                <FormField label="Project" description="Counts this spend against the project's budget.">
+                  <ProjectCombobox tenant={effectiveTenant} value={projectId} onChange={setProjectId} />
                 </FormField>
               </div>
 
