@@ -4,7 +4,7 @@
  * Budgets are planned revenue and spend per chart account, optionally narrowed to a cost centre
  * and/or project, phased by month. Lifecycle: draft -> submitted -> approved -> active -> closed;
  * an approved budget changes through a revision (new version). Actuals come live from the booked
- * ledger, commitments from open orders, pending bills/expenses and claims.
+ * ledger, commitments from sent purchase orders, submitted expenses and pending staff claims.
  * Money arrives as decimal strings; use `num()` to read it.
  */
 
@@ -233,6 +233,12 @@ export const copyBudget = (
   body: { name?: string; start_date: string; end_date: string; growth_pct?: number; from_actuals?: boolean },
 ) => apiClient.post<Budget>(path(tenant, `/${id}/copy`), body);
 export const getBudgetVariance = (tenant: string, id: string) => apiClient.get<BudgetVariance>(path(tenant, `/${id}/variance`));
+
+/** Booked amount per month on an account (KES, child accounts included), for seasonal spreads. */
+export async function getAccountHistory(tenant: string, accountId: string, from: string, to: string): Promise<{ month: string; amount: number }[]> {
+  const raw = await apiClient.get<{ data?: { month: string; amount: Money }[] }>(path(tenant, '/account-history'), { account_id: accountId, from, to });
+  return (raw?.data ?? []).map((m) => ({ month: m.month, amount: num(m.amount) }));
+}
 
 export async function listCommitments(
   tenant: string,
