@@ -18,6 +18,7 @@ import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { num, type BudgetStatus } from '@/lib/api/budgets';
 import { cn } from '@/lib/utils';
 import { UtilisationBar, statusLabel, statusVariant, typeLabel } from '../budget-columns';
+import { LineDrillDialog, VersionHistory } from './budget-drill';
 
 const axis = { tick: { fontSize: 11 }, tickLine: false, axisLine: false } as const;
 const sourceLabel: Record<string, string> = {
@@ -44,6 +45,7 @@ export default function BudgetDetailPage() {
   const copy = useCopyBudget();
   const saveTemplate = useSaveBudgetTemplate();
   const [templateName, setTemplateName] = useState('');
+  const [drill, setDrill] = useState<{ id: string; name: string } | null>(null);
 
   const [pending, setPending] = useState<Pending>(null);
   const [reason, setReason] = useState('');
@@ -297,7 +299,20 @@ export default function BudgetDetailPage() {
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">{money(l.planned_amount, b.currency)}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{money(l.planned_to_date, b.currency)}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{money(l.actual_amount, b.currency)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {l.account_id ? (
+                        <button
+                          type="button"
+                          className="tabular-nums text-primary hover:underline"
+                          title="Show the ledger lines behind this amount"
+                          onClick={() => setDrill({ id: l.id, name: l.name })}
+                        >
+                          {money(l.actual_amount, b.currency)}
+                        </button>
+                      ) : (
+                        money(l.actual_amount, b.currency)
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{money(l.committed, b.currency)}</td>
                     <td className={cn('px-4 py-2 text-right tabular-nums', num(l.available) < 0 && 'text-destructive font-semibold')}>
                       {money(l.available, b.currency)}
@@ -313,6 +328,19 @@ export default function BudgetDetailPage() {
             </table>
           </CardContent>
         </Card>
+
+        <LineDrillDialog
+          key={drill?.id ?? 'none'}
+          tenant={tenant}
+          orgSlug={orgSlug ?? ''}
+          budgetId={budgetId}
+          line={drill}
+          months={(v.months ?? []).map((m) => m.month)}
+          currency={b.currency}
+          onClose={() => setDrill(null)}
+        />
+
+        <VersionHistory tenant={tenant} orgSlug={orgSlug ?? ''} budgetId={budgetId} />
 
         {v.children && v.children.length > 0 && (
           <Card>
