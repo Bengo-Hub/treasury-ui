@@ -52,6 +52,8 @@ import {
 import { useMemo, useState } from 'react';
 import { usePageReset } from '@/hooks/use-page-reset';
 import { toast } from 'sonner';
+import { OverBudgetDialog } from '@/components/budgets/over-budget-dialog';
+import { budgetWarningOf, overBudgetOf, type BudgetCheckResult } from '@/lib/api/budgets';
 
 function defaultDateRange(): { from: string; to: string } {
   const to = new Date();
@@ -80,6 +82,7 @@ export default function ExpensesPage() {
   const [rejectReason, setRejectReason] = useState('');
   // Row-action dialog state (status-aware confirmations).
   const [confirmAction, setConfirmAction] = useState<{ kind: 'submit' | 'approve' | 'delete'; exp: Expense } | null>(null);
+  const [overBudget, setOverBudget] = useState<{ kind: 'submit' | 'approve'; exp: Expense; result: BudgetCheckResult } | null>(null);
   // Primary "Record Payment" flow: open the embedded checkout referencing the expense,
   // then link the settled intent via reimburse. `reimburseExp`/`paymentIntentId` back the
   // secondary power-user "link an existing intent ID" fallback.
@@ -199,22 +202,30 @@ export default function ExpensesPage() {
   };
 
   // Run the confirmed submit/approve/delete action with toast + 409 handling.
-  const runConfirm = async () => {
-    if (!confirmAction) return;
-    const { kind, exp } = confirmAction;
+  const runConfirm = async (override = false) => {
+    const target = override ? overBudget : confirmAction;
+    if (!target) return;
+    const { kind, exp } = target;
     try {
-      if (kind === 'submit') {
-        await submitMutation.mutateAsync(exp.id);
-        toast.success(`Expense ${exp.expense_number} submitted`);
-      } else if (kind === 'approve') {
-        await approveMutation.mutateAsync(exp.id);
-        toast.success(`Expense ${exp.expense_number} approved`);
+      if (kind === 'submit' || kind === 'approve') {
+        const res = await (kind === 'submit' ? submitMutation : approveMutation).mutateAsync({ id: exp.id, override });
+        toast.success(`Expense ${exp.expense_number} ${kind === 'submit' ? 'submitted' : 'approved'}`);
+        const warn = budgetWarningOf(res);
+        if (warn) toast.warning(`Over budget: ${warn.lines.filter((l) => l.action !== 'ok').map((l) => l.line_name).join(', ')}`);
+        setOverBudget(null);
       } else if (kind === 'delete') {
         await deleteMutation.mutateAsync(exp.id);
         toast.success(`Expense ${exp.expense_number} deleted`);
       }
       setConfirmAction(null);
     } catch (err: any) {
+      const blocked = overBudgetOf(err);
+      if (blocked && (kind === 'submit' || kind === 'approve')) {
+        // A budget set to Stop: offer the override to budget approvers instead of failing.
+        setOverBudget({ kind, exp, result: blocked });
+        setConfirmAction(null);
+        return;
+      }
       // 409 = the expense is no longer a draft / already posted to the GL.
       if (err?.response?.status === 409) {
         toast.error(
@@ -493,7 +504,15 @@ export default function ExpensesPage() {
         }
         destructive={confirmAction?.kind === 'delete'}
         isPending={submitMutation.isPending || approveMutation.isPending || deleteMutation.isPending}
-        onConfirm={runConfirm}
+        onConfirm={() => runConfirm()}
+      />
+
+      <OverBudgetDialog
+        result={overBudget?.result ?? null}
+        what={`Expense ${overBudget?.exp.expense_number ?? ''}`}
+        isPending={submitMutation.isPending || approveMutation.isPending}
+        onOverride={() => runConfirm(true)}
+        onClose={() => setOverBudget(null)}
       />
 
       {/* Primary: Mark Paid — settle from a cash/bank account (DR AP / CR cash). No gateway. */}

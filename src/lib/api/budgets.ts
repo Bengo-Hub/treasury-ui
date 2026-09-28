@@ -164,6 +164,40 @@ export interface Commitment {
   status: 'open' | 'consumed' | 'released';
 }
 
+export interface BudgetCheckLine {
+  budget_id: string;
+  budget_name: string;
+  budget_line_id: string;
+  line_name: string;
+  basis: string;
+  planned: Money;
+  actual: Money;
+  committed: Money;
+  available: Money;
+  requested: Money;
+  action: 'ok' | 'warn' | 'stop';
+}
+
+export interface BudgetCheckResult {
+  action: 'ok' | 'warn' | 'stop';
+  lines: BudgetCheckLine[];
+}
+
+/** The budget result of a 409 over_budget answer, or null for any other error. */
+export function overBudgetOf(err: unknown): BudgetCheckResult | null {
+  const res = (err as { response?: { status?: number; data?: { code?: string; budget?: BudgetCheckResult } } })?.response;
+  return res?.status === 409 && res.data?.code === 'over_budget' && res.data.budget ? res.data.budget : null;
+}
+
+/** A budget warning attached to a successful response ({ budget: { action: "warn" } }), if any. */
+export function budgetWarningOf(body: unknown): BudgetCheckResult | null {
+  const b = (body as { budget?: BudgetCheckResult } | null)?.budget;
+  return b && b.action === 'warn' ? b : null;
+}
+
+/** Query params that ask the server to push a stopped spend through (budget approvers only). */
+export const budgetOverrideParams = (override?: boolean) => (override ? { override_budget: 'true' } : undefined);
+
 export interface ListBudgetsParams {
   status?: string;
   budget_type?: string;

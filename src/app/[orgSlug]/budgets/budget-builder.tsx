@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { CalendarRange, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Combobox } from '@/components/ui/combobox';
+import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
 import { FormField } from '@/components/ui/form-field';
+import { ProjectCombobox } from '@/components/ui/project-combobox';
 import { useAccounts } from '@/hooks/use-accounts';
-import { useCostCenters } from '@/hooks/use-cost-centers';
 import { useSaveBudget } from '@/hooks/use-budgets';
 import {
   num,
@@ -96,14 +97,14 @@ export function BudgetBuilder({
   const router = useRouter();
   const save = useSaveBudget();
   const { data: accountsData } = useAccounts(tenant);
-  const { data: ccData } = useCostCenters(tenant, { active_only: true });
 
   const [name, setName] = useState(existing?.name ?? '');
   const [budgetType, setBudgetType] = useState<BudgetType>(existing?.budget_type ?? preset?.budget_type ?? 'operating');
   const [fiscalYear, setFiscalYear] = useState(existing?.fiscal_year ?? String(thisYear));
   const [start, setStart] = useState(existing?.start_date?.slice(0, 10) ?? `${thisYear}-01-01`);
   const [end, setEnd] = useState(existing?.end_date?.slice(0, 10) ?? `${thisYear}-12-31`);
-  const [projectId] = useState(existing?.project_id ?? preset?.project_id ?? '');
+  const [projectId, setProjectId] = useState(existing?.project_id ?? preset?.project_id ?? '');
+  const projectLocked = !!(existing?.project_id || preset?.project_id);
   const [control, setControl] = useState<BudgetControl>(
     existing?.control ?? { on_actual: 'warn', on_commitment: 'warn', basis: 'annual' },
   );
@@ -117,7 +118,6 @@ export function BudgetBuilder({
     (accountsData?.accounts ?? [])
       .filter((a) => (category === 'revenue' ? a.account_type === 'revenue' : a.account_type === 'expense' || a.account_type === 'asset'))
       .map((a) => ({ value: a.id, label: `${a.account_code} ${a.account_name}` }));
-  const costCenterOptions = (ccData?.cost_centers ?? []).map((c) => ({ value: c.id, label: c.code ? `${c.code} ${c.name}` : c.name }));
 
   const update = (key: string, patch: Partial<LineState>) =>
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -139,7 +139,7 @@ export function BudgetBuilder({
     setFormError('');
     if (!name.trim()) return setFormError('Give the budget a name.');
     if (!start || !end || end < start) return setFormError('The end date must be on or after the start date.');
-    if (budgetType === 'project' && !projectId) return setFormError('A project budget must be created from its project.');
+    if (budgetType === 'project' && !projectId) return setFormError('Choose the project this budget is for.');
     const usable = lines.filter((l) => l.name.trim());
     if (!usable.length) return setFormError('Add at least one line.');
     const noAccount = usable.find((l) => !l.account_id);
@@ -156,7 +156,7 @@ export function BudgetBuilder({
       start_date: start,
       end_date: end,
       currency: existing?.currency ?? 'KES',
-      project_id: projectId || undefined,
+      project_id: budgetType === 'project' ? projectId || undefined : undefined,
       parent_budget_id: existing?.parent_budget_id,
       control,
       alert_thresholds: ths.length ? ths : [80, 100],
@@ -191,11 +191,11 @@ export function BudgetBuilder({
           <FormField label="Name" required>
             <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="Operating budget 2027" />
           </FormField>
-          <FormField label="Type" description="Project budgets are created from the project.">
+          <FormField label="Type">
             <select
               className={inputClass}
               value={budgetType}
-              disabled={!!projectId}
+              disabled={projectLocked}
               onChange={(e) => setBudgetType(e.target.value as BudgetType)}
             >
               <option value="operating">Operating (profit and loss)</option>
@@ -203,9 +203,14 @@ export function BudgetBuilder({
               <option value="revenue">Revenue targets</option>
               <option value="cash">Cash</option>
               <option value="forecast">Forecast scenario</option>
-              {projectId && <option value="project">Project</option>}
+              <option value="project">Project</option>
             </select>
           </FormField>
+          {budgetType === 'project' && (
+            <FormField label="Project" required description="Spend tagged to this project counts against the budget.">
+              <ProjectCombobox tenant={tenant} value={projectId} onChange={setProjectId} disabled={projectLocked} placeholder="Choose project" />
+            </FormField>
+          )}
           <FormField label="Fiscal year">
             <input className={inputClass} value={fiscalYear} onChange={(e) => setFiscalYear(e.target.value)} />
           </FormField>
@@ -286,13 +291,7 @@ export function BudgetBuilder({
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-xs text-muted-foreground">Cost centre</label>
-                  <Combobox
-                    options={costCenterOptions}
-                    value={l.cost_center_id}
-                    onChange={(v) => update(l.key, { cost_center_id: v })}
-                    placeholder="Any"
-                    searchPlaceholder="Search cost centres"
-                  />
+                  <CostCenterCombobox tenant={tenant} value={l.cost_center_id} onChange={(v) => update(l.key, { cost_center_id: v })} placeholder="Any" />
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-xs text-muted-foreground">Amount</label>

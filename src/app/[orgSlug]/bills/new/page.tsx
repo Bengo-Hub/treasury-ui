@@ -2,6 +2,10 @@
 
 import { Button, Card, CardContent } from '@/components/ui/base';
 import { Combobox } from '@/components/ui/combobox';
+import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
+import { ProjectCombobox } from '@/components/ui/project-combobox';
+import { OverBudgetDialog } from '@/components/budgets/over-budget-dialog';
+import { budgetWarningOf, overBudgetOf, type BudgetCheckResult } from '@/lib/api/budgets';
 import { FormField } from '@/components/ui/form-field';
 import { useBills, useCreateBill } from '@/hooks/use-bills';
 import { useVendors, useVendorSearch } from '@/hooks/use-inventory';
@@ -65,6 +69,10 @@ export default function NewPurchasePage() {
   const orgName = brand?.orgName || brand?.name || 'Your Business';
 
   const createBill = useCreateBill(effectiveTenant);
+  // Budget dimensions for the purchase, and a budget stop waiting for an approver's decision.
+  const [costCenterId, setCostCenterId] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [overBudget, setOverBudget] = useState<{ result: BudgetCheckResult; after: 'list' | 'new' } | null>(null);
   const { data: vendorData } = useVendors(effectiveTenant, undefined, !!effectiveTenant);
   const vendorOptions = useMemo(
     () => (vendorData?.vendors ?? []).map((v) => ({ value: v.id, label: v.business_name, hint: vendorOptionHint(v) })),
@@ -142,6 +150,8 @@ export default function NewPurchasePage() {
       bill_date: purchaseDate,
       due_date: dueDate,
       currency,
+      project_id: projectId || undefined,
+      cost_center_id: costCenterId || undefined,
       lines: validLines.map((l) => {
         const { tax } = lineAmounts(l);
         return {
@@ -161,12 +171,15 @@ export default function NewPurchasePage() {
     };
   };
 
-  const save = (after: 'list' | 'new') => {
+  const save = (after: 'list' | 'new', override = false) => {
     const payload = buildPayload();
     if (!payload) return;
-    createBill.mutate(payload, {
+    createBill.mutate({ data: payload, override }, {
       onSuccess: (bill) => {
+        setOverBudget(null);
         toast.success(`Purchase ${bill?.bill_number ?? ''} created`);
+        const warn = budgetWarningOf(bill);
+        if (warn) toast.warning(`Over budget: ${warn.lines.filter((l) => l.action !== 'ok').map((l) => l.line_name).join(', ')}`);
         if (after === 'new') {
           setTitle('Purchase');
           setExpenseNo('');
@@ -183,6 +196,11 @@ export default function NewPurchasePage() {
         }
       },
       onError: (err: any) => {
+        const blocked = overBudgetOf(err);
+        if (blocked) {
+          setOverBudget({ result: blocked, after });
+          return;
+        }
         toast.error(err?.response?.data?.error ?? 'Failed to create purchase. Please try again.');
       },
     });
@@ -309,12 +327,26 @@ export default function NewPurchasePage() {
             </div>
           </div>
 
-          {/* Currency */}
-          <div className="flex justify-end">
-            <FormField label="Currency" required className="w-56">
+          {/* Budget dimensions + currency */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <FormField label="Cost Centre" description="The unit this purchase is budgeted under.">
+              <CostCenterCombobox tenant={effectiveTenant ?? ''} value={costCenterId} onChange={setCostCenterId} />
+            </FormField>
+            <FormField label="Project" description="Counts the purchase against the project's budget.">
+              <ProjectCombobox tenant={effectiveTenant ?? ''} value={projectId} onChange={setProjectId} />
+            </FormField>
+            <FormField label="Currency" required>
               <Combobox options={currencyOptions} value={currency} onChange={setCurrency} clearable={false} />
             </FormField>
           </div>
+
+          <OverBudgetDialog
+            result={overBudget?.result ?? null}
+            what="This purchase"
+            isPending={createBill.isPending}
+            onOverride={() => overBudget && save(overBudget.after, true)}
+            onClose={() => setOverBudget(null)}
+          />
 
           {/* Line items */}
           <div className="overflow-x-auto rounded-lg border border-border">

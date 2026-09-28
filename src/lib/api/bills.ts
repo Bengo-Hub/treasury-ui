@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from './client';
+import { budgetOverrideParams, type BudgetCheckResult } from './budgets';
 import { fetchAllViaApiClient } from './paginate';
 
 const BASE = '/api/v1';
@@ -110,6 +111,9 @@ export interface CreateBillRequest {
   due_date: string;
   currency?: string;
   lines: BillLineReq[];
+  /** Budget dimensions for the purchase leg (project budgets, cost-centre P&L). */
+  project_id?: string;
+  cost_center_id?: string;
   metadata?: Record<string, any>;
 }
 
@@ -236,8 +240,10 @@ export function getBill(tenantIdOrSlug: string, id: string): Promise<Bill> {
   return apiClient.get<Bill>(`${BASE}/${tenantIdOrSlug}/ap/bills/${id}`);
 }
 
-export function createBill(tenantIdOrSlug: string, data: CreateBillRequest): Promise<Bill> {
-  return apiClient.post<Bill>(`${BASE}/${tenantIdOrSlug}/ap/bills`, data);
+/** Create passes through the budget check: a Stop answers 409 over_budget unless a budget
+ *  approver re-sends with override (see overBudgetOf / OverBudgetDialog). */
+export function createBill(tenantIdOrSlug: string, data: CreateBillRequest, override?: boolean): Promise<Bill & { budget?: BudgetCheckResult }> {
+  return apiClient.post(`${BASE}/${tenantIdOrSlug}/ap/bills`, data, { params: budgetOverrideParams(override) });
 }
 
 export function payBill(tenantIdOrSlug: string, id: string, data: PayBillRequest): Promise<{ status: string }> {

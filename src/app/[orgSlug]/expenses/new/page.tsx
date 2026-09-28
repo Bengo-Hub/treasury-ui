@@ -3,6 +3,8 @@
 import { Button, Card, CardContent } from '@/components/ui/base';
 import { CategoryCombobox } from '@/components/ui/category-combobox';
 import { Combobox } from '@/components/ui/combobox';
+import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
+import { ProjectCombobox } from '@/components/ui/project-combobox';
 import { FormField } from '@/components/ui/form-field';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { useAccounts } from '@/hooks/use-accounts';
@@ -157,6 +159,9 @@ export default function NewExpenditurePage() {
   const suggestedExpenseNo = expenseNoPreview?.next_number ?? '';
 
   const [expenseDate, setExpenseDate] = useState(today());
+  // Budget dimensions: the cost centre and project this spend counts against.
+  const [costCenterId, setCostCenterId] = useState('');
+  const [projectId, setProjectId] = useState('');
   // Self / internal expense — no external vendor; the create payload omits vendor_id.
   const [selfExpense, setSelfExpense] = useState(false);
   const [vendorId, setVendorId] = useState('');
@@ -225,6 +230,7 @@ export default function NewExpenditurePage() {
       // Self / internal expense → omit vendor_id entirely (backend treats it as optional).
       vendor_id: selfExpense ? undefined : (vendorId || undefined),
       account_id: ledgerId || undefined,
+      cost_center_id: costCenterId || undefined,
       invoice_id: invoiceId || undefined,
       // Top-level recurrence fields drive the backend scheduler (persisted to real columns).
       is_recurring: isRecurring || undefined,
@@ -236,6 +242,8 @@ export default function NewExpenditurePage() {
         supplier_kra_pin: selfExpense ? undefined : (vendorKraPin.trim() || undefined),
         supplier_name: selfExpense ? undefined : (vendorName.trim() || undefined),
         is_self_expense: selfExpense || undefined,
+        // Stamped on both GL lines so project budgets and project profitability count it.
+        project_id: projectId || undefined,
         tax_type: taxType,
         attachment_name: attachmentName || undefined,
       },
@@ -255,6 +263,8 @@ export default function NewExpenditurePage() {
     setTaxType('none');
     setAmount('');
     setLedgerId('');
+    setCostCenterId('');
+    setProjectId('');
     setNotes('');
     setAttachmentName(null);
     setIsRecurring(false);
@@ -439,6 +449,14 @@ export default function NewExpenditurePage() {
                     emptyText="No expense accounts found"
                   />
                 </SubscriptionGate>
+              </FormField>
+
+              <FormField label="Cost Centre" description="The department or unit this spend is budgeted under.">
+                <CostCenterCombobox tenant={effectiveTenant} value={costCenterId} onChange={setCostCenterId} />
+              </FormField>
+
+              <FormField label="Project" description="Counts this spend against the project's budget.">
+                <ProjectCombobox tenant={effectiveTenant} value={projectId} onChange={setProjectId} />
               </FormField>
             </div>
           </section>
