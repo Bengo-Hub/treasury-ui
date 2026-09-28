@@ -7,7 +7,9 @@ import { Loader2 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from 'recharts';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { SERIES, compactNumber, money } from '@/components/charts/chart-theme';
+import { ExportMenu } from '@/components/documents/ExportMenu';
 import { SubscriptionGate } from '@/components/subscription/subscription-gate';
+import { useOutletFilterStore } from '@/store/outlet-filter';
 import { Card, CardContent, CardHeader } from '@/components/ui/base';
 import { useBudgetUtilisation, useDimensionPnL } from '@/hooks/use-planning';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
@@ -36,7 +38,10 @@ export default function ProfitabilityPage() {
   const [from, setFrom] = useState(`${today.getFullYear()}-01-01`);
   const [to, setTo] = useState(iso(today));
 
-  const { data: pnl, isLoading, isFetching, error } = useDimensionPnL(tenant, { by, from, to });
+  // The header outlet filter narrows the report (and its export) to one outlet.
+  const outletId = useOutletFilterStore((s) => s.selectedOutlet?.id);
+  const params = { by, from, to, outlet_id: outletId || undefined };
+  const { data: pnl, isLoading, isFetching, error } = useDimensionPnL(tenant, params);
   const { data: util, isLoading: utilLoading } = useBudgetUtilisation(tenant);
 
   // projects-api owns project names; the report carries ids, so name them from the lookup the
@@ -87,6 +92,14 @@ export default function ProfitabilityPage() {
             <input type="date" className={inputCls} value={to} onChange={(e) => setTo(e.target.value)} />
           </label>
           {isFetching && <Loader2 className="mb-2 h-5 w-5 animate-spin text-muted-foreground" />}
+          <ExportMenu
+            className="ml-auto"
+            tenant={tenant}
+            path="reports/bi/dimension-pnl/export"
+            fileBase={`Profit and loss by ${dimName.toLowerCase()}`}
+            title={`Profit and loss by ${dimName.toLowerCase()}`}
+            params={params}
+          />
         </div>
 
         {error && (

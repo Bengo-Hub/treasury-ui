@@ -20,6 +20,7 @@ const inputCls = 'h-9 w-full rounded-lg border border-border bg-card px-2.5 text
 const taxKind: Record<string, string> = {
   vat: "VAT for last month (last month's recorded amount)",
   tot: 'Turnover Tax for last month',
+  wht: 'Withholding tax deducted last month',
   instalment: 'Income tax instalment (a quarter of profit to date, annualised)',
 };
 
