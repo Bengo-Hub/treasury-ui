@@ -27,8 +27,16 @@ const MODES: { value: PayHeroMode; label: string; hint: string }[] = [
   { value: 'own_account', label: 'Own PayHero account', hint: 'Your own PayHero API key.' },
 ];
 
-// Reference types a payment can be routed by (what each source service creates).
-const ROUTED_TYPES = ['pos_sale', 'invoice', 'order', 'booking', 'subscription'];
+// Reference types a payment can be routed by: what each source service puts on its intents
+// (pos-api pos_order and hotel_folio, ordering order, treasury invoice, hospital charges).
+const ROUTED_TYPES: { value: string; label: string }[] = [
+  { value: 'pos_order', label: 'POS sales' },
+  { value: 'hotel_folio', label: 'Hotel folios' },
+  { value: 'order', label: 'Online orders' },
+  { value: 'invoice', label: 'Invoices' },
+  { value: 'hospital_walk_in_sale', label: 'Hospital walk-in sales' },
+  { value: 'hospital_billable_charge', label: 'Hospital charges' },
+];
 
 /** A PayHero write that stores the returned status and toasts the outcome. */
 function usePayHeroMutation<T>(tenant: string, fn: (v: T) => Promise<PayHeroStatus>, ok: string, fail: string) {
@@ -309,9 +317,9 @@ function ChannelsCard({ st, syncing, onSync, onToggle, onClaim, onRouting, savin
               <span className="text-muted-foreground">Default channel</span>
               {channelSelect(route.default_channel_id, (v) => setRoute({ ...route, default_channel_id: v }), false)}
             </label>
-            {ROUTED_TYPES.map((t) => (
+            {ROUTED_TYPES.map(({ value: t, label }) => (
               <label key={t} className="text-sm grid grid-cols-3 items-center gap-2">
-                <span className="text-muted-foreground">{t.replace('_', ' ')}</span>
+                <span className="text-muted-foreground">{label}</span>
                 <span className="col-span-2">
                   {channelSelect(route.by_reference_type?.[t], (v) => {
                     const next = { ...(route.by_reference_type ?? {}) };
