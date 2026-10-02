@@ -3,6 +3,7 @@
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildApprovalRuleColumns } from './approval-rule-columns';
+import { PayoutPoliciesCard } from './payout-policies-card';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import {
   useApprovalRules,
@@ -172,6 +173,8 @@ export default function ApprovalRulesPage() {
             <Button onClick={startCreate}><Plus className="h-4 w-4 mr-2" /> New Rule</Button>
           )}
         </div>
+
+        <PayoutPoliciesCard tenant={tenant} canChange={canChange} />
 
         <Card>
           <CardContent className="p-0">

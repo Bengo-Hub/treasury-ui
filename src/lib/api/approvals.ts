@@ -28,6 +28,15 @@ export type ApprovalModule =
   | 'debit_note'
   | 'quotation';
 
+export type PayoutFlow = 'escrow_release' | 'settlement' | 'equity_payout' | 'disbursement';
+export type PayoutPolicy = 'threshold' | 'always' | 'auto';
+
+export interface PayoutPoliciesResponse {
+  policies: Record<PayoutFlow, PayoutPolicy>;
+  auto_capable: PayoutFlow[];
+  policy_meanings: Record<PayoutPolicy, string>;
+}
+
 export type ApprovalRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type ApprovalActionStatus = 'pending' | 'approved' | 'rejected' | 'skipped';
 
@@ -130,6 +139,11 @@ export const approvalsApi = {
   // NB: the per-document submit lives on the document's OWN route family (e.g. /{tenant}/invoices/
   // {id}/submit-for-approval), NOT under the /treasury/ approvals namespace which only carries the
   // central approval-rules / approval-requests endpoints.
+  // Payout approval policy per flow (threshold | always | auto); auto only for rule-driven flows.
+  payoutPolicies: (tenant: string) => apiClient.get<PayoutPoliciesResponse>(`${base(tenant)}/payout-policies`),
+  setPayoutPolicy: (tenant: string, flow: PayoutFlow, policy: PayoutPolicy) =>
+    apiClient.put<{ policies: Record<PayoutFlow, PayoutPolicy> }>(`${base(tenant)}/payout-policies/${flow}`, { policy }),
+
   submitForApproval: (tenant: string, module: ApprovalModule, objectId: string) =>
     apiClient.post<SubmitForApprovalResult>(
       `${BASE}/${tenant}/${MODULE_PATH[module]}/${objectId}/submit-for-approval`,
