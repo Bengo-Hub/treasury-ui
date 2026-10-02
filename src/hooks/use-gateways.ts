@@ -78,7 +78,7 @@ export function useTenantPayoutConfig(orgSlug: string, enabled = true) {
 export function useSelectTenantGateway(orgSlug: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (gatewayType: string) => selectTenantGateway(orgSlug, gatewayType),
+    mutationFn: ({ type, primary = true }: { type: string; primary?: boolean }) => selectTenantGateway(orgSlug, type, primary),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: gatewayKeys.tenant(orgSlug) });
       queryClient.invalidateQueries({ queryKey: gatewayKeys.tenantSelected(orgSlug) });

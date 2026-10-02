@@ -65,6 +65,8 @@ export interface PayHeroStatus {
   };
   channels: PayHeroChannel[];
   routing: PayHeroRouting;
+  /** The tenant's own record (name, email, phone, country), used to prefill the setup. */
+  tenant_profile?: { name?: string; email?: string; phone?: string; country?: string };
   offline_paybill: boolean;
   payment_links: PayHeroPaymentLink[];
   channels_synced_at?: string;
@@ -87,6 +89,9 @@ export const payheroApi = {
   disable: (tenant: string) => apiClient.delete<void>(tenantBase(tenant)),
   createTeam: (tenant: string, body: { name: string; email?: string }) =>
     apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/team`, body),
+  /** Attach a Team that already exists on PayHero (must belong to the platform organization). */
+  linkTeam: (tenant: string, accountID: number) =>
+    apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/team/link`, { account_id: accountID }),
   invite: (tenant: string, email: string) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/team/invite`, { email }),
   syncChannels: (tenant: string) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/channels/sync`),
   claimChannel: (tenant: string, id: number) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/channels/${id}/claim`),
@@ -115,6 +120,12 @@ export const payheroApi = {
     apiClient.put<{ organization_id: number; root_account_id: number }>(`${BASE}/platform/gateways/payhero/settings`, body),
   detectPlatformSettings: () =>
     apiClient.post<{ organization_id: number; root_account_id: number }>(`${BASE}/platform/gateways/payhero/settings/detect`),
+  /** Platform owner: create a tenant's Team (name and email default to the tenant's record). */
+  platformCreateTeam: (tenantID: string, body: { name?: string; email?: string } = {}) =>
+    apiClient.post<PayHeroStatus>(`${BASE}/platform/gateways/payhero/teams/${tenantID}`, body),
+  /** Platform owner: link an existing Team to a tenant. */
+  platformLinkTeam: (tenantID: string, accountID: number) =>
+    apiClient.post<PayHeroStatus>(`${BASE}/platform/gateways/payhero/teams/${tenantID}/link`, { account_id: accountID }),
   teams: (balances: boolean) =>
     apiClient.get<{ teams: PayHeroTeamRow[] }>(`${BASE}/platform/gateways/payhero/teams${balances ? '?balances=true' : ''}`),
 };

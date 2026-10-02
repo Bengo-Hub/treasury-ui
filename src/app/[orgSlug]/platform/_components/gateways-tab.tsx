@@ -92,6 +92,16 @@ export function GatewaysTab() {
     }
   };
 
+  const patch = async (gw: GatewayConfig, body: { is_active?: boolean; is_primary?: boolean }, ok: string) => {
+    try {
+      await update.mutateAsync({ id: gw.id, body });
+      toast.success(ok);
+      refetch();
+    } catch (e) {
+      toast.error(errMessage(e, 'Could not update the gateway'));
+    }
+  };
+
   const saveUrl = async (gw: GatewayConfig, field: 'webhook_url' | 'callback_url', url: string) => {
     try {
       await update.mutateAsync({ id: gw.id, body: { [field]: url } });
@@ -131,6 +141,9 @@ export function GatewaysTab() {
           onEditCredentials={() => setDialog({ edit: gw })}
           onRegisterC2B={isMpesaType(gw.gateway_type) ? () => registerC2B(gw) : undefined}
           onSaveUrl={(field, url) => saveUrl(gw, field, url)}
+          saving={update.isPending && update.variables?.id === gw.id}
+          onSetActive={(active) => patch(gw, { is_active: active }, active ? `${gw.name} is on for tenants` : `${gw.name} is off; tenants no longer see it`)}
+          onMakePrimary={gatewayKind(gw.gateway_type).integration ? undefined : () => patch(gw, { is_primary: true }, `${gw.name} is now the platform's primary gateway`)}
         />
       ))}
     </div>

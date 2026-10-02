@@ -9,7 +9,7 @@ import { escrowApi } from '@/lib/api/escrow';
 import { payheroApi } from '@/lib/api/payhero';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Landmark, Loader2, Pencil, RefreshCw, Save, ShieldCheck, Users, Wand2, X } from 'lucide-react';
+import { Building2, Landmark, Loader2, Pencil, Plus, RefreshCw, Save, ShieldCheck, Users, Wand2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -55,6 +55,20 @@ export function PayHeroPlatformPanel() {
   const teams = useQuery({ queryKey: ['payhero-teams', withBalances], queryFn: () => payheroApi.teams(withBalances), retry: false });
   const escrow = useQuery({ queryKey: ['escrow-overview'], queryFn: () => escrowApi.platformOverview(), retry: false });
   const rows = teams.data?.teams ?? [];
+  // Team actions for tenants that enabled PayHero (own Team) but have no Team on PayHero yet. Name,
+  // email and phone default to the tenant's own record on the server.
+  const teamsChanged = (msg: string) => { qc.invalidateQueries({ queryKey: ['payhero-teams'] }); toast.success(msg); };
+  const createTeam = useMutation({
+    mutationFn: (tenantID: string) => payheroApi.platformCreateTeam(tenantID),
+    onSuccess: () => teamsChanged('Team created on PayHero'),
+    onError: (e: any) => toast.error(errMessage(e, 'Could not create the Team')),
+  });
+  const [linkIDs, setLinkIDs] = useState<Record<string, string>>({});
+  const linkTeam = useMutation({
+    mutationFn: (v: { tenantID: string; accountID: number }) => payheroApi.platformLinkTeam(v.tenantID, v.accountID),
+    onSuccess: () => teamsChanged('Team linked'),
+    onError: (e: any) => toast.error(errMessage(e, 'Could not link the Team')),
+  });
 
   return (
     <div className="space-y-6">
@@ -126,7 +140,27 @@ export function PayHeroPlatformPanel() {
               <li key={t.tenant_id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-4">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{tenantName(t.tenant_id)}</p>
-                  <p className="text-xs text-muted-foreground">{t.team_name || (t.vendor_id ? `Team #${t.vendor_id}` : 'No Team yet')}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t.team_name || (t.vendor_id ? `Team #${t.vendor_id}` : t.mode === 'platform_team' ? 'PayHero enabled here; no Team created on PayHero yet' : '')}
+                  </p>
+                  {t.mode === 'platform_team' && !t.vendor_id && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Button size="sm" className="gap-1.5" disabled={createTeam.isPending} onClick={() => createTeam.mutate(t.tenant_id)}>
+                        {createTeam.isPending && createTeam.variables === t.tenant_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Create Team
+                      </Button>
+                      <Input
+                        inputMode="numeric"
+                        aria-label="Existing PayHero account id"
+                        placeholder="or link account id"
+                        className="h-8 w-40 text-xs"
+                        value={linkIDs[t.tenant_id] ?? ''}
+                        onChange={(e) => setLinkIDs({ ...linkIDs, [t.tenant_id]: e.target.value.replace(/\D/g, '') })}
+                      />
+                      {linkIDs[t.tenant_id] && (
+                        <Button size="sm" variant="outline" disabled={linkTeam.isPending} onClick={() => linkTeam.mutate({ tenantID: t.tenant_id, accountID: Number(linkIDs[t.tenant_id]) })}>Link</Button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">{MODE_LABEL[t.mode] ?? t.mode}</Badge>

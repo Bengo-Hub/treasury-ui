@@ -17,7 +17,7 @@ export function SetupSection({ tenantSlug, st }: { tenantSlug: string; st?: PayH
   const qc = useQueryClient();
   // Stored setup until edited (draft), then the draft.
   const [draft, setForm] = useState<EnablePayHeroRequest | null>(null);
-  const form: EnablePayHeroRequest = draft ?? { mode: st?.mode ?? 'platform_team', country: st?.country ?? 'KE', offline_paybill: st?.offline_paybill };
+  const form: EnablePayHeroRequest = draft ?? { mode: st?.mode ?? 'platform_team', country: st?.country || st?.tenant_profile?.country || 'KE', offline_paybill: st?.offline_paybill };
   const enable = usePayHeroMutation(tenantSlug, (b: EnablePayHeroRequest) => payheroApi.enable(tenantSlug, b).then((s) => { setForm(null); return s; }), 'PayHero saved', 'Could not save PayHero');
   const [confirmDisable, setConfirmDisable] = useState(false);
   const disable = useMutation({
@@ -113,9 +113,14 @@ export function SetupSection({ tenantSlug, st }: { tenantSlug: string; st?: PayH
 function TeamSection({ tenantSlug, st }: { tenantSlug: string; st: PayHeroStatus }) {
   const createTeam = usePayHeroMutation(tenantSlug, (b: { name: string; email?: string }) => payheroApi.createTeam(tenantSlug, b), 'Team created', 'Could not create the Team');
   const invite = usePayHeroMutation(tenantSlug, (email: string) => payheroApi.invite(tenantSlug, email), 'Invitation sent', 'Could not send the invitation');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const link = usePayHeroMutation(tenantSlug, (id: number) => payheroApi.linkTeam(tenantSlug, id), 'Team linked', 'Could not link the Team');
+  // Prefilled from the tenant's own record until edited.
+  const [nameDraft, setName] = useState<string | null>(null);
+  const [emailDraft, setEmail] = useState<string | null>(null);
+  const name = nameDraft ?? st.tenant_profile?.name ?? '';
+  const email = emailDraft ?? st.tenant_profile?.email ?? '';
   const [invitee, setInvitee] = useState('');
+  const [linkID, setLinkID] = useState('');
   const has = (st.vendor_id ?? 0) > 0;
 
   return (
@@ -138,6 +143,18 @@ function TeamSection({ tenantSlug, st }: { tenantSlug: string; st: PayHeroStatus
           <Button className="gap-1.5" onClick={() => createTeam.mutate({ name, email: email || undefined })} disabled={!name.trim() || createTeam.isPending}>
             {createTeam.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create Team
           </Button>
+          <details className="sm:col-span-3">
+            <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Already have a Team on PayHero? Link it instead</summary>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+              <label className="flex-1 space-y-1">
+                <span className="text-xs font-medium">PayHero account id</span>
+                <Input inputMode="numeric" value={linkID} onChange={(e) => setLinkID(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 12700" />
+              </label>
+              <Button variant="outline" onClick={() => link.mutate(Number(linkID))} disabled={!linkID || link.isPending}>
+                {link.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Link Team
+              </Button>
+            </div>
+          </details>
         </div>
       ) : (
         <div className="space-y-4">
