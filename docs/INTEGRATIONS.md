@@ -63,6 +63,12 @@ Treasury UI is the central financial portal. It integrates with:
 | `useEquity` | `GET /api/v1/platform/equity-holders` | Equity holder list |
 | `useInvoices` | `GET /api/v1/{tenant}/invoices` | Invoice list/CRUD |
 | `useTax` | `GET /api/v1/{tenant}/tax/codes` | Tax codes |
+| `useVerifyTenantPayoutConfig` | `POST /api/v1/platform/payout-configs/{tenantID}/verify` | Verify a tenant's payout destination (Platform > Analytics, Revenue by Tenant) |
+| `payheroApi` (`lib/api/payhero.ts`) | `/api/v1/{tenant}/gateways/payhero/...` | PayHero setup: mode, Team, invite, KYC, channels, routing (default, per reference type, per outlet), payment links, wallet balance |
+| `payheroApi.platformSettings` / `teams` | `/api/v1/platform/gateways/payhero/settings`, `/teams` | Platform PayHero organization and every tenant's setup |
+| `escrowApi` (`lib/api/escrow.ts`) | `/api/v1/{tenant}/escrow/...`, `/api/v1/pay/{tenant}/escrow/{code}` | Escrow pots, release, cancel and refund, commission rule, terms; public pot page |
+| `webhooksApi` (`lib/api/webhooks.ts`) | `/api/v1/{tenant}/developer/webhooks/...` | Tenant outbound webhook endpoints, deliveries, replay, ping, secret rotation |
+| `approvalsApi.payoutPolicies` (`lib/api/approvals.ts`) | `/api/v1/{tenant}/treasury/payout-policies` | Payout approval policy per flow (threshold, always, auto) |
 
 ---
 
@@ -90,3 +96,7 @@ Payment gateway configuration is **owned by treasury-api and treasury-ui**. Auth
 - [x] Transaction cost column per transaction row
 - [x] Reconciliation and reporting views (Recharts on platform analytics and Business Insights)
 - [x] Branding (from the tenant record, not notifications-api)
+- [x] PayHero (2026-10): Settings > Payments > PayHero tab; pay page methods `payhero_momo`, `payhero_card`, `payhero_bank`, `payhero_offline` plus `mtn_momo` / `airtel_money` / `mobile_money` through PayHero (`MobileMoneyPaymentModal`, `PayHeroCheckoutModal`); platform PayHero panel
+- [x] Escrow pots (`/{org}/escrow`, public `/pay/pot?tenant=&code=`) and the payout approval policies card on Approvals > Rules
+- [x] Transactions: gateway filter, amount mismatch shown under the status, manual confirm only with `treasury.payments.manage`
+- [x] A payout refused with code `no_tenant_payout_account` shows where to connect the tenant's own payout account (added to the error message by the API client)
