@@ -7,10 +7,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PaymentModal } from './PaymentModal';
 import type { PaymentDetails } from './types';
 
-function momoPayload(details: PaymentDetails, phoneNumber: string): Record<string, unknown> {
+function momoPayload(details: PaymentDetails, method: MobileMoneyMethod, phoneNumber: string): Record<string, unknown> {
   const body: Record<string, unknown> = {
-    payment_method: 'mtn_momo',
-    gateway: 'mtn_momo',
+    payment_method: method,
+    gateway: method,
     amount: details.amount,
     currency: details.currency,
     reference_id: details.reference_id,
@@ -32,22 +32,33 @@ function statusUrlFrom(initiateUrl?: string): string {
 
 type Outcome = null | 'success' | 'failed';
 
+export type MobileMoneyMethod = 'mtn_momo' | 'airtel_money' | 'payhero_momo';
+
+const NETWORK: Record<MobileMoneyMethod, { name: string; placeholder: string }> = {
+  mtn_momo: { name: 'MTN Mobile Money', placeholder: '0771234567' },
+  airtel_money: { name: 'Airtel Money', placeholder: '0701234567' },
+  payhero_momo: { name: 'Mobile Money', placeholder: 'Your mobile money number' },
+};
+
 /**
- * MTN Mobile Money payment modal — mirrors MpesaPaymentModal's push-then-poll shape (MTN's
- * "request to pay" is the same push-prompt UX as M-Pesa STK), minus the till/paybill "check now"
- * affordance, which has no MTN equivalent.
+ * Mobile money (MTN, Airtel or another network) on the push-then-poll shape of MpesaPaymentModal.
+ * Treasury runs these on PayHero, which picks the network for the payment's country and puts the
+ * number in international form, so any country's number is accepted here as typed.
  */
-export function MTNMoMoPaymentModal({
+export function MobileMoneyPaymentModal({
+  method,
   details,
   onClose,
   onSuccess,
   embed = false,
 }: {
+  method: MobileMoneyMethod;
   details: PaymentDetails;
   onClose: () => void;
   onSuccess?: (data: { checkout_request_id?: string }) => void;
   embed?: boolean;
 }) {
+  const network = NETWORK[method];
   const [phone, setPhone] = useState(details.phone_number ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -64,21 +75,15 @@ export function MTNMoMoPaymentModal({
       ? new Intl.NumberFormat('en-KE', { style: 'currency', currency: details.currency }).format(details.amount)
       : '—';
 
-  // Uganda MSISDNs (256XXXXXXXXX); left permissive for other MTN markets.
-  const normalizePhone = (v: string) => {
-    const d = v.replace(/\D/g, '');
-    if (d.startsWith('256')) return d;
-    if (d.startsWith('0')) return '256' + d.slice(1);
-    if (d.length <= 9) return '256' + d;
-    return d;
-  };
+  // Digits only; treasury converts to the international form of the payment's country.
+  const normalizePhone = (v: string) => v.replace(/\D/g, '');
 
   const markSuccess = useCallback((receipt?: string) => {
     if (settledRef.current) return;
     settledRef.current = true;
     setOutcome('success');
     if (embed) {
-      sendToParent({ type: 'treasury:payment_confirmed', intentId: details.intent_id || '', amount: details.amount, reference: receipt || details.reference_id, channel: 'mtn_momo' });
+      sendToParent({ type: 'treasury:payment_confirmed', intentId: details.intent_id || '', amount: details.amount, reference: receipt || details.reference_id, channel: method });
     }
     onSuccess?.({});
   }, [embed, details.intent_id, details.amount, details.reference_id, onSuccess]);
@@ -100,7 +105,7 @@ export function MTNMoMoPaymentModal({
       const data = await res.json().catch(() => ({}));
       if (data.status === 'succeeded') { markSuccess(data.provider_reference); return 'success'; }
       if (data.status === 'failed' || data.status === 'cancelled') {
-        markFailed(data.message || 'The MTN Mobile Money payment was not completed. Please try again.');
+        markFailed(data.message || `The ${network.name} payment was not completed. Please try again.`);
         return 'failed';
       }
     } catch {
@@ -123,8 +128,8 @@ export function MTNMoMoPaymentModal({
     e.preventDefault();
     setError('');
     const normalized = normalizePhone(phone);
-    if (normalized.length < 12) {
-      setError('Enter a valid MTN Mobile Money number (e.g. 0771234567).');
+    if (normalized.length < 9) {
+      setError(`Enter a valid ${network.name} number.`);
       return;
     }
     if (!details.initiate_url) {
@@ -136,11 +141,11 @@ export function MTNMoMoPaymentModal({
       const res = await fetch(details.initiate_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(momoPayload(details, normalized)),
+        body: JSON.stringify(momoPayload(details, method, normalized)),
       });
       const data = await res.json().catch(() => ({}));
       if (data.checkout_request_id || data.status === 'processing' || data.status === 'pending') {
-        if (embed) sendToParent({ type: 'treasury:payment_initiated', intentId: details.intent_id || '', method: 'mtn_momo' });
+        if (embed) sendToParent({ type: 'treasury:payment_initiated', intentId: details.intent_id || '', method });
         onSuccess?.(data);
         setError('');
         settledRef.current = false;
@@ -148,7 +153,7 @@ export function MTNMoMoPaymentModal({
         setRequestSent(true);
         return;
       }
-      setError(data.message || data.error || 'Could not send MTN Mobile Money prompt. Please try again.');
+      setError(data.message || data.error || `Could not send the ${network.name} prompt. Please try again.`);
     } catch {
       setError('Network error. Please try again.');
     } finally {
@@ -163,7 +168,7 @@ export function MTNMoMoPaymentModal({
           <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto" />
           <div className="space-y-1">
             <p className="text-sm font-semibold text-foreground">Payment successful</p>
-            <p className="text-xs text-muted-foreground">Your MTN Mobile Money payment of {formatAmount()} has been received.</p>
+            <p className="text-xs text-muted-foreground">Your {network.name} payment of {formatAmount()} has been received.</p>
           </div>
           <Button type="button" onClick={onClose} className="w-full">Done</Button>
         </div>
@@ -178,7 +183,7 @@ export function MTNMoMoPaymentModal({
           <XCircle className="h-12 w-12 text-destructive mx-auto" />
           <div className="space-y-1">
             <p className="text-sm font-semibold text-foreground">Payment not completed</p>
-            <p className="text-xs text-muted-foreground">{outcomeMsg || 'The MTN Mobile Money payment was not completed.'}</p>
+            <p className="text-xs text-muted-foreground">{outcomeMsg || `The ${network.name} payment was not completed.`}</p>
           </div>
           <div className="flex flex-col gap-2">
             <Button
@@ -197,13 +202,13 @@ export function MTNMoMoPaymentModal({
 
   if (requestSent) {
     return (
-      <PaymentModal title="Pay with MTN Mobile Money" onClose={onClose} embed={embed}>
+      <PaymentModal title={`Pay with ${network.name}`} onClose={onClose} embed={embed}>
         <div className="space-y-4 text-center py-2">
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
           <div className="space-y-1">
             <p className="text-sm font-semibold text-foreground">Check your phone</p>
             <p className="text-xs text-muted-foreground">
-              We sent an MTN Mobile Money prompt to {normalizePhone(phone)}. Approve it on your
+              We sent a {network.name} prompt to {normalizePhone(phone)}. Approve it on your
               phone — this page updates automatically once it&apos;s confirmed.
             </p>
           </div>
@@ -217,7 +222,7 @@ export function MTNMoMoPaymentModal({
   }
 
   return (
-    <PaymentModal title="Pay with MTN Mobile Money" onClose={onClose} embed={embed}>
+    <PaymentModal title={`Pay with ${network.name}`} onClose={onClose} embed={embed}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="p-4 rounded-lg bg-muted/50 space-y-2">
           <div className="flex justify-between text-sm">
@@ -232,25 +237,25 @@ export function MTNMoMoPaymentModal({
           )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">MTN Mobile Money number</label>
+          <label className="block text-sm font-medium text-foreground mb-1">{network.name} number</label>
           <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-3 py-2">
             <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
             <input
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="0771234567"
+              placeholder={network.placeholder}
               className="flex-1 bg-transparent text-sm outline-none"
             />
           </div>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
-        <p className="text-xs text-muted-foreground">You will receive an MTN Mobile Money prompt on your phone.</p>
+        <p className="text-xs text-muted-foreground">You will receive a {network.name} prompt on your phone.</p>
         <div className="flex gap-2 justify-end pt-2">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           <Button type="submit" disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {loading ? 'Sending…' : `Pay ${formatAmount()} with MTN`}
+            {loading ? 'Sending…' : `Pay ${formatAmount()}`}
           </Button>
         </div>
       </form>
