@@ -14,6 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BadgeCheck, Link2, Loader2, Plus, RefreshCw, Save, ShieldCheck, Trash2, UserPlus, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useOutletFilterStore } from '@/store/outlet-filter';
 import { toast } from 'sonner';
 
 export const payheroKey = (tenant: string) => ['payhero', tenant] as const;
@@ -267,6 +268,8 @@ function ChannelsCard({ st, syncing, onSync, onToggle, onClaim, onRouting, savin
   const [draftRoute, setRoute] = useState<PayHeroRouting | null>(null);
   const route = draftRoute ?? st.routing ?? { default_channel_id: 0 };
   const usable = st.channels.filter((c) => c.is_active && c.enabled);
+  // Outlets come from the header outlet filter, which loads the tenant's outlets for admins.
+  const outlets = useOutletFilterStore((s) => s.outlets);
   const channelSelect = (value: number | undefined, onChange: (v: number) => void, allowNone: boolean) => (
     <Select value={value ?? 0} onChange={(e) => onChange(Number(e.target.value))}>
       {allowNone && <option value={0}>Use the default</option>}
@@ -324,6 +327,19 @@ function ChannelsCard({ st, syncing, onSync, onToggle, onClaim, onRouting, savin
                     const next = { ...(route.by_reference_type ?? {}) };
                     if (v) next[t] = v; else delete next[t];
                     setRoute({ ...route, by_reference_type: next });
+                  }, true)}
+                </span>
+              </label>
+            ))}
+            {outlets.length > 1 && <h5 className="text-xs font-semibold text-muted-foreground pt-2">By outlet (overrides the type)</h5>}
+            {outlets.length > 1 && outlets.map((o) => (
+              <label key={o.id} className="text-sm grid grid-cols-3 items-center gap-2">
+                <span className="text-muted-foreground truncate">{o.name}</span>
+                <span className="col-span-2">
+                  {channelSelect(route.by_outlet?.[o.id], (v) => {
+                    const next = { ...(route.by_outlet ?? {}) };
+                    if (v) next[o.id] = v; else delete next[o.id];
+                    setRoute({ ...route, by_outlet: next });
                   }, true)}
                 </span>
               </label>

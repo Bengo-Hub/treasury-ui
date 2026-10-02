@@ -1,13 +1,15 @@
 'use client';
 
-// DataTable column definitions for the "Revenue by Tenant" table — mirrors
-// service-revenue-columns.tsx's convention. Read-only (no actions).
+// DataTable column definitions for the "Revenue by Tenant" table, following
+// service-revenue-columns.tsx. The one action verifies the tenant's payout destination.
 
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import type { TenantRevenue } from '@/hooks/use-platform-analytics';
+import { Button } from '@/components/ui/base';
 import { formatCurrency } from '@/lib/utils/currency';
+import { ShieldCheck } from 'lucide-react';
 
-export function buildTenantRevenueColumns(): DataTableColumn<TenantRevenue>[] {
+export function buildTenantRevenueColumns(onVerifyPayout?: (r: TenantRevenue) => void): DataTableColumn<TenantRevenue>[] {
   return [
     {
       key: 'tenant_name',
@@ -65,5 +67,15 @@ export function buildTenantRevenueColumns(): DataTableColumn<TenantRevenue>[] {
       cellClassName: 'text-muted-foreground',
       accessor: (r) => r.transaction_count,
     },
+    ...(onVerifyPayout ? [{
+      key: 'actions',
+      header: '',
+      align: 'right' as const,
+      render: (r: TenantRevenue) => (
+        <Button variant="ghost" size="sm" className="h-7 px-2" title="Verify this tenant's payout destination" onClick={() => onVerifyPayout(r)}>
+          <ShieldCheck className="h-4 w-4 mr-1" /> Verify payout
+        </Button>
+      ),
+    }] : []),
   ];
 }

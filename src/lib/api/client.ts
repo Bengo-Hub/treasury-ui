@@ -115,6 +115,12 @@ class ApiClient {
     if (error.response?.status === 402 && this.onLimitReachedCallback) {
       this.onLimitReachedCallback(error.response?.data);
     }
+    // A payout refused because the tenant has no payout account of its own: every money-out
+    // screen toasts data.error, so the "where to connect it" hint rides along there.
+    const payoutData = error.response?.data;
+    if (payoutData?.code === 'no_tenant_payout_account' && payoutData.hint) {
+      payoutData.error = `${payoutData.error} ${payoutData.hint}`;
+    }
     return Promise.reject(error);
   };
 

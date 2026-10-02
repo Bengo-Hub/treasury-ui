@@ -5,6 +5,7 @@ import {
   createPlatformGateway,
   deactivateTenantGateway,
   getPlatformBalance,
+  verifyTenantPayoutConfig,
   getTenantPayoutConfig,
   getTenantSelectedGateways,
   listBanks,
@@ -144,6 +145,11 @@ export function useUpdatePlatformGateway() {
       queryClient.invalidateQueries({ queryKey: gatewayKeys.platform() });
     },
   });
+}
+
+/** Platform owner: verify a tenant's payout destination. */
+export function useVerifyTenantPayoutConfig() {
+  return useMutation({ mutationFn: (tenantID: string) => verifyTenantPayoutConfig(tenantID) });
 }
 
 /** Fetch the live Paystack platform balance. */

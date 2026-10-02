@@ -2,18 +2,10 @@
 
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { formatCurrency } from '@/lib/utils/currency';
+import type { PlatformBalance } from '@/lib/api/gateways';
 import { ExternalLink, Wallet } from 'lucide-react';
 
-/** Shared shape across the two PlatformBalance type defs (gateways + platform-payouts). */
-interface BalanceLike {
-  currency?: string;
-  balance?: number | string;
-  available?: number | string;
-  pending_balance?: number | string;
-  pending?: number | string;
-  /** Per-tenant payable the platform collected on behalf of tenants. */
-  owed_to_tenants?: number | string;
-}
+type BalanceLike = Partial<PlatformBalance>;
 
 function num(v: number | string | undefined): number {
   const n = typeof v === 'string' ? parseFloat(v) : v;
