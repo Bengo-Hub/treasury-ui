@@ -27,6 +27,13 @@ export interface PayHeroRouting {
   by_outlet?: Record<string, number>;
 }
 
+export interface PayHeroRoutingOption {
+  reference_type: string;
+  label: string;
+  /** product: a product the tenant subscribes to; history: received recently; platform: the platform takes it; routed: already routed. */
+  source: 'product' | 'history' | 'platform' | 'routed';
+}
+
 export interface PayHeroPaymentLink {
   label: string;
   url: string;
@@ -86,6 +93,9 @@ export const payheroApi = {
   setChannelEnabled: (tenant: string, id: number, enabled: boolean) =>
     apiClient.patch<PayHeroStatus>(`${tenantBase(tenant)}/channels/${id}`, { enabled }),
   setRouting: (tenant: string, routing: PayHeroRouting) => apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/routing`, routing),
+  /** Payment types this tenant can route: its products, its recent payments, already routed. */
+  routingOptions: (tenant: string) =>
+    apiClient.get<{ options: PayHeroRoutingOption[] }>(`${tenantBase(tenant)}/routing/options`),
   setPaymentLinks: (tenant: string, links: PayHeroPaymentLink[]) =>
     apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/payment-links`, { links }),
   balance: (tenant: string) =>

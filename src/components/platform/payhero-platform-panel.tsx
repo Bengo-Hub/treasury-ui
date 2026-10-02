@@ -1,7 +1,8 @@
 'use client';
 
 import { StatCard } from '@/components/charts/StatCard';
-import { Badge, Button, Card, CardContent } from '@/components/ui/base';
+import { Badge, Button } from '@/components/ui/base';
+import { SettingsSection } from '@/components/ui/settings-section';
 import { Input } from '@/components/ui/input';
 import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import { escrowApi } from '@/lib/api/escrow';
@@ -9,7 +10,7 @@ import { payheroApi } from '@/lib/api/payhero';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Landmark, Loader2, Pencil, RefreshCw, Save, ShieldCheck, Users, Wand2, X } from 'lucide-react';
-import { type ReactNode, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 const errMessage = (e: any, fallback: string) => e?.response?.data?.error || e?.response?.data?.message || e?.message || fallback;
@@ -19,24 +20,6 @@ const MODE_LABEL: Record<string, string> = {
   platform_root: 'Platform account',
   own_account: 'Own PayHero keys',
 };
-
-function Section({ icon, title, description, action, children }: { icon: ReactNode; title: string; description?: string; action?: ReactNode; children: ReactNode }) {
-  return (
-    <Card>
-      <div className="flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">{icon}</span>
-          <div>
-            <h3 className="text-sm font-semibold">{title}</h3>
-            {description && <p className="text-xs text-muted-foreground">{description}</p>}
-          </div>
-        </div>
-        {action}
-      </div>
-      <CardContent className="p-5">{children}</CardContent>
-    </Card>
-  );
-}
 
 /**
  * Platform owner's PayHero view: the organization tenants' Teams live under, every tenant's setup
@@ -75,7 +58,7 @@ export function PayHeroPlatformPanel() {
 
   return (
     <div className="space-y-6">
-      <Section
+      <SettingsSection
         icon={<Building2 className="h-4 w-4" />}
         title="Organization"
         description="Tenants' Teams are created under this organization. The root account holds the platform's own channels."
@@ -121,9 +104,9 @@ export function PayHeroPlatformPanel() {
             </div>
           </div>
         )}
-      </Section>
+      </SettingsSection>
 
-      <Section
+      <SettingsSection
         icon={<Users className="h-4 w-4" />}
         title="Tenant setups"
         description="Every tenant using PayHero, how it is set up and its Team wallet."
@@ -165,9 +148,9 @@ export function PayHeroPlatformPanel() {
             ))}
           </ul>
         )}
-      </Section>
+      </SettingsSection>
 
-      <Section icon={<Landmark className="h-4 w-4" />} title="Escrow" description="Money held for beneficiaries across tenants, checked against each Team wallet hourly.">
+      <SettingsSection icon={<Landmark className="h-4 w-4" />} title="Escrow" description="Money held for beneficiaries across tenants, checked against each Team wallet hourly.">
         {escrow.isError ? (
           <p className="text-sm text-muted-foreground">Escrow overview unavailable.</p>
         ) : (
@@ -194,7 +177,7 @@ export function PayHeroPlatformPanel() {
             )}
           </div>
         )}
-      </Section>
+      </SettingsSection>
     </div>
   );
 }

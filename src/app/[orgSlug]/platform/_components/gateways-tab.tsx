@@ -19,7 +19,7 @@ import { Building2, CreditCard, Globe, Loader2, Plus, Star, Wallet } from 'lucid
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { GatewayCard, type GatewayCheckResult } from './gateway-card';
-import { gatewayKind, isMpesaType } from './gateway-catalog';
+import { gatewayKind, isMpesaType } from '@/components/payments/gateway-catalog';
 import { GatewayCredentialsDialog } from './gateway-credentials-dialog';
 
 const errMessage = (e: any, fallback: string) => e?.response?.data?.error || e?.response?.data?.message || e?.message || fallback;

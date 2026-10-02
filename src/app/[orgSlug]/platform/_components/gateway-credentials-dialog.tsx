@@ -5,7 +5,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Check, Eye, EyeOff, Loader2, Shield } from 'lucide-react';
 import { useState } from 'react';
-import { GATEWAY_KINDS, gatewayKind } from './gateway-catalog';
+import { GATEWAY_KINDS, gatewayKind } from '@/components/payments/gateway-catalog';
 
 const isSensitiveField = (key: string) => /secret|password|key/i.test(key);
 const fieldLabel = (key: string) => key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
