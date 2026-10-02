@@ -16,7 +16,10 @@ import { RevenueStreamMixChart } from './revenue-stream-mix-chart';
 import { EquityObligationsPanel } from './equity-obligations-panel';
 import { ReferralPerformancePanel } from './referral-performance-panel';
 import { Activity, Building2, Download, Layers, Printer, TrendingUp } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useVerifyTenantPayoutConfig } from '@/hooks/use-gateways';
+import type { TenantRevenue } from '@/hooks/use-platform-analytics';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadPlatformRevenueReport } from '@/lib/api/documents';
 import { toast } from 'sonner';
@@ -39,7 +42,21 @@ export default function PlatformAnalyticsPage() {
     [byService],
   );
 
-  const tenantRevenueColumns = useMemo(() => buildTenantRevenueColumns(), []);
+  // Scheduled settlement pays only verified destinations; the platform owner verifies them here.
+  const [verifyTarget, setVerifyTarget] = useState<TenantRevenue | null>(null);
+  const verifyPayout = useVerifyTenantPayoutConfig();
+  const tenantRevenueColumns = useMemo(() => buildTenantRevenueColumns(setVerifyTarget), []);
+  const confirmVerify = () => {
+    if (!verifyTarget) return;
+    verifyPayout.mutate(verifyTarget.tenant_id, {
+      onSuccess: (res) => {
+        const name = res.resolved_account_name ? ` Bank account name: ${res.resolved_account_name}.` : '';
+        toast.success(`Payout destination verified.${name}`);
+        setVerifyTarget(null);
+      },
+      onError: (e: any) => toast.error(e?.response?.data?.error || e?.message || 'Could not verify the payout destination'),
+    });
+  };
   const sortedTenantRevenue = useMemo(
     () => [...(byTenant?.tenants ?? [])].sort((a, b) => parseFloat(b.gmv || b.total_revenue) - parseFloat(a.gmv || a.total_revenue)),
     [byTenant],
@@ -248,6 +265,15 @@ export default function PlatformAnalyticsPage() {
           />
         </CardContent>
       </Card>
+      <ConfirmDialog
+        open={!!verifyTarget}
+        onOpenChange={(o) => { if (!o) setVerifyTarget(null); }}
+        title="Verify this tenant's payout destination?"
+        description={`Scheduled settlement will pay ${verifyTarget?.tenant_name || verifyTarget?.tenant_slug || 'this tenant'} to the destination they saved. A bank account is checked with Paystack first and its account name is shown.`}
+        confirmLabel="Verify"
+        isPending={verifyPayout.isPending}
+        onConfirm={confirmVerify}
+      />
 
       {/* Revenue by Ecosystem Service */}
       <Card>

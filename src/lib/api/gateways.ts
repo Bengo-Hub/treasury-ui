@@ -84,7 +84,22 @@ export function testPlatformGateway(id: string): Promise<{ success: boolean; gat
 }
 
 /** Fetch the live Paystack platform balance. */
-export function getPlatformBalance(): Promise<{ currency: string; balance: string; ledger_balance?: string }> {
+export interface PlatformBalance {
+  currency: string;
+  /** Already converted from the smallest unit by the API. */
+  balance: number | string;
+  ledger_balance?: number | string;
+  /** Collected but not yet settled into the available balance (Paystack T+1). */
+  pending_balance?: number | string;
+  /** Available for payouts (alias for balance). */
+  available?: number | string;
+  /** In-settlement funds not yet available (alias for pending_balance). */
+  pending?: number | string;
+  /** What the platform collected on behalf of tenants and still owes them. */
+  owed_to_tenants?: number | string;
+}
+
+export function getPlatformBalance(): Promise<PlatformBalance> {
   return apiClient.get(`${BASE}/platform/balance`);
 }
 
@@ -130,6 +145,14 @@ export interface PayoutConfigResponse {
   total_payout_amount: string;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Platform owner: verify a tenant's payout destination (scheduled settlement pays only verified
+ * destinations). A bank account is resolved through Paystack and the account name comes back.
+ */
+export function verifyTenantPayoutConfig(tenantID: string): Promise<{ config: PayoutConfigResponse; resolved_account_name?: string }> {
+  return apiClient.post(`${BASE}/platform/payout-configs/${tenantID}/verify`, {});
 }
 
 export interface PayoutConfigRequest {

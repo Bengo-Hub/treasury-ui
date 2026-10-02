@@ -2,7 +2,8 @@
 
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { usePayoutHistory } from '@/hooks/use-analytics';
-import { usePlatformBalance, usePlatformBanks, useCreatePlatformRecipient } from '@/hooks/use-platform-payouts';
+import { usePlatformBalance } from '@/hooks/use-gateways';
+import { usePlatformBanks, useCreatePlatformRecipient } from '@/hooks/use-platform-payouts';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useDateRangeFilter } from '@/hooks/use-date-range-filter';
 import { DateRangeFilter } from '@/components/filters/DateRangeFilter';
