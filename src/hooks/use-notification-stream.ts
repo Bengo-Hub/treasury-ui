@@ -42,6 +42,8 @@ export function useNotificationStream({ tenantID, onMessage }: UseNotificationSt
   const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const attemptRef = useRef(0);
   const unmountedRef = useRef(false);
+  // The reconnect timer calls the latest connect through this ref (connect cannot name itself).
+  const connectRef = useRef<() => void>(() => {});
 
   const connect = useCallback(() => {
     if (unmountedRef.current || !tenantID) return;
@@ -103,9 +105,13 @@ export function useNotificationStream({ tenantID, onMessage }: UseNotificationSt
       if (unmountedRef.current) return;
       const delay = Math.min(RECONNECT_BASE_MS * 2 ** attemptRef.current, RECONNECT_MAX_MS);
       attemptRef.current += 1;
-      reconnectTimer.current = setTimeout(connect, delay);
+      reconnectTimer.current = setTimeout(() => connectRef.current(), delay);
     };
   }, [tenantID, onMessage, qc]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     unmountedRef.current = false;

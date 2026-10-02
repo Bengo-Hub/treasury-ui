@@ -1,6 +1,5 @@
 'use client';
 
-import { BankTransferPaymentModal } from '@/components/payments/BankTransferPaymentModal';
 import { CodPaymentModal } from '@/components/payments/CodPaymentModal';
 import { CodLogo, MpesaLogo, PaystackLogo } from '@/components/payments/logos';
 import { WalletLogo } from '@/components/payments/logos/WalletLogo';
@@ -26,7 +25,9 @@ const TREASURY_UI_URL =
   'https://books.codevertexafrica.com';
 
 // Callers may name a rail by its generic method; these map onto the pay-page method.
-const GATEWAY_ALIASES: Record<string, GatewayType> = { mobile_money: 'payhero_momo', card: 'paystack' };
+// bank_transfer and bank: bank deposits run on PayHero's bank rail (the manual bank-transfer
+// gateway was removed), so older links still land on the right option.
+const GATEWAY_ALIASES: Record<string, GatewayType> = { mobile_money: 'payhero_momo', card: 'paystack', bank_transfer: 'payhero_bank', bank: 'payhero_bank' };
 
 function parseGateways(param: string | null): GatewayType[] {
   if (!param) return [];
@@ -474,22 +475,6 @@ function PayPageContent() {
                     <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                   </button>
                 ))}
-                {gateways.includes('bank_transfer') && (
-                  <button
-                    type="button"
-                    onClick={() => setOpenGateway('bank_transfer')}
-                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
-                  >
-                    <div className="h-14 w-14 shrink-0 rounded-xl bg-indigo-500/10 flex items-center justify-center">
-                      <Landmark className="h-6 w-6 text-indigo-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.bank_transfer}</p>
-                      <p className="text-xs text-muted-foreground">Transfer directly to the seller&apos;s bank account</p>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                  </button>
-                )}
               </>
             )}
           </div>
@@ -539,13 +524,6 @@ function PayPageContent() {
       {(openGateway === 'payhero_card' || openGateway === 'payhero_bank' || openGateway === 'payhero_offline') && (
         <PayHeroCheckoutModal
           method={openGateway}
-          details={effectiveDetails}
-          embed={embed}
-          onClose={() => setOpenGateway(null)}
-        />
-      )}
-      {openGateway === 'bank_transfer' && (
-        <BankTransferPaymentModal
           details={effectiveDetails}
           embed={embed}
           onClose={() => setOpenGateway(null)}

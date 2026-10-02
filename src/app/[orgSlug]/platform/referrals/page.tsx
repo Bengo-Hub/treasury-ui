@@ -564,10 +564,7 @@ function HolderCombobox({
   }, []);
 
   useEffect(() => {
-    if (open) {
-      setQuery('');
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
+    if (open) requestAnimationFrame(() => inputRef.current?.focus());
   }, [open]);
 
   const selected = holders.find((h) => h.id === value) ?? null;
@@ -580,7 +577,7 @@ function HolderCombobox({
     <div ref={containerRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => { if (!open) setQuery(''); setOpen(!open); }}
         className={cn(
           'w-full flex items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 py-2 text-sm text-left min-h-[38px]',
           open && 'ring-1 ring-ring',
