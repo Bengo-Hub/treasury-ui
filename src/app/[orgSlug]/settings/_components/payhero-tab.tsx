@@ -57,8 +57,11 @@ export function PayHeroTab({ tenantSlug }: { tenantSlug: string }) {
   const qc = useQueryClient();
   const { data: st, isLoading } = usePayHeroStatus(tenantSlug);
   const onSaved = (data: PayHeroStatus) => qc.setQueryData(payheroKey(tenantSlug), data);
+  // Stored setup until edited (draft), then the draft.
+  const [draft, setForm] = useState<EnablePayHeroRequest | null>(null);
+  const form: EnablePayHeroRequest = draft ?? { mode: st?.mode ?? 'platform_team', country: st?.country ?? 'KE', offline_paybill: st?.offline_paybill };
 
-  const enable = usePayHeroMutation(tenantSlug, (b: EnablePayHeroRequest) => payheroApi.enable(tenantSlug, b), 'PayHero saved', 'Could not save PayHero');
+  const enable = usePayHeroMutation(tenantSlug, (b: EnablePayHeroRequest) => payheroApi.enable(tenantSlug, b).then((s) => { setForm(null); return s; }), 'PayHero saved', 'Could not save PayHero');
   const createTeam = usePayHeroMutation(tenantSlug, (b: { name: string; email?: string }) => payheroApi.createTeam(tenantSlug, b), 'Team created', 'Could not create the Team');
   const invite = usePayHeroMutation(tenantSlug, (email: string) => payheroApi.invite(tenantSlug, email), 'Invitation sent', 'Could not send the invitation');
   const sync = usePayHeroMutation(tenantSlug, (_: void) => payheroApi.syncChannels(tenantSlug), 'Channels synced', 'Could not sync channels');
@@ -73,10 +76,6 @@ export function PayHeroTab({ tenantSlug }: { tenantSlug: string }) {
     onError: (e: any) => toast.error(errMessage(e, 'Could not disable PayHero')),
   });
 
-  const [form, setForm] = useState<EnablePayHeroRequest>({ mode: 'platform_team', country: 'KE' });
-  useEffect(() => {
-    if (st) setForm((f) => ({ ...f, mode: st.mode ?? 'platform_team', country: st.country ?? 'KE', offline_paybill: st.offline_paybill }));
-  }, [st]);
 
   if (isLoading) {
     return <Card><CardContent className="p-6"><Loader2 className="h-5 w-5 animate-spin" /></CardContent></Card>;
@@ -265,8 +264,8 @@ function ChannelsCard({ st, syncing, onSync, onToggle, onClaim, onRouting, savin
   onClaim?: (id: number) => void; onRouting: (r: PayHeroRouting) => void; savingRouting: boolean;
 }) {
   const [claimID, setClaimID] = useState('');
-  const [route, setRoute] = useState<PayHeroRouting>(st.routing ?? { default_channel_id: 0 });
-  useEffect(() => setRoute(st.routing ?? { default_channel_id: 0 }), [st.routing]);
+  const [draftRoute, setRoute] = useState<PayHeroRouting | null>(null);
+  const route = draftRoute ?? st.routing ?? { default_channel_id: 0 };
   const usable = st.channels.filter((c) => c.is_active && c.enabled);
   const channelSelect = (value: number | undefined, onChange: (v: number) => void, allowNone: boolean) => (
     <Select value={value ?? 0} onChange={(e) => onChange(Number(e.target.value))}>
@@ -329,7 +328,7 @@ function ChannelsCard({ st, syncing, onSync, onToggle, onClaim, onRouting, savin
                 </span>
               </label>
             ))}
-            <Button onClick={() => onRouting(route)} disabled={savingRouting || !route.default_channel_id}>
+            <Button onClick={() => { onRouting(route); setRoute(null); }} disabled={savingRouting || !route.default_channel_id}>
               <Save className="h-4 w-4 mr-1" /> Save routing
             </Button>
           </div>
@@ -340,8 +339,8 @@ function ChannelsCard({ st, syncing, onSync, onToggle, onClaim, onRouting, savin
 }
 
 function PaymentLinksCard({ links, saving, onSave }: { links: PayHeroPaymentLink[]; saving: boolean; onSave: (l: PayHeroPaymentLink[]) => void }) {
-  const [rows, setRows] = useState<PayHeroPaymentLink[]>(links);
-  useEffect(() => setRows(links), [links]);
+  const [draftRows, setRows] = useState<PayHeroPaymentLink[] | null>(null);
+  const rows = draftRows ?? links;
   return (
     <Card>
       <CardContent className="p-6 space-y-3">
@@ -359,7 +358,7 @@ function PaymentLinksCard({ links, saving, onSave }: { links: PayHeroPaymentLink
         ))}
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setRows([...rows, { label: '', url: '' }])}><Plus className="h-4 w-4 mr-1" /> Add link</Button>
-          <Button onClick={() => onSave(rows.filter((r) => r.url.trim()))} disabled={saving}><Save className="h-4 w-4 mr-1" /> Save</Button>
+          <Button onClick={() => { onSave(rows.filter((r) => r.url.trim())); setRows(null); }} disabled={saving}><Save className="h-4 w-4 mr-1" /> Save</Button>
         </div>
       </CardContent>
     </Card>

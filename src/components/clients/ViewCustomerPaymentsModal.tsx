@@ -6,12 +6,8 @@ import { useCustomerReceipts, useVoidCustomerReceipt } from '@/hooks/use-arpa';
 import type { ARReceipt } from '@/lib/api/arpa';
 import type { CustomerBalance } from '@/lib/api/invoices';
 import { formatCurrency } from '@/lib/utils/currency';
+import { getPaymentMethodLabel } from '@bengo-hub/shared-ui-lib';
 
-const METHOD_LABELS: Record<string, string> = {
-  cash: 'Cash', bank: 'Bank transfer', bank_transfer: 'Bank Transfer', card: 'Card',
-  cheque: 'Cheque', mpesa: 'M-Pesa', mpesa_manual: 'M-Pesa (Code)', card_manual: 'Card / PDQ',
-  mtn_momo: 'MTN Mobile Money', airtel_money: 'Airtel Money', paystack: 'Paystack', manual: 'Manual',
-};
 
 const fmtDateTime = (iso?: string) => {
   if (!iso) return '—';
@@ -43,7 +39,7 @@ export function ViewCustomerPaymentsModal({ tenant, customer, onClose, canManage
   const printReceipts = () => {
     const rows = receipts.map((r) =>
       `<tr><td>${fmtDateTime(r.occurred_at)}</td><td>${r.reference || r.id.slice(0, 8)}</td>` +
-      `<td>${METHOD_LABELS[r.method] ?? r.method}</td>` +
+      `<td>${getPaymentMethodLabel(r.method)}</td>` +
       `<td style="text-align:right">${formatCurrency(Number(r.amount), r.currency)}</td><td>${r.status}</td></tr>`).join('');
     const w = window.open('', '_blank', 'width=760,height=560');
     if (!w) return;
@@ -99,7 +95,7 @@ export function ViewCustomerPaymentsModal({ tenant, customer, onClose, canManage
                     <tr key={r.id} className={r.status === 'voided' ? 'opacity-60' : ''}>
                       <td className="py-2 px-2 border border-border/40">{fmtDateTime(r.occurred_at)}</td>
                       <td className="py-2 px-2 border border-border/40 font-mono">{r.reference || r.id.slice(0, 8)}</td>
-                      <td className="py-2 px-2 border border-border/40">{METHOD_LABELS[r.method] ?? r.method}</td>
+                      <td className="py-2 px-2 border border-border/40">{getPaymentMethodLabel(r.method)}</td>
                       <td className="py-2 px-2 border border-border/40 text-right tabular-nums font-semibold">{formatCurrency(Number(r.amount), r.currency)}</td>
                       <td className="py-2 px-2 border border-border/40">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.status !== 'voided' ? 'bg-emerald-500/10 text-emerald-700' : 'bg-red-500/10 text-red-600'}`}>

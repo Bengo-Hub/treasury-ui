@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { getPaymentMethodLabel } from '@bengo-hub/shared-ui-lib';
 import { Check, Loader2, Mail, Pencil, Printer, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -26,10 +27,12 @@ export interface ViewPaymentsInvoiceRef {
   currency?: string;
 }
 
+// Labels that mean something specific here; every other method uses the shared registry.
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Cash', bank_transfer: 'Bank Transfer', mpesa: 'M-Pesa', card: 'Card',
   cheque: 'Cheque', manual: 'Manual', other: 'Other',
 };
+const methodLabel = (m: string) => METHOD_LABELS[m] ?? getPaymentMethodLabel(m);
 
 const fmtMoney = (v: string | number, cur = 'KES') =>
   `${cur} ${Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -67,7 +70,7 @@ export function ViewPaymentsModal({ tenant, invoice, onClose, canManage = true }
   const printPayments = () => {
     const rows = payments.map((p) =>
       `<tr><td>${fmtDateTime(p.paid_at)}</td><td>${p.reference || p.id.slice(0, 8)}</td>` +
-      `<td>${METHOD_LABELS[p.method] ?? p.method}</td><td>${p.note || ''}</td>` +
+      `<td>${methodLabel(p.method)}</td><td>${p.note || ''}</td>` +
       `<td style="text-align:right">${fmtMoney(p.amount, p.currency)}</td><td>${p.status}</td></tr>`).join('');
     const w = window.open('', '_blank', 'width=760,height=560');
     if (!w) { toast.error('Pop-up blocked — allow pop-ups to print'); return; }
@@ -126,7 +129,7 @@ export function ViewPaymentsModal({ tenant, invoice, onClose, canManage = true }
                     <tr key={p.id} className={p.status === 'voided' ? 'opacity-60' : ''}>
                       <td className="py-2 px-2 border border-border/40">{fmtDateTime(p.paid_at)}</td>
                       <td className="py-2 px-2 border border-border/40 font-mono">{p.reference || p.id.slice(0, 8)}</td>
-                      <td className="py-2 px-2 border border-border/40">{METHOD_LABELS[p.method] ?? p.method}</td>
+                      <td className="py-2 px-2 border border-border/40">{methodLabel(p.method)}</td>
                       <td className="py-2 px-2 border border-border/40 max-w-[160px] truncate" title={p.note}>{p.note || '—'}</td>
                       <td className="py-2 px-2 border border-border/40 text-right tabular-nums font-semibold">{fmtMoney(p.amount, p.currency)}</td>
                       <td className="py-2 px-2 border border-border/40">

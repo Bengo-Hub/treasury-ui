@@ -294,6 +294,15 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           href: `/${orgSlug}/settlements`,
           active: pathname.startsWith(`/${orgSlug}/settlements`),
         },
+        {
+          section: 'Payments',
+          label: 'Escrow',
+          hint: 'Escrow pots',
+          icon: Landmark,
+          href: `/${orgSlug}/escrow`,
+          active: pathname.startsWith(`/${orgSlug}/escrow`),
+          feature: 'escrow_management',
+        },
       ],
     },
     {

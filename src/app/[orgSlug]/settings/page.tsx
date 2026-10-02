@@ -1,5 +1,6 @@
 'use client';
 
+import { WebhooksCard } from './_components/webhooks-card';
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { FormField } from '@/components/ui/form-field';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -464,6 +465,7 @@ function IntegrationsTab({ tenantSlug }: { tenantSlug: string }) {
 
   return (
     <div className="space-y-6">
+      <WebhooksCard tenantSlug={tenantSlug} />
       <Card>
         <CardHeader className="border-b border-border/50 py-4">
           <div className="flex items-center gap-2">

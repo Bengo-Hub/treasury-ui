@@ -1,18 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import { getPaymentMethodLabel } from '@bengo-hub/shared-ui-lib';
 import { Loader2, Printer, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBillPayments, useVoidBillPayment } from '@/hooks/use-bills';
 import type { Bill, BillPayment } from '@/lib/api/bills';
 import { formatCurrency } from '@/lib/utils/currency';
 
+// Labels that mean something specific here; every other method uses the shared registry.
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Cash', bank: 'Bank transfer', bank_transfer: 'Bank Transfer', card: 'Card',
   cheque: 'Cheque', mpesa_b2b: 'M-Pesa B2B', mpesa_b2c: 'M-Pesa B2C',
   paystack_bank: 'Paystack (bank)', paystack_mobile: 'Paystack (mobile)',
   vendor_credit: 'Vendor credit', gateway_collected: 'Gateway (linked payment)', manual: 'Manual',
 };
+const methodLabel = (m: string) => METHOD_LABELS[m] ?? getPaymentMethodLabel(m);
 
 const fmtDateTime = (iso?: string) => {
   if (!iso) return '—';
@@ -42,7 +45,7 @@ export function ViewBillPaymentsModal({ tenant, bill, onClose, canManage = true 
   const printPayments = () => {
     const rows = payments.map((p) =>
       `<tr><td>${fmtDateTime(p.paid_at)}</td><td>${p.reference || p.id.slice(0, 8)}</td>` +
-      `<td>${METHOD_LABELS[p.method] ?? p.method}</td>` +
+      `<td>${methodLabel(p.method)}</td>` +
       `<td style="text-align:right">${formatCurrency(Number(p.amount), p.currency)}</td><td>${p.status}</td></tr>`).join('');
     const w = window.open('', '_blank', 'width=760,height=560');
     if (!w) { toast.error('Pop-up blocked — allow pop-ups to print'); return; }
@@ -99,7 +102,7 @@ export function ViewBillPaymentsModal({ tenant, bill, onClose, canManage = true 
                     <tr key={p.id} className={p.status === 'voided' ? 'opacity-60' : ''}>
                       <td className="py-2 px-2 border border-border/40">{fmtDateTime(p.paid_at)}</td>
                       <td className="py-2 px-2 border border-border/40 font-mono">{p.reference || p.id.slice(0, 8)}</td>
-                      <td className="py-2 px-2 border border-border/40">{METHOD_LABELS[p.method] ?? p.method}</td>
+                      <td className="py-2 px-2 border border-border/40">{methodLabel(p.method)}</td>
                       <td className="py-2 px-2 border border-border/40 text-right tabular-nums font-semibold">{formatCurrency(Number(p.amount), p.currency)}</td>
                       <td className="py-2 px-2 border border-border/40">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${p.status === 'active' ? 'bg-emerald-500/10 text-emerald-700' : 'bg-red-500/10 text-red-600'}`}>
