@@ -1,30 +1,61 @@
 'use client';
 
+import { StatCard } from '@/components/charts/StatCard';
 import { Badge, Button, Card, CardContent } from '@/components/ui/base';
 import { Input } from '@/components/ui/input';
+import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import { escrowApi } from '@/lib/api/escrow';
 import { payheroApi } from '@/lib/api/payhero';
+import { formatCurrency } from '@/lib/utils/currency';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, RefreshCw, Save, Wand2 } from 'lucide-react';
-import { useState } from 'react';
+import { Building2, Landmark, Loader2, Pencil, RefreshCw, Save, ShieldCheck, Users, Wand2, X } from 'lucide-react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 const errMessage = (e: any, fallback: string) => e?.response?.data?.error || e?.response?.data?.message || e?.message || fallback;
 
+const MODE_LABEL: Record<string, string> = {
+  platform_team: 'Own Team',
+  platform_root: 'Platform account',
+  own_account: 'Own PayHero keys',
+};
+
+function Section({ icon, title, description, action, children }: { icon: ReactNode; title: string; description?: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <Card>
+      <div className="flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">{icon}</span>
+          <div>
+            <h3 className="text-sm font-semibold">{title}</h3>
+            {description && <p className="text-xs text-muted-foreground">{description}</p>}
+          </div>
+        </div>
+        {action}
+      </div>
+      <CardContent className="p-5">{children}</CardContent>
+    </Card>
+  );
+}
+
 /**
- * Platform owner's PayHero view: the organization the tenants' Teams live under, every tenant's
- * PayHero setup with its Team wallet balance, and the escrow position across tenants.
+ * Platform owner's PayHero view: the organization tenants' Teams live under, every tenant's setup
+ * with its Team wallet, and the escrow position across tenants.
  */
 export function PayHeroPlatformPanel() {
   const qc = useQueryClient();
+  const tenants = usePlatformTenants();
+  const tenantName = useMemo(() => {
+    const m = new Map((tenants.data ?? []).map((t) => [t.id, t.name || t.slug]));
+    return (id: string) => m.get(id) ?? `${id.slice(0, 8)}...`;
+  }, [tenants.data]);
+
   const settings = useQuery({ queryKey: ['payhero-platform-settings'], queryFn: () => payheroApi.platformSettings(), retry: false });
-  // The form shows the stored ids until the owner edits them (draft), then the draft.
+  const configured = !!settings.data?.organization_id && !!settings.data?.root_account_id;
+  // Stored ids until the owner edits them (draft); the form shows only while editing or unset.
   const [draft, setDraft] = useState<{ organization_id: string; root_account_id: string } | null>(null);
-  const form = draft ?? {
-    organization_id: String(settings.data?.organization_id || ''),
-    root_account_id: String(settings.data?.root_account_id || ''),
-  };
-  const setForm = setDraft;
+  const form = draft ?? { organization_id: String(settings.data?.organization_id || ''), root_account_id: String(settings.data?.root_account_id || '') };
+  const editing = draft !== null || !configured;
   const onSaved = () => { setDraft(null); qc.invalidateQueries({ queryKey: ['payhero-platform-settings'] }); toast.success('PayHero organization saved'); };
   const save = useMutation({
     mutationFn: () => payheroApi.setPlatformSettings({ organization_id: Number(form.organization_id), root_account_id: Number(form.root_account_id) }),
@@ -40,102 +71,130 @@ export function PayHeroPlatformPanel() {
   const [withBalances, setWithBalances] = useState(false);
   const teams = useQuery({ queryKey: ['payhero-teams', withBalances], queryFn: () => payheroApi.teams(withBalances), retry: false });
   const escrow = useQuery({ queryKey: ['escrow-overview'], queryFn: () => escrowApi.platformOverview(), retry: false });
+  const rows = teams.data?.teams ?? [];
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardContent className="p-6 space-y-4">
-          <h3 className="font-bold text-sm uppercase tracking-tight">PayHero organization</h3>
-          {settings.isError ? (
-            <p className="text-sm text-muted-foreground">Add the PayHero gateway above (API username and password) first.</p>
-          ) : (
-            <>
-              <p className="text-xs text-muted-foreground">
-                Tenants&apos; Teams are created under this organization; the root account holds the platform&apos;s own channels.
-              </p>
-              <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto]">
-                <Input placeholder="Organization id" value={form.organization_id} onChange={(e) => setForm({ ...form, organization_id: e.target.value.replace(/\D/g, '') })} />
-                <Input placeholder="Root account id" value={form.root_account_id} onChange={(e) => setForm({ ...form, root_account_id: e.target.value.replace(/\D/g, '') })} />
-                <Button onClick={() => save.mutate()} disabled={save.isPending || !form.organization_id || !form.root_account_id}>
-                  <Save className="h-4 w-4 mr-1" /> Save
-                </Button>
-                <Button variant="outline" onClick={() => detect.mutate()} disabled={detect.isPending}>
-                  {detect.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4 mr-1" />} Detect
-                </Button>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-bold text-sm uppercase tracking-tight">Tenant PayHero setups</h3>
-            <Button variant="outline" size="sm" onClick={() => setWithBalances(true)} disabled={teams.isFetching}>
-              {teams.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />} Load wallet balances
-            </Button>
-          </div>
-          {teams.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : !teams.data?.teams.length ? (
-            <p className="text-sm text-muted-foreground">No tenant has enabled PayHero yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-muted-foreground"><th>Tenant</th><th>Mode</th><th>Team</th><th>Channels</th><th>Wallet</th><th /></tr></thead>
-                <tbody>
-                  {teams.data.teams.map((t) => (
-                    <tr key={t.tenant_id} className="border-t">
-                      <td className="py-1 font-mono text-xs">{t.tenant_id.slice(0, 8)}</td>
-                      <td>{t.mode}</td>
-                      <td>{t.team_name || (t.vendor_id ? `#${t.vendor_id}` : '')}</td>
-                      <td>{t.channels}</td>
-                      <td>{t.balance ? `${t.currency} ${t.balance}` : t.balance_error ? <span className="text-destructive text-xs">{t.balance_error}</span> : ''}</td>
-                      <td><Badge variant={t.enabled ? 'success' : 'secondary'}>{t.enabled ? 'on' : 'off'}</Badge></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <Section
+        icon={<Building2 className="h-4 w-4" />}
+        title="Organization"
+        description="Tenants' Teams are created under this organization. The root account holds the platform's own channels."
+        action={configured && !editing ? (
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setDraft({ organization_id: String(settings.data!.organization_id), root_account_id: String(settings.data!.root_account_id) })}>
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </Button>
+        ) : undefined}
+      >
+        {settings.isLoading ? (
+          <div className="h-16 animate-pulse rounded-xl bg-muted" />
+        ) : settings.isError ? (
+          <p className="text-sm text-muted-foreground">Add the PayHero gateway (API username and password) first.</p>
+        ) : !editing ? (
+          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-muted/50 p-3"><dt className="text-xs text-muted-foreground">Organization</dt><dd className="mt-0.5 font-mono text-lg font-semibold">#{settings.data!.organization_id}</dd></div>
+            <div className="rounded-xl bg-muted/50 p-3"><dt className="text-xs text-muted-foreground">Root account</dt><dd className="mt-0.5 font-mono text-lg font-semibold">#{settings.data!.root_account_id}</dd></div>
+            <div className="flex items-center gap-2 rounded-xl bg-green-500/10 p-3 text-sm font-medium text-green-700"><ShieldCheck className="h-4 w-4" /> Ready for tenant Teams</div>
+          </dl>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-sm">
+                <span className="text-xs font-medium">Organization id</span>
+                <Input inputMode="numeric" value={form.organization_id} onChange={(e) => setDraft({ ...form, organization_id: e.target.value.replace(/\D/g, '') })} />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-xs font-medium">Root account id</span>
+                <Input inputMode="numeric" value={form.root_account_id} onChange={(e) => setDraft({ ...form, root_account_id: e.target.value.replace(/\D/g, '') })} />
+              </label>
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-6 space-y-4">
-          <h3 className="font-bold text-sm uppercase tracking-tight">Escrow</h3>
-          {escrow.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : !escrow.data ? (
-            <p className="text-sm text-muted-foreground">Escrow overview unavailable.</p>
-          ) : (
-            <>
-              <div className="grid gap-3 sm:grid-cols-3 text-sm">
-                <div><p className="text-muted-foreground text-xs">Held for beneficiaries</p><p className="font-bold">{escrow.data.held}</p></div>
-                <div><p className="text-muted-foreground text-xs">Released (gross)</p><p className="font-bold">{escrow.data.released_gross}</p></div>
-                <div><p className="text-muted-foreground text-xs">Tenant commission</p><p className="font-bold">{escrow.data.commission}</p></div>
-              </div>
-              {escrow.data.tenants.length > 0 && (
-                <table className="w-full text-sm">
-                  <thead><tr className="text-left text-muted-foreground"><th>Tenant</th><th>Open pots</th><th>Held</th><th>Wallet check</th></tr></thead>
-                  <tbody>
-                    {escrow.data.tenants.map(({ totals, reconciliation }) => (
-                      <tr key={totals.tenant_id} className="border-t">
-                        <td className="py-1 font-mono text-xs">{totals.tenant_id.slice(0, 8)}</td>
-                        <td>{totals.open_pots}</td>
-                        <td>{totals.held}</td>
-                        <td>
-                          {!reconciliation ? '' : reconciliation.shortfall
-                            ? <Badge variant="error">short {String(reconciliation.surplus)}</Badge>
-                            : reconciliation.error ? <span className="text-xs text-muted-foreground">{String(reconciliation.error)}</span>
-                              : <Badge variant="success">ok</Badge>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <p className="text-xs text-muted-foreground">Detect reads both from the PayHero account behind the platform keys.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" className="gap-1.5" onClick={() => save.mutate()} disabled={save.isPending || !form.organization_id || !form.root_account_id}>
+                {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => detect.mutate()} disabled={detect.isPending}>
+                {detect.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />} Detect
+              </Button>
+              {draft && configured && (
+                <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => setDraft(null)}><X className="h-3.5 w-3.5" /> Cancel</Button>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </div>
+          </div>
+        )}
+      </Section>
+
+      <Section
+        icon={<Users className="h-4 w-4" />}
+        title="Tenant setups"
+        description="Every tenant using PayHero, how it is set up and its Team wallet."
+        action={rows.length > 0 ? (
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { setWithBalances(true); if (withBalances) teams.refetch(); }} disabled={teams.isFetching}>
+            {teams.isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {withBalances ? 'Refresh balances' : 'Load wallet balances'}
+          </Button>
+        ) : undefined}
+      >
+        {teams.isLoading ? (
+          <div className="space-y-2">{[0, 1].map((i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-muted" />)}</div>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No tenant has enabled PayHero yet. Tenants enable it under Settings, Payments, PayHero.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {rows.map((t) => (
+              <li key={t.tenant_id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{tenantName(t.tenant_id)}</p>
+                  <p className="text-xs text-muted-foreground">{t.team_name || (t.vendor_id ? `Team #${t.vendor_id}` : 'No Team yet')}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{MODE_LABEL[t.mode] ?? t.mode}</Badge>
+                  <Badge variant="secondary">{t.channels} {t.channels === 1 ? 'channel' : 'channels'}</Badge>
+                  <Badge variant={t.enabled ? 'success' : 'secondary'}>{t.enabled ? 'On' : 'Off'}</Badge>
+                </div>
+                <div className="text-sm tabular-nums sm:w-48 sm:text-right">
+                  {t.balance !== undefined && t.balance !== ''
+                    ? (
+                      <div>
+                        <p className="font-semibold">{formatCurrency(Number(t.balance), t.currency || 'KES')}</p>
+                        <p className="text-xs text-muted-foreground">Service wallet {formatCurrency(Number(t.service_balance ?? 0), t.currency || 'KES')}</p>
+                      </div>
+                    )
+                    : t.balance_error ? <span className="text-xs text-destructive">{t.balance_error}</span>
+                      : <span className="text-xs text-muted-foreground">{withBalances ? 'No wallet' : 'Wallet not loaded'}</span>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section icon={<Landmark className="h-4 w-4" />} title="Escrow" description="Money held for beneficiaries across tenants, checked against each Team wallet hourly.">
+        {escrow.isError ? (
+          <p className="text-sm text-muted-foreground">Escrow overview unavailable.</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <StatCard label="Held for beneficiaries" value={formatCurrency(Number(escrow.data?.held ?? 0), 'KES')} loading={escrow.isLoading} tone="primary" />
+              <StatCard label="Released (gross)" value={formatCurrency(Number(escrow.data?.released_gross ?? 0), 'KES')} loading={escrow.isLoading} />
+              <StatCard label="Tenant commission" value={formatCurrency(Number(escrow.data?.commission ?? 0), 'KES')} loading={escrow.isLoading} tone="success" />
+            </div>
+            {(escrow.data?.tenants.length ?? 0) > 0 && (
+              <ul className="divide-y divide-border rounded-xl border border-border">
+                {escrow.data!.tenants.map(({ totals, reconciliation }) => (
+                  <li key={totals.tenant_id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                    <span className="min-w-0 flex-1 truncate font-medium">{tenantName(totals.tenant_id)}</span>
+                    <span className="text-muted-foreground">{totals.open_pots} open {totals.open_pots === 1 ? 'pot' : 'pots'}</span>
+                    <span className="tabular-nums font-semibold">{formatCurrency(Number(totals.held), 'KES')}</span>
+                    {!reconciliation ? null : reconciliation.shortfall
+                      ? <Badge variant="error">Short {String(reconciliation.surplus)}</Badge>
+                      : reconciliation.error ? <Badge variant="warning">Not checked</Badge>
+                        : <Badge variant="success">Matches wallet</Badge>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </Section>
     </div>
   );
 }

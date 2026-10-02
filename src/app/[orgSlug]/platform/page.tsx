@@ -4,49 +4,37 @@ import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/ba
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import {
-  useCreatePlatformGateway,
-  usePlatformGateways,
-  useTestPlatformGateway,
-  useUpdatePlatformGateway,
-} from '@/hooks/use-gateways';
-import {
   usePlatformFeeRules,
   useCreatePlatformFeeRule,
   useUpdatePlatformFeeRule,
 } from '@/hooks/use-fee-rules';
 import { useMe } from '@/hooks/useMe';
-import type { GatewayConfig } from '@/lib/api/gateways';
 import type { FeeRule, CreateFeeRuleRequest } from '@/lib/api/fee-rules';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api/client';
 import { fetchTenantDefaults, listPlatformTenants, type TenantResponse } from '@/lib/api/tenant';
 import { PaymentAccountFields, EMPTY_PAYMENT_ACCOUNT, type PaymentAccount } from '@/components/payments/payment-account-form';
 import { BankAccountsPanel } from '@/components/payments/bank-accounts-panel';
-import { fetchLiveForexRates } from '@/lib/api/currencies';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildFeeRuleColumns } from './fee-rule-columns';
 import {
   Banknote,
   Check,
   CheckCircle2,
-  Copy,
   CreditCard,
   Database,
   DollarSign,
   Eye,
   EyeOff,
-  Globe,
   Info,
   KeyRound,
   Landmark,
   Loader2,
   Megaphone,
-  Pencil,
   Plus,
   Receipt,
   RefreshCw,
   Shield,
-  Smartphone,
   Trash2,
   Wrench,
   X,
@@ -54,44 +42,12 @@ import {
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { PayHeroPlatformPanel } from '@/components/platform/payhero-platform-panel';
+import { GatewaysTab } from './_components/gateways-tab';
+import { PAYMENT_GATEWAY_OPTIONS } from './_components/gateway-catalog';
 import { toast } from 'sonner';
 
-const GATEWAY_TYPES = [
-  { value: 'paystack', label: 'Paystack' },
-  { value: 'mpesa_paybill', label: 'M-Pesa Paybill' },
-  { value: 'mpesa_till', label: 'M-Pesa Till' },
-  { value: 'cod', label: 'Cash on Delivery (COD)' },
-  // PayHero: M-Pesa into tenants' own channels, and every cross-border rail (MTN, Airtel and
-  // other mobile money, card, bank deposit). The direct MTN and Airtel gateways were removed.
-  { value: 'payhero', label: 'PayHero (M-Pesa channels, MTN, Airtel, card, bank)' },
-  { value: 'forex_provider', label: 'Forex Rate Provider (not a payment method)' },
-] as const;
-
-const CREDENTIAL_KEYS: Record<string, string[]> = {
-  paystack: ['secret_key', 'public_key', 'webhook_secret'],
-  // cert_pem: Daraja's public certificate (PEM), used to RSA-encrypt initiator_password into the
-  // SecurityCredential every initiator-authenticated command needs (B2C, B2B, account balance,
-  // transaction status, reversal). Without it, MpesaGateway falls back to sending the initiator
-  // password unencrypted (base64 only) — sandbox tolerates this, production rejects it outright.
-  mpesa_paybill: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password', 'cert_pem'],
-  mpesa_till: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password', 'cert_pem'],
-  cod: [],
-  // Base URLs are optional overrides of the PayHero 2.0.0 hosts.
-  payhero: ['api_username', 'api_password', 'api_base_url', 'auth_base_url', 'connect_base_url'],
-  // forex_provider is a platform-only pseudo-gateway: it stores the exchangerate-api.com API key
-  // via the SAME encrypted-credential storage as every payment gateway, so it shows up here
-  // instead of needing a bespoke secret-management screen. It never appears in a tenant's payment
-  // method list (see gateways.PaymentMethodToGatewayType — "forex_provider" maps to nothing).
-  forex_provider: ['api_key'],
-};
-
-// Fee rules apply per payment gateway: the gateway list minus the forex pseudo-gateway (it was a
-// hand-kept copy that had drifted from GATEWAY_TYPES).
-const FEE_GATEWAY_OPTIONS = [
-  { value: 'all', label: 'All Gateways' },
-  ...GATEWAY_TYPES.filter((g) => g.value !== 'forex_provider'),
-] as const;
+// Fee rules apply per payment gateway (the catalog minus integration keys such as forex).
+const FEE_GATEWAY_OPTIONS = [{ value: 'all', label: 'All Gateways' }, ...PAYMENT_GATEWAY_OPTIONS] as const;
 
 const FEE_TYPE_OPTIONS = [
   { value: 'percentage', label: 'Percentage' },
@@ -99,141 +55,11 @@ const FEE_TYPE_OPTIONS = [
   { value: 'tiered', label: 'Tiered' },
 ] as const;
 
-function getGatewayIcon(gatewayType: string) {
-  if (gatewayType === 'paystack') {
-    return <CreditCard className="h-5 w-5 text-blue-600" />;
-  }
-  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till' || gatewayType === 'payhero') {
-    return <Smartphone className="h-5 w-5 text-green-600" />;
-  }
-  if (gatewayType === 'cod') {
-    return <Banknote className="h-5 w-5 text-amber-600" />;
-  }
-  if (gatewayType === 'forex_provider') {
-    return <Globe className="h-5 w-5 text-teal-600" />;
-  }
-  return <CreditCard className="h-5 w-5 text-primary" />;
-}
-
-function getGatewayIconBg(gatewayType: string) {
-  if (gatewayType === 'paystack') return 'bg-blue-100 dark:bg-blue-900/30';
-  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till' || gatewayType === 'payhero') return 'bg-green-100 dark:bg-green-900/30';
-  if (gatewayType === 'cod') return 'bg-amber-100 dark:bg-amber-900/30';
-  if (gatewayType === 'forex_provider') return 'bg-teal-100 dark:bg-teal-900/30';
-  return 'bg-primary/10';
-}
-
-function getIntegrationTip(gatewayType: string) {
-  if (gatewayType === 'paystack') return 'Configure these URLs in your Paystack dashboard';
-  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till') return 'Configure these URLs in your Safaricom portal';
-  if (gatewayType === 'payhero') return 'API username and password from the PayHero dashboard (API keys). Then set or detect the organization below; tenants set up their own Teams and channels';
-  if (gatewayType === 'forex_provider') return 'Get a free API key at exchangerate-api.com — used to auto-fetch live rates every 6h';
-  return '';
-}
-
-function isMpesa(gatewayType: string) {
-  return gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till';
-}
-
-function isForexProvider(gatewayType: string) {
-  return gatewayType === 'forex_provider';
-}
-
-function CopyableUrl({ label, url, onSave, hint }: { label: string; url?: string; onSave?: (newUrl: string) => void; hint?: string }) {
-  const [copied, setCopied] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState(url ?? '');
-
-  if (!url && !editing) return null;
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(url ?? editValue);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleSave = () => {
-    if (onSave && editValue.trim()) {
-      onSave(editValue.trim());
-    }
-    setEditing(false);
-  };
-
-  const handleCancel = () => {
-    setEditValue(url ?? '');
-    setEditing(false);
-  };
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-muted-foreground shrink-0 w-28" title={hint}>{label}:</span>
-      {editing ? (
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <input
-            type="text"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            className="text-xs bg-background border border-input px-2 py-1 rounded font-mono flex-1 min-w-0 focus:ring-1 focus:ring-primary/30 outline-none"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSave();
-              if (e.key === 'Escape') handleCancel();
-            }}
-          />
-          <button type="button" onClick={handleSave} className="p-1 rounded hover:bg-accent shrink-0" title="Save">
-            <Check className="h-3.5 w-3.5 text-green-600" />
-          </button>
-          <button type="button" onClick={handleCancel} className="p-1 rounded hover:bg-accent shrink-0" title="Cancel">
-            <X className="h-3.5 w-3.5 text-muted-foreground" />
-          </button>
-        </div>
-      ) : (
-        <>
-          <code className="text-xs bg-muted/50 px-2 py-1 rounded font-mono truncate flex-1">{url}</code>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="p-1 rounded hover:bg-accent shrink-0"
-            title="Copy to clipboard"
-          >
-            {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
-          </button>
-          {onSave && (
-            <button
-              type="button"
-              onClick={() => { setEditValue(url ?? ''); setEditing(true); }}
-              className="p-1 rounded hover:bg-accent shrink-0"
-              title="Edit URL"
-            >
-              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-interface TestResult {
-  success: boolean;
-  error?: string;
-  supports_stk?: boolean;
-  supports_refund?: boolean;
-}
-
 export default function PlatformPage() {
   const { data: user } = useMe();
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
   const [activeTab, setActiveTab] = useState<'gateways' | 'fees' | 'etims' | 'payments' | 'encryption' | 'backups' | 'documents'>('gateways');
-  const [testingId, setTestingId] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
-  const [fetchingForexId, setFetchingForexId] = useState<string | null>(null);
-  const [forexFetchResults, setForexFetchResults] = useState<Record<string, { success: boolean; rates_upserted?: number; error?: string }>>({});
-  const [registeringC2bId, setRegisteringC2bId] = useState<string | null>(null);
-  const [showAddGateway, setShowAddGateway] = useState(false);
-  const [editingGateway, setEditingGateway] = useState<GatewayConfig | null>(null);
-  const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
   const [showAddFeeRule, setShowAddFeeRule] = useState(false);
   const [editingFeeRule, setEditingFeeRule] = useState<FeeRule | null>(null);
   const [feeMenuOpen, setFeeMenuOpen] = useState<string | null>(null);
@@ -241,14 +67,6 @@ export default function PlatformPage() {
   // isSuperUser is a TENANT-scoped role, not platform-wide — excluded so a tenant's own
   // admin/superuser can never reach platform gateway/fee-rule config.
   const isPlatformOwner = user?.isPlatformOwner || orgSlug === 'codevertex';
-  const { data: gatewaysData, isLoading: loading, error: queryError, refetch: fetchGateways } = usePlatformGateways(!!isPlatformOwner);
-  const gateways = gatewaysData?.gateways ?? [];
-  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load gateways') : null;
-
-  const testMutation = useTestPlatformGateway();
-  const createGateway = useCreatePlatformGateway();
-  const updateGateway = useUpdatePlatformGateway();
-
   const { data: feeRulesData, isLoading: loadingFeeRules } = usePlatformFeeRules();
   const feeRules = feeRulesData?.fee_rules ?? [];
   const createFeeRule = useCreatePlatformFeeRule();
@@ -264,61 +82,6 @@ export default function PlatformPage() {
     [feeMenuOpen, updateFeeRule],
   );
 
-
-  const handleTestGateway = async (gw: GatewayConfig) => {
-    setTestingId(gw.id);
-    // Clear previous result for this gateway
-    setTestResults((prev) => {
-      const next = { ...prev };
-      delete next[gw.id];
-      return next;
-    });
-    try {
-      const result = await testMutation.mutateAsync(gw.id);
-      setTestResults((prev) => ({ ...prev, [gw.id]: result }));
-      await fetchGateways();
-    } catch (e: any) {
-      setTestResults((prev) => ({
-        ...prev,
-        [gw.id]: { success: false, error: e?.response?.data?.error || e?.message || 'Connection failed' },
-      }));
-    } finally {
-      setTestingId(null);
-    }
-  };
-
-  const handleFetchForex = async (gw: GatewayConfig) => {
-    setFetchingForexId(gw.id);
-    setForexFetchResults((prev) => {
-      const next = { ...prev };
-      delete next[gw.id];
-      return next;
-    });
-    try {
-      const result = await fetchLiveForexRates();
-      setForexFetchResults((prev) => ({ ...prev, [gw.id]: result }));
-      if (result.success) toast.success(`Fetched ${result.rates_upserted ?? 0} live rates`);
-      else toast.error(result.error || 'Forex fetch failed');
-    } catch (e: any) {
-      const message = e?.response?.data?.error || e?.message || 'Forex fetch failed';
-      setForexFetchResults((prev) => ({ ...prev, [gw.id]: { success: false, error: message } }));
-      toast.error(message);
-    } finally {
-      setFetchingForexId(null);
-    }
-  };
-
-  const handleRegisterC2B = async (gw: GatewayConfig) => {
-    setRegisteringC2bId(gw.id);
-    try {
-      await apiClient.post(`/api/v1/platform/gateways/${gw.id}/register-c2b`, {});
-      toast.success('C2B URLs registered with Safaricom — validation and confirmation webhooks are now active');
-    } catch (e: any) {
-      toast.error(e?.response?.data?.error || e?.message || 'C2B registration failed');
-    } finally {
-      setRegisteringC2bId(null);
-    }
-  };
 
   return (
     <div className="p-6 space-y-6">
@@ -384,288 +147,7 @@ export default function PlatformPage() {
         </button>
       </div>
 
-      {activeTab === 'gateways' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between py-4">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-primary" />
-                <h3 className="font-bold text-sm uppercase tracking-tight">Platform payment gateways</h3>
-              </div>
-              <Button size="sm" className="gap-2" onClick={() => { setShowAddGateway(true); setCredentialValues({}); }}>
-                <Plus className="h-3.5 w-3.5" /> Activate gateway
-              </Button>
-            </CardHeader>
-            <CardContent className="p-0">
-              {loading ? (
-                <div className="px-6 py-8 flex items-center justify-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading gateways…
-                </div>
-              ) : error ? (
-                <div className="px-6 py-4 text-sm text-destructive">{error}</div>
-              ) : gateways.length === 0 ? (
-                <div className="px-6 py-8 text-center text-sm text-muted-foreground">
-                  No platform gateways configured. Use &quot;Activate gateway&quot; to add Paystack, M-Pesa, or COD with credentials.
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {gateways.map((gw) => {
-                    const tip = getIntegrationTip(gw.gateway_type);
-                    const testResult = testResults[gw.id];
-                    const isTesting = testingId === gw.id;
-
-                    return (
-                      <div key={gw.id} className="px-6 py-5 hover:bg-accent/5 transition-colors space-y-3">
-                        {/* Header row */}
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center", getGatewayIconBg(gw.gateway_type))}>
-                              {getGatewayIcon(gw.gateway_type)}
-                            </div>
-                            <div>
-                              <p className="font-semibold text-sm">{gw.name}</p>
-                              <p className="text-xs text-muted-foreground font-mono">{gw.gateway_type}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge variant={gw.is_active ? 'success' : 'outline'}>{gw.is_active ? 'Active' : 'Inactive'}</Badge>
-                                <Badge variant="outline">{gw.status}</Badge>
-                                {gw.is_primary && <Badge variant="secondary">Primary</Badge>}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => { setEditingGateway(gw); setCredentialValues({}); }}
-                            >
-                              Edit credentials
-                            </Button>
-                            {isMpesa(gw.gateway_type) && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={registeringC2bId === gw.id}
-                                onClick={() => handleRegisterC2B(gw)}
-                                title="Register C2B validation and confirmation URLs with Safaricom Daraja"
-                              >
-                                {registeringC2bId === gw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                                Register C2B
-                              </Button>
-                            )}
-                            {isForexProvider(gw.gateway_type) ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={fetchingForexId === gw.id}
-                                onClick={() => handleFetchForex(gw)}
-                                title="Test the API key and fetch live rates now (also runs automatically every 6h)"
-                              >
-                                {fetchingForexId === gw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-                                Fetch now
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={isTesting || testMutation.isPending}
-                                onClick={() => handleTestGateway(gw)}
-                              >
-                                {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                                Test
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Forex fetch result feedback */}
-                        {isForexProvider(gw.gateway_type) && forexFetchResults[gw.id] && (
-                          <div className={cn(
-                            "rounded-lg border px-4 py-3",
-                            forexFetchResults[gw.id].success
-                              ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20"
-                              : "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20"
-                          )}>
-                            {forexFetchResults[gw.id].success ? (
-                              <div className="flex items-center gap-2">
-                                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                <span className="text-sm font-medium text-green-700 dark:text-green-400">
-                                  {forexFetchResults[gw.id].rates_upserted ?? 0} rates fetched
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <XCircle className="h-4 w-4 text-red-600" />
-                                <span className="text-sm font-medium text-red-700 dark:text-red-400">
-                                  {forexFetchResults[gw.id].error || 'Fetch failed'}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Test result feedback */}
-                        {isTesting && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground pl-13">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Testing connection...
-                          </div>
-                        )}
-                        {testResult && !isTesting && (
-                          <div className={cn(
-                            "rounded-lg border px-4 py-3",
-                            testResult.success
-                              ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20"
-                              : "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20"
-                          )}>
-                            {testResult.success ? (
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                  <span className="text-sm font-medium text-green-700 dark:text-green-400">Connected</span>
-                                </div>
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground ml-6">
-                                  {testResult.supports_stk !== undefined && (
-                                    <span className="flex items-center gap-1">
-                                      {testResult.supports_stk ? <Check className="h-3 w-3 text-green-600" /> : <X className="h-3 w-3 text-muted-foreground" />}
-                                      STK Push
-                                    </span>
-                                  )}
-                                  {testResult.supports_refund !== undefined && (
-                                    <span className="flex items-center gap-1">
-                                      {testResult.supports_refund ? <Check className="h-3 w-3 text-green-600" /> : <X className="h-3 w-3 text-muted-foreground" />}
-                                      Refunds
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <XCircle className="h-4 w-4 text-red-600" />
-                                <span className="text-sm font-medium text-red-700 dark:text-red-400">
-                                  {testResult.error || 'Connection failed'}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* URLs section */}
-                        {(gw.webhook_url || gw.callback_url || (isMpesa(gw.gateway_type) && (gw.mpesa_callback_url || gw.mpesa_validation_url || gw.mpesa_confirmation_url))) && (
-                          <div className="space-y-2 bg-muted/30 rounded-lg p-3 border border-border/50">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Integration URLs</span>
-                              {tip && (
-                                <span className="group relative">
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                  <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover:block bg-popover text-popover-foreground text-xs rounded-md px-2 py-1 shadow-md border whitespace-nowrap z-10">
-                                    {tip}
-                                  </span>
-                                </span>
-                              )}
-                            </div>
-                            <CopyableUrl
-                              label="Webhook URL"
-                              url={gw.webhook_url}
-                              onSave={async (newUrl) => {
-                                try {
-                                  await updateGateway.mutateAsync({ id: gw.id, body: { webhook_url: newUrl } });
-                                  toast.success('Webhook URL updated');
-                                  fetchGateways();
-                                } catch (e: any) {
-                                  toast.error(e?.response?.data?.message || 'Failed to update webhook URL');
-                                }
-                              }}
-                            />
-                            <CopyableUrl
-                              label={isMpesa(gw.gateway_type) ? 'Webhook Base' : 'Callback URL'}
-                              url={gw.callback_url}
-                              hint={
-                                isMpesa(gw.gateway_type)
-                                  ? 'Shared base URL for every M-Pesa callback below (M-Pesa Callback/Validation/Confirm and all B2C/B2B/Balance/Status/Reversal webhooks) — NOT a generic post-payment redirect. Editing this changes all of them at once.'
-                                  : undefined
-                              }
-                              onSave={async (newUrl) => {
-                                try {
-                                  await updateGateway.mutateAsync({ id: gw.id, body: { callback_url: newUrl } });
-                                  toast.success('Callback URL updated');
-                                  fetchGateways();
-                                } catch (e: any) {
-                                  toast.error(e?.response?.data?.message || 'Failed to update callback URL');
-                                }
-                              }}
-                            />
-                            {isMpesa(gw.gateway_type) && (
-                              <>
-                                <CopyableUrl label="M-Pesa Callback" url={gw.mpesa_callback_url} />
-                                <CopyableUrl label="M-Pesa Validation" url={gw.mpesa_validation_url} />
-                                <CopyableUrl label="M-Pesa Confirm" url={gw.mpesa_confirmation_url} />
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Add gateway modal */}
-          {showAddGateway && (
-            <GatewayCredentialsModal
-              title="Activate gateway"
-              gatewayType={null}
-              name=""
-              credentialKeys={[]}
-              credentialValues={credentialValues}
-              setCredentialValues={setCredentialValues}
-              onClose={() => setShowAddGateway(false)}
-              onSubmit={async (type, name, creds) => {
-                try {
-                  await createGateway.mutateAsync({ gateway_type: type, name, credentials: creds });
-                  toast.success('Gateway created');
-                  setShowAddGateway(false);
-                  fetchGateways();
-                } catch (e: any) {
-                  toast.error(e?.response?.data?.message || e?.message || 'Failed to create gateway');
-                }
-              }}
-              isSubmitting={createGateway.isPending}
-              gatewayTypes={GATEWAY_TYPES}
-              credentialKeysByType={CREDENTIAL_KEYS}
-            />
-          )}
-
-          {/* Edit credentials modal */}
-          {editingGateway && (
-            <GatewayCredentialsModal
-              title="Update credentials"
-              gatewayType={editingGateway.gateway_type}
-              name={editingGateway.name}
-              credentialKeys={CREDENTIAL_KEYS[editingGateway.gateway_type] ?? []}
-              credentialValues={credentialValues}
-              setCredentialValues={setCredentialValues}
-              onClose={() => setEditingGateway(null)}
-              onSubmit={async (_type, _name, creds) => {
-                if (!editingGateway) return;
-                try {
-                  await updateGateway.mutateAsync({ id: editingGateway.id, body: { credentials: creds } });
-                  toast.success('Credentials updated');
-                  setEditingGateway(null);
-                  fetchGateways();
-                } catch (e: any) {
-                  toast.error(e?.response?.data?.message || e?.message || 'Failed to update');
-                }
-              }}
-              isSubmitting={updateGateway.isPending}
-              editMode
-            />
-          )}
-
-          <PayHeroPlatformPanel />
-        </div>
-      )}
+      {activeTab === 'gateways' && isPlatformOwner && <GatewaysTab />}
 
       {activeTab === 'fees' && (
         <div className="space-y-6">
@@ -1856,179 +1338,6 @@ function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           Save &amp; Apply
         </Button>
-      </div>
-    </div>
-  );
-}
-
-function isSensitiveField(key: string): boolean {
-  return /secret|password|key/i.test(key);
-}
-
-function GatewayCredentialsModal({
-  title,
-  gatewayType,
-  name,
-  credentialKeys,
-  credentialValues,
-  setCredentialValues,
-  onClose,
-  onSubmit,
-  isSubmitting,
-  gatewayTypes,
-  credentialKeysByType,
-  editMode = false,
-}: {
-  title: string;
-  gatewayType: string | null;
-  name: string;
-  credentialKeys: string[];
-  credentialValues: Record<string, string>;
-  setCredentialValues: (v: Record<string, string>) => void;
-  onClose: () => void;
-  onSubmit: (type: string, name: string, credentials: Record<string, string>) => Promise<void>;
-  isSubmitting: boolean;
-  gatewayTypes?: readonly { value: string; label: string }[];
-  credentialKeysByType?: Record<string, string[]>;
-  editMode?: boolean;
-}) {
-  const [selectedType, setSelectedType] = useState(gatewayType ?? 'paystack');
-  const [nameVal, setNameVal] = useState(name);
-  const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>({});
-
-  const keys = editMode ? credentialKeys : (credentialKeysByType?.[selectedType] ?? credentialKeys);
-
-  const toggleFieldVisibility = (key: string) => {
-    setVisibleFields((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const creds: Record<string, string> = {};
-    keys.forEach((k) => { if (credentialValues[k]) creds[k] = credentialValues[k]; });
-    onSubmit(editMode ? (gatewayType ?? selectedType) : selectedType, editMode ? name : nameVal, creds);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-card rounded-xl shadow-xl border border-border max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">{title}</h3>
-          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-accent">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!editMode && gatewayTypes && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Gateway type</label>
-                <select
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                >
-                  {gatewayTypes.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
-                <input
-                  type="text"
-                  value={nameVal}
-                  onChange={(e) => setNameVal(e.target.value)}
-                  placeholder="e.g. Paystack Production"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  required
-                />
-              </div>
-            </div>
-          )}
-          {keys.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 border-b border-border pb-2 mb-3">
-                <Shield className="h-3.5 w-3.5 text-primary" />
-                <span className="text-xs font-semibold uppercase tracking-wide text-foreground">API Credentials</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {keys.map((k) => {
-                const sensitive = isSensitiveField(k);
-                const isVisible = visibleFields[k] ?? false;
-                const isPem = k === 'cert_pem';
-
-                return (
-                  <div key={k} className={isPem ? 'sm:col-span-2' : ''}>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">
-                      {k.replace(/_/g, ' ')}
-                    </label>
-                    {isPem && (
-                      <p className="text-[11px] text-muted-foreground mb-1">
-                        Daraja&apos;s public certificate (PEM) — RSA-encrypts the initiator password for
-                        B2C, B2B, balance, transaction status and reversal. Not a secret (it&apos;s
-                        Safaricom&apos;s own public key); left blank, these fall back to an unencrypted
-                        password, which sandbox tolerates but production rejects.
-                      </p>
-                    )}
-                    {isPem ? (
-                      <textarea
-                        value={credentialValues[k] ?? ''}
-                        onChange={(e) => setCredentialValues({ ...credentialValues, [k]: e.target.value })}
-                        placeholder={editMode ? 'Leave blank to keep current' : '-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
-                        rows={6}
-                        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-mono resize-y"
-                        autoComplete="off"
-                      />
-                    ) : (
-                      <div className="relative">
-                        <input
-                          type={sensitive && !isVisible ? 'password' : 'text'}
-                          value={credentialValues[k] ?? ''}
-                          onChange={(e) => setCredentialValues({ ...credentialValues, [k]: e.target.value })}
-                          placeholder={editMode ? 'Leave blank to keep current' : ''}
-                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono pr-10"
-                          autoComplete="off"
-                        />
-                        {sensitive && (
-                          <button
-                            type="button"
-                            onClick={() => toggleFieldVisibility(k)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-accent"
-                            tabIndex={-1}
-                          >
-                            {isVisible ? (
-                              <EyeOff className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <Eye className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              </div>
-            </div>
-          )}
-          {selectedType === 'cod' && !editMode && (
-            <p className="text-xs text-muted-foreground">COD has no credentials; name only.</p>
-          )}
-          <div className="flex gap-2 justify-end pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {editMode ? 'Update' : 'Create'}
-            </Button>
-          </div>
-          {keys.length > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1 border-t border-border/50">
-              <Shield className="h-3 w-3 shrink-0" />
-              <span>Credentials are encrypted at rest (AES-256-GCM)</span>
-            </div>
-          )}
-        </form>
       </div>
     </div>
   );

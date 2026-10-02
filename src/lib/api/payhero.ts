@@ -89,7 +89,7 @@ export const payheroApi = {
   setPaymentLinks: (tenant: string, links: PayHeroPaymentLink[]) =>
     apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/payment-links`, { links }),
   balance: (tenant: string) =>
-    apiClient.get<{ currency: string; balance: string }>(`${tenantBase(tenant)}/balance`),
+    apiClient.get<{ currency: string; balance: string; service_balance?: string }>(`${tenantBase(tenant)}/balance`),
   kycPricing: (tenant: string) => apiClient.get<Record<string, unknown>>(`${tenantBase(tenant)}/kyc/pricing`),
   kycChecks: (tenant: string) => apiClient.get<Record<string, unknown>>(`${tenantBase(tenant)}/kyc/checks`),
   verify: (tenant: string, check: string, fields: Record<string, unknown>, confirm: boolean) =>
@@ -117,7 +117,10 @@ export interface PayHeroTeamRow {
   enabled: boolean;
   channels: number;
   channels_synced_at?: string;
+  /** Payments wallet (customer money, escrow). */
   balance?: string;
+  /** Service wallet (credit that pays PayHero costs). */
+  service_balance?: string;
   currency?: string;
   balance_error?: string;
 }
