@@ -22,6 +22,8 @@ export interface TransactionColumnCallbacks {
   onConfirmManual: (txn: TransactionItem) => void;
   onStatementClick: (txn: TransactionItem) => void;
   checkingStatusId: string | null;
+  /** treasury.payments.manage: confirming a payment by hand is a manage-tier action. */
+  canManage: boolean;
 }
 
 // Both actions apply to a stuck M-Pesa payment intent (pending or still-processing) — Check Status
@@ -123,7 +125,16 @@ export function buildTransactionColumns(cb: TransactionColumnCallbacks): DataTab
       align: 'center',
       filterable: true,
       accessor: (t) => t.status,
-      render: (t) => <Badge variant={transactionStatusVariant(t.status)}>{t.status}</Badge>,
+      render: (t) => (
+        <div className="flex flex-col items-center gap-0.5">
+          <Badge variant={transactionStatusVariant(t.status)}>{t.status}</Badge>
+          {t.amount_mismatch && (
+            <span className="text-[10px] text-amber-700" title={t.amount_mismatch.reason}>
+              paid {t.amount_mismatch.paid_currency} {t.amount_mismatch.paid}
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       key: 'created_at',
@@ -168,7 +179,7 @@ export function buildTransactionColumns(cb: TransactionColumnCallbacks): DataTab
           {/* Confirm — opens a modal that tries the real Transaction Status Query with a
               staff-provided code first, falling back to a manual (unverified) override only if
               that can't confirm it. */}
-          {isStuckMpesaTxn(txn) && (
+          {cb.canManage && isStuckMpesaTxn(txn) && (
             <Button
               variant="ghost"
               size="sm"

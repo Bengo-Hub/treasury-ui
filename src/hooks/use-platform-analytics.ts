@@ -96,6 +96,7 @@ export interface PlatformTransactionParams {
   status?: string;
   payment_method?: string;
   source_service?: string;
+  gateway_type?: string;
   /** Comma-separated UUIDs — maps to ?tenant_ids= query param */
   tenant_ids?: string;
   page?: number;
@@ -112,6 +113,7 @@ export function usePlatformTransactions(params?: PlatformTransactionParams) {
       if (params?.status) p.status = params.status;
       if (params?.payment_method) p.payment_method = params.payment_method;
       if (params?.source_service) p.source_service = params.source_service;
+      if (params?.gateway_type) p.gateway_type = params.gateway_type;
       if (params?.tenant_ids) p.tenant_ids = params.tenant_ids;
       if (params?.page) p.page = String(params.page);
       if (params?.limit) p.limit = String(params.limit);

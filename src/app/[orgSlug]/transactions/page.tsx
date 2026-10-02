@@ -36,6 +36,8 @@ import { EtimsResponseModal, type EtimsResponseRow } from '@/components/tax/etim
 import { StatementDialog } from '@/components/statement-dialog';
 import { ManualConfirmModal } from '@/components/transactions/manual-confirm-modal';
 import { toast } from 'sonner';
+import { userHasPermission, userHasRole } from '@/lib/auth/permissions';
+import { getPaymentMethodLabel } from '@bengo-hub/shared-ui-lib';
 
 const MARKETFLOW_UI_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexafrica.com';
 
@@ -94,11 +96,14 @@ export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [gatewayFilter, setGatewayFilter] = useState<string>('all');
+  const canManage = userHasRole(user as Parameters<typeof userHasRole>[0], ['admin', 'superuser'])
+    || userHasPermission(user as Parameters<typeof userHasPermission>[0], ['treasury.payments.manage'], 'or');
   const [serviceFilter, setServiceFilter] = useState<string>('all');
   // Same preset picker + rangeFor() the Dashboard uses (single source of truth for date-range
   // math) rather than a bespoke fixed 30-day window with no way to change it.
   const range = useRange('30d');
-  const [page, setPage] = usePageReset([searchQuery, statusFilter, typeFilter, serviceFilter, range.from, range.to]);
+  const [page, setPage] = usePageReset([searchQuery, statusFilter, typeFilter, gatewayFilter, serviceFilter, range.from, range.to]);
   const dateRange = useMemo(() => ({ from: range.from, to: range.to }), [range.from, range.to]);
 
   // Platform admins: use platform endpoint (all tenants by default; tenant_ids filter optional)
@@ -109,8 +114,9 @@ export default function TransactionsPage() {
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     ...(typeFilter !== 'all' ? { payment_method: typeFilter } : {}),
     ...(serviceFilter !== 'all' ? { source_service: serviceFilter } : {}),
+    ...(gatewayFilter !== 'all' ? { gateway_type: gatewayFilter } : {}),
     ...(tenantIdsParam ? { tenant_ids: tenantIdsParam } : {}),
-  }), [dateRange, statusFilter, typeFilter, serviceFilter, tenantIdsParam]);
+  }), [dateRange, statusFilter, typeFilter, gatewayFilter, serviceFilter, tenantIdsParam]);
 
   const tenantParams = useMemo(() => ({
     from: dateRange.from,
@@ -118,7 +124,8 @@ export default function TransactionsPage() {
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     ...(typeFilter !== 'all' ? { payment_method: typeFilter } : {}),
     ...(serviceFilter !== 'all' ? { source_service: serviceFilter } : {}),
-  }), [dateRange, statusFilter, typeFilter, serviceFilter]);
+    ...(gatewayFilter !== 'all' ? { gateway_type: gatewayFilter } : {}),
+  }), [dateRange, statusFilter, typeFilter, gatewayFilter, serviceFilter]);
 
   const platformResult = usePlatformTransactions(isAggregate ? platformParams : undefined);
   const tenantResult = useTransactions(txnTenant, tenantParams, !isAggregate && !!txnTenant);
@@ -212,6 +219,7 @@ export default function TransactionsPage() {
     () =>
       buildTransactionColumns({
         orgSlug,
+        canManage,
         onViewDetail: (txn) => setDetailTxn(txn),
         onCheckStatus: (txn) => void handleCheckStatus(txn),
         onConfirmManual: (txn) => void handleConfirmManual(txn),
@@ -226,11 +234,19 @@ export default function TransactionsPage() {
         },
         checkingStatusId,
       }),
-    [orgSlug, txnTenant, checkingStatusId],
+    [orgSlug, txnTenant, checkingStatusId, canManage],
   );
 
   const statusOptions = ['all', 'succeeded', 'pending', 'processing', 'failed', 'cancelled'];
-  const methodOptions = ['all', 'mpesa', 'card', 'cash', 'bank_transfer', 'cod'];
+  const methodOptions = ['all', 'cash', 'mpesa', 'mpesa_manual', 'card', 'card_manual', 'bank_transfer',
+    'mtn_momo', 'airtel_money', 'payhero_momo', 'payhero_card', 'payhero_bank', 'payhero_offline', 'cod'];
+  const gatewayOptions = [
+    { value: 'all', label: 'All gateways' },
+    { value: 'paystack', label: 'Paystack' },
+    { value: 'mpesa_paybill', label: 'M-Pesa Paybill' },
+    { value: 'mpesa_till', label: 'M-Pesa Till' },
+    { value: 'payhero', label: 'PayHero' },
+  ];
 
   return (
     <div className="p-6 space-y-6">
@@ -325,10 +341,17 @@ export default function TransactionsPage() {
                   typeFilter === t ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:text-foreground"
                 )}
               >
-                {t.replace(/_/g, ' ')}
+                {t === 'all' ? 'all' : getPaymentMethodLabel(t)}
               </button>
             ))}
             <div className="w-px h-5 bg-border mx-2" />
+            <select
+              value={gatewayFilter}
+              onChange={(e) => { setGatewayFilter(e.target.value); setPage(1); }}
+              className="bg-accent/30 border border-border rounded-full px-3 py-1 text-xs font-bold"
+            >
+              {gatewayOptions.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+            </select>
             <select
               value={serviceFilter}
               onChange={(e) => { setServiceFilter(e.target.value); setPage(1); }}

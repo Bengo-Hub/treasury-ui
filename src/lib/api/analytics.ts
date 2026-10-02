@@ -37,6 +37,11 @@ export interface TransactionItem {
   gateway_name?: string;
   /** Customer snapshot from the intent metadata (REQ-005) — empty when the source recorded none. */
   customer_name?: string;
+  /** The gateway the payment ran on (paystack, mpesa_paybill, payhero, ...) and the PayHero channel. */
+  gateway_type?: string;
+  payhero_channel_id?: number;
+  /** Set when the payment arrived short or in another currency; the intent stays open. */
+  amount_mismatch?: { reason?: string; paid?: string; paid_currency?: string; due?: string; due_currency?: string };
   created_at: string;
 }
 
@@ -54,6 +59,7 @@ export interface TransactionsParams extends AnalyticsSummaryParams {
   status?: string;
   payment_method?: string;
   source_service?: string;
+  gateway_type?: string;
 }
 
 /** Get analytics summary for a tenant (revenue, counts). Platform owners can pass tenantId override. */
@@ -102,6 +108,7 @@ export function exportTransactionsCSV(
   if (params?.status) qs.set('status', params.status);
   if (params?.source_service) qs.set('source_service', params.source_service);
   if (params?.payment_method) qs.set('payment_method', params.payment_method);
+  if (params?.gateway_type) qs.set('gateway_type', params.gateway_type);
   if (params?.tenantId) qs.set('tenantId', params.tenantId);
   qs.set('format', 'csv');
 
