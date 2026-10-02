@@ -64,7 +64,14 @@ export function PaymentsTab({ orgSlug, tenantSlug, maxPaymentAmount, onSaveMaxAm
         onError: (e: any) => toast.error(e?.response?.data?.message || 'Could not turn it off'),
       });
     } else {
-      select.mutate(type, { ...done, onSuccess: () => toast.success(kind === 'primary' ? `${name} is now the primary gateway` : `${name} turned on`) });
+      select.mutate(
+        { type, primary: kind === 'primary' },
+        {
+          ...done,
+          onSuccess: () => toast.success(kind === 'primary' ? `${name} is now the primary gateway` : `${name} turned on`),
+          onError: (e: any) => toast.error(e?.response?.data?.error || e?.response?.data?.message || 'Could not update the gateway'),
+        },
+      );
     }
   };
 

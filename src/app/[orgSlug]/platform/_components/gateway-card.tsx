@@ -3,7 +3,7 @@
 import { Badge, Button, Card } from '@/components/ui/base';
 import type { GatewayConfig } from '@/lib/api/gateways';
 import { cn } from '@/lib/utils';
-import { CheckCircle2, ChevronDown, KeyRound, Link2, Loader2, PlugZap, RefreshCw, Send, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronDown, KeyRound, Link2, Loader2, PlugZap, RefreshCw, Send, Star, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { CopyableUrl } from './copyable-url';
 import { gatewayKind, isMpesaType } from '@/components/payments/gateway-catalog';
@@ -37,6 +37,9 @@ export function GatewayCard({
   onEditCredentials,
   onRegisterC2B,
   onSaveUrl,
+  onSetActive,
+  onMakePrimary,
+  saving,
 }: {
   gw: GatewayConfig;
   checking: boolean;
@@ -46,6 +49,10 @@ export function GatewayCard({
   onEditCredentials: () => void;
   onRegisterC2B?: () => void;
   onSaveUrl?: (field: 'webhook_url' | 'callback_url', url: string) => void;
+  /** Turns the gateway on or off for every tenant (off: tenants no longer see or use it). */
+  onSetActive?: (active: boolean) => void;
+  onMakePrimary?: () => void;
+  saving?: boolean;
 }) {
   const kind = gatewayKind(gw.gateway_type);
   const Icon = kind.icon;
@@ -78,6 +85,22 @@ export function GatewayCard({
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">{kind.description || kind.label}</p>
         </div>
+        {onSetActive && (
+          <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span className="hidden sm:inline">{gw.is_active ? 'On for tenants' : 'Off'}</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={gw.is_active}
+              aria-label={gw.is_active ? `Turn ${gw.name} off for tenants` : `Turn ${gw.name} on for tenants`}
+              disabled={saving}
+              onClick={() => onSetActive(!gw.is_active)}
+              className={cn('relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50', gw.is_active ? 'bg-primary' : 'bg-muted')}
+            >
+              <span className={cn('inline-block h-4 w-4 rounded-full bg-background shadow transition-transform', gw.is_active ? 'translate-x-6' : 'translate-x-1')} />
+            </button>
+          </label>
+        )}
       </div>
 
       {result && !checking && (
@@ -106,6 +129,11 @@ export function GatewayCard({
         <Button size="sm" variant="ghost" onClick={onEditCredentials} className="gap-1.5">
           <KeyRound className="h-3.5 w-3.5" /> {kind.credentialKeys.length ? 'Credentials' : 'Rename'}
         </Button>
+        {onMakePrimary && gw.is_active && !gw.is_primary && (
+          <Button size="sm" variant="ghost" onClick={onMakePrimary} disabled={saving} className="gap-1.5">
+            <Star className="h-3.5 w-3.5" /> Make primary
+          </Button>
+        )}
         {onRegisterC2B && (
           <Button size="sm" variant="ghost" onClick={onRegisterC2B} disabled={registeringC2B} className="gap-1.5" title="Send the C2B validation and confirmation URLs to Safaricom">
             {registeringC2B ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Register C2B

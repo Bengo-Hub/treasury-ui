@@ -114,8 +114,13 @@ export function getTenantSelectedGateways(tenantSlugOrId: string): Promise<{ sel
 }
 
 /** Tenant: select a preferred gateway. */
-export function selectTenantGateway(tenantSlugOrId: string, gatewayType: string): Promise<{ message: string; gateway_type: string }> {
-  return apiClient.post<{ message: string; gateway_type: string }>(`${BASE}/${tenantSlugOrId}/gateways/select/${encodeURIComponent(gatewayType)}`, {});
+/**
+ * Tenant: turn a gateway on. With primary (the default) it also becomes the one primary gateway
+ * (the API clears the others); primary false only turns it on, primary only if there is none.
+ */
+export function selectTenantGateway(tenantSlugOrId: string, gatewayType: string, primary = true): Promise<{ message: string; gateway_type: string }> {
+  const q = primary ? '' : '?primary=false';
+  return apiClient.post<{ message: string; gateway_type: string }>(`${BASE}/${tenantSlugOrId}/gateways/select/${encodeURIComponent(gatewayType)}${q}`, {});
 }
 
 /** Tenant: deactivate an active gateway. */
