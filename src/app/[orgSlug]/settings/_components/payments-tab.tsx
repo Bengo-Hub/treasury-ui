@@ -47,6 +47,10 @@ export function PaymentsTab({ orgSlug, tenantSlug, maxPaymentAmount, onSaveMaxAm
   const { data: user } = useMe();
   const [section, setSection] = useState('gateways');
 
+  // The section where an active gateway is configured (none for COD and complimentary).
+  const setupSection = (type: string) =>
+    type === 'payhero' ? 'payhero' : type === 'paystack' ? 'paystack' : type.startsWith('mpesa') ? 'mpesa' : null;
+
   const select = useSelectTenantGateway(tenantSlug);
   const deactivate = useDeactivateTenantGateway(tenantSlug);
   const [busyType, setBusyType] = useState<string | null>(null);
@@ -121,8 +125,13 @@ export function PaymentsTab({ orgSlug, tenantSlug, maxPaymentAmount, onSaveMaxAm
                           <p className="truncate text-xs text-muted-foreground">{kind.description}</p>
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
+                      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                         {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                        {on && setupSection(gw.gateway_type) && (
+                          <Button size="sm" variant="outline" className="gap-1" onClick={() => setSection(setupSection(gw.gateway_type)!)}>
+                            <Settings2 className="h-3.5 w-3.5" /> Set up
+                          </Button>
+                        )}
                         {on && !isPrimary && (
                           <Button size="sm" variant="ghost" className="gap-1" disabled={busy} onClick={() => act(gw.gateway_type, gw.name, 'primary')}>
                             <Crown className="h-3.5 w-3.5" /> Make primary
