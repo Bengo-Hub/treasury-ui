@@ -43,7 +43,7 @@ import {
 import { useParams } from 'next/navigation';
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { GatewaysTab } from './_components/gateways-tab';
-import { PAYMENT_GATEWAY_OPTIONS } from './_components/gateway-catalog';
+import { PAYMENT_GATEWAY_OPTIONS } from '@/components/payments/gateway-catalog';
 import { toast } from 'sonner';
 
 // Fee rules apply per payment gateway (the catalog minus integration keys such as forex).

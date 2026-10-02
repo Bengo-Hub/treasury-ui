@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { CheckCircle2, ChevronDown, KeyRound, Link2, Loader2, PlugZap, RefreshCw, Send, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { CopyableUrl } from './copyable-url';
-import { gatewayKind, isMpesaType } from './gateway-catalog';
+import { gatewayKind, isMpesaType } from '@/components/payments/gateway-catalog';
 
 export interface GatewayCheckResult {
   success: boolean;
