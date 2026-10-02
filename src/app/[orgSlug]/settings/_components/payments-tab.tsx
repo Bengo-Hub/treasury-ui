@@ -22,6 +22,7 @@ import {
 } from '@/lib/api/revenue';
 import { cn } from '@/lib/utils';
 import { PaystackAccountCard, useTenantPaystackConfig } from './paystack-account-card';
+import { PayHeroTab } from './payhero-tab';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
@@ -35,6 +36,7 @@ import {
   QrCode,
   Save,
   Smartphone,
+  Wallet,
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -366,8 +368,8 @@ export function PaymentsTab({
           </Card>
 
           {/* Per-gateway config tabs */}
-          {(hasPaystack || hasMpesa) && (
-            <Tabs defaultValue={hasPaystack ? 'paystack' : 'mpesa'}>
+          {(
+            <Tabs defaultValue={hasPaystack ? 'paystack' : hasMpesa ? 'mpesa' : 'payhero'}>
               <TabsList>
                 {hasPaystack && (
                   <TabsTrigger value="paystack">
@@ -379,7 +381,14 @@ export function PaymentsTab({
                     <Smartphone className="h-4 w-4 mr-1.5 inline" /> M-Pesa
                   </TabsTrigger>
                 )}
+                <TabsTrigger value="payhero">
+                  <Wallet className="h-4 w-4 mr-1.5 inline" /> PayHero
+                </TabsTrigger>
               </TabsList>
+
+              <TabsContent value="payhero">
+                <PayHeroTab tenantSlug={tenantSlug} />
+              </TabsContent>
 
               {hasPaystack && (
                 <TabsContent value="paystack">
