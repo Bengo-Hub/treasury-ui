@@ -31,14 +31,14 @@ export interface PaymentDetails {
 }
 
 export type GatewayType =
-  | 'paystack' | 'mpesa' | 'cod' | 'wallet' | 'mtn_momo' | 'airtel_money' | 'bank_transfer'
+  | 'paystack' | 'mpesa' | 'cod' | 'wallet' | 'mtn_momo' | 'airtel_money'
   // PayHero rails (treasury offers them from the tenant's PayHero discovery for the currency).
   | 'payhero_momo' | 'payhero_card' | 'payhero_bank' | 'payhero_offline';
 
 /** Every pay-page method, in display order (matches treasury-api PayPageMethodOrder). */
 export const GATEWAY_ORDER: GatewayType[] = [
   'paystack', 'mpesa', 'mtn_momo', 'airtel_money', 'payhero_momo', 'payhero_card', 'payhero_bank',
-  'payhero_offline', 'bank_transfer', 'wallet', 'cod',
+  'payhero_offline', 'wallet', 'cod',
 ];
 
 export const GATEWAY_LABELS: Record<GatewayType, string> = {
@@ -50,7 +50,6 @@ export const GATEWAY_LABELS: Record<GatewayType, string> = {
   wallet: 'Pay with Wallet',
   mtn_momo: 'MTN Mobile Money',
   airtel_money: 'Airtel Money',
-  bank_transfer: 'Bank Transfer',
   payhero_momo: 'Mobile Money',
   payhero_card: 'Card',
   payhero_bank: 'Bank Deposit',

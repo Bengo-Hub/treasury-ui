@@ -62,7 +62,6 @@ const GATEWAY_TYPES = [
   { value: 'mpesa_paybill', label: 'M-Pesa Paybill' },
   { value: 'mpesa_till', label: 'M-Pesa Till' },
   { value: 'cod', label: 'Cash on Delivery (COD)' },
-  { value: 'bank_transfer', label: 'Bank Transfer (e.g. Equity Bank Uganda)' },
   // PayHero: M-Pesa into tenants' own channels, and every cross-border rail (MTN, Airtel and
   // other mobile money, card, bank deposit). The direct MTN and Airtel gateways were removed.
   { value: 'payhero', label: 'PayHero (M-Pesa channels, MTN, Airtel, card, bank)' },
@@ -78,9 +77,6 @@ const CREDENTIAL_KEYS: Record<string, string[]> = {
   mpesa_paybill: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password', 'cert_pem'],
   mpesa_till: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password', 'cert_pem'],
   cod: [],
-  // No API credentials — the tenant's bank account is shown to payers via name/public_shortcode
-  // (edited from the gateway detail, not this creation modal); confirmation is manual.
-  bank_transfer: [],
   // Base URLs are optional overrides of the PayHero 2.0.0 hosts.
   payhero: ['api_username', 'api_password', 'api_base_url', 'auth_base_url', 'connect_base_url'],
   // forex_provider is a platform-only pseudo-gateway: it stores the exchangerate-api.com API key
@@ -113,9 +109,6 @@ function getGatewayIcon(gatewayType: string) {
   if (gatewayType === 'cod') {
     return <Banknote className="h-5 w-5 text-amber-600" />;
   }
-  if (gatewayType === 'bank_transfer') {
-    return <Landmark className="h-5 w-5 text-indigo-600" />;
-  }
   if (gatewayType === 'forex_provider') {
     return <Globe className="h-5 w-5 text-teal-600" />;
   }
@@ -126,7 +119,6 @@ function getGatewayIconBg(gatewayType: string) {
   if (gatewayType === 'paystack') return 'bg-blue-100 dark:bg-blue-900/30';
   if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till' || gatewayType === 'payhero') return 'bg-green-100 dark:bg-green-900/30';
   if (gatewayType === 'cod') return 'bg-amber-100 dark:bg-amber-900/30';
-  if (gatewayType === 'bank_transfer') return 'bg-indigo-100 dark:bg-indigo-900/30';
   if (gatewayType === 'forex_provider') return 'bg-teal-100 dark:bg-teal-900/30';
   return 'bg-primary/10';
 }
@@ -135,7 +127,6 @@ function getIntegrationTip(gatewayType: string) {
   if (gatewayType === 'paystack') return 'Configure these URLs in your Paystack dashboard';
   if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till') return 'Configure these URLs in your Safaricom portal';
   if (gatewayType === 'payhero') return 'API username and password from the PayHero dashboard (API keys). Then set or detect the organization below; tenants set up their own Teams and channels';
-  if (gatewayType === 'bank_transfer') return 'No credentials needed — set the account name/number as the gateway Name and public shortcode';
   if (gatewayType === 'forex_provider') return 'Get a free API key at exchangerate-api.com — used to auto-fetch live rates every 6h';
   return '';
 }

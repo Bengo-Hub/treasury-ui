@@ -79,6 +79,8 @@ export const COMPENSATION_MODELS = [
 
 type CompensationModel = (typeof COMPENSATION_MODELS)[number]['value'];
 
+const NOT_HYDRATED = Symbol('not-hydrated');
+
 export function HolderFormModal({
     title,
     open,
@@ -196,8 +198,12 @@ export function HolderFormModal({
     const [verifyError, setVerifyError] = useState<string | null>(null);
     const [verifyNote, setVerifyNote] = useState<string | null>(null);
 
-    // Hydrate ALL fields when initial changes (edit mode) or reset to defaults (create mode)
-    useEffect(() => {
+    // Hydrate ALL fields when initial changes (edit mode) or reset to defaults (create mode).
+    // Done during render when the prop changes (React's "adjust state on prop change"), not in an
+    // effect, so the form never renders a pass with stale fields.
+    const [hydratedFor, setHydratedFor] = useState<unknown>(NOT_HYDRATED);
+    if (hydratedFor !== initial) {
+        setHydratedFor(initial);
         // Always reset tab and bank resolution state
         setActiveTab('basic');
         setVerifiedName(null);
@@ -295,7 +301,7 @@ export function HolderFormModal({
             setMpesaAccountNumber('');
             setTillNumber('');
         }
-    }, [initial]);
+    }
 
     const buildPayoutDetails = (): string => {
         if (payoutMethod === 'paystack_transfer') {

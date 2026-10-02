@@ -873,14 +873,10 @@ function PlatformRetentionCard() {
     const updatePolicy = useUpdateEquityPolicy();
     const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm';
 
-    // Retention held in whole-percent units (e.g. 30 for 0.30). Empty string = untouched.
-    const [retentionPct, setRetentionPct] = useState<string>('');
-
-    useEffect(() => {
-        if (data?.policy) {
-            setRetentionPct(String(Math.round((data.policy.platform_retention_pct ?? 0) * 1000) / 10));
-        }
-    }, [data?.policy]);
+    // Retention held in whole-percent units (e.g. 30 for 0.30). The stored value shows until the
+    // user edits it (draft).
+    const [draftPct, setRetentionPct] = useState<string | null>(null);
+    const retentionPct = draftPct ?? (data?.policy ? String(Math.round((data.policy.platform_retention_pct ?? 0) * 1000) / 10) : '');
 
     const parsed = parseFloat(retentionPct);
     const hasValue = retentionPct.trim() !== '' && !Number.isNaN(parsed);
@@ -965,20 +961,18 @@ function GlobalPayoutScheduleCard() {
     const updateSchedule = useUpdateEquitySchedule();
     const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm';
 
-    const [form, setForm] = useState<EquityPayoutSchedule>({
+    // The stored schedule shows until the user edits it (draft).
+    const [draft, setForm] = useState<EquityPayoutSchedule | null>(null);
+    const form: EquityPayoutSchedule = draft ?? data?.schedule ?? {
         frequency: 'manual',
         schedule_day: 1,
         financial_year_end_month: 12,
         close_of_books_day: 0,
         payout_threshold: 0,
-    });
-
-    useEffect(() => {
-        if (data?.schedule) setForm(data.schedule);
-    }, [data?.schedule]);
+    };
 
     const set = <K extends keyof EquityPayoutSchedule>(key: K, value: EquityPayoutSchedule[K]) =>
-        setForm((f) => ({ ...f, [key]: value }));
+        setForm({ ...form, [key]: value });
 
     return (
         <Card className="border-none shadow-xl shadow-black/5 max-w-2xl">
