@@ -54,6 +54,7 @@ import {
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { PayHeroPlatformPanel } from '@/components/platform/payhero-platform-panel';
 import { toast } from 'sonner';
 
 const GATEWAY_TYPES = [
@@ -62,8 +63,9 @@ const GATEWAY_TYPES = [
   { value: 'mpesa_till', label: 'M-Pesa Till' },
   { value: 'cod', label: 'Cash on Delivery (COD)' },
   { value: 'bank_transfer', label: 'Bank Transfer (e.g. Equity Bank Uganda)' },
-  { value: 'mtn_momo', label: 'MTN Mobile Money' },
-  { value: 'airtel_money', label: 'Airtel Money' },
+  // PayHero: M-Pesa into tenants' own channels, and every cross-border rail (MTN, Airtel and
+  // other mobile money, card, bank deposit). The direct MTN and Airtel gateways were removed.
+  { value: 'payhero', label: 'PayHero (M-Pesa channels, MTN, Airtel, card, bank)' },
   { value: 'forex_provider', label: 'Forex Rate Provider (not a payment method)' },
 ] as const;
 
@@ -79,8 +81,8 @@ const CREDENTIAL_KEYS: Record<string, string[]> = {
   // No API credentials — the tenant's bank account is shown to payers via name/public_shortcode
   // (edited from the gateway detail, not this creation modal); confirmation is manual.
   bank_transfer: [],
-  mtn_momo: ['subscription_key', 'api_user', 'api_key', 'target_environment', 'base_url'],
-  airtel_money: ['client_id', 'client_secret', 'country', 'currency', 'base_url'],
+  // Base URLs are optional overrides of the PayHero 2.0.0 hosts.
+  payhero: ['api_username', 'api_password', 'api_base_url', 'auth_base_url', 'connect_base_url'],
   // forex_provider is a platform-only pseudo-gateway: it stores the exchangerate-api.com API key
   // via the SAME encrypted-credential storage as every payment gateway, so it shows up here
   // instead of needing a bespoke secret-management screen. It never appears in a tenant's payment
@@ -88,12 +90,11 @@ const CREDENTIAL_KEYS: Record<string, string[]> = {
   forex_provider: ['api_key'],
 };
 
+// Fee rules apply per payment gateway: the gateway list minus the forex pseudo-gateway (it was a
+// hand-kept copy that had drifted from GATEWAY_TYPES).
 const FEE_GATEWAY_OPTIONS = [
   { value: 'all', label: 'All Gateways' },
-  { value: 'paystack', label: 'Paystack' },
-  { value: 'mpesa_paybill', label: 'M-Pesa Paybill' },
-  { value: 'mpesa_till', label: 'M-Pesa Till' },
-  { value: 'cod', label: 'Cash on Delivery' },
+  ...GATEWAY_TYPES.filter((g) => g.value !== 'forex_provider'),
 ] as const;
 
 const FEE_TYPE_OPTIONS = [
@@ -106,7 +107,7 @@ function getGatewayIcon(gatewayType: string) {
   if (gatewayType === 'paystack') {
     return <CreditCard className="h-5 w-5 text-blue-600" />;
   }
-  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till' || gatewayType === 'mtn_momo' || gatewayType === 'airtel_money') {
+  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till' || gatewayType === 'payhero') {
     return <Smartphone className="h-5 w-5 text-green-600" />;
   }
   if (gatewayType === 'cod') {
@@ -123,7 +124,7 @@ function getGatewayIcon(gatewayType: string) {
 
 function getGatewayIconBg(gatewayType: string) {
   if (gatewayType === 'paystack') return 'bg-blue-100 dark:bg-blue-900/30';
-  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till' || gatewayType === 'mtn_momo' || gatewayType === 'airtel_money') return 'bg-green-100 dark:bg-green-900/30';
+  if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till' || gatewayType === 'payhero') return 'bg-green-100 dark:bg-green-900/30';
   if (gatewayType === 'cod') return 'bg-amber-100 dark:bg-amber-900/30';
   if (gatewayType === 'bank_transfer') return 'bg-indigo-100 dark:bg-indigo-900/30';
   if (gatewayType === 'forex_provider') return 'bg-teal-100 dark:bg-teal-900/30';
@@ -133,8 +134,7 @@ function getGatewayIconBg(gatewayType: string) {
 function getIntegrationTip(gatewayType: string) {
   if (gatewayType === 'paystack') return 'Configure these URLs in your Paystack dashboard';
   if (gatewayType === 'mpesa_paybill' || gatewayType === 'mpesa_till') return 'Configure these URLs in your Safaricom portal';
-  if (gatewayType === 'mtn_momo') return 'Configure these values from your MTN MoMo Developer Portal app';
-  if (gatewayType === 'airtel_money') return 'Configure these values from your Airtel Money OpenAPI dashboard';
+  if (gatewayType === 'payhero') return 'API username and password from the PayHero dashboard (API keys). Then set or detect the organization below; tenants set up their own Teams and channels';
   if (gatewayType === 'bank_transfer') return 'No credentials needed — set the account name/number as the gateway Name and public shortcode';
   if (gatewayType === 'forex_provider') return 'Get a free API key at exchangerate-api.com — used to auto-fetch live rates every 6h';
   return '';
@@ -671,7 +671,8 @@ export default function PlatformPage() {
               editMode
             />
           )}
-          
+
+          <PayHeroPlatformPanel />
         </div>
       )}
 
