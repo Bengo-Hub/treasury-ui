@@ -19,6 +19,23 @@ export interface PayHeroChannel {
   description: string;
   is_active: boolean;
   enabled: boolean;
+  /** The tenant's financial account this channel settles into (its ledger leaf takes the money). */
+  bank_account_id?: string;
+  account_matched_by?: 'auto' | 'manual';
+}
+
+export interface PayHeroWithdrawal {
+  reference: string;
+  amount: string;
+  currency: string;
+  channel_id?: number;
+  phone?: string;
+  destination: string;
+  status: 'processing' | 'completed' | 'failed' | 'awaiting_approval';
+  reason?: string;
+  failure?: string;
+  requested_at: string;
+  final_at?: string;
 }
 
 export interface PayHeroRouting {
@@ -65,6 +82,8 @@ export interface PayHeroStatus {
   };
   channels: PayHeroChannel[];
   routing: PayHeroRouting;
+  /** The financial account the Team wallet maps to. */
+  wallet_account_id?: string;
   /** The tenant's own record (name, email, phone, country), used to prefill the setup. */
   tenant_profile?: { name?: string; email?: string; phone?: string; country?: string };
   offline_paybill: boolean;
@@ -98,6 +117,17 @@ export const payheroApi = {
   setChannelEnabled: (tenant: string, id: number, enabled: boolean) =>
     apiClient.patch<PayHeroStatus>(`${tenantBase(tenant)}/channels/${id}`, { enabled }),
   setRouting: (tenant: string, routing: PayHeroRouting) => apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/routing`, routing),
+  /** Map a channel to one of the tenant's financial accounts ("" clears it). */
+  setChannelAccount: (tenant: string, id: number, bankAccountID: string) =>
+    apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/channels/${id}/account`, { bank_account_id: bankAccountID }),
+  /** Map the Team wallet to one of the tenant's financial accounts ("" clears it). */
+  setWalletAccount: (tenant: string, bankAccountID: string) =>
+    apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/wallet-account`, { bank_account_id: bankAccountID }),
+  /** Pay out of the Team wallet to one of the tenant's channels or a phone (approval policy applies). */
+  withdraw: (tenant: string, body: { amount: string; channel_id?: number; phone?: string; reason?: string }) =>
+    apiClient.post<PayHeroWithdrawal>(`${tenantBase(tenant)}/wallet/withdraw`, body),
+  withdrawals: (tenant: string) =>
+    apiClient.get<{ withdrawals: PayHeroWithdrawal[] }>(`${tenantBase(tenant)}/wallet/withdrawals`),
   /** Payment types this tenant can route: its products, its recent payments, already routed. */
   routingOptions: (tenant: string) =>
     apiClient.get<{ options: PayHeroRoutingOption[] }>(`${tenantBase(tenant)}/routing/options`),
