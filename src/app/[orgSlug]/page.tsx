@@ -20,6 +20,8 @@ import { PeriodCloseReminder } from '@/components/dashboard/PeriodCloseReminder'
 import { RangePicker, useRange, type RangeState } from '@/components/dashboard/RangePicker';
 import { Banknote, CheckCircle2, Activity, Users, Loader2 } from 'lucide-react';
 import { ExportMenu } from '@/components/documents/ExportMenu';
+import { useMe } from '@/hooks/useMe';
+import { AnnouncementBanner } from '@bengo-hub/shared-ui-lib/announcements';
 
 /**
  * Dashboard — a thin shell that composes self-contained, reusable analytics widgets (each owns
@@ -31,6 +33,10 @@ export default function DashboardPage() {
     useResolvedTenant();
   const range = useRange('30d');
   const { from, to } = range;
+  const { data: me } = useMe();
+  // Who can act on a setup announcement (turn a gateway on, change settings).
+  const isSettingsAdmin = !!me && (me.isSuperUser || me.isPlatformOwner ||
+    me.roles.some((r) => r === 'superuser' || r === 'admin' || r.endsWith('_admin')));
   // OutletFilter (header dropdown, HQ/admin only): selectedOutlet null = "All Outlets". Widgets
   // below get the outlet id so they scope to the chosen branch instead of always showing the
   // tenant-wide aggregate; the "Revenue by Outlet" breakdown only makes sense in the "All
@@ -74,6 +80,13 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {/* Platform "what's new" banners (PayHero and later updates); admin-only ones for admins. */}
+      <AnnouncementBanner
+        service="treasury"
+        orgSlug={orgSlug}
+        viewerKey={me?.id || me?.email}
+        isAdmin={isSettingsAdmin}
+      />
       <PeriodCloseReminder tenant={dashTenant} orgSlug={orgSlug} />
       <KpiCards tenant={dashTenant} from={from} to={to} outletId={outletId} />
       <FinancialPerformanceChart tenant={dashTenant} from={from} to={to} outletId={outletId} />
