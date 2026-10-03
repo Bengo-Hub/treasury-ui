@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import { CreditCard, Crown, Gauge, Layers, Loader2, Power, PowerOff, Save, Settings2, Smartphone, Wallet } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { MpesaSection } from './payments/mpesa-section';
@@ -45,7 +46,9 @@ export function PaymentsTab({ orgSlug, tenantSlug, maxPaymentAmount, onSaveMaxAm
   const hasPaystack = activeTypes.has('paystack');
   const hasMpesa = selected.some((g) => g.gateway_type?.startsWith('mpesa'));
   const { data: user } = useMe();
-  const [section, setSection] = useState('gateways');
+  // ?section= opens a section directly (the PayHero announcement links to ?tab=payments&section=payhero).
+  const searchParams = useSearchParams();
+  const [section, setSection] = useState(() => searchParams?.get('section') || 'gateways');
 
   // The section where an active gateway is configured (none for COD and complimentary).
   const setupSection = (type: string) =>
