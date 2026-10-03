@@ -1,12 +1,14 @@
 'use client';
 
 import { StatCard } from '@/components/charts/StatCard';
-import { Badge, Button } from '@/components/ui/base';
+import { Button } from '@/components/ui/base';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { SettingsSection } from '@/components/ui/settings-section';
 import { Input } from '@/components/ui/input';
 import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import { escrowApi } from '@/lib/api/escrow';
-import { payheroApi } from '@/lib/api/payhero';
+import { payheroApi, type PayHeroTeamRow } from '@/lib/api/payhero';
+import { buildEscrowColumns, buildTenantSetupColumns, hasPayHeroAccount, type EscrowTenantRow } from './payhero-platform-columns';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Landmark, Loader2, Pencil, Plus, RefreshCw, Save, ShieldCheck, Users, Wand2, X } from 'lucide-react';
@@ -15,11 +17,6 @@ import { toast } from 'sonner';
 
 const errMessage = (e: any, fallback: string) => e?.response?.data?.error || e?.response?.data?.message || e?.message || fallback;
 
-const MODE_LABEL: Record<string, string> = {
-  platform_team: 'Own Team',
-  platform_root: 'Platform account',
-  own_account: 'Own PayHero keys',
-};
 
 /**
  * Platform owner's PayHero view: the organization tenants' Teams live under, every tenant's setup
@@ -54,7 +51,9 @@ export function PayHeroPlatformPanel() {
   const [withBalances, setWithBalances] = useState(false);
   const teams = useQuery({ queryKey: ['payhero-teams', withBalances], queryFn: () => payheroApi.teams(withBalances), retry: false });
   const escrow = useQuery({ queryKey: ['escrow-overview'], queryFn: () => escrowApi.platformOverview(), retry: false });
-  const rows = teams.data?.teams ?? [];
+  const rows = useMemo(() => teams.data?.teams ?? [], [teams.data]);
+  const live = rows.filter(hasPayHeroAccount).length;
+  const pending = rows.filter((t) => !hasPayHeroAccount(t) && t.mode === 'platform_team').length;
   // Team actions for tenants that enabled PayHero (own Team) but have no Team on PayHero yet. Name,
   // email and phone default to the tenant's own record on the server.
   const teamsChanged = (msg: string) => { qc.invalidateQueries({ queryKey: ['payhero-teams'] }); toast.success(msg); };
@@ -69,6 +68,38 @@ export function PayHeroPlatformPanel() {
     onSuccess: () => teamsChanged('Team linked'),
     onError: (e: any) => toast.error(errMessage(e, 'Could not link the Team')),
   });
+
+  const teamActions = (t: PayHeroTeamRow) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button size="sm" className="gap-1.5" disabled={createTeam.isPending} onClick={() => createTeam.mutate(t.tenant_id)}>
+        {createTeam.isPending && createTeam.variables === t.tenant_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Create Team
+      </Button>
+      <Input
+        inputMode="numeric"
+        aria-label="Existing PayHero account id"
+        placeholder="or link account id"
+        className="h-8 w-40 text-xs"
+        value={linkIDs[t.tenant_id] ?? ''}
+        onChange={(e) => setLinkIDs({ ...linkIDs, [t.tenant_id]: e.target.value.replace(/\D/g, '') })}
+      />
+      {linkIDs[t.tenant_id] && (
+        <Button size="sm" variant="outline" disabled={linkTeam.isPending} onClick={() => linkTeam.mutate({ tenantID: t.tenant_id, accountID: Number(linkIDs[t.tenant_id]) })}>Link</Button>
+      )}
+    </div>
+  );
+  const setupColumns = buildTenantSetupColumns(tenantName, teamActions, withBalances);
+  const escrowColumns = useMemo(() => buildEscrowColumns(tenantName), [tenantName]);
+  // Every tenant that can hold escrow (its own Team or PayHero account), with zeros until it has
+  // pots, plus any tenant the overview reports.
+  const escrowRows = useMemo<EscrowTenantRow[]>(() => {
+    const byTenant = new Map((escrow.data?.tenants ?? []).map((r) => [r.totals.tenant_id, r]));
+    for (const t of rows) {
+      if (hasPayHeroAccount(t) && t.mode !== 'platform_root' && !byTenant.has(t.tenant_id)) {
+        byTenant.set(t.tenant_id, { totals: { tenant_id: t.tenant_id, pots: 0, open_pots: 0, held: '0', in_flight: '0', released_gross: '0', commission: '0' } });
+      }
+    }
+    return [...byTenant.values()];
+  }, [escrow.data, rows]);
 
   return (
     <div className="space-y-6">
@@ -123,68 +154,27 @@ export function PayHeroPlatformPanel() {
       <SettingsSection
         icon={<Users className="h-4 w-4" />}
         title="Tenant setups"
-        description="Every tenant using PayHero, how it is set up and its Team wallet."
+        description={`${live} live on PayHero${pending ? `, ${pending} waiting for a Team` : ''}. How each tenant is set up and its Team wallet.`}
         action={rows.length > 0 ? (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { setWithBalances(true); if (withBalances) teams.refetch(); }} disabled={teams.isFetching}>
             {teams.isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {withBalances ? 'Refresh balances' : 'Load wallet balances'}
           </Button>
         ) : undefined}
+        bodyClassName="p-0"
       >
-        {teams.isLoading ? (
-          <div className="space-y-2">{[0, 1].map((i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-muted" />)}</div>
-        ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No tenant has enabled PayHero yet. Tenants enable it under Settings, Payments, PayHero.</p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {rows.map((t) => (
-              <li key={t.tenant_id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-4">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{tenantName(t.tenant_id)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {t.team_name || (t.vendor_id ? `Team #${t.vendor_id}` : t.mode === 'platform_team' ? 'PayHero enabled here; no Team created on PayHero yet' : '')}
-                  </p>
-                  {t.mode === 'platform_team' && !t.vendor_id && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Button size="sm" className="gap-1.5" disabled={createTeam.isPending} onClick={() => createTeam.mutate(t.tenant_id)}>
-                        {createTeam.isPending && createTeam.variables === t.tenant_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Create Team
-                      </Button>
-                      <Input
-                        inputMode="numeric"
-                        aria-label="Existing PayHero account id"
-                        placeholder="or link account id"
-                        className="h-8 w-40 text-xs"
-                        value={linkIDs[t.tenant_id] ?? ''}
-                        onChange={(e) => setLinkIDs({ ...linkIDs, [t.tenant_id]: e.target.value.replace(/\D/g, '') })}
-                      />
-                      {linkIDs[t.tenant_id] && (
-                        <Button size="sm" variant="outline" disabled={linkTeam.isPending} onClick={() => linkTeam.mutate({ tenantID: t.tenant_id, accountID: Number(linkIDs[t.tenant_id]) })}>Link</Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{MODE_LABEL[t.mode] ?? t.mode}</Badge>
-                  <Badge variant="secondary">{t.channels} {t.channels === 1 ? 'channel' : 'channels'}</Badge>
-                  <Badge variant={t.enabled ? 'success' : 'secondary'}>{t.enabled ? 'On' : 'Off'}</Badge>
-                </div>
-                <div className="text-sm tabular-nums sm:w-48 sm:text-right">
-                  {t.balance !== undefined && t.balance !== ''
-                    ? (
-                      <div>
-                        <p className="font-semibold">{formatCurrency(Number(t.balance), t.currency || 'KES')}</p>
-                        <p className="text-xs text-muted-foreground">Service wallet {formatCurrency(Number(t.service_balance ?? 0), t.currency || 'KES')}</p>
-                      </div>
-                    )
-                    : t.balance_error ? <span className="text-xs text-destructive">{t.balance_error}</span>
-                      : <span className="text-xs text-muted-foreground">{withBalances ? 'No wallet' : 'Wallet not loaded'}</span>}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <DataTable
+          columns={setupColumns}
+          rows={rows}
+          rowKey={(t) => t.tenant_id}
+          loading={teams.isLoading}
+          loadingRows={3}
+          error={teams.isError}
+          storageKey="platform-payhero-tenant-setups"
+          emptyText="No tenant has enabled PayHero yet. Tenants enable it under Settings, Payments, PayHero."
+        />
       </SettingsSection>
 
-      <SettingsSection icon={<Landmark className="h-4 w-4" />} title="Escrow" description="Money held for beneficiaries across tenants, checked against each Team wallet hourly.">
+      <SettingsSection icon={<Landmark className="h-4 w-4" />} title="Escrow" description="Money held for beneficiaries, per tenant, checked against each Team wallet hourly.">
         {escrow.isError ? (
           <p className="text-sm text-muted-foreground">Escrow overview unavailable.</p>
         ) : (
@@ -194,21 +184,15 @@ export function PayHeroPlatformPanel() {
               <StatCard label="Released (gross)" value={formatCurrency(Number(escrow.data?.released_gross ?? 0), 'KES')} loading={escrow.isLoading} />
               <StatCard label="Tenant commission" value={formatCurrency(Number(escrow.data?.commission ?? 0), 'KES')} loading={escrow.isLoading} tone="success" />
             </div>
-            {(escrow.data?.tenants.length ?? 0) > 0 && (
-              <ul className="divide-y divide-border rounded-xl border border-border">
-                {escrow.data!.tenants.map(({ totals, reconciliation }) => (
-                  <li key={totals.tenant_id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
-                    <span className="min-w-0 flex-1 truncate font-medium">{tenantName(totals.tenant_id)}</span>
-                    <span className="text-muted-foreground">{totals.open_pots} open {totals.open_pots === 1 ? 'pot' : 'pots'}</span>
-                    <span className="tabular-nums font-semibold">{formatCurrency(Number(totals.held), 'KES')}</span>
-                    {!reconciliation ? null : reconciliation.shortfall
-                      ? <Badge variant="error">Short {String(reconciliation.surplus)}</Badge>
-                      : reconciliation.error ? <Badge variant="warning">Not checked</Badge>
-                        : <Badge variant="success">Matches wallet</Badge>}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <DataTable
+              columns={escrowColumns}
+              rows={escrowRows}
+              rowKey={(r) => r.totals.tenant_id}
+              loading={escrow.isLoading}
+              loadingRows={2}
+              storageKey="platform-payhero-escrow-tenants"
+              emptyText="No tenant can hold escrow yet: escrow needs a Team (or the tenant's own PayHero account)."
+            />
           </div>
         )}
       </SettingsSection>
