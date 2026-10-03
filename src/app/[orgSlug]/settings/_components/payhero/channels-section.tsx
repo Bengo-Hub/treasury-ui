@@ -4,6 +4,7 @@ import { Badge, Button } from '@/components/ui/base';
 import { Input, Select } from '@/components/ui/input';
 import { SettingsSection } from '@/components/ui/settings-section';
 import { payheroApi, type PayHeroChannel, type PayHeroRouting, type PayHeroStatus } from '@/lib/api/payhero';
+import { useBankAccounts } from '@/hooks/use-bank-accounts';
 import { useOutletFilterStore } from '@/store/outlet-filter';
 import { useQuery } from '@tanstack/react-query';
 import { Landmark, Loader2, Plus, RefreshCw, Route, Save, Smartphone, Store } from 'lucide-react';
@@ -24,14 +25,18 @@ export function ChannelsSection({ tenantSlug, st }: { tenantSlug: string; st: Pa
   const sync = usePayHeroMutation(tenantSlug, (_: void) => payheroApi.syncChannels(tenantSlug), 'Channels synced', 'Could not sync channels');
   const toggle = usePayHeroMutation(tenantSlug, (v: { id: number; enabled: boolean }) => payheroApi.setChannelEnabled(tenantSlug, v.id, v.enabled), 'Channel updated', 'Could not update the channel');
   const claim = usePayHeroMutation(tenantSlug, (id: number) => payheroApi.claimChannel(tenantSlug, id), 'Channel added', 'Could not add the channel');
+  const mapAccount = usePayHeroMutation(tenantSlug, (v: { id: number; account: string }) => payheroApi.setChannelAccount(tenantSlug, v.id, v.account), 'Account saved', 'Could not save the account');
   const [claimID, setClaimID] = useState('');
+  // The tenant's financial accounts a channel can settle into (cash drawers excluded).
+  const { data: accountsData } = useBankAccounts(tenantSlug);
+  const accounts = (accountsData?.bank_accounts ?? []).filter((a) => a.account_type !== 'cash');
 
   return (
     <div className="space-y-6">
       <SettingsSection
         icon={<Landmark className="h-4 w-4" />}
         title="Payment channels"
-        description="Paybills, tills and bank accounts added on the PayHero dashboard. Synced every 15 minutes."
+        description="Paybills, tills and bank accounts added on the PayHero dashboard, synced every 15 minutes. Each one settles into one of your accounts, so its balance and ledger follow the money."
         action={
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => sync.mutate()} disabled={sync.isPending}>
             {sync.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Sync now
@@ -45,7 +50,7 @@ export function ChannelsSection({ tenantSlug, st }: { tenantSlug: string; st: Pa
             {st.channels.map((c) => {
               const Icon = c.channel_type === 'bank' ? Landmark : Smartphone;
               return (
-                <li key={c.payhero_channel_id} className="flex items-center gap-3 rounded-xl border border-border p-3">
+                <li key={c.payhero_channel_id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon className="h-4 w-4" /></span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{c.description || c.channel_type}</p>
@@ -66,6 +71,22 @@ export function ChannelsSection({ tenantSlug, st }: { tenantSlug: string; st: Pa
                     >
                       <span className={`inline-block h-4 w-4 rounded-full bg-background shadow transition-transform ${c.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
+                  </label>
+                  <label className="flex w-full items-center gap-2 border-t border-border pt-2 text-xs">
+                    <span className="shrink-0 text-muted-foreground">Settles to</span>
+                    <Select
+                      value={c.bank_account_id ?? ''}
+                      disabled={mapAccount.isPending}
+                      onChange={(e) => mapAccount.mutate({ id: c.payhero_channel_id, account: e.target.value })}
+                      className="h-8 min-w-0 flex-1 text-xs"
+                      aria-label={`Account ${channelName(c)} settles to`}
+                    >
+                      <option value="">Not mapped (method default)</option>
+                      {accounts.map((a) => (
+                        <option key={a.id} value={a.id}>{[a.account_name, a.bank_name, a.account_number].filter(Boolean).join(' / ')}</option>
+                      ))}
+                    </Select>
+                    {c.bank_account_id && <Badge variant={c.account_matched_by === 'auto' ? 'outline' : 'secondary'}>{c.account_matched_by === 'auto' ? 'Matched' : 'Chosen'}</Badge>}
                   </label>
                 </li>
               );

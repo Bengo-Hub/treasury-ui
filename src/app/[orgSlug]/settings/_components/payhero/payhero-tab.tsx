@@ -12,6 +12,7 @@ import { LinksSection } from './links-section';
 import { SetupSection } from './setup-section';
 import { modeLabel, usePayHeroStatus } from './use-payhero';
 import { VerificationSection } from './verification-section';
+import { WalletSection } from './wallet-section';
 
 /**
  * A tenant's PayHero: a summary (mode, channels, wallets), then sections for the account, channels
@@ -56,6 +57,9 @@ export function PayHeroTab({ tenantSlug }: { tenantSlug: string }) {
           <CapsuleTabsTrigger value="setup"><Settings2 className="h-4 w-4" /> Account</CapsuleTabsTrigger>
           <CapsuleTabsTrigger value="channels" disabled={!canRoute}><Route className="h-4 w-4" /> Channels and routing</CapsuleTabsTrigger>
           <CapsuleTabsTrigger value="links"><Link2 className="h-4 w-4" /> Payment links</CapsuleTabsTrigger>
+          {hasAccount && st.mode !== 'platform_root' && (
+            <CapsuleTabsTrigger value="wallet"><Wallet className="h-4 w-4" /> Wallet</CapsuleTabsTrigger>
+          )}
           {st.mode === 'platform_team' && hasAccount && (
             <CapsuleTabsTrigger value="verification"><ShieldCheck className="h-4 w-4" /> Verification</CapsuleTabsTrigger>
           )}
@@ -63,6 +67,7 @@ export function PayHeroTab({ tenantSlug }: { tenantSlug: string }) {
         <CapsuleTabsContent value="setup" className="mt-4"><SetupSection tenantSlug={tenantSlug} st={st} /></CapsuleTabsContent>
         <CapsuleTabsContent value="channels" className="mt-4"><ChannelsSection tenantSlug={tenantSlug} st={st} /></CapsuleTabsContent>
         <CapsuleTabsContent value="links" className="mt-4"><LinksSection tenantSlug={tenantSlug} links={st.payment_links} /></CapsuleTabsContent>
+        <CapsuleTabsContent value="wallet" className="mt-4"><WalletSection tenantSlug={tenantSlug} st={st} /></CapsuleTabsContent>
         <CapsuleTabsContent value="verification" className="mt-4"><VerificationSection tenantSlug={tenantSlug} st={st} /></CapsuleTabsContent>
       </CapsuleTabs>
     </div>

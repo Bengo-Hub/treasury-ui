@@ -3,6 +3,7 @@
 import { Badge, Button } from '@/components/ui/base';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
+import { CountrySelect } from '@bengo-hub/shared-ui-lib/contact';
 import { SettingsSection } from '@/components/ui/settings-section';
 import { payheroApi, type EnablePayHeroRequest, type PayHeroMode, type PayHeroStatus } from '@/lib/api/payhero';
 import { cn } from '@/lib/utils';
@@ -64,11 +65,14 @@ export function SetupSection({ tenantSlug, st }: { tenantSlug: string; st?: PayH
           </fieldset>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="space-y-1">
+            <div className="space-y-1">
               <span className="text-xs font-medium">Country</span>
-              <Input value={form.country ?? ''} maxLength={2} onChange={(e) => setForm({ ...form, country: e.target.value.toUpperCase() })} placeholder="KE" />
-              <span className="block text-[11px] text-muted-foreground">Two-letter code; picks the mobile money networks.</span>
-            </label>
+              <CountrySelect value={form.country ?? ''} onChange={(code) => setForm({ ...form, country: code })} />
+              <span className="block text-[11px] text-muted-foreground">
+                Used when a payment&apos;s currency does not name a country (KES is Kenya, UGX Uganda). Picks the networks, dial code and the currency
+                payments are charged in; other currencies are converted at your stored exchange rate.
+              </span>
+            </div>
             {form.mode === 'own_account' && (
               <>
                 <label className="space-y-1">
@@ -87,7 +91,10 @@ export function SetupSection({ tenantSlug, st }: { tenantSlug: string; st?: PayH
             <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={!!form.offline_paybill} onChange={(e) => setForm({ ...form, offline_paybill: e.target.checked })} />
             <span>
               <span className="block text-sm font-medium">Offer the offline paybill</span>
-              <span className="block text-xs text-muted-foreground">Payers who cannot take a phone prompt pay to a paybill with a reference instead.</span>
+              <span className="block text-xs text-muted-foreground">
+                For payers who cannot take a phone prompt: the pay page shows PayHero&apos;s paybill and a one-time account number, the payer pays from the
+                M-Pesa menu, and the payment settles when PayHero confirms it.
+              </span>
             </span>
           </label>
 
