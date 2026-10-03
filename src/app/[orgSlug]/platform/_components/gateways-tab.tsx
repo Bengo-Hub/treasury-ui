@@ -4,6 +4,7 @@ import { StatCard } from '@/components/charts/StatCard';
 import { Button, Card, CardContent } from '@/components/ui/base';
 import { CapsuleTabs, CapsuleTabsContent, CapsuleTabsList, CapsuleTabsTrigger } from '@/components/ui/capsule-tabs';
 import { PayHeroPlatformPanel } from '@/components/platform/payhero-platform-panel';
+import { hasPayHeroAccount } from '@/components/platform/payhero-platform-columns';
 import {
   useCreatePlatformGateway,
   usePlatformGateways,
@@ -41,6 +42,11 @@ export function GatewaysTab() {
   const phSettings = useQuery({ queryKey: ['payhero-platform-settings'], queryFn: () => payheroApi.platformSettings(), enabled: hasPayHero, retry: false });
   const phTeams = useQuery({ queryKey: ['payhero-teams', false], queryFn: () => payheroApi.teams(false), enabled: hasPayHero, retry: false });
 
+  // Live = a working PayHero account (Team, root or own keys); a tenant that switched PayHero on
+  // without a Team yet is counted apart.
+  const phRows = phTeams.data?.teams ?? [];
+  const phLive = phRows.filter(hasPayHeroAccount).length;
+  const phPending = phRows.filter((t) => !hasPayHeroAccount(t) && t.mode === 'platform_team').length;
   const test = useTestPlatformGateway();
   const create = useCreatePlatformGateway();
   const update = useUpdatePlatformGateway();
@@ -182,7 +188,14 @@ export function GatewaysTab() {
           icon={<Building2 className="h-4 w-4" />}
           tone={phSettings.data?.organization_id ? 'success' : 'warning'}
         />
-        <StatCard label="Tenants on PayHero" value={phTeams.data?.teams.length ?? 0} loading={hasPayHero && phTeams.isLoading} icon={<Wallet className="h-4 w-4" />} />
+        <StatCard
+          label="Tenants live on PayHero"
+          value={phLive}
+          hint={phPending ? `${phPending} waiting for a Team` : undefined}
+          loading={hasPayHero && phTeams.isLoading}
+          icon={<Wallet className="h-4 w-4" />}
+          tone={phPending ? 'warning' : 'default'}
+        />
       </div>
 
       <CapsuleTabs value={section} onValueChange={setSection}>
