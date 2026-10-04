@@ -59,6 +59,7 @@ const SCOPE_OPTIONS: { value: PlatformInvoiceScope; label: string }[] = [
   { value: 'all',      label: 'All invoices' },
   { value: 'platform', label: 'Platform (subscription) only' },
   { value: 'business', label: 'Tenant sales only' },
+  { value: 'personal', label: 'Personal (off the company books)' },
 ];
 
 export default function InvoicesPage() {

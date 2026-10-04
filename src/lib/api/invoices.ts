@@ -750,7 +750,8 @@ export function getInvoiceStats(tenant: string, types?: string): Promise<Invoice
 // invoices) without selecting a tenant. `scope` narrows to platform-level or business
 // invoices; `tenant_ids` narrows to specific tenants.
 
-export type PlatformInvoiceScope = 'all' | 'platform' | 'business';
+/** personal: the platform owner's own off-books collections, outside every business figure. */
+export type PlatformInvoiceScope = 'all' | 'platform' | 'business' | 'personal';
 
 export interface PlatformInvoiceFilters extends InvoiceFilters {
   scope?: PlatformInvoiceScope;
