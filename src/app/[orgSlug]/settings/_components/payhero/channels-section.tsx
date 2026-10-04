@@ -9,6 +9,7 @@ import { useOutletFilterStore } from '@/store/outlet-filter';
 import { useQuery } from '@tanstack/react-query';
 import { Landmark, Loader2, Plus, RefreshCw, Route, Save, Smartphone, Store } from 'lucide-react';
 import { useState } from 'react';
+import { PersonalChannelControl } from './personal-channel';
 import { usePayHeroMutation } from './use-payhero';
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -72,22 +73,25 @@ export function ChannelsSection({ tenantSlug, st }: { tenantSlug: string; st: Pa
                       <span className={`inline-block h-4 w-4 rounded-full bg-background shadow transition-transform ${c.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </label>
-                  <label className="flex w-full items-center gap-2 border-t border-border pt-2 text-xs">
-                    <span className="shrink-0 text-muted-foreground">Settles to</span>
-                    <Select
-                      value={c.bank_account_id ?? ''}
-                      disabled={mapAccount.isPending}
-                      onChange={(e) => mapAccount.mutate({ id: c.payhero_channel_id, account: e.target.value })}
-                      className="h-8 min-w-0 flex-1 text-xs"
-                      aria-label={`Account ${channelName(c)} settles to`}
-                    >
-                      <option value="">Not mapped (method default)</option>
-                      {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>{[a.account_name, a.bank_name, a.account_number].filter(Boolean).join(' / ')}</option>
-                      ))}
-                    </Select>
-                    {c.bank_account_id && <Badge variant={c.account_matched_by === 'auto' ? 'outline' : 'secondary'}>{c.account_matched_by === 'auto' ? 'Matched' : 'Chosen'}</Badge>}
-                  </label>
+                  {!c.personal && (
+                    <label className="flex w-full items-center gap-2 border-t border-border pt-2 text-xs">
+                      <span className="shrink-0 text-muted-foreground">Settles to</span>
+                      <Select
+                        value={c.bank_account_id ?? ''}
+                        disabled={mapAccount.isPending}
+                        onChange={(e) => mapAccount.mutate({ id: c.payhero_channel_id, account: e.target.value })}
+                        className="h-8 min-w-0 flex-1 text-xs"
+                        aria-label={`Account ${channelName(c)} settles to`}
+                      >
+                        <option value="">Not mapped (method default)</option>
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>{[a.account_name, a.bank_name, a.account_number].filter(Boolean).join(' / ')}</option>
+                        ))}
+                      </Select>
+                      {c.bank_account_id && <Badge variant={c.account_matched_by === 'auto' ? 'outline' : 'secondary'}>{c.account_matched_by === 'auto' ? 'Matched' : 'Chosen'}</Badge>}
+                    </label>
+                  )}
+                  {st.is_platform && <PersonalChannelControl tenantSlug={tenantSlug} channel={c} />}
                 </li>
               );
             })}
@@ -118,7 +122,9 @@ function RoutingSection({ tenantSlug, st }: { tenantSlug: string; st: PayHeroSta
   const outlets = useOutletFilterStore((s) => s.outlets);
   const [draft, setRoute] = useState<PayHeroRouting | null>(null);
   const route = draft ?? st.routing ?? { default_channel_id: 0 };
-  const usable = st.channels.filter((c) => c.is_active && c.enabled);
+  // Business routes never name a personal channel; personal collections go only to one.
+  const usable = st.channels.filter((c) => c.is_active && c.enabled && !c.personal);
+  const personal = st.channels.filter((c) => c.is_active && c.enabled && c.personal);
   const types = options.data?.options ?? [];
 
   const channelSelect = (id: string, value: number | undefined, onChange: (v: number) => void, allowDefault: boolean) => (
@@ -165,6 +171,19 @@ function RoutingSection({ tenantSlug, st }: { tenantSlug: string; st: PayHeroSta
           <label htmlFor="route-default" className="text-sm font-semibold">Default channel</label>
           {channelSelect('route-default', route.default_channel_id, (v) => setRoute({ ...route, default_channel_id: v }), false)}
         </div>
+
+        {st.is_platform && personal.length > 0 && (
+          <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <label htmlFor="route-personal" className="text-sm font-semibold">Personal collections</label>
+              <p className="text-xs text-muted-foreground">Support agreements set to Personal are paid here, off the company books.</p>
+            </div>
+            <Select id="route-personal" value={route.personal_channel_id ?? 0} onChange={(e) => setRoute({ ...route, personal_channel_id: Number(e.target.value) || undefined })} className="w-full sm:w-72">
+              <option value={0}>Choose a personal channel</option>
+              {personal.map((c) => <option key={c.payhero_channel_id} value={c.payhero_channel_id}>{channelName(c)}</option>)}
+            </Select>
+          </div>
+        )}
 
         <div className="space-y-2">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">By payment type</h4>

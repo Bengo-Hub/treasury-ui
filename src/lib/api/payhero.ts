@@ -22,6 +22,10 @@ export interface PayHeroChannel {
   /** The tenant's financial account this channel settles into (its ledger leaf takes the money). */
   bank_account_id?: string;
   account_matched_by?: 'auto' | 'manual';
+  /** The owner's own account (platform tenant only): takes personal collections, never business money. */
+  personal?: boolean;
+  /** Printed as "Payable to" on the personal invoices this channel collects. */
+  payee_name?: string;
 }
 
 export interface PayHeroWithdrawal {
@@ -42,6 +46,8 @@ export interface PayHeroRouting {
   default_channel_id: number;
   by_reference_type?: Record<string, number>;
   by_outlet?: Record<string, number>;
+  /** The personal channel off-books payments (personal support agreements) settle into. */
+  personal_channel_id?: number;
 }
 
 export interface PayHeroRoutingOption {
@@ -86,6 +92,8 @@ export interface PayHeroStatus {
   wallet_account_id?: string;
   /** The tenant's own record (name, email, phone, country), used to prefill the setup. */
   tenant_profile?: { name?: string; email?: string; phone?: string; country?: string };
+  /** The platform tenant: the only one that can have personal channels. */
+  is_platform?: boolean;
   offline_paybill: boolean;
   payment_links: PayHeroPaymentLink[];
   channels_synced_at?: string;
@@ -117,6 +125,9 @@ export const payheroApi = {
   setChannelEnabled: (tenant: string, id: number, enabled: boolean) =>
     apiClient.patch<PayHeroStatus>(`${tenantBase(tenant)}/channels/${id}`, { enabled }),
   setRouting: (tenant: string, routing: PayHeroRouting) => apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/routing`, routing),
+  /** Mark a channel as the owner's personal account (platform tenant only), or back to business. */
+  setChannelPersonal: (tenant: string, id: number, personal: boolean, payeeName: string) =>
+    apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/channels/${id}/personal`, { personal, payee_name: payeeName }),
   /** Map a channel to one of the tenant's financial accounts ("" clears it). */
   setChannelAccount: (tenant: string, id: number, bankAccountID: string) =>
     apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/channels/${id}/account`, { bank_account_id: bankAccountID }),
