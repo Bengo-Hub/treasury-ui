@@ -1,6 +1,8 @@
 'use client';
 
 import { StatCard } from '@/components/charts/StatCard';
+import { UpgradePrompt } from '@/components/ui/upgrade-prompt';
+import { useSubscription } from '@/hooks/use-subscription';
 import { CapsuleTabs, CapsuleTabsContent, CapsuleTabsList, CapsuleTabsTrigger } from '@/components/ui/capsule-tabs';
 import { payheroApi } from '@/lib/api/payhero';
 import { formatCurrency } from '@/lib/utils/currency';
@@ -21,6 +23,8 @@ import { WalletSection } from './wallet-section';
  */
 export function PayHeroTab({ tenantSlug }: { tenantSlug: string }) {
   const { data: st, isLoading } = usePayHeroStatus(tenantSlug);
+  // PayHero comes with the plan's M-Pesa integration (from tier 2), like direct Daraja.
+  const { hasFeature, isLoading: subLoading } = useSubscription();
   const [section, setSection] = useState('setup');
   const hasAccount = (st?.vendor_id ?? 0) > 0;
   const balance = useQuery({
@@ -32,6 +36,14 @@ export function PayHeroTab({ tenantSlug }: { tenantSlug: string }) {
 
   if (isLoading) {
     return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />)}</div>;
+  }
+  if (!st?.is_platform && !subLoading && !hasFeature('mpesa_integration')) {
+    return (
+      <UpgradePrompt
+        title="PayHero payments require a Growth plan or above"
+        description="Take M-Pesa and other mobile money payments straight into your own paybill or till through PayHero, with channel routing and payment links."
+      />
+    );
   }
   if (!st?.enabled) {
     return <SetupSection tenantSlug={tenantSlug} st={st} />;

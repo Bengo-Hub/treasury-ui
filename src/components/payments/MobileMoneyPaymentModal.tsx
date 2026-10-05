@@ -1,5 +1,6 @@
 'use client';
 
+import { PayHeroFeeNotice } from './PayHeroFeeNotice';
 import { Button } from '@/components/ui/base';
 import { sendToParent } from '@/lib/embed-messages';
 import { CheckCircle2, Loader2, Phone, XCircle } from 'lucide-react';
@@ -229,6 +230,7 @@ export function MobileMoneyPaymentModal({
             <span className="text-muted-foreground">Amount</span>
             <span className="font-semibold">{formatAmount()}</span>
           </div>
+          <PayHeroFeeNotice details={details} />
           {(details.invoice_number || details.reference_id) && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Reference</span>

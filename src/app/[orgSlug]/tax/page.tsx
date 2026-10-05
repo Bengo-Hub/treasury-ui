@@ -63,35 +63,18 @@ import {
   Shield,
   ShieldCheck,
   Tag,
-  Zap,
 } from 'lucide-react';
 import Link from 'next/link';
+import { UpgradePrompt } from '@/components/ui/upgrade-prompt';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-const SUBSCRIBE_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexafrica.com';
-
 function EtimsUpgradePrompt() {
   return (
-    <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center">
-      <div className="flex size-14 items-center justify-center rounded-full bg-primary/10">
-        <Lock className="size-6 text-primary" />
-      </div>
-      <div className="space-y-1.5 max-w-sm">
-        <p className="font-semibold text-foreground">KRA eTIMS Integration requires a Growth plan or above</p>
-        <p className="text-sm text-muted-foreground">
-          Automatically transmit POS sales and invoices to the Kenya Revenue Authority via eTIMS. Manage your OSCU
-          devices and view real-time transmission status.
-        </p>
-      </div>
-      <Link
-        href={`${SUBSCRIBE_URL}/plans?service=complete`}
-        className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-      >
-        <Zap className="size-4" />
-        Upgrade to Growth
-      </Link>
-    </div>
+    <UpgradePrompt
+      title="KRA eTIMS Integration requires a Growth plan or above"
+      description="Automatically transmit POS sales and invoices to the Kenya Revenue Authority via eTIMS. Manage your OSCU devices and view real-time transmission status."
+    />
   );
 }
 
