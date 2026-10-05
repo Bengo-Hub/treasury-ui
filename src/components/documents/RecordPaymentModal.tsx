@@ -25,6 +25,7 @@ export interface PayableInvoice {
   /** Server-computed balance (payments AND credit notes netted). */
   amount_due?: string;
   settlement_account_id?: string;
+  invoice_type?: string;
 }
 
 interface Props {
@@ -94,7 +95,7 @@ export function RecordPaymentModal({ tenant, invoice, choices, onClose }: Props)
   // A gateway pays out where the gateway settles (Paystack into its own bank account), whatever
   // account the invoice asked the customer to pay; so for those the method's account wins.
   // For the rest (cash, a transfer to the account on the invoice) the invoice's account wins.
-  const methodDefault = resolveDefaultAccount(accounts, method)?.id;
+  const methodDefault = resolveDefaultAccount(accounts, method, null, target?.invoice_type)?.id;
   const accountId = pickedAccount
     || (GATEWAY_SETTLED_METHODS.has(method) ? methodDefault || target?.settlement_account_id : target?.settlement_account_id || methodDefault)
     || '';
