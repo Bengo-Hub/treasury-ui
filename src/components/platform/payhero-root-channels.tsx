@@ -4,6 +4,7 @@ import { Badge, Button } from '@/components/ui/base';
 import { Select } from '@/components/ui/input';
 import { SettingsSection } from '@/components/ui/settings-section';
 import { payheroApi, type PayHeroTeamRow } from '@/lib/api/payhero';
+import { useAuthStore } from '@/store/auth';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link2, Loader2, Unlink } from 'lucide-react';
 import { useState } from 'react';
@@ -20,7 +21,10 @@ const errMessage = (e: any, fallback: string) => e?.response?.data?.error || e?.
 export function PayHeroRootChannels({ tenants, tenantName }: { tenants: PayHeroTeamRow[]; tenantName: (id: string) => string }) {
   const qc = useQueryClient();
   const channels = useQuery({ queryKey: ['payhero-root-channels'], queryFn: () => payheroApi.rootChannels(), retry: false });
-  const shared = tenants.filter((t) => t.mode === 'platform_root');
+  // The platform owner works from the platform tenant: it owns unassigned channels, so it is never
+  // offered as an assignee (it is on the shared account too).
+  const platformTenantId = useAuthStore((st) => st.user?.tenantId);
+  const shared = tenants.filter((t) => t.mode === 'platform_root' && t.tenant_id !== platformTenantId);
   const [pick, setPick] = useState<Record<number, string>>({});
   const changed = (msg: string) => {
     qc.invalidateQueries({ queryKey: ['payhero-root-channels'] });
@@ -37,7 +41,8 @@ export function PayHeroRootChannels({ tenants, tenantName }: { tenants: PayHeroT
     onSuccess: () => changed('Channel returned to the platform'),
     onError: (e: any) => toast.error(errMessage(e, 'Could not unassign the channel')),
   });
-  const list = channels.data?.channels ?? [];
+  // Channels PayHero has deactivated take no payments and cannot be assigned: not listed.
+  const list = (channels.data?.channels ?? []).filter((c) => c.is_active);
 
   return (
     <SettingsSection
@@ -50,7 +55,7 @@ export function PayHeroRootChannels({ tenants, tenantName }: { tenants: PayHeroT
       ) : channels.isError ? (
         <p className="text-sm text-muted-foreground">Root account channels unavailable: set the organization and root account above first.</p>
       ) : list.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No channels on the root account yet. Add paybills or tills on the PayHero dashboard.</p>
+        <p className="text-sm text-muted-foreground">No active channels on the root account. Add paybills or tills on the PayHero dashboard.</p>
       ) : (
         <ul className="divide-y divide-border rounded-xl border border-border">
           {list.map((c) => (
@@ -60,11 +65,11 @@ export function PayHeroRootChannels({ tenants, tenantName }: { tenants: PayHeroT
                 <p className="truncate text-xs text-muted-foreground">
                   <span className="capitalize">{c.channel_type}</span> {c.short_code}
                   {c.account_number && c.account_number !== c.short_code ? ` / ${c.account_number}` : ''} · #{c.id}
-                  {!c.is_active && ' · inactive on PayHero'}
                 </p>
               </div>
               {c.owner_tenant_id ? (
                 <div className="flex items-center gap-2">
+                  <Badge variant="success">Active</Badge>
                   <Badge variant="secondary">{tenantName(c.owner_tenant_id)}</Badge>
                   <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" disabled={unassign.isPending} onClick={() => unassign.mutate(c.id)}>
                     <Unlink className="h-3.5 w-3.5" /> Unassign
@@ -72,7 +77,10 @@ export function PayHeroRootChannels({ tenants, tenantName }: { tenants: PayHeroT
                 </div>
               ) : (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Badge variant="outline" className="w-fit">Platform</Badge>
+                  <div className="flex gap-2">
+                    <Badge variant="success">Active</Badge>
+                    <Badge variant="outline">Platform</Badge>
+                  </div>
                   {shared.length > 0 && (
                     <>
                       <Select aria-label={`Assign channel ${c.id}`} value={pick[c.id] ?? ''} onChange={(e) => setPick({ ...pick, [c.id]: e.target.value })} className="h-8 w-full text-xs sm:w-56">
