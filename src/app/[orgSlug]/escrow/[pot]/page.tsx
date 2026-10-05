@@ -4,8 +4,9 @@ import { Badge, Button, Card, CardContent } from '@/components/ui/base';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { escrowApi } from '@/lib/api/escrow';
+import { downloadBlob } from '@/lib/utils/download-blob';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Copy, Loader2, Pencil, Send, XCircle } from 'lucide-react';
+import { ArrowLeft, Copy, Download, Loader2, Pencil, Send, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
@@ -26,6 +27,11 @@ export default function PotPage() {
   const key = ['escrow-pot', tenant, potCode];
   const { data: pot, isLoading } = useQuery({ queryKey: key, queryFn: () => escrowApi.getPot(tenant, potCode), enabled: !!tenant && !!potCode });
   const statement = useQuery({ queryKey: [...key, 'statement'], queryFn: () => escrowApi.statement(tenant, potCode), enabled: !!pot });
+  const statementPdf = useMutation({
+    mutationFn: () => escrowApi.statementDocument(tenant, potCode, 'pdf'),
+    onSuccess: ({ blob, fileName }) => downloadBlob(blob, fileName),
+    onError: (e) => toast.error(errMessage(e, 'Could not build the statement')),
+  });
   const [editing, setEditing] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -127,7 +133,18 @@ export default function PotPage() {
       )}
 
       <Card><CardContent className="p-6 space-y-3">
-        <h3 className="font-bold text-sm uppercase tracking-tight">Statement</h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-bold text-sm uppercase tracking-tight">Statement</h3>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            disabled={statementPdf.isPending || !statement.data?.entries.length}
+            onClick={() => statementPdf.mutate()}
+          >
+            {statementPdf.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} PDF
+          </Button>
+        </div>
         {statement.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : !statement.data?.entries.length ? (
           <p className="text-sm text-muted-foreground">No movements yet. Share the pot link to start collecting.</p>
         ) : (
