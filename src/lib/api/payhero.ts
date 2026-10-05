@@ -94,6 +94,8 @@ export interface PayHeroStatus {
   tenant_profile?: { name?: string; email?: string; phone?: string; country?: string };
   /** The platform tenant: the only one that can have personal channels. */
   is_platform?: boolean;
+  /** Who pays PayHero's fee on this tenant's payments. */
+  fee_bearer?: PayHeroFeeBearer;
   offline_paybill: boolean;
   payment_links: PayHeroPaymentLink[];
   channels_synced_at?: string;
@@ -108,6 +110,8 @@ export interface EnablePayHeroRequest {
   api_username?: string;
   api_password?: string;
   offline_paybill?: boolean;
+  /** Who pays PayHero's fee: the customer on top of the amount (default) or the business. */
+  fee_bearer?: PayHeroFeeBearer;
 }
 
 /**
@@ -163,7 +167,7 @@ export const payheroApi = {
   // Platform owner.
   platformSettings: () =>
     apiClient.get<PayHeroPlatformSettings>(`${BASE}/platform/gateways/payhero/settings`),
-  setPlatformSettings: (body: { organization_id: number; root_account_id: number; fee_bearer?: PayHeroFeeBearer }) =>
+  setPlatformSettings: (body: { organization_id: number; root_account_id: number }) =>
     apiClient.put<PayHeroPlatformSettings>(`${BASE}/platform/gateways/payhero/settings`, body),
   detectPlatformSettings: () =>
     apiClient.post<{ organization_id: number; root_account_id: number }>(`${BASE}/platform/gateways/payhero/settings/detect`),
@@ -173,6 +177,10 @@ export const payheroApi = {
   /** Platform owner: link an existing Team to a tenant. */
   platformLinkTeam: (tenantID: string, accountID: number) =>
     apiClient.post<PayHeroStatus>(`${BASE}/platform/gateways/payhero/teams/${tenantID}/link`, { account_id: accountID }),
+  /** Platform owner: PayHero's fee schedule as mirrored in treasury. */
+  tariff: () => apiClient.get<{ bands: PayHeroTariffBand[] }>(`${BASE}/platform/gateways/payhero/tariff`),
+  /** Platform owner: mirror PayHero's published fee schedule now (it also syncs daily). */
+  syncTariff: () => apiClient.post<{ bands: PayHeroTariffBand[]; skipped: number; synced_at: string }>(`${BASE}/platform/gateways/payhero/tariff/sync`, undefined, PAYHERO_CALL),
   /** Platform owner: every channel on the shared root account and the tenant it is assigned to. */
   rootChannels: () =>
     apiClient.get<{ channels: PayHeroRootChannel[] }>(`${BASE}/platform/gateways/payhero/channels`),
@@ -193,8 +201,15 @@ export type PayHeroFeeBearer = 'payer' | 'merchant';
 export interface PayHeroPlatformSettings {
   organization_id: number;
   root_account_id: number;
-  /** Who bears PayHero's cost on tenants' collections: payer adds it to the prompt. */
-  fee_bearer: PayHeroFeeBearer;
+  /** When PayHero's published fee schedule was last mirrored. */
+  tariff_synced_at?: string;
+}
+
+/** A PayHero fee band (KES): a flat fee for amounts from amount_from up (amount_to 0 = no upper limit). */
+export interface PayHeroTariffBand {
+  amount_from: string;
+  amount_to: string;
+  price: string;
 }
 
 export interface PayHeroRootChannel {

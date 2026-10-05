@@ -18,7 +18,7 @@ export function SetupSection({ tenantSlug, st }: { tenantSlug: string; st?: PayH
   const qc = useQueryClient();
   // Stored setup until edited (draft), then the draft.
   const [draft, setForm] = useState<EnablePayHeroRequest | null>(null);
-  const form: EnablePayHeroRequest = draft ?? { mode: st?.mode ?? 'platform_team', country: st?.country || st?.tenant_profile?.country || 'KE', offline_paybill: st?.offline_paybill };
+  const form: EnablePayHeroRequest = draft ?? { mode: st?.mode ?? 'platform_team', country: st?.country || st?.tenant_profile?.country || 'KE', offline_paybill: st?.offline_paybill, fee_bearer: st?.fee_bearer ?? 'payer' };
   const enable = usePayHeroMutation(tenantSlug, (b: EnablePayHeroRequest) => payheroApi.enable(tenantSlug, b).then((s) => { setForm(null); return s; }), 'PayHero saved', 'Could not save PayHero');
   const [confirmDisable, setConfirmDisable] = useState(false);
   const disable = useMutation({
@@ -97,6 +97,26 @@ export function SetupSection({ tenantSlug, st }: { tenantSlug: string; st?: PayH
               </span>
             </span>
           </label>
+
+          <fieldset className="space-y-2 rounded-xl border border-border p-3">
+            <legend className="px-1 text-sm font-medium">PayHero fee on each payment</legend>
+            {(['payer', 'merchant'] as const).map((b) => (
+              <label key={b} className="flex cursor-pointer items-start gap-3">
+                <input type="radio" name="payhero-fee-bearer" className="mt-0.5 h-4 w-4 accent-primary" checked={(form.fee_bearer ?? 'payer') === b} onChange={() => setForm({ ...form, fee_bearer: b })} />
+                <span>
+                  <span className="block text-sm font-medium">{b === 'payer' ? 'Your customer pays it' : 'Your business pays it'}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {b === 'payer'
+                      ? 'The fee is added to the amount on the M-Pesa prompt and shown on the payment page first.'
+                      : 'Customers are prompted for the amount only; the fee is your cost.'}
+                  </span>
+                </span>
+              </label>
+            ))}
+            {form.mode === 'platform_root' && (
+              <p className="text-xs text-muted-foreground">On the shared platform account, PayHero charges its fee to the platform, which bills you the month&apos;s fees once a month.</p>
+            )}
+          </fieldset>
 
           <div className="flex flex-wrap gap-2">
             <Button className="gap-1.5" onClick={() => enable.mutate(form)} disabled={enable.isPending}>
