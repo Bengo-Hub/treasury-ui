@@ -64,7 +64,7 @@ Treasury UI is the central financial portal. It integrates with:
 | `useInvoices` | `GET /api/v1/{tenant}/invoices` | Invoice list/CRUD |
 | `useTax` | `GET /api/v1/{tenant}/tax/codes` | Tax codes |
 | `useVerifyTenantPayoutConfig` | `POST /api/v1/platform/payout-configs/{tenantID}/verify` | Verify a tenant's payout destination (Platform > Analytics, Revenue by Tenant) |
-| `payheroApi` (`lib/api/payhero.ts`) | `/api/v1/{tenant}/gateways/payhero/...` | PayHero setup: mode, Team, invite, KYC, channels, routing (default, per reference type, per outlet), payment links, wallet balance |
+| `payheroApi` (`lib/api/payhero.ts`) | `/api/v1/{tenant}/gateways/payhero/...` | PayHero setup: mode, Team, invite, KYC, channels, routing (default, per reference type, per outlet, personal collections), personal channels (`setChannelPersonal`, platform tenant only, shown when `is_platform`), payment links, wallet balance |
 | `payheroApi.platformSettings` / `teams` | `/api/v1/platform/gateways/payhero/settings`, `/teams` | Platform PayHero organization and every tenant's setup |
 | `escrowApi` (`lib/api/escrow.ts`) | `/api/v1/{tenant}/escrow/...`, `/api/v1/pay/{tenant}/escrow/{code}` | Escrow pots, release, cancel and refund, commission rule, terms; public pot page |
 | `webhooksApi` (`lib/api/webhooks.ts`) | `/api/v1/{tenant}/developer/webhooks/...` | Tenant outbound webhook endpoints, deliveries, replay, ping, secret rotation |
@@ -97,6 +97,7 @@ Payment gateway configuration is **owned by treasury-api and treasury-ui**. Auth
 - [x] Reconciliation and reporting views (Recharts on platform analytics and Business Insights)
 - [x] Branding (from the tenant record, not notifications-api)
 - [x] PayHero (2026-10): Settings > Payments > PayHero tab; pay page methods `payhero_momo`, `payhero_card`, `payhero_bank`, `payhero_offline` plus `mtn_momo` / `airtel_money` / `mobile_money` through PayHero (`MobileMoneyPaymentModal`, `PayHeroCheckoutModal`); platform PayHero panel
+- [x] Personal collections (2026-10-05): Settings > Payments > PayHero channels can be marked personal with a payee name (platform owner); routing has a Personal collections row and business selects never offer personal channels; Invoices scope **Personal (off the company books)** lists off-books invoices; escrow pot page downloads the statement PDF (`escrowApi.statementDocument`)
 - [x] Escrow pots (`/{org}/escrow`, public `/pay/pot?tenant=&code=`) and the payout approval policies card on Approvals > Rules
 - [x] Transactions: gateway filter, amount mismatch shown under the status, manual confirm only with `treasury.payments.manage`
 - [x] A payout refused with code `no_tenant_payout_account` shows where to connect the tenant's own payout account (added to the error message by the API client)
