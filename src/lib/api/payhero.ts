@@ -110,17 +110,24 @@ export interface EnablePayHeroRequest {
   offline_paybill?: boolean;
 }
 
+/**
+ * Calls that wait on PayHero itself (Team creation, KYC, channel sync, withdrawals). treasury-api
+ * gives PayHero up to 45 seconds, so these must outlive the client's 15-second default or the page
+ * reports a timeout while the server is still working.
+ */
+const PAYHERO_CALL = { timeout: 60_000 };
+
 export const payheroApi = {
   status: (tenant: string) => apiClient.get<PayHeroStatus>(tenantBase(tenant)),
   enable: (tenant: string, body: EnablePayHeroRequest) => apiClient.put<PayHeroStatus>(tenantBase(tenant), body),
   disable: (tenant: string) => apiClient.delete<void>(tenantBase(tenant)),
   createTeam: (tenant: string, body: { name: string; email?: string }) =>
-    apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/team`, body),
+    apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/team`, body, PAYHERO_CALL),
   /** Attach a Team that already exists on PayHero (must belong to the platform organization). */
   linkTeam: (tenant: string, accountID: number) =>
-    apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/team/link`, { account_id: accountID }),
-  invite: (tenant: string, email: string) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/team/invite`, { email }),
-  syncChannels: (tenant: string) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/channels/sync`),
+    apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/team/link`, { account_id: accountID }, PAYHERO_CALL),
+  invite: (tenant: string, email: string) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/team/invite`, { email }, PAYHERO_CALL),
+  syncChannels: (tenant: string) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/channels/sync`, undefined, PAYHERO_CALL),
   claimChannel: (tenant: string, id: number) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/channels/${id}/claim`),
   setChannelEnabled: (tenant: string, id: number, enabled: boolean) =>
     apiClient.patch<PayHeroStatus>(`${tenantBase(tenant)}/channels/${id}`, { enabled }),
@@ -136,7 +143,7 @@ export const payheroApi = {
     apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/wallet-account`, { bank_account_id: bankAccountID }),
   /** Pay out of the Team wallet to one of the tenant's channels or a phone (approval policy applies). */
   withdraw: (tenant: string, body: { amount: string; channel_id?: number; phone?: string; reason?: string }) =>
-    apiClient.post<PayHeroWithdrawal>(`${tenantBase(tenant)}/wallet/withdraw`, body),
+    apiClient.post<PayHeroWithdrawal>(`${tenantBase(tenant)}/wallet/withdraw`, body, PAYHERO_CALL),
   withdrawals: (tenant: string) =>
     apiClient.get<{ withdrawals: PayHeroWithdrawal[] }>(`${tenantBase(tenant)}/wallet/withdrawals`),
   /** Payment types this tenant can route: its products, its recent payments, already routed. */
@@ -149,10 +156,10 @@ export const payheroApi = {
   kycPricing: (tenant: string) => apiClient.get<Record<string, unknown>>(`${tenantBase(tenant)}/kyc/pricing`),
   kycChecks: (tenant: string) => apiClient.get<Record<string, unknown>>(`${tenantBase(tenant)}/kyc/checks`),
   verify: (tenant: string, check: string, fields: Record<string, unknown>, confirm: boolean) =>
-    apiClient.post<PayHeroVerification>(`${tenantBase(tenant)}/kyc/verify/${encodeURIComponent(check)}`, { fields, confirm }),
+    apiClient.post<PayHeroVerification>(`${tenantBase(tenant)}/kyc/verify/${encodeURIComponent(check)}`, { fields, confirm }, PAYHERO_CALL),
   submitKYC: (tenant: string, body: { entity_type?: string; upgrade_information?: string }) =>
-    apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/kyc`, body),
-  refreshKYC: (tenant: string) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/kyc/refresh`),
+    apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/kyc`, body, PAYHERO_CALL),
+  refreshKYC: (tenant: string) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/kyc/refresh`, undefined, PAYHERO_CALL),
 
   // Platform owner.
   platformSettings: () =>
