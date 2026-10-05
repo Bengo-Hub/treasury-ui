@@ -396,15 +396,14 @@ function PayPageContent() {
                   <button
                     type="button"
                     onClick={() => setOpenGateway('paystack')}
+                    aria-label={GATEWAY_LABELS.paystack}
                     className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
                   >
-                    <span className="h-14 w-14 shrink-0 rounded-xl bg-sky-500/10 flex items-center justify-center">
-                      <PaystackLogo className="h-7 w-7" />
+                    {/* The logos carry the gateway names, so they stand in for the title. */}
+                    <span className="w-24 shrink-0 flex items-center">
+                      <PaystackLogo wordmark className="h-5 w-24" />
                     </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.paystack}</p>
-                      <p className="text-xs text-muted-foreground">Card, bank, mobile money via Paystack</p>
-                    </div>
+                    <p className="flex-1 min-w-0 text-xs text-muted-foreground">Card, bank and mobile money</p>
                     <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                   </button>
                 )}
@@ -412,15 +411,13 @@ function PayPageContent() {
                   <button
                     type="button"
                     onClick={() => setOpenGateway('payhero')}
+                    aria-label={GATEWAY_LABELS.payhero}
                     className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
                   >
-                    <span className="h-14 w-14 shrink-0 rounded-xl bg-teal-500/10 flex items-center justify-center">
-                      <PayHeroLogo className="h-6 w-11" />
+                    <span className="w-24 shrink-0 flex items-center">
+                      <PayHeroLogo className="h-9 w-16" />
                     </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.payhero}</p>
-                      <p className="text-xs text-muted-foreground">{payheroRails.map((r) => PAYHERO_RAIL_LABELS[r]).join(', ')} via PayHero</p>
-                    </div>
+                    <p className="flex-1 min-w-0 text-xs text-muted-foreground">{payheroRails.map((r) => PAYHERO_RAIL_LABELS[r]).join(', ')}</p>
                     <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                   </button>
                 )}
@@ -428,17 +425,17 @@ function PayPageContent() {
                   <button
                     type="button"
                     onClick={() => setOpenGateway('mpesa')}
+                    aria-label={GATEWAY_LABELS.mpesa}
                     className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
                   >
-                    <MpesaLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.mpesa}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {effectiveDetails.phone_number
-                          ? `Prompt sent to ${effectiveDetails.phone_number}`
-                          : 'Prompt sent to your phone'}
-                      </p>
-                    </div>
+                    <span className="w-24 shrink-0 flex items-center">
+                      <MpesaLogo className="h-10 w-20" />
+                    </span>
+                    <p className="flex-1 min-w-0 text-xs text-muted-foreground">
+                      {effectiveDetails.phone_number
+                        ? `Prompt sent to ${effectiveDetails.phone_number}`
+                        : 'Prompt sent to your phone'}
+                    </p>
                     <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                   </button>
                 )}

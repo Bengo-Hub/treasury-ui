@@ -75,7 +75,8 @@ export function MpesaPaymentModal({
   const statusUrl = statusUrlFrom(details.initiate_url);
   // "I paid at the till" matches Daraja C2B confirmations; PayHero channels send none.
   const canCheckTill = !!statusUrl && !viaPayHero;
-  const title = viaPayHero ? 'M-PESA' : MPESA_TITLE;
+  // In the PayHero modal the M-PESA tab already shows the logo, so the pane says what to do.
+  const title = viaPayHero ? 'Pay with an M-Pesa prompt' : MPESA_TITLE;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const settledRef = useRef(false);
 
