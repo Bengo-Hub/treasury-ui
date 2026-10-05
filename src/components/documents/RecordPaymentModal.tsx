@@ -39,6 +39,9 @@ interface Props {
 
 const PICKER_LIMIT = 100;
 
+/** Methods whose money a gateway collects and pays out into its own settlement account. */
+const GATEWAY_SETTLED_METHODS = new Set(['paystack', 'card']);
+
 /**
  * Record a manual payment against an invoice (POST /invoices/{id}/record-payment). A thin wrapper
  * over the shared SettlementModal (@bengo-hub/shared-ui-lib/payments), exactly like
@@ -88,9 +91,12 @@ export function RecordPaymentModal({ tenant, invoice, choices, onClose }: Props)
   // settlement account (the account it was raised against) wins over the method default.
   const [method, setMethod] = useState<string>(SETTLE_CREDIT_SALE_METHODS[0]?.value ?? 'cash');
   const [pickedAccount, setPickedAccount] = useState('');
+  // A gateway pays out where the gateway settles (Paystack into its own bank account), whatever
+  // account the invoice asked the customer to pay; so for those the method's account wins.
+  // For the rest (cash, a transfer to the account on the invoice) the invoice's account wins.
+  const methodDefault = resolveDefaultAccount(accounts, method)?.id;
   const accountId = pickedAccount
-    || target?.settlement_account_id
-    || resolveDefaultAccount(accounts, method)?.id
+    || (GATEWAY_SETTLED_METHODS.has(method) ? methodDefault || target?.settlement_account_id : target?.settlement_account_id || methodDefault)
     || '';
 
   const invoiceOptions = useMemo<ComboboxOption[]>(
