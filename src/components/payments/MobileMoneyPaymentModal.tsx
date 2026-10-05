@@ -11,7 +11,7 @@ import type { PaymentDetails } from './types';
 function momoPayload(details: PaymentDetails, method: MobileMoneyMethod, phoneNumber: string): Record<string, unknown> {
   const body: Record<string, unknown> = {
     payment_method: method,
-    gateway: method,
+    gateway: 'payhero', // every non-M-Pesa mobile money network runs on PayHero
     amount: details.amount,
     currency: details.currency,
     reference_id: details.reference_id,

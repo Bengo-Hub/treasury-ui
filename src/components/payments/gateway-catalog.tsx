@@ -1,5 +1,12 @@
-import { Banknote, CreditCard, Gift, Globe, Smartphone, Wallet } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { MpesaLogo, PayHeroLogo, PaystackLogo } from '@bengo-hub/shared-ui-lib';
+import { Banknote, CreditCard, Gift, Globe } from 'lucide-react';
 import type { ComponentType } from 'react';
+
+// Brand marks sized like the square lucide icons by height; the wide ones keep their ratio.
+const MpesaIcon = ({ className }: { className?: string }) => <MpesaLogo className={cn(className, 'w-auto aspect-[512/273]')} />;
+const PayHeroIcon = ({ className }: { className?: string }) => <PayHeroLogo className={cn(className, 'w-auto aspect-[16/9]')} />;
+const PaystackIcon = ({ className }: { className?: string }) => <PaystackLogo className={className} />;
 
 /**
  * One entry per gateway type the platform owner can configure. The single source for labels,
@@ -24,7 +31,7 @@ export const GATEWAY_KINDS: GatewayKind[] = [
     value: 'paystack',
     label: 'Paystack',
     description: 'Cards and mobile money, transfers to tenants.',
-    icon: CreditCard,
+    icon: PaystackIcon,
     credentialKeys: ['secret_key', 'public_key', 'webhook_secret'],
     setupHint: 'Paste the webhook URL in the Paystack dashboard (Settings, API keys and webhooks).',
   },
@@ -32,7 +39,7 @@ export const GATEWAY_KINDS: GatewayKind[] = [
     value: 'mpesa_paybill',
     label: 'M-Pesa Paybill',
     description: 'Daraja STK push, C2B and B2C on a paybill.',
-    icon: Smartphone,
+    icon: MpesaIcon,
     // cert_pem: Daraja's public certificate, used to encrypt the initiator password for B2C, B2B,
     // balance, transaction status and reversal. Production rejects an unencrypted password.
     credentialKeys: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password', 'cert_pem'],
@@ -42,7 +49,7 @@ export const GATEWAY_KINDS: GatewayKind[] = [
     value: 'mpesa_till',
     label: 'M-Pesa Till',
     description: 'Daraja STK push and C2B on a till number.',
-    icon: Smartphone,
+    icon: MpesaIcon,
     credentialKeys: ['consumer_key', 'consumer_secret', 'passkey', 'shortcode', 'initiator_name', 'initiator_password', 'cert_pem'],
     setupHint: 'Register C2B to send the validation and confirmation URLs to Safaricom.',
   },
@@ -50,7 +57,7 @@ export const GATEWAY_KINDS: GatewayKind[] = [
     value: 'payhero',
     label: 'PayHero',
     description: 'M-Pesa into tenant channels, MTN, Airtel, card and bank deposits, escrow wallets.',
-    icon: Wallet,
+    icon: PayHeroIcon,
     // Base URLs are optional overrides of the PayHero 2.0.0 hosts.
     credentialKeys: ['api_username', 'api_password', 'api_base_url', 'auth_base_url', 'connect_base_url'],
     setupHint: 'Set the webhook URL as the callback on the PayHero dashboard. Every result is confirmed with a status lookup.',

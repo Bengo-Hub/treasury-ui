@@ -2,7 +2,14 @@
 
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
-import { ReactNode } from 'react';
+import { createContext, ReactNode, useContext } from 'react';
+
+/**
+ * Set by a gateway shell that hosts several method forms (PayHeroPaymentModal): each form's
+ * PaymentModal then renders as a plain pane inside the shell, which owns the chrome and the close
+ * button, so the same forms serve both standalone and inside the shell.
+ */
+export const PaymentPaneContext = createContext(false);
 
 export function PaymentModal({
   title,
@@ -17,6 +24,16 @@ export function PaymentModal({
   className?: string;
   embed?: boolean;
 }) {
+  const inPane = useContext(PaymentPaneContext);
+  if (inPane) {
+    return (
+      <div className={cn('w-full', className)}>
+        <h3 className="text-base font-semibold mb-4">{title}</h3>
+        {children}
+      </div>
+    );
+  }
+
   // In embed mode (inside an iframe) render as an inline card — no fixed backdrop.
   // The outer TreasuryPaymentModal in the host page already provides the modal chrome.
   if (embed) {

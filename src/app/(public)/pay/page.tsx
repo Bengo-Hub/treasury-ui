@@ -1,18 +1,18 @@
 'use client';
 
 import { CodPaymentModal } from '@/components/payments/CodPaymentModal';
-import { CodLogo, MpesaLogo, PaystackLogo } from '@/components/payments/logos';
+import { CodLogo } from '@/components/payments/logos';
 import { WalletLogo } from '@/components/payments/logos/WalletLogo';
 import { MpesaPaymentModal } from '@/components/payments/MpesaPaymentModal';
-import { MobileMoneyPaymentModal } from '@/components/payments/MobileMoneyPaymentModal';
-import { PayHeroCheckoutModal } from '@/components/payments/PayHeroCheckoutModal';
+import { PayHeroPaymentModal } from '@/components/payments/PayHeroPaymentModal';
 import { PaystackPaymentModal } from '@/components/payments/PaystackPaymentModal';
 import { WalletPaymentModal } from '@/components/payments/WalletPaymentModal';
-import type { GatewayType, PaymentDetails } from '@/components/payments/types';
-import { GATEWAY_LABELS, GATEWAY_ORDER } from '@/components/payments/types';
+import type { GatewayType, PayHeroRail, PaymentDetails } from '@/components/payments/types';
+import { GATEWAY_LABELS, GATEWAY_ORDER, PAYHERO_RAIL_LABELS, PAYHERO_RAIL_ORDER } from '@/components/payments/types';
 import { Card } from '@/components/ui/base';
 import { sendToParent } from '@/lib/embed-messages';
-import { ChevronRight, CreditCard, Landmark, Loader2, Smartphone } from 'lucide-react';
+import { MpesaLogo, PayHeroLogo, PaystackLogo } from '@bengo-hub/shared-ui-lib';
+import { ChevronRight, Loader2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
 
@@ -24,18 +24,46 @@ const TREASURY_UI_URL =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_UI_URL) ||
   'https://books.codevertexafrica.com';
 
-// Callers may name a rail by its generic method; these map onto the pay-page method.
-// bank_transfer and bank: bank deposits run on PayHero's bank rail (the manual bank-transfer
-// gateway was removed), so older links still land on the right option.
-const GATEWAY_ALIASES: Record<string, GatewayType> = { mobile_money: 'payhero_momo', card: 'paystack', bank_transfer: 'payhero_bank', bank: 'payhero_bank' };
+// Callers may name a rail by its generic method; these map onto a PayHero rail. bank_transfer and
+// bank: bank deposits run on PayHero's bank rail (the manual bank-transfer gateway was removed).
+const RAIL_ALIASES: Record<string, PayHeroRail> = { mobile_money: 'payhero_momo', bank_transfer: 'payhero_bank', bank: 'payhero_bank' };
+const GATEWAY_ALIASES: Record<string, GatewayType> = { card: 'paystack' };
 
-function parseGateways(param: string | null): GatewayType[] {
-  if (!param) return [];
-  const list = new Set(param.split(',').map((g) => {
-    const v = g.trim().toLowerCase();
-    return GATEWAY_ALIASES[v] ?? v;
-  }));
-  return GATEWAY_ORDER.filter((g) => list.has(g));
+/**
+ * A caller's method allowlist (?gateways=, TreasuryPaymentModal allowedMethods). It names gateways
+ * ("payhero", "paystack", "mpesa") or, from links made before PayHero was its own gateway,
+ * PayHero rails ("airtel_money", "payhero_offline", ...), which open PayHero on those rails.
+ * "mpesa" there meant M-Pesa from whichever provider the tenant runs.
+ */
+interface Allowlist { gateways: Set<GatewayType>; rails: Set<PayHeroRail>; allRails: boolean; mpesa: boolean }
+
+function parseAllowlist(param: string | null): Allowlist | null {
+  if (!param) return null;
+  const out: Allowlist = { gateways: new Set(), rails: new Set(), allRails: false, mpesa: false };
+  for (const raw of param.split(',')) {
+    const v = raw.trim().toLowerCase();
+    if (!v) continue;
+    const rail = RAIL_ALIASES[v] ?? v;
+    if (v === 'payhero') out.allRails = true;
+    else if (v === 'mpesa') out.mpesa = true;
+    else if ((PAYHERO_RAIL_ORDER as string[]).includes(rail)) out.rails.add(rail as PayHeroRail);
+    else out.gateways.add((GATEWAY_ALIASES[v] ?? v) as GatewayType);
+  }
+  return out;
+}
+
+/** The gateways and PayHero rails to show: the server's, narrowed by the caller's allowlist. */
+function applyAllowlist(server: GatewayType[], railsFromServer: PayHeroRail[], allow: Allowlist | null): { gateways: GatewayType[]; rails: PayHeroRail[] } {
+  if (!allow) return { gateways: server, rails: railsFromServer };
+  const darajaMpesa = server.includes('mpesa');
+  const rails = railsFromServer.filter((r) =>
+    allow.allRails || allow.rails.has(r) || (r === 'mpesa' && allow.mpesa && !darajaMpesa));
+  const gateways = server.filter((g) => {
+    if (g === 'payhero') return rails.length > 0;
+    if (g === 'mpesa') return allow.mpesa;
+    return allow.gateways.has(g);
+  });
+  return { gateways, rails };
 }
 
 // Reference types that represent a NON-PHYSICAL / online-only purchase where
@@ -101,8 +129,8 @@ function PayPageContent() {
   const searchParams = useSearchParams();
   const [openGateway, setOpenGateway] = useState<GatewayType | null>(null);
   const [gateways, setGateways] = useState<GatewayType[] | null>(null);
-  // Which account backs plain M-Pesa ("payhero" or "daraja"), from the gateways response.
-  const [mpesaProvider, setMpesaProvider] = useState<string>('');
+  // PayHero's rails for this payment (treasury's payhero_methods), shown as tabs in its modal.
+  const [payheroRails, setPayheroRails] = useState<PayHeroRail[]>([]);
   const [gatewayError, setGatewayError] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -110,7 +138,7 @@ function PayPageContent() {
 
   // Parse the optional gateways allowlist from URL param (set by TreasuryPaymentModal via allowedMethods prop).
   // Kept in a ref so the load effect can access it without having it as a dependency.
-  const allowedGatewaysParam = useMemo(() => parseGateways(searchParams.get('gateways')), [searchParams]);
+  const allowedGatewaysParam = useMemo(() => parseAllowlist(searchParams.get('gateways')), [searchParams]);
   const allowedGatewaysRef = useRef(allowedGatewaysParam);
   allowedGatewaysRef.current = allowedGatewaysParam;
 
@@ -258,23 +286,23 @@ function PayPageContent() {
         }
         if (!r.ok) throw new Error(`gateways ${r.status}`);
         const data = await r.json();
-        let list = parseGateways((data.gateways as string[])?.join(',') ?? '');
+        const served = new Set(((data.gateways as string[]) ?? []).map((g) => g.toLowerCase()));
+        let serverList = GATEWAY_ORDER.filter((g) => served.has(g));
+        const servedRails = new Set((data.payhero_methods as string[] | undefined) ?? []);
+        const serverRails = PAYHERO_RAIL_ORDER.filter((r) => servedRails.has(r));
         // COD is not applicable for non-physical contexts (subscription, card
         // setup, hotspot/ISP packages, vouchers, top-ups, …) — there is nothing
         // to deliver. Filter it out client-side too as defense-in-depth in case
         // an older API still returns it.
         if (isNonPhysicalRefType(refType)) {
-          list = list.filter((g) => g !== 'cod');
+          serverList = serverList.filter((g) => g !== 'cod');
         }
         // Apply explicit allowlist from URL param (allowedMethods prop on TreasuryPaymentModal).
         // This is the authoritative filter — if the caller says "paystack,mpesa", show only those.
-        const allowed = allowedGatewaysRef.current;
-        if (allowed.length > 0) {
-          list = list.filter((g) => allowed.includes(g));
-        }
+        const { gateways: list, rails } = applyAllowlist(serverList, serverRails, allowedGatewaysRef.current);
         if (!cancelled) {
           setGateways(list);
-          setMpesaProvider((data.providers as Record<string, string> | undefined)?.mpesa ?? '');
+          setPayheroRails(rails);
           setGatewayError(list.length === 0);
           // Embedded (POS/ordering iframe) with exactly one gateway available — usually
           // because the caller's allowedMethods already narrowed it to one (e.g. the POS
@@ -370,10 +398,28 @@ function PayPageContent() {
                     onClick={() => setOpenGateway('paystack')}
                     className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
                   >
-                    <PaystackLogo className="h-14 w-14 shrink-0 rounded-xl overflow-hidden" />
+                    <span className="h-14 w-14 shrink-0 rounded-xl bg-sky-500/10 flex items-center justify-center">
+                      <PaystackLogo className="h-7 w-7" />
+                    </span>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-foreground">{GATEWAY_LABELS.paystack}</p>
                       <p className="text-xs text-muted-foreground">Card, bank, mobile money via Paystack</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                  </button>
+                )}
+                {gateways.includes('payhero') && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenGateway('payhero')}
+                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
+                  >
+                    <span className="h-14 w-14 shrink-0 rounded-xl bg-teal-500/10 flex items-center justify-center">
+                      <PayHeroLogo className="h-6 w-11" />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.payhero}</p>
+                      <p className="text-xs text-muted-foreground">{payheroRails.map((r) => PAYHERO_RAIL_LABELS[r]).join(', ')} via PayHero</p>
                     </div>
                     <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                   </button>
@@ -424,60 +470,6 @@ function PayPageContent() {
                     <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                   </button>
                 )}
-                {gateways.includes('mtn_momo') && (
-                  <button
-                    type="button"
-                    onClick={() => setOpenGateway('mtn_momo')}
-                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
-                  >
-                    <div className="h-14 w-14 shrink-0 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                      <Smartphone className="h-6 w-6 text-amber-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.mtn_momo}</p>
-                      <p className="text-xs text-muted-foreground">Approve a prompt on your phone</p>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                  </button>
-                )}
-                {gateways.includes('airtel_money') && (
-                  <button
-                    type="button"
-                    onClick={() => setOpenGateway('airtel_money')}
-                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
-                  >
-                    <div className="h-14 w-14 shrink-0 rounded-xl bg-red-500/10 flex items-center justify-center">
-                      <Smartphone className="h-6 w-6 text-red-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground">{GATEWAY_LABELS.airtel_money}</p>
-                      <p className="text-xs text-muted-foreground">Approve a prompt on your phone</p>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                  </button>
-                )}
-                {([
-                  ['payhero_momo', Smartphone, 'bg-emerald-500/10', 'text-emerald-600', 'Approve a prompt on your phone'],
-                  ['payhero_card', CreditCard, 'bg-blue-500/10', 'text-blue-600', 'Pay on a secure checkout page'],
-                  ['payhero_offline', Smartphone, 'bg-green-500/10', 'text-green-700', 'Pay through the M-Pesa Paybill menu'],
-                  ['payhero_bank', Landmark, 'bg-indigo-500/10', 'text-indigo-700', 'Deposit at your bank'],
-                ] as const).filter(([g]) => gateways.includes(g)).map(([g, Icon, bg, fg, hint]) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setOpenGateway(g)}
-                    className="flex items-center gap-4 w-full min-h-16 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/10 active:bg-accent/20 hover:border-primary/30 transition-colors"
-                  >
-                    <div className={`h-14 w-14 shrink-0 rounded-xl ${bg} flex items-center justify-center`}>
-                      <Icon className={`h-6 w-6 ${fg}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground">{GATEWAY_LABELS[g]}</p>
-                      <p className="text-xs text-muted-foreground">{hint}</p>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                  </button>
-                ))}
               </>
             )}
           </div>
@@ -499,7 +491,15 @@ function PayPageContent() {
         <MpesaPaymentModal
           details={effectiveDetails}
           embed={embed}
-          viaPayHero={mpesaProvider === 'payhero'}
+          provider="daraja"
+          onClose={() => setOpenGateway(null)}
+        />
+      )}
+      {openGateway === 'payhero' && (
+        <PayHeroPaymentModal
+          details={effectiveDetails}
+          methods={payheroRails}
+          embed={embed}
           onClose={() => setOpenGateway(null)}
         />
       )}
@@ -512,22 +512,6 @@ function PayPageContent() {
       )}
       {openGateway === 'wallet' && (
         <WalletPaymentModal
-          details={effectiveDetails}
-          embed={embed}
-          onClose={() => setOpenGateway(null)}
-        />
-      )}
-      {(openGateway === 'mtn_momo' || openGateway === 'airtel_money' || openGateway === 'payhero_momo') && (
-        <MobileMoneyPaymentModal
-          method={openGateway}
-          details={effectiveDetails}
-          embed={embed}
-          onClose={() => setOpenGateway(null)}
-        />
-      )}
-      {(openGateway === 'payhero_card' || openGateway === 'payhero_bank' || openGateway === 'payhero_offline') && (
-        <PayHeroCheckoutModal
-          method={openGateway}
           details={effectiveDetails}
           embed={embed}
           onClose={() => setOpenGateway(null)}

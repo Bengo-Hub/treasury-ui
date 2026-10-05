@@ -44,7 +44,11 @@ import { useParams } from 'next/navigation';
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { GatewaysTab } from './_components/gateways-tab';
 import { PAYMENT_GATEWAY_OPTIONS } from '@/components/payments/gateway-catalog';
+import { PayHeroTariff } from '@/components/platform/payhero-tariff';
 import { toast } from 'sonner';
+
+// The description treasury's PayHero tariff sync stamps on the rules it owns (payhero/tariff.go).
+const PAYHERO_TARIFF_DESCRIPTION = 'PayHero published tariff';
 
 // Fee rules apply per payment gateway (the catalog minus integration keys such as forex).
 const FEE_GATEWAY_OPTIONS = [{ value: 'all', label: 'All Gateways' }, ...PAYMENT_GATEWAY_OPTIONS] as const;
@@ -68,7 +72,19 @@ export default function PlatformPage() {
   // admin/superuser can never reach platform gateway/fee-rule config.
   const isPlatformOwner = user?.isPlatformOwner || orgSlug === 'codevertex';
   const { data: feeRulesData, isLoading: loadingFeeRules } = usePlatformFeeRules();
-  const feeRules = feeRulesData?.fee_rules ?? [];
+  // Fees are read per gateway. PayHero's published schedule (rules the daily sync owns) shows in
+  // its own card, so the table holds only the rules entered here.
+  const [feeGateway, setFeeGateway] = useState<string>('all');
+  const enteredRules = useMemo(
+    () => (feeRulesData?.data ?? []).filter((r) => r.description !== PAYHERO_TARIFF_DESCRIPTION),
+    [feeRulesData],
+  );
+  const feeGatewayCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of enteredRules) counts[r.gateway_type] = (counts[r.gateway_type] ?? 0) + 1;
+    return counts;
+  }, [enteredRules]);
+  const feeRules = feeGateway === 'all' ? enteredRules : enteredRules.filter((r) => r.gateway_type === feeGateway);
   const createFeeRule = useCreatePlatformFeeRule();
   const updateFeeRule = useUpdatePlatformFeeRule();
   const feeRuleColumns = useMemo(
@@ -151,6 +167,30 @@ export default function PlatformPage() {
 
       {activeTab === 'fees' && (
         <div className="space-y-6">
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Gateway">
+            {FEE_GATEWAY_OPTIONS.map((g) => {
+              const count = g.value === 'all' ? enteredRules.length : feeGatewayCounts[g.value] ?? 0;
+              return (
+                <button
+                  key={g.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={feeGateway === g.value}
+                  onClick={() => setFeeGateway(g.value)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors min-h-9',
+                    feeGateway === g.value ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {g.value === 'all' ? 'All gateways' : g.label}
+                  {count > 0 && <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums">{count}</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {(feeGateway === 'all' || feeGateway === 'payhero') && <PayHeroTariff />}
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between py-4">
               <div className="flex items-center gap-2">
@@ -170,7 +210,9 @@ export default function PlatformPage() {
                   loading={loadingFeeRules}
                   loadingRows={8}
                   storageKey="platform-fee-rules-table"
-                  emptyText='No fee rules configured yet. Use "Add Fee Rule" to define platform-wide fee structures.'
+                  emptyText={feeGateway === 'all'
+                    ? 'No fee rules entered yet. Use "Add Fee Rule" to define platform-wide fee structures.'
+                    : `No fee rules entered for ${FEE_GATEWAY_OPTIONS.find((g) => g.value === feeGateway)?.label ?? feeGateway}.`}
                 />
               </div>
             </CardContent>

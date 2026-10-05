@@ -9,7 +9,6 @@ import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import { escrowApi } from '@/lib/api/escrow';
 import { payheroApi, type PayHeroTeamRow } from '@/lib/api/payhero';
 import { PayHeroRootChannels } from './payhero-root-channels';
-import { PayHeroTariff } from './payhero-tariff';
 import { buildEscrowColumns, buildTenantSetupColumns, hasPayHeroAccount, type EscrowTenantRow } from './payhero-platform-columns';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -152,8 +151,6 @@ export function PayHeroPlatformPanel() {
           </div>
         )}
       </SettingsSection>
-
-      {configured && <PayHeroTariff syncedAt={settings.data?.tariff_synced_at} />}
 
       {configured && <PayHeroRootChannels tenants={rows} tenantName={tenantName} />}
 
