@@ -1,13 +1,13 @@
 'use client';
 
 import { Badge, Button } from '@/components/ui/base';
-import { Input, Select } from '@/components/ui/input';
+import { Select } from '@/components/ui/input';
 import { SettingsSection } from '@/components/ui/settings-section';
 import { payheroApi, type PayHeroChannel, type PayHeroRouting, type PayHeroStatus } from '@/lib/api/payhero';
 import { useBankAccounts } from '@/hooks/use-bank-accounts';
 import { useOutletFilterStore } from '@/store/outlet-filter';
 import { useQuery } from '@tanstack/react-query';
-import { Landmark, Loader2, Plus, RefreshCw, Route, Save, Smartphone, Store } from 'lucide-react';
+import { Landmark, Loader2, RefreshCw, Route, Save, Smartphone, Store } from 'lucide-react';
 import { useState } from 'react';
 import { PersonalChannelControl } from './personal-channel';
 import { usePayHeroMutation } from './use-payhero';
@@ -25,9 +25,7 @@ const channelName = (c: PayHeroChannel) => [c.description || c.channel_type, c.s
 export function ChannelsSection({ tenantSlug, st }: { tenantSlug: string; st: PayHeroStatus }) {
   const sync = usePayHeroMutation(tenantSlug, (_: void) => payheroApi.syncChannels(tenantSlug), 'Channels synced', 'Could not sync channels');
   const toggle = usePayHeroMutation(tenantSlug, (v: { id: number; enabled: boolean }) => payheroApi.setChannelEnabled(tenantSlug, v.id, v.enabled), 'Channel updated', 'Could not update the channel');
-  const claim = usePayHeroMutation(tenantSlug, (id: number) => payheroApi.claimChannel(tenantSlug, id), 'Channel added', 'Could not add the channel');
   const mapAccount = usePayHeroMutation(tenantSlug, (v: { id: number; account: string }) => payheroApi.setChannelAccount(tenantSlug, v.id, v.account), 'Account saved', 'Could not save the account');
-  const [claimID, setClaimID] = useState('');
   // The tenant's financial accounts a channel can settle into (cash drawers excluded).
   const { data: accountsData } = useBankAccounts(tenantSlug);
   const accounts = (accountsData?.bank_accounts ?? []).filter((a) => a.account_type !== 'cash');
@@ -97,16 +95,11 @@ export function ChannelsSection({ tenantSlug, st }: { tenantSlug: string; st: Pa
             })}
           </ul>
         )}
-        {st.mode === 'platform_root' && (
-          <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-end">
-            <label className="flex-1 space-y-1">
-              <span className="text-xs font-medium">Add a channel from the platform account</span>
-              <Input inputMode="numeric" placeholder="PayHero channel id" value={claimID} onChange={(e) => setClaimID(e.target.value.replace(/\D/g, ''))} />
-            </label>
-            <Button variant="outline" className="gap-1.5" onClick={() => { claim.mutate(Number(claimID)); setClaimID(''); }} disabled={!claimID || claim.isPending}>
-              <Plus className="h-4 w-4" /> Add channel
-            </Button>
-          </div>
+        {st.mode === 'platform_root' && !st.is_platform && (
+          <p className="mt-4 border-t border-border pt-4 text-sm text-muted-foreground">
+            Your paybill or till is added on the platform's PayHero account and attached to you by the platform owner. Payments
+            settle straight into it. Ask the platform owner to attach a new one.
+          </p>
         )}
       </SettingsSection>
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { PayHeroFeeNotice } from './PayHeroFeeNotice';
 import { Button } from '@/components/ui/base';
 import { sendToParent } from '@/lib/embed-messages';
 import { Banknote, CheckCircle2, Loader2, Phone, XCircle } from 'lucide-react';
@@ -46,11 +47,14 @@ export function MpesaPaymentModal({
   onClose,
   onSuccess,
   embed = false,
+  viaPayHero = false,
 }: {
   details: PaymentDetails;
   onClose: () => void;
   onSuccess?: (data: { checkout_request_id?: string }) => void;
   embed?: boolean;
+  /** M-Pesa runs through PayHero (the gateways' providers hint): show its fee when the payer bears it. */
+  viaPayHero?: boolean;
 }) {
   const [phone, setPhone] = useState(details.phone_number ?? '');
   const [loading, setLoading] = useState(false);
@@ -270,6 +274,7 @@ export function MpesaPaymentModal({
             <span className="text-muted-foreground">Amount</span>
             <span className="font-semibold">{formatAmount()}</span>
           </div>
+          {viaPayHero && <PayHeroFeeNotice details={details} />}
           {(details.invoice_number || details.reference_id) && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Reference</span>

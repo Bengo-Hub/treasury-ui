@@ -101,6 +101,8 @@ function PayPageContent() {
   const searchParams = useSearchParams();
   const [openGateway, setOpenGateway] = useState<GatewayType | null>(null);
   const [gateways, setGateways] = useState<GatewayType[] | null>(null);
+  // Which account backs plain M-Pesa ("payhero" or "daraja"), from the gateways response.
+  const [mpesaProvider, setMpesaProvider] = useState<string>('');
   const [gatewayError, setGatewayError] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -272,6 +274,7 @@ function PayPageContent() {
         }
         if (!cancelled) {
           setGateways(list);
+          setMpesaProvider((data.providers as Record<string, string> | undefined)?.mpesa ?? '');
           setGatewayError(list.length === 0);
           // Embedded (POS/ordering iframe) with exactly one gateway available — usually
           // because the caller's allowedMethods already narrowed it to one (e.g. the POS
@@ -496,6 +499,7 @@ function PayPageContent() {
         <MpesaPaymentModal
           details={effectiveDetails}
           embed={embed}
+          viaPayHero={mpesaProvider === 'payhero'}
           onClose={() => setOpenGateway(null)}
         />
       )}

@@ -128,7 +128,6 @@ export const payheroApi = {
     apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/team/link`, { account_id: accountID }, PAYHERO_CALL),
   invite: (tenant: string, email: string) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/team/invite`, { email }, PAYHERO_CALL),
   syncChannels: (tenant: string) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/channels/sync`, undefined, PAYHERO_CALL),
-  claimChannel: (tenant: string, id: number) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/channels/${id}/claim`),
   setChannelEnabled: (tenant: string, id: number, enabled: boolean) =>
     apiClient.patch<PayHeroStatus>(`${tenantBase(tenant)}/channels/${id}`, { enabled }),
   setRouting: (tenant: string, routing: PayHeroRouting) => apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/routing`, routing),
@@ -163,9 +162,9 @@ export const payheroApi = {
 
   // Platform owner.
   platformSettings: () =>
-    apiClient.get<{ organization_id: number; root_account_id: number }>(`${BASE}/platform/gateways/payhero/settings`),
-  setPlatformSettings: (body: { organization_id: number; root_account_id: number }) =>
-    apiClient.put<{ organization_id: number; root_account_id: number }>(`${BASE}/platform/gateways/payhero/settings`, body),
+    apiClient.get<PayHeroPlatformSettings>(`${BASE}/platform/gateways/payhero/settings`),
+  setPlatformSettings: (body: { organization_id: number; root_account_id: number; fee_bearer?: PayHeroFeeBearer }) =>
+    apiClient.put<PayHeroPlatformSettings>(`${BASE}/platform/gateways/payhero/settings`, body),
   detectPlatformSettings: () =>
     apiClient.post<{ organization_id: number; root_account_id: number }>(`${BASE}/platform/gateways/payhero/settings/detect`),
   /** Platform owner: create a tenant's Team (name and email default to the tenant's record). */
@@ -174,9 +173,48 @@ export const payheroApi = {
   /** Platform owner: link an existing Team to a tenant. */
   platformLinkTeam: (tenantID: string, accountID: number) =>
     apiClient.post<PayHeroStatus>(`${BASE}/platform/gateways/payhero/teams/${tenantID}/link`, { account_id: accountID }),
+  /** Platform owner: every channel on the shared root account and the tenant it is assigned to. */
+  rootChannels: () =>
+    apiClient.get<{ channels: PayHeroRootChannel[] }>(`${BASE}/platform/gateways/payhero/channels`),
+  /** Platform owner: give a root-account channel to a tenant on the shared account. */
+  assignChannel: (channelID: number, tenantID: string) =>
+    apiClient.post<PayHeroStatus>(`${BASE}/platform/gateways/payhero/channels/${channelID}/assign`, { tenant_id: tenantID }, PAYHERO_CALL),
+  unassignChannel: (channelID: number) =>
+    apiClient.delete<void>(`${BASE}/platform/gateways/payhero/channels/${channelID}/assign`),
+  /** Public: what a PayHero payment will prompt for (fee 0 when the merchant bears it; empty when no tariff). */
+  feeQuote: (tenant: string, amount: number, currency: string, referenceType?: string) =>
+    apiClient.get<PayHeroFeeQuote | ''>(`${BASE}/pay/${encodeURIComponent(tenant)}/fees/payhero`, { amount, currency, reference_type: referenceType }),
   teams: (balances: boolean) =>
     apiClient.get<{ teams: PayHeroTeamRow[] }>(`${BASE}/platform/gateways/payhero/teams${balances ? '?balances=true' : ''}`),
 };
+
+export type PayHeroFeeBearer = 'payer' | 'merchant';
+
+export interface PayHeroPlatformSettings {
+  organization_id: number;
+  root_account_id: number;
+  /** Who bears PayHero's cost on tenants' collections: payer adds it to the prompt. */
+  fee_bearer: PayHeroFeeBearer;
+}
+
+export interface PayHeroRootChannel {
+  id: number;
+  account_id: number;
+  channel_type: string;
+  short_code: string;
+  account_number: string;
+  description: string;
+  is_active: boolean;
+  /** The tenant this channel is assigned to; absent means it is the platform's own. */
+  owner_tenant_id?: string;
+}
+
+export interface PayHeroFeeQuote {
+  fee: string;
+  total: string;
+  currency: string;
+  bearer: PayHeroFeeBearer;
+}
 
 export interface PayHeroTeamRow {
   tenant_id: string;

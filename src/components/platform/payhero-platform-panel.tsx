@@ -7,7 +7,9 @@ import { SettingsSection } from '@/components/ui/settings-section';
 import { Input } from '@/components/ui/input';
 import { usePlatformTenants } from '@/hooks/use-platform-tenants';
 import { escrowApi } from '@/lib/api/escrow';
-import { payheroApi, type PayHeroTeamRow } from '@/lib/api/payhero';
+import { payheroApi, type PayHeroFeeBearer, type PayHeroTeamRow } from '@/lib/api/payhero';
+import { Select } from '@/components/ui/input';
+import { PayHeroRootChannels } from './payhero-root-channels';
 import { buildEscrowColumns, buildTenantSetupColumns, hasPayHeroAccount, type EscrowTenantRow } from './payhero-platform-columns';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -40,6 +42,14 @@ export function PayHeroPlatformPanel() {
   const save = useMutation({
     mutationFn: () => payheroApi.setPlatformSettings({ organization_id: Number(form.organization_id), root_account_id: Number(form.root_account_id) }),
     onSuccess: onSaved,
+    onError: (e: any) => toast.error(errMessage(e, 'Could not save')),
+  });
+  // Who bears PayHero's cost on tenants' collections (priced from the payhero fee rules).
+  const feeBearer = useMutation({
+    mutationFn: (bearer: PayHeroFeeBearer) => payheroApi.setPlatformSettings({
+      organization_id: settings.data!.organization_id, root_account_id: settings.data!.root_account_id, fee_bearer: bearer,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['payhero-platform-settings'] }); toast.success('Gateway fee setting saved'); },
     onError: (e: any) => toast.error(errMessage(e, 'Could not save')),
   });
   const detect = useMutation({
@@ -122,6 +132,22 @@ export function PayHeroPlatformPanel() {
             <div className="rounded-xl bg-muted/50 p-3"><dt className="text-xs text-muted-foreground">Organization</dt><dd className="mt-0.5 font-mono text-lg font-semibold">#{settings.data!.organization_id}</dd></div>
             <div className="rounded-xl bg-muted/50 p-3"><dt className="text-xs text-muted-foreground">Root account</dt><dd className="mt-0.5 font-mono text-lg font-semibold">#{settings.data!.root_account_id}</dd></div>
             <div className="flex items-center gap-2 rounded-xl bg-green-500/10 p-3 text-sm font-medium text-green-700"><ShieldCheck className="h-4 w-4" /> Ready for tenant Teams</div>
+            <div className="space-y-1 rounded-xl bg-muted/50 p-3 sm:col-span-3">
+              <label htmlFor="payhero-fee-bearer" className="text-xs text-muted-foreground">PayHero fee on tenants&apos; payments</label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Select
+                  id="payhero-fee-bearer"
+                  value={settings.data!.fee_bearer ?? 'merchant'}
+                  disabled={feeBearer.isPending}
+                  onChange={(e) => feeBearer.mutate(e.target.value as PayHeroFeeBearer)}
+                  className="h-9 w-full sm:w-72"
+                >
+                  <option value="merchant">The merchant&apos;s account bears it</option>
+                  <option value="payer">The customer pays it (added to the prompt)</option>
+                </Select>
+                <span className="text-xs text-muted-foreground">Priced from the PayHero fee rules (Platform, Fee rules). Platform billing and escrow are never surcharged.</span>
+              </div>
+            </div>
           </dl>
         ) : (
           <div className="space-y-3">
@@ -150,6 +176,8 @@ export function PayHeroPlatformPanel() {
           </div>
         )}
       </SettingsSection>
+
+      {configured && <PayHeroRootChannels tenants={rows} tenantName={tenantName} />}
 
       <SettingsSection
         icon={<Users className="h-4 w-4" />}
