@@ -10,11 +10,14 @@ import { PayHeroCheckoutModal } from './PayHeroCheckoutModal';
 import { PaymentPaneContext } from './PaymentModal';
 import { PAYHERO_RAIL_LABELS, PAYHERO_RAIL_ORDER, type PayHeroRail, type PaymentDetails } from './types';
 
+// Logos that already say the name stand alone on their tab (the label goes to screen readers).
+const LOGO_ONLY = new Set<PayHeroRail>(['mpesa', 'airtel_money', 'mtn_momo']);
+
 const RAIL_ICON: Record<PayHeroRail, ReactNode> = {
-  mpesa: <MpesaLogo className="h-5 w-9" />,
+  mpesa: <MpesaLogo className="h-7 w-14" />,
   payhero_offline: <MpesaLogo className="h-5 w-9" />,
-  airtel_money: <AirtelMoneyLogo className="h-5 w-9" />,
-  mtn_momo: <MtnMomoLogo className="h-5 w-5 rounded-sm" />,
+  airtel_money: <AirtelMoneyLogo className="h-7 w-14" />,
+  mtn_momo: <MtnMomoLogo className="h-7 w-7 rounded-sm" />,
   payhero_momo: <Smartphone className="h-5 w-5 text-emerald-600" />,
   payhero_card: <CreditCard className="h-5 w-5 text-blue-600" />,
   payhero_bank: <Landmark className="h-5 w-5 text-indigo-600" />,
@@ -86,13 +89,21 @@ export function PayHeroPaymentModal({
               type="button"
               onClick={() => setRail(r)}
               aria-current={rail === r ? 'true' : undefined}
+              aria-label={LOGO_ONLY.has(r) ? PAYHERO_RAIL_LABELS[r] : undefined}
+              title={PAYHERO_RAIL_LABELS[r]}
               className={cn(
-                'flex items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors min-h-11',
+                'flex items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors min-h-12',
                 rail === r ? 'bg-card text-foreground shadow-sm ring-1 ring-primary/30' : 'text-muted-foreground hover:bg-card/60 hover:text-foreground',
               )}
             >
-              <span className="flex w-9 shrink-0 items-center justify-center">{RAIL_ICON[r]}</span>
-              {PAYHERO_RAIL_LABELS[r]}
+              {LOGO_ONLY.has(r) ? (
+                <span className="flex min-w-14 items-center justify-start">{RAIL_ICON[r]}</span>
+              ) : (
+                <>
+                  <span className="flex w-9 shrink-0 items-center justify-center">{RAIL_ICON[r]}</span>
+                  {PAYHERO_RAIL_LABELS[r]}
+                </>
+              )}
             </button>
           ))}
         </div>
