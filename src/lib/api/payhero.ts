@@ -203,6 +203,11 @@ export interface PayHeroPlatformSettings {
   root_account_id: number;
   /** When PayHero's published fee schedule was last mirrored. */
   tariff_synced_at?: string;
+  /** The shared root account's wallets, read live (decimal strings). */
+  root_payments_balance?: string;
+  /** Pays PayHero's fee on every root-account collection; at zero PayHero refuses them all. */
+  root_service_balance?: string;
+  root_balance_error?: string;
 }
 
 /** A PayHero fee band (KES): a flat fee for amounts from amount_from up (amount_to 0 = no upper limit). */

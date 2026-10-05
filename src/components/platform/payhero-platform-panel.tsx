@@ -123,6 +123,26 @@ export function PayHeroPlatformPanel() {
             <div className="rounded-xl bg-muted/50 p-3"><dt className="text-xs text-muted-foreground">Organization</dt><dd className="mt-0.5 font-mono text-lg font-semibold">#{settings.data!.organization_id}</dd></div>
             <div className="rounded-xl bg-muted/50 p-3"><dt className="text-xs text-muted-foreground">Root account</dt><dd className="mt-0.5 font-mono text-lg font-semibold">#{settings.data!.root_account_id}</dd></div>
             <div className="flex items-center gap-2 rounded-xl bg-green-500/10 p-3 text-sm font-medium text-green-700"><ShieldCheck className="h-4 w-4" /> Ready for tenant Teams</div>
+            {settings.data!.root_service_balance !== undefined && (() => {
+              const svc = Number(settings.data!.root_service_balance);
+              const empty = !(svc > 0);
+              return (
+                <div className={`sm:col-span-3 rounded-xl p-3 text-sm ${empty ? 'bg-destructive/10 text-destructive' : 'bg-muted/50'}`}>
+                  <p className="font-medium">
+                    Root account service wallet: {formatCurrency(svc, 'KES')}
+                    <span className="font-normal text-muted-foreground"> (payments wallet {formatCurrency(Number(settings.data!.root_payments_balance ?? 0), 'KES')})</span>
+                  </p>
+                  <p className="text-xs mt-1">
+                    {empty
+                      ? 'PayHero refuses every payment on the root account (the platform\'s and every shared-account tenant\'s) until this is topped up. On the PayHero dashboard use Top up service wallet; Deposit funds the payments wallet, which cannot pay fees.'
+                      : 'PayHero takes the fee of every root-account payment from this wallet. Keep it above a day\'s fees.'}
+                  </p>
+                </div>
+              );
+            })()}
+            {settings.data!.root_balance_error && (
+              <p className="sm:col-span-3 text-xs text-muted-foreground">Root account balance unavailable: {settings.data!.root_balance_error}</p>
+            )}
           </dl>
         ) : (
           <div className="space-y-3">
