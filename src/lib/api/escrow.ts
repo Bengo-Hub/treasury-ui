@@ -192,6 +192,9 @@ export const escrowApi = {
     apiClient.post<Pot | { pot: Pot; refunds: PotRefund[] }>(
       `${base(tenant)}/pots/${encodeURIComponent(pot)}/cancel${refund ? '?refund=true' : ''}`,
     ),
+  /** The pot's statement as a branded PDF, CSV or XLSX (oldest first, running balance). */
+  statementDocument: (tenant: string, pot: string, format: 'pdf' | 'csv' | 'xlsx' = 'pdf') =>
+    apiClient.getBlob(`${base(tenant)}/pots/${encodeURIComponent(pot)}/statement/document`, `escrow-statement-${pot}.${format}`, { format }),
   statement: (tenant: string, pot: string, page = 1, limit = 50) =>
     apiClient.get<{ pot: Pot; entries: StatementEntry[]; total: number; page: number; limit: number }>(
       `${base(tenant)}/pots/${encodeURIComponent(pot)}/statement?page=${page}&limit=${limit}`,
