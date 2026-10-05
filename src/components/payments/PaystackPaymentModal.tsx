@@ -2,8 +2,8 @@
 
 import { Button } from '@/components/ui/base';
 import { sendToParent } from '@/lib/embed-messages';
-import { ExternalLink, Loader2, Banknote } from 'lucide-react';
-import { useState } from 'react';
+import { CheckCircle2, ExternalLink, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { PaymentModal } from './PaymentModal';
 import { PaymentQRCode } from './PaymentQRCode';
 import type { PaymentDetails } from './types';
@@ -76,9 +76,35 @@ export function PaystackPaymentModal({
 }) {
   const [email, setEmail] = useState(details.customer_email ?? '');
   const [loading, setLoading] = useState(false);
-  const [manualLoading, setManualLoading] = useState(false);
   const [error, setError] = useState('');
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
+  const [paid, setPaid] = useState(false);
+
+  // Once Paystack's page is open, wait for the result here: the status endpoint checks with
+  // Paystack while the payer waits, so the invoice settles even when Paystack's webhook never
+  // arrives (it did not for platform invoices) and the payer never comes back to the page.
+  const statusUrl = details.initiate_url ? details.initiate_url.replace(/\/initiate(\?.*)?$/, '') : '';
+  useEffect(() => {
+    if (!authorizationUrl || !statusUrl || paid) return;
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(statusUrl);
+        const data = await res.json().catch(() => ({}));
+        if (!stopped && data.status === 'succeeded') {
+          setPaid(true);
+          if (embed) {
+            sendToParent({ type: 'treasury:payment_confirmed', intentId: details.intent_id || '', amount: details.amount, reference: details.reference_id, channel: 'paystack' });
+          }
+        }
+      } catch {
+        // transient: keep polling
+      }
+    };
+    const id = setInterval(poll, 5000);
+    void poll();
+    return () => { stopped = true; clearInterval(id); };
+  }, [authorizationUrl, statusUrl, paid, embed, details.intent_id, details.amount, details.reference_id]);
 
   const transactionFee = details.amount > 0 ? calcPaystackFee(details.amount) : 0;
   const grandTotal = Math.ceil(details.amount + transactionFee);
@@ -119,39 +145,19 @@ export function PaystackPaymentModal({
     }
   };
 
-  const handlePaidAtTill = async () => {
-    if (!details.initiate_url) return;
-    setManualLoading(true);
-    setError('');
-    try {
-      const res = await fetch(details.initiate_url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildInitiatePayload(details, 'manual', 0, false)),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && (data.success !== false)) {
-        if (embed) {
-          sendToParent({ type: 'treasury:payment_confirmed', intentId: details.intent_id || '', amount: details.amount, reference: details.reference_id, channel: 'manual' });
-          onClose();
-          return;
-        }
-        onClose();
-        if (data.redirect_url) window.location.href = data.redirect_url;
-        else if (details.redirect_url) window.location.href = details.redirect_url.startsWith('http') ? details.redirect_url : `${window.location.origin}${details.redirect_url}`;
-        return;
-      }
-      setError(data.message || 'Could not confirm. Try again.');
-      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: data.message || 'Could not confirm' });
-    } catch {
-      setError('Network error. Please try again.');
-      if (embed) sendToParent({ type: 'treasury:payment_failed', intentId: details.intent_id || '', error: 'Network error' });
-    } finally {
-      setManualLoading(false);
-    }
-  };
-
   const showQR = !!authorizationUrl;
+
+  if (paid) {
+    return (
+      <PaymentModal title="Payment received" onClose={onClose} embed={embed}>
+        <div className="space-y-4 text-center py-4">
+          <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto" />
+          <p className="text-sm text-muted-foreground">Your payment of {formatAmount()} has been received.</p>
+          <Button type="button" onClick={onClose} className="w-full">Done</Button>
+        </div>
+      </PaymentModal>
+    );
+  }
 
   return (
     <PaymentModal title="Pay with Paystack" onClose={onClose} embed={embed}>
@@ -205,12 +211,6 @@ export function PaystackPaymentModal({
                   {loading ? 'Starting…' : `Pay ${formatAmount()}`}
                 </Button>
               </div>
-              {details.initiate_url && (
-                <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={handlePaidAtTill} disabled={manualLoading}>
-                  {manualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
-                  I paid at till / agent
-                </Button>
-              )}
             </div>
           </form>
         ) : (
@@ -222,10 +222,11 @@ export function PaystackPaymentModal({
                 <ExternalLink className="h-4 w-4" />
                 Open Paystack in browser
               </Button>
-              <Button type="button" variant="outline" onClick={handlePaidAtTill} disabled={manualLoading} className="w-full">
-                {manualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
-                I already paid at till / agent
-              </Button>
+              {statusUrl && (
+                <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Waiting for Paystack to confirm the payment
+                </p>
+              )}
             </div>
           </div>
         )}
