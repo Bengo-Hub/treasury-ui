@@ -14,9 +14,12 @@ const kes = (v: string | number) => formatCurrency(Number(v), 'KES');
 /**
  * PayHero's fee schedule as treasury prices collections from it: mirrored daily from PayHero's
  * published schedule (a flat fee per amount band). Tenants choose whether their customers pay it.
+ * Shown under Platform, Fee Configuration, with the other gateways' fee rules.
  */
-export function PayHeroTariff({ syncedAt }: { syncedAt?: string }) {
+export function PayHeroTariff() {
   const qc = useQueryClient();
+  const settings = useQuery({ queryKey: ['payhero-platform-settings'], queryFn: () => payheroApi.platformSettings(), retry: false });
+  const syncedAt = settings.data?.tariff_synced_at;
   const tariff = useQuery({ queryKey: ['payhero-tariff'], queryFn: () => payheroApi.tariff(), retry: false });
   const sync = useMutation({
     mutationFn: () => payheroApi.syncTariff(),

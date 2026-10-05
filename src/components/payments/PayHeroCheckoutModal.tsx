@@ -3,8 +3,8 @@
 import { Button } from '@/components/ui/base';
 import { sendToParent } from '@/lib/embed-messages';
 import { CheckCircle2, Copy, ExternalLink, Loader2, Phone, XCircle } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { PaymentModal } from './PaymentModal';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { PaymentModal, PaymentPaneContext } from './PaymentModal';
 import type { PaymentDetails } from './types';
 
 /** PayHero rails the payer finishes outside a phone prompt. */
@@ -73,6 +73,7 @@ export function PayHeroCheckoutModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           payment_method: method,
+          gateway: 'payhero',
           intent_id: details.intent_id,
           customer_email: details.customer_email,
           phone_number: needsPhone ? digits : undefined,
@@ -104,9 +105,12 @@ export function PayHeroCheckoutModal({
     }
   }, [details, embed, method, needsPhone, phone]);
 
-  // Card and bank start straight away; the paybill first asks for the phone.
+  // On their own, card and bank start straight away (the payer already chose them); as a tab in the
+  // PayHero modal they wait for the button, so browsing the tabs never starts a payment. The
+  // paybill always asks for the phone first.
+  const inPane = useContext(PaymentPaneContext);
   useEffect(() => {
-    if (!needsPhone) void start();
+    if (!needsPhone && !inPane) void start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -177,7 +181,12 @@ export function PayHeroCheckoutModal({
           </form>
         )}
 
-        {!needsPhone && !started && loading && <Loader2 className="h-6 w-6 animate-spin mx-auto" />}
+        {!needsPhone && !started && inPane && (
+          <Button type="button" className="w-full" disabled={loading} onClick={() => void start()}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : method === 'payhero_card' ? `Pay ${formatAmount()} by card` : 'Get bank deposit details'}
+          </Button>
+        )}
+        {!needsPhone && !started && !inPane && loading && <Loader2 className="h-6 w-6 animate-spin mx-auto" />}
 
         {started && method === 'payhero_offline' && instructions && (
           <div className="space-y-2 text-sm">

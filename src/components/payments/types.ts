@@ -30,28 +30,40 @@ export interface PaymentDetails {
   verify_url?: string;
 }
 
-export type GatewayType =
-  | 'paystack' | 'mpesa' | 'cod' | 'wallet' | 'mtn_momo' | 'airtel_money'
-  // PayHero rails (treasury offers them from the tenant's PayHero discovery for the currency).
-  | 'payhero_momo' | 'payhero_card' | 'payhero_bank' | 'payhero_offline';
+/**
+ * A pay-page gateway. PayHero is one gateway, like Paystack: its rails (PayHeroRail) are tabs in
+ * the PayHero modal. mpesa is the tenant's own Daraja paybill or till.
+ */
+export type GatewayType = 'paystack' | 'payhero' | 'mpesa' | 'cod' | 'wallet';
 
-/** Every pay-page method, in display order (matches treasury-api PayPageMethodOrder). */
-export const GATEWAY_ORDER: GatewayType[] = [
-  'paystack', 'mpesa', 'mtn_momo', 'airtel_money', 'payhero_momo', 'payhero_card', 'payhero_bank',
-  'payhero_offline', 'wallet', 'cod',
-];
+/** Every pay-page gateway, in display order (matches treasury-api PayPageMethodOrder). */
+export const GATEWAY_ORDER: GatewayType[] = ['paystack', 'payhero', 'mpesa', 'wallet', 'cod'];
 
 export const GATEWAY_LABELS: Record<GatewayType, string> = {
   paystack: 'Paystack',
-  // "STK Push" not "M-Pesa STK Push" — the MpesaLogo icon rendered next to this label already
-  // carries the brand.
-  mpesa: 'STK Push',
+  payhero: 'PayHero',
+  mpesa: 'M-Pesa',
   cod: 'Cash on Delivery',
   wallet: 'Pay with Wallet',
-  mtn_momo: 'MTN Mobile Money',
+};
+
+/**
+ * PayHero's rails (treasury's payhero_methods, from the tenant's PayHero discovery for the
+ * payment's currency), in display order (matches treasury-api PayHeroMethodOrder).
+ */
+export type PayHeroRail =
+  | 'mpesa' | 'payhero_offline' | 'airtel_money' | 'mtn_momo' | 'payhero_momo' | 'payhero_card' | 'payhero_bank';
+
+export const PAYHERO_RAIL_ORDER: PayHeroRail[] = [
+  'mpesa', 'payhero_offline', 'airtel_money', 'mtn_momo', 'payhero_momo', 'payhero_card', 'payhero_bank',
+];
+
+export const PAYHERO_RAIL_LABELS: Record<PayHeroRail, string> = {
+  mpesa: 'M-PESA',
+  payhero_offline: 'M-PESA Paybill',
   airtel_money: 'Airtel Money',
+  mtn_momo: 'MTN MoMo',
   payhero_momo: 'Mobile Money',
   payhero_card: 'Card',
-  payhero_bank: 'Bank Deposit',
-  payhero_offline: 'M-Pesa Paybill',
+  payhero_bank: 'Bank',
 };

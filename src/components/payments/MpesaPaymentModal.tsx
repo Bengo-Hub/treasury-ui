@@ -6,7 +6,7 @@ import { sendToParent } from '@/lib/embed-messages';
 import { Banknote, CheckCircle2, Loader2, Phone, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PaymentModal } from './PaymentModal';
-import { MpesaLogo } from './logos';
+import { MpesaLogo } from '@bengo-hub/shared-ui-lib';
 import type { PaymentDetails } from './types';
 
 // Icon + "STK Push" — not "Pay with M-Pesa" — so the modal title doesn't repeat the brand name
@@ -17,10 +17,14 @@ const MPESA_TITLE = (
   </span>
 );
 
-function mpesaPayload(details: PaymentDetails, phoneNumber: string): Record<string, unknown> {
+/** Which account runs the prompt: the tenant's own Daraja paybill or till, or PayHero. */
+export type MpesaProvider = 'daraja' | 'payhero';
+
+function mpesaPayload(details: PaymentDetails, phoneNumber: string, provider: MpesaProvider): Record<string, unknown> {
   const body: Record<string, unknown> = {
     payment_method: 'mpesa',
-    gateway: 'mpesa',
+    // Pins the provider: PayHero and Daraja are separate gateways on the pay page.
+    gateway: provider,
     amount: details.amount,
     currency: details.currency,
     reference_id: details.reference_id,
@@ -47,15 +51,16 @@ export function MpesaPaymentModal({
   onClose,
   onSuccess,
   embed = false,
-  viaPayHero = false,
+  provider = 'daraja',
 }: {
   details: PaymentDetails;
   onClose: () => void;
   onSuccess?: (data: { checkout_request_id?: string }) => void;
   embed?: boolean;
-  /** M-Pesa runs through PayHero (the gateways' providers hint): show its fee when the payer bears it. */
-  viaPayHero?: boolean;
+  /** daraja (the M-Pesa gateway) or payhero (inside the PayHero modal, with its fee notice). */
+  provider?: MpesaProvider;
 }) {
+  const viaPayHero = provider === 'payhero';
   const [phone, setPhone] = useState(details.phone_number ?? '');
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -68,6 +73,9 @@ export function MpesaPaymentModal({
   const [outcomeMsg, setOutcomeMsg] = useState('');
 
   const statusUrl = statusUrlFrom(details.initiate_url);
+  // "I paid at the till" matches Daraja C2B confirmations; PayHero channels send none.
+  const canCheckTill = !!statusUrl && !viaPayHero;
+  const title = viaPayHero ? 'M-PESA' : MPESA_TITLE;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const settledRef = useRef(false);
 
@@ -150,7 +158,7 @@ export function MpesaPaymentModal({
       const res = await fetch(details.initiate_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mpesaPayload(details, normalized)),
+        body: JSON.stringify(mpesaPayload(details, normalized, provider)),
       });
       const data = await res.json().catch(() => ({}));
       if (data.checkout_request_id || data.status === 'processing') {
@@ -239,7 +247,7 @@ export function MpesaPaymentModal({
 
   if (stkSent) {
     return (
-      <PaymentModal title={MPESA_TITLE} onClose={onClose} embed={embed}>
+      <PaymentModal title={title} onClose={onClose} embed={embed}>
         <div className="space-y-4 text-center py-2">
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
           <div className="space-y-1">
@@ -254,7 +262,7 @@ export function MpesaPaymentModal({
             <Button type="button" variant="outline" onClick={() => { setStkSent(false); setError(''); }} disabled={loading}>
               Resend / change number
             </Button>
-            {statusUrl && (
+            {canCheckTill && (
               <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={handleCheckTill} disabled={checking}>
                 {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
                 I already paid at till / paybill — check now
@@ -267,7 +275,7 @@ export function MpesaPaymentModal({
   }
 
   return (
-    <PaymentModal title={MPESA_TITLE} onClose={onClose} embed={embed}>
+    <PaymentModal title={title} onClose={onClose} embed={embed}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="p-4 rounded-lg bg-muted/50 space-y-2">
           <div className="flex justify-between text-sm">
@@ -301,7 +309,7 @@ export function MpesaPaymentModal({
             <>The prompt will be sent to <span className="font-semibold text-foreground">{normalizePhone(phone)}</span> — check the number before sending.</>
           ) : (
             'Enter the customer’s number above to receive the prompt.'
-          )}{' '}Or pay at an M-Pesa till and confirm below.
+          )}{canCheckTill && ' Or pay at an M-Pesa till and confirm below.'}
         </p>
         <div className="flex flex-col gap-2 pt-2">
           <div className="flex gap-2 justify-end">
@@ -313,7 +321,7 @@ export function MpesaPaymentModal({
               {loading ? 'Sending…' : `Pay ${formatAmount()} with M-Pesa`}
             </Button>
           </div>
-          {statusUrl && (
+          {canCheckTill && (
             <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={handleCheckTill} disabled={checking}>
               {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
               I paid at till / paybill — check now

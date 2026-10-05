@@ -34,11 +34,17 @@ export interface CreateFeeRuleRequest {
   description?: string;
 }
 
+/** treasury-api's list shape for fee rules (tenant and platform). */
+export interface FeeRuleList {
+  data: FeeRule[];
+  total: number;
+}
+
 // ─── Tenant-level API Functions ───────────────────────────────────────────────
 
 /** List fee rules for a specific tenant. */
-export function listFeeRules(tenantSlug: string): Promise<{ fee_rules: FeeRule[] }> {
-  return apiClient.get<{ fee_rules: FeeRule[] }>(`${BASE}/${tenantSlug}/fee-rules`);
+export function listFeeRules(tenantSlug: string): Promise<FeeRuleList> {
+  return apiClient.get<FeeRuleList>(`${BASE}/${tenantSlug}/fee-rules`);
 }
 
 /** Create a fee rule for a specific tenant. */
@@ -63,8 +69,8 @@ export function deleteFeeRule(tenantSlug: string, id: string): Promise<{ status:
 // ─── Platform-level API Functions ─────────────────────────────────────────────
 
 /** List platform-wide fee rules. */
-export function listPlatformFeeRules(): Promise<{ fee_rules: FeeRule[] }> {
-  return apiClient.get<{ fee_rules: FeeRule[] }>(`${BASE}/platform/fee-rules`);
+export function listPlatformFeeRules(): Promise<FeeRuleList> {
+  return apiClient.get<FeeRuleList>(`${BASE}/platform/fee-rules`);
 }
 
 /** Create a platform-wide fee rule. */
