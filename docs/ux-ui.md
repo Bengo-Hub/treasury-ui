@@ -111,6 +111,26 @@ Treasury UI follows the **Codevertex Design System** with financial-focused patt
 </Modal>
 ```
 
+**Edit and quick-add happen in modals, not separate pages** (2026-10-06). Editing a draft expense
+(`components/expenses/EditExpenseModal.tsx`) and adding a vendor
+(`components/vendors/VendorFormDialog.tsx`) open in place from the list, the detail page or the
+form that needs the record, using `Dialog`/`DialogContent` from `components/ui/dialog.tsx`. The old
+`/expenses/{id}/edit` and `/vendors/new` routes only redirect (`?edit=1`, `?add=1`) so bookmarks still
+work. Reuse these components; do not build a second form for the same record.
+
+**Modal width follows content**: a confirm or one-field modal is `max-w-sm`/`max-w-md`, a short
+form `max-w-lg`/`max-w-xl`, a multi-section form `max-w-2xl`/`max-w-3xl` (the expense edit modal is
+`max-w-3xl` with three-column field grids). Re-check the width whenever fields are added.
+
+### Page width
+The org shell (`app/[orgSlug]/org-shell.tsx`) adds no padding of its own, so every page owns
+`p-4 sm:p-6 lg:p-8` (list pages use `p-6`) and spans the full content width. Do not cap a page with
+`max-w-3xl`/`max-w-5xl mx-auto`: on a normal screen that leaves wide empty bands on both sides of
+the content. Detail pages lay out instead: a main card with a responsive field grid
+(`grid sm:grid-cols-2 xl:grid-cols-3`) and a side column of related cards (`lg:grid-cols-3`, see the
+expense detail page). Only public customer document links (`/i/{token}`, `/q/{token}`) keep a
+centred paper-width column.
+
 ### Cards
 **Purpose**: Dashboard metrics, gateway status, transaction details
 

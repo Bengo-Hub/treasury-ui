@@ -14,6 +14,8 @@ interface Props {
   tenant: string;
   /** Prefill for the supplier name (e.g. what the user was searching for). */
   initialName?: string;
+  /** Subtitle; defaults to the picker wording (the new vendor is selected on the calling form). */
+  description?: string;
   onClose: () => void;
   /** The created vendor (inventory supplier master), ready to select in the calling form. */
   onCreated: (vendor: Vendor) => void;
@@ -25,7 +27,14 @@ interface Props {
  * same mapper as the Add Vendor page, then hands the created vendor back so the form can select it
  * and prefill its KRA PIN without leaving the page.
  */
-export function VendorFormDialog({ open, tenant, initialName, onClose, onCreated }: Props) {
+export function VendorFormDialog({
+  open,
+  tenant,
+  initialName,
+  description = 'Saved to your supplier list and selected on this form.',
+  onClose,
+  onCreated,
+}: Props) {
   const createVendor = useCreateVendor(tenant);
   const [country, setCountry] = useState('Kenya');
   const created = useRef<Vendor | null>(null);
@@ -34,7 +43,7 @@ export function VendorFormDialog({ open, tenant, initialName, onClose, onCreated
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
         title="Add New Vendor"
-        description="Saved to your supplier list and selected on this form."
+        description={description}
         className="max-w-2xl"
         onClose={onClose}
       >
