@@ -112,10 +112,22 @@ export function useClients(tenant: string, search = '') {
     const matchBalance = (crmId?: string, name?: string) =>
       (crmId && balanceByCrm.get(crmId)) || (name ? balanceByName.get(normName(name)) : undefined) || undefined;
 
+    // An invoice without a contact id joins the contact its other invoices with the same name
+    // carry, when that is one contact: otherwise a customer billed both ways (e.g. renewals before
+    // and after the CRM link) showed as two clients.
+    const crmByName = new Map<string, string | null>();
+    invoices.forEach((inv: Invoice) => {
+      const id = inv.crm_customer_id || inv.customer_id;
+      const n = normName(inv.customer_name);
+      if (!id || !n) return;
+      const seen = crmByName.get(n);
+      crmByName.set(n, seen === undefined || seen === id ? id : null);
+    });
+
     // 1. Doc-derived customers (from invoices).
     invoices.forEach((inv: Invoice) => {
       const name = inv.customer_name || 'Unknown Customer';
-      const crmId = inv.crm_customer_id || inv.customer_id;
+      const crmId = inv.crm_customer_id || inv.customer_id || crmByName.get(normName(name)) || undefined;
       const key = crmId || normName(name) || name;
       // Only TRUE invoices contribute to the AR/Outstanding figures. Other doc types
       // (delivery notes, proforma, quotations, …) may still surface the client but are
