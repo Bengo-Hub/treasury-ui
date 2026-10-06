@@ -22,6 +22,7 @@ import { Banknote, CheckCircle2, Activity, Users, Loader2 } from 'lucide-react';
 import { ExportMenu } from '@/components/documents/ExportMenu';
 import { useMe } from '@/hooks/useMe';
 import { AnnouncementBanner } from '@bengo-hub/shared-ui-lib/announcements';
+import { usePayHeroStatus } from './settings/_components/payhero/use-payhero';
 
 /**
  * Dashboard — a thin shell that composes self-contained, reusable analytics widgets (each owns
@@ -37,6 +38,10 @@ export default function DashboardPage() {
   // Who can act on a setup announcement (turn a gateway on, change settings).
   const isSettingsAdmin = !!me && (me.isSuperUser || me.isPlatformOwner ||
     me.roles.some((r) => r === 'superuser' || r === 'admin' || r.endsWith('_admin')));
+  // payhero_active picks the "how to use it" text of a PayHero announcement over "how to ask for
+  // it". Read only for admins (the only ones shown it); undefined while loading holds it back.
+  const { data: payhero, isError: payheroError } = usePayHeroStatus(isSettingsAdmin ? orgSlug : '');
+  const payheroActive = payhero ? payhero.enabled && payhero.channels.some((c) => c.is_active) : payheroError ? false : undefined;
   // OutletFilter (header dropdown, HQ/admin only): selectedOutlet null = "All Outlets". Widgets
   // below get the outlet id so they scope to the chosen branch instead of always showing the
   // tenant-wide aggregate; the "Revenue by Outlet" breakdown only makes sense in the "All
@@ -86,6 +91,7 @@ export default function DashboardPage() {
         orgSlug={orgSlug}
         viewerKey={me?.id || me?.email}
         isAdmin={isSettingsAdmin}
+        flags={isSettingsAdmin ? { payhero_active: payheroActive } : undefined}
       />
       <PeriodCloseReminder tenant={dashTenant} orgSlug={orgSlug} />
       <KpiCards tenant={dashTenant} from={from} to={to} outletId={outletId} />
