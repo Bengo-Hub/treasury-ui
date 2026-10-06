@@ -416,7 +416,7 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
         {/* Summary card */}
         <div className="rounded-xl border border-border bg-card shadow-sm p-6">

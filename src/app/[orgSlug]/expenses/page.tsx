@@ -15,6 +15,7 @@ import { nowDatetimeLocal, datetimeLocalToISO } from '@bengo-hub/shared-ui-lib/p
 import { EXPENSE_ACCESSORS, buildExpenseColumns } from './expense-columns';
 import { ExpensePaymentModal } from '@/components/expenses/ExpensePaymentModal';
 import { MarkExpensePaidModal } from '@/components/expenses/MarkExpensePaidModal';
+import { EditExpenseModal } from '@/components/expenses/EditExpenseModal';
 import { ExpenseStatsPanel } from '@/components/expenses/ExpenseStatsPanel';
 import { ListTotalsBar } from '@/components/ui/list-totals-bar';
 import { ExportMenu } from '@/components/documents/ExportMenu';
@@ -100,6 +101,8 @@ export default function ExpensesPage() {
   // secondary power-user "link an existing intent ID" fallback.
   const [payExp, setPayExp] = useState<Expense | null>(null);
   const [markPaidExp, setMarkPaidExp] = useState<Expense | null>(null);
+  // Draft being edited in the EditExpenseModal (Edit row action).
+  const [editExp, setEditExp] = useState<Expense | null>(null);
   const [reimburseExp, setReimburseExp] = useState<Expense | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState('');
   const [reimbursePaidAtLocal, setReimbursePaidAtLocal] = useState(nowDatetimeLocal());
@@ -302,7 +305,7 @@ export default function ExpensesPage() {
       label: 'Edit',
       icon: <Pencil className="h-3.5 w-3.5" />,
       visible: (exp) => exp.status === 'draft',
-      onClick: (exp) => router.push(`/${orgSlug}/expenses/${exp.id}/edit`),
+      onClick: (exp) => setEditExp(exp),
     },
     {
       label: 'Submit',
@@ -535,6 +538,8 @@ export default function ExpensesPage() {
         onOverride={() => runConfirm(true)}
         onClose={() => setOverBudget(null)}
       />
+
+      <EditExpenseModal tenant={effectiveTenant ?? ''} expense={editExp} onClose={() => setEditExp(null)} />
 
       {/* Primary: Mark Paid — settle from a cash/bank account (DR AP / CR cash). No gateway. */}
       {markPaidExp && effectiveTenant && (

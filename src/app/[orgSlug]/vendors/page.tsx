@@ -17,12 +17,13 @@ import { PayoutVendorCreditDialog } from '@/components/payout-vendor-credit-dial
 import { PayBillDialog } from '@/components/bills/PayBillDialog';
 import { VendorOpenBillsDialog } from '@/components/bills/VendorOpenBillsDialog';
 import { SettleVendorDialog } from '@/components/bills/SettleVendorDialog';
+import { VendorFormDialog } from '@/components/vendors/VendorFormDialog';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildVendorColumns, type VendorSummary } from './vendor-columns';
 import { ArrowLeft, Banknote, ChevronRight, Inbox, Loader2, Plus, Search } from 'lucide-react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -62,7 +63,7 @@ const STATS_CHUNK = 200;
 
 export default function VendorsPage() {
   const params = useParams();
-  const router = useRouter();
+  const searchParams = useSearchParams();
   const orgSlug = (params?.orgSlug as string) ?? '';
   const { tenantPathId, tenantQueryParam, isPlatformOwner } = useResolvedTenant();
   // Default to the platform owner's own tenant (codevertex); drill-down overrides.
@@ -72,6 +73,8 @@ export default function VendorsPage() {
   const orgName = brand?.orgName || brand?.name || 'Workspace';
 
   const [topTab, setTopTab] = useState<'all' | 'reports'>('all');
+  // Add Vendor dialog; ?add=1 (the old /vendors/new route redirects here) opens it on arrival.
+  const [addOpen, setAddOpen] = useState(searchParams?.get('add') === '1');
   const [archivedTab, setArchivedTab] = useState<'active' | 'archived'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   const search = useDebouncedValue(searchQuery.trim(), 300);
@@ -289,7 +292,7 @@ export default function VendorsPage() {
       {/* Title + primary action */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Manage Vendors</h1>
-        <Button variant="primary" onClick={() => router.push(`/${orgSlug}/vendors/new`)}>
+        <Button variant="primary" onClick={() => setAddOpen(true)}>
           <Plus className="h-4 w-4 mr-1.5" />
           Add Vendor
         </Button>
@@ -523,6 +526,14 @@ export default function VendorsPage() {
         vendor={settleVendor}
         bills={settleVendor ? openBills?.bills ?? [] : []}
         onClose={() => setSettleVendor(null)}
+      />
+
+      <VendorFormDialog
+        open={addOpen}
+        tenant={effectiveTenant}
+        description="Saved to your supplier list, shared with Inventory and POS."
+        onClose={() => setAddOpen(false)}
+        onCreated={() => setAddOpen(false)}
       />
 
       <PayBillDialog
