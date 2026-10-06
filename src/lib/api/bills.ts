@@ -5,7 +5,6 @@
 
 import { apiClient } from './client';
 import { budgetOverrideParams, type BudgetCheckResult } from './budgets';
-import { fetchAllViaApiClient } from './paginate';
 
 const BASE = '/api/v1';
 
@@ -89,6 +88,10 @@ export interface BillsParams {
   to?: string;
   /** Matches the bill's own number or vendor name — real DB-level filtering. */
   search?: string;
+  /** One supplier's bills (inventory supplier id). */
+  vendor_id?: string;
+  /** Only live payables (received, approved, partial, overdue). */
+  open?: boolean;
   limit?: number;
   offset?: number;
   page?: number;
@@ -105,6 +108,8 @@ export interface BillLineReq {
 export interface CreateBillRequest {
   vendor_id?: string;
   vendor_name?: string;
+  /** Supplier KRA PIN, sent to eTIMS with the purchase. Omitted => treasury takes it from the supplier master. */
+  vendor_tin?: string;
   /** 'bill' (a payable, default) or 'credit_note' (a supplier credit that nets against payables). */
   document_type?: 'bill' | 'credit_note';
   bill_date: string;
@@ -222,18 +227,6 @@ export interface AgingReport {
 
 export function getBills(tenantIdOrSlug: string, params?: BillsParams): Promise<BillsResponse> {
   return apiClient.get<BillsResponse>(`${BASE}/${tenantIdOrSlug}/ap/bills`, params);
-}
-
-/**
- * Fetch the tenant's ENTIRE bill history (unpaginated). `/ap/bills` is paginated (shared
- * Bengo-Hub/pagination lib defaults to 20/page, caps a page at 100) — a single un-paginated
- * fetch only returns the newest page, silently truncating any view that aggregates over "all
- * bills" (e.g. the Vendors page's derived per-vendor rollup, which groups bills by vendor_name
- * client-side since there's no dedicated vendor service). Mirrors getCustomerBalances's fix
- * (lib/api/invoices.ts) for the identical truncation shape.
- */
-export async function getAllBills(tenantIdOrSlug: string): Promise<Bill[]> {
-  return fetchAllViaApiClient<Bill>(`${BASE}/${tenantIdOrSlug}/ap/bills`);
 }
 
 export function getBill(tenantIdOrSlug: string, id: string): Promise<Bill> {

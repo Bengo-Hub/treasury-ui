@@ -1,33 +1,36 @@
 'use client';
 
-// DataTable column definitions + row model for the Manage Vendors list — split out
-// of page.tsx to keep the page small. Accessors are shared with the page's host-side
-// sort/funnel processing (controlled DataTable mode) so filtering and sorting run
-// over the whole vendor set before client pagination.
+// DataTable column definitions + row model for the Manage Vendors list, split out of page.tsx.
+// Rows are inventory supplier master records (paged and searched on the server) joined with their
+// AP balance and bill activity for the visible page only.
 
 import { Badge, Button } from '@/components/ui/base';
-import type { DataTableColumn, FilterOption } from '@bengo-hub/shared-ui-lib/data-table';
+import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { formatCurrency } from '@/lib/utils/currency';
 import { CreditCard, FileText, HandCoins, Undo2, Wallet } from 'lucide-react';
 
 export interface VendorSummary {
+  /** Inventory supplier id (the vendor master); also the AP ledger's vendor_id. */
+  vendorId: string;
   name: string;
+  kraPin: string;
   industry: string;
   phone: string;
   email: string;
   country: string;
   billCount: number;
+  /** Bills net of credit notes (drafts and cancelled excluded). */
   totalAmount: number;
+  /** What the open bills still owe (AP open-amount rules). */
   outstanding: number;
   currency: string;
+  /** Date of the latest bill, when there is one. */
   lastCommunication: string;
-  /** A vendor is archived when every one of its bills is cancelled. */
+  /** Archived (inactive) in the supplier master. */
   archived: boolean;
-  /** AP ledger vendor UUID (from /ap/vendors), when this vendor has a balance row. */
-  vendorId?: string;
-  /** Running AP balance owed from the operational ledger (/ap/vendors), if known. */
+  /** Running AP balance owed from the operational ledger, when treasury has a record. */
   balanceOwed?: number;
-  /** How many of this vendor's bills can be paid right now (same rule as the Bills page's Pay). */
+  /** How many of this vendor's bills can be paid right now. */
   payableBillCount?: number;
 }
 
@@ -35,6 +38,7 @@ const EMPTY = '—';
 
 export const VENDOR_ACCESSORS: Record<string, (v: VendorSummary) => unknown> = {
   name: (v) => v.name,
+  kraPin: (v) => v.kraPin || '',
   industry: (v) => v.industry || '',
   phone: (v) => v.phone || '',
   email: (v) => v.email || '',
@@ -51,10 +55,7 @@ export interface VendorColumnCallbacks {
   onStatement: (v: VendorSummary) => void;
 }
 
-export function buildVendorColumns(
-  industryOptions: FilterOption[],
-  cb: VendorColumnCallbacks,
-): DataTableColumn<VendorSummary>[] {
+export function buildVendorColumns(cb: VendorColumnCallbacks): DataTableColumn<VendorSummary>[] {
   return [
     {
       key: 'logo',
@@ -89,11 +90,15 @@ export function buildVendorColumns(
       ),
     },
     {
+      key: 'kraPin',
+      header: 'KRA PIN',
+      accessor: VENDOR_ACCESSORS.kraPin,
+      render: (v) => <span className="font-mono text-xs text-muted-foreground">{v.kraPin || EMPTY}</span>,
+    },
+    {
       key: 'industry',
       header: 'Industry',
       sortable: true,
-      filterable: true,
-      filterOptions: industryOptions,
       accessor: VENDOR_ACCESSORS.industry,
       render: (v) => <span className="text-muted-foreground">{v.industry || EMPTY}</span>,
     },
@@ -120,8 +125,6 @@ export function buildVendorColumns(
       key: 'status',
       header: 'Status',
       align: 'center',
-      filterable: true,
-      filterOptions: [{ value: 'Active' }, { value: 'Archived' }],
       accessor: VENDOR_ACCESSORS.status,
       render: (v) => (
         <Badge variant={v.archived ? 'outline' : 'success'}>{v.archived ? 'Archived' : 'Active'}</Badge>
@@ -129,7 +132,7 @@ export function buildVendorColumns(
     },
     {
       key: 'lastComm',
-      header: 'Last Communication Date',
+      header: 'Last Bill',
       align: 'right',
       sortable: true,
       accessor: VENDOR_ACCESSORS.lastComm,
@@ -200,8 +203,7 @@ export function buildVendorColumns(
           <Button
             variant="outline"
             size="sm"
-            disabled={!vendor.vendorId}
-            title={vendor.vendorId ? 'View vendor statement' : 'No AP ledger balance for this vendor yet'}
+            title="View vendor statement"
             onClick={(e: React.MouseEvent) => {
               e.stopPropagation();
               cb.onStatement(vendor);

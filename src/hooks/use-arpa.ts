@@ -2,7 +2,7 @@
 
 import {
   getAPSummary,
-  getVendorBalances,
+  getVendorBillStats,
   getVendorStatement,
   getCustomerStatement,
   setCustomerOpeningBalance,
@@ -20,14 +20,14 @@ import {
   type ApplyVendorCreditRequest,
   type PayoutVendorCreditRequest,
 } from '@/lib/api/arpa';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 const STALE_MS = 2 * 60 * 1000;
 
 export const arpaKeys = {
   apSummary: (tenant: string) => ['arpa', 'ap-summary', tenant] as const,
-  vendorBalances: (tenant: string) => ['arpa', 'vendor-balances', tenant] as const,
+  vendorBillStats: (tenant: string, ids: string[]) => ['arpa', 'vendor-bill-stats', tenant, ids] as const,
   vendorStatement: (tenant: string, vendorId: string, range?: StatementRange) =>
     ['arpa', 'vendor-statement', tenant, vendorId, range] as const,
   customerStatement: (tenant: string, contactId: string, range?: StatementRange, page?: StatementPage) =>
@@ -45,13 +45,26 @@ export function useAPSummary(tenant: string | undefined, enabled = true) {
   });
 }
 
-export function useVendorBalances(tenant: string | undefined, enabled = true) {
+/** Bill activity for the given suppliers (one Vendors page), from one grouped server query. */
+export function useVendorBillStats(tenant: string | undefined, vendorIds: string[], enabled = true) {
   return useQuery({
-    queryKey: arpaKeys.vendorBalances(tenant ?? ''),
-    queryFn: () => getVendorBalances(tenant!),
-    enabled: !!tenant && enabled,
+    queryKey: arpaKeys.vendorBillStats(tenant ?? '', vendorIds),
+    queryFn: () => getVendorBillStats(tenant!, vendorIds),
+    enabled: !!tenant && vendorIds.length > 0 && enabled,
     staleTime: STALE_MS,
+    placeholderData: (prev) => prev,
   });
+}
+
+/**
+ * Refreshes what the Vendors page shows after an AP change (bill paid, opening balance, refund,
+ * credit payout): the supplier list (inventory-api attaches each balance owed) and the per-page
+ * bill activity.
+ */
+export function invalidateVendorViews(qc: QueryClient, tenant: string | undefined) {
+  const t = tenant ?? '';
+  qc.invalidateQueries({ queryKey: ['arpa', 'vendor-bill-stats', t] });
+  qc.invalidateQueries({ queryKey: ['inventory', t, 'vendors'] });
 }
 
 export function useVendorStatement(
@@ -129,7 +142,7 @@ export function useUpsertVendorBalance(tenant: string | undefined) {
   return useMutation({
     mutationFn: (body: UpsertVendorBalanceRequest) => upsertVendorBalance(tenant!, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenant ?? '') });
+      invalidateVendorViews(queryClient, tenant);
       queryClient.invalidateQueries({ queryKey: arpaKeys.apSummary(tenant ?? '') });
       toast.success('Vendor balance saved.');
     },
@@ -147,7 +160,7 @@ export function useRecordVendorRefund(tenant: string | undefined) {
   return useMutation({
     mutationFn: (body: RecordVendorRefundRequest) => recordVendorRefund(tenant!, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenant ?? '') });
+      invalidateVendorViews(queryClient, tenant);
       queryClient.invalidateQueries({ queryKey: arpaKeys.apSummary(tenant ?? '') });
       toast.success('Vendor refund recorded.');
     },
@@ -166,7 +179,7 @@ export function useApplyVendorCredit(tenant: string | undefined) {
     mutationFn: ({ vendorKey, body }: { vendorKey: string; body: ApplyVendorCreditRequest }) =>
       applyVendorCredit(tenant!, vendorKey, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenant ?? '') });
+      invalidateVendorViews(queryClient, tenant);
       queryClient.invalidateQueries({ queryKey: arpaKeys.apSummary(tenant ?? '') });
       queryClient.invalidateQueries({ queryKey: ['bills', 'list', tenant ?? ''] });
       toast.success('Vendor credit applied to bill.');
@@ -186,7 +199,7 @@ export function usePayoutVendorCredit(tenant: string | undefined) {
     mutationFn: ({ vendorKey, body }: { vendorKey: string; body: PayoutVendorCreditRequest }) =>
       payoutVendorCredit(tenant!, vendorKey, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenant ?? '') });
+      invalidateVendorViews(queryClient, tenant);
       queryClient.invalidateQueries({ queryKey: arpaKeys.apSummary(tenant ?? '') });
       toast.success('Vendor credit paid out.');
     },

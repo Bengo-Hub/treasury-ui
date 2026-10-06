@@ -4,45 +4,13 @@ import { Button, Card, CardContent } from '@/components/ui/base';
 import { FormField } from '@/components/ui/form-field';
 import { useCreateVendor } from '@/hooks/use-inventory';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import type { CreateVendorRequest } from '@/lib/api/inventory';
-import { SupplierForm, type SupplierFormValues } from '@bengo-hub/shared-ui-lib/suppliers';
+import { supplierFormToVendorRequest } from '@/lib/api/inventory';
+import { SupplierForm } from '@bengo-hub/shared-ui-lib/suppliers';
 import { CountrySelect, countryName } from '@bengo-hub/shared-ui-lib/contact';
 import { ArrowLeft } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
-
-/**
- * Maps the shared SupplierForm payload onto treasury's CreateVendorRequest (the nested
- * vendor shape that src/lib/api/inventory.ts flattens before proxying to inventory-api's
- * POST /{tenant}/inventory/suppliers via the treasury-api S2S route).
- */
-function toCreateVendorRequest(v: SupplierFormValues, country: string): CreateVendorRequest {
-  const payload: CreateVendorRequest = {
-    business_name: v.name.trim(),
-    country: country.trim() || 'Kenya',
-  };
-  if (v.phone?.trim()) payload.phone = v.phone.trim();
-  if (v.email?.trim()) payload.email = v.email.trim();
-  if (v.notes?.trim()) payload.notes = v.notes.trim();
-
-  const taxId = v.tax_number?.trim() || v.tax_pin?.trim();
-  if (taxId) payload.tax_info = { tax_id: taxId };
-
-  if (v.address?.trim()) payload.address = { line1: v.address.trim() };
-
-  const bank: NonNullable<CreateVendorRequest['bank_details']> = {};
-  if (v.bank_name?.trim()) bank.bank_name = v.bank_name.trim();
-  if (v.bank_account_number?.trim()) bank.account_number = v.bank_account_number.trim();
-  if (v.bank_branch?.trim()) bank.branch = v.bank_branch.trim();
-  if (Object.keys(bank).length) payload.bank_details = bank;
-
-  if (v.payment_terms_days != null) {
-    payload.account_details = { payment_terms_days: v.payment_terms_days };
-  }
-
-  return payload;
-}
 
 export default function AddVendorPage() {
   const params = useParams();
@@ -82,7 +50,7 @@ export default function AddVendorPage() {
 
           <FormField label="Country" required className="max-w-md">
             {/* CountrySelect's value/onChange are ISO codes; the vendor payload stores a full
-                country name (see toCreateVendorRequest), so onChange converts back via
+                country name (see supplierFormToVendorRequest), so onChange converts back via
                 countryName(). A legacy/current name value like "Kenya" doesn't match any ISO
                 option, so CountrySelect shows it via its own valueLabel fallback — still
                 correct, just not "selected" until the user actively re-picks. */}
@@ -98,7 +66,7 @@ export default function AddVendorPage() {
           <SupplierForm
             submitLabel="Save Vendor"
             onSubmit={async (values) => {
-              const vendor = await createVendor.mutateAsync(toCreateVendorRequest(values, country));
+              const vendor = await createVendor.mutateAsync(supplierFormToVendorRequest(values, country));
               return { id: vendor.id, name: vendor.business_name };
             }}
             onSuccess={(supplier) => {

@@ -3,9 +3,10 @@
  * Routes: GET /{tenant}/inventory/items, GET /{tenant}/logistics/carriers
  *
  * Vendors/suppliers are owned by the inventory service (not treasury); the
- * treasury-api proxies them via S2S under /{tenant}/inventory/vendors.
+ * treasury-api proxies them under /{tenant}/inventory/suppliers.
  */
 
+import type { SupplierFormValues } from '@bengo-hub/shared-ui-lib/suppliers';
 import { apiClient } from './client';
 
 const BASE = '/api/v1';
@@ -380,7 +381,8 @@ export interface VendorsResponse {
 
 export interface ListVendorsParams {
   q?: string;
-  archived?: boolean;
+  /** active (default), inactive (archived only) or all. Filtered server-side by inventory-api. */
+  status?: 'active' | 'inactive' | 'all';
   limit?: number;
   offset?: number;
 }
@@ -506,11 +508,11 @@ function vendorToSupplierPayload(v: CreateVendorRequest): Record<string, unknown
 }
 
 export async function listVendors(tenant: string, params?: ListVendorsParams): Promise<VendorsResponse> {
-  // inventory-api list is a paginated envelope: { data, total, ... } and uses
-  // `search` / `include_inactive` query params.
+  // inventory-api list is a paginated envelope: { data, total, ... } and takes
+  // `search` (name, contact, email, phone, KRA PIN) and `status`.
   const query: Record<string, unknown> = {};
   if (params?.q) query.search = params.q;
-  if (params?.archived) query.include_inactive = 'true';
+  if (params?.status && params.status !== 'active') query.status = params.status;
   if (params?.limit != null) query.limit = params.limit;
   if (params?.offset != null) query.offset = params.offset;
   const res = await apiClient.get<{ data?: SupplierDTO[]; total?: number }>(
@@ -532,4 +534,40 @@ export async function createVendor(tenant: string, data: CreateVendorRequest): P
     vendorToSupplierPayload(data),
   );
   return supplierToVendor(s);
+}
+
+/** The vendor's KRA PIN (inventory-api `tax_pin`, mapped to tax_info.tax_id). */
+export function vendorKraPin(v?: Pick<Vendor, 'tax_info'> | null): string {
+  return v?.tax_info?.tax_id?.trim() ?? '';
+}
+
+/**
+ * Maps the shared SupplierForm payload onto CreateVendorRequest. One mapper for every place a
+ * vendor is created in treasury-ui (the Add Vendor page and the inline vendor dialog), so the
+ * captured fields, including the KRA PIN, never drift between them.
+ */
+export function supplierFormToVendorRequest(v: SupplierFormValues, country: string): CreateVendorRequest {
+  const payload: CreateVendorRequest = {
+    business_name: v.name.trim(),
+    country: country.trim() || 'Kenya',
+  };
+  if (v.phone?.trim()) payload.phone = v.phone.trim();
+  if (v.email?.trim()) payload.email = v.email.trim();
+  if (v.notes?.trim()) payload.notes = v.notes.trim();
+
+  const pin = (v.tax_pin || v.tax_number || '').trim().toUpperCase();
+  if (pin) payload.tax_info = { tax_id: pin };
+
+  if (v.address?.trim()) payload.address = { line1: v.address.trim() };
+
+  const bank: NonNullable<CreateVendorRequest['bank_details']> = {};
+  if (v.bank_name?.trim()) bank.bank_name = v.bank_name.trim();
+  if (v.bank_account_number?.trim()) bank.account_number = v.bank_account_number.trim();
+  if (v.bank_branch?.trim()) bank.branch = v.bank_branch.trim();
+  if (Object.keys(bank).length) payload.bank_details = bank;
+
+  if (v.payment_terms_days != null) {
+    payload.account_details = { payment_terms_days: v.payment_terms_days };
+  }
+  return payload;
 }
