@@ -51,15 +51,23 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { usePageReset } from '@/hooks/use-page-reset';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { toast } from 'sonner';
 import { OverBudgetDialog } from '@/components/budgets/over-budget-dialog';
 import { budgetWarningOf, overBudgetOf, type BudgetCheckResult } from '@/lib/api/budgets';
 
-function defaultDateRange(): { from: string; to: string } {
-  const to = new Date();
-  const from = new Date(to);
-  from.setDate(from.getDate() - 90);
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+/** The local calendar day (YYYY-MM-DD), not the UTC one: near midnight they differ by a day. */
+function localDay(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Default window start: 90 days back. There is no default end, so expenses dated ahead (a rent
+ *  or lease entered before its due date) still show. */
+function defaultFrom(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 90);
+  return localDay(d);
 }
 
 export default function ExpensesPage() {
@@ -69,6 +77,10 @@ export default function ExpensesPage() {
   // a tenant drill-down via the header filter overrides this.
   const effectiveTenant = isPlatformOwner ? (tenantQueryParam ?? orgSlug) : tenantPathId;
   const [searchQuery, setSearchQuery] = useState('');
+  // Searched on the server (number, description, vendor name) across every matching expense.
+  const search = useDebouncedValue(searchQuery.trim(), 300);
+  const [dateFrom, setDateFrom] = useState(defaultFrom);
+  const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [costCenterFilter, setCostCenterFilter] = useState<string>('all');
   const [pageSize, setPageSize] = useState(20);
@@ -77,7 +89,7 @@ export default function ExpensesPage() {
   const [sort, setSort] = useState<SortState | null>(null);
   const [funnel, setFunnel] = useState<FilterMap>({});
   // Back to page 1 whenever a filter or the page size changes.
-  const [page, setPage] = usePageReset([searchQuery, statusFilter, costCenterFilter, funnel, pageSize]);
+  const [page, setPage] = usePageReset([search, dateFrom, dateTo, statusFilter, costCenterFilter, funnel, pageSize]);
   const [rejectOpen, setRejectOpen] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   // Row-action dialog state (status-aware confirmations).
@@ -91,11 +103,10 @@ export default function ExpensesPage() {
   const [reimburseExp, setReimburseExp] = useState<Expense | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState('');
   const [reimbursePaidAtLocal, setReimbursePaidAtLocal] = useState(nowDatetimeLocal());
-  const dateRange = useMemo(() => defaultDateRange(), []);
-
   const queryParams = useMemo(() => ({
-    from: dateRange.from,
-    to: dateRange.to,
+    ...(dateFrom ? { from: dateFrom } : {}),
+    ...(dateTo ? { to: dateTo } : {}),
+    ...(search ? { search } : {}),
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     // Backend ListExpenses supports server-side cost_center_id filtering (expenses.go).
     ...(costCenterFilter !== 'all' ? { cost_center_id: costCenterFilter } : {}),
@@ -105,7 +116,7 @@ export default function ExpensesPage() {
     // matching expense no matter how many actually existed.
     page,
     limit: pageSize,
-  }), [dateRange, statusFilter, costCenterFilter, page, pageSize]);
+  }), [dateFrom, dateTo, search, statusFilter, costCenterFilter, page, pageSize]);
 
   const { data, isLoading, error } = useExpenses(effectiveTenant, queryParams, !!effectiveTenant);
   // Summary for the same filters (the stats endpoint ignores paging), so cards, charts and the
@@ -119,24 +130,13 @@ export default function ExpensesPage() {
   // active_only: hide archived centers from the selector/filter.
   const { data: costCenterData } = useCostCenters(effectiveTenant, { active_only: true });
 
-  const list = data?.expenses ?? [];
+  const list = useMemo(() => data?.expenses ?? [], [data]);
   const costCenters = costCenterData?.cost_centers ?? [];
 
-  // `list` is already exactly this backend page's rows (page/limit are forwarded above).
-  // ListExpenses has no free-text search filter, so `search` and the funnel headers narrow
-  // client-side within the current page only — same tradeoff the ledger Journals page documents
-  // for its own free-text search over a server-filtered set.
+  // `list` is already exactly this backend page's rows (page/limit and the search are applied on
+  // the server). The funnel headers and sort narrow within the current page only.
   const filtered = useMemo(() => {
     let out = list;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      out = out.filter(
-        (exp: Expense) =>
-          exp.expense_number?.toLowerCase().includes(q) ||
-          exp.description?.toLowerCase().includes(q) ||
-          exp.category_name?.toLowerCase().includes(q)
-      );
-    }
     for (const [key, st] of Object.entries(funnel)) {
       const acc = EXPENSE_ACCESSORS[key];
       if (!acc || !st) continue;
@@ -158,7 +158,7 @@ export default function ExpensesPage() {
       }
     }
     return out;
-  }, [list, searchQuery, funnel, sort]);
+  }, [list, funnel, sort]);
 
   // Real total from the server (accounts for date/status/cost_center — the server-side filters),
   // not filtered.length: the old totalPages was computed from an already-truncated `list`, so
@@ -407,13 +407,34 @@ export default function ExpensesPage() {
           <div className="relative w-full max-w-sm group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
             <input
-              placeholder="Search by number, description, or category..."
+              placeholder="Search by number, description, or vendor..."
               className="w-full bg-accent/30 border-none rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Expense date window. No end date by default so expenses dated ahead still show. */}
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="font-semibold uppercase tracking-wider">From</span>
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-accent/30 border border-border rounded-lg py-1 px-2 text-xs focus:ring-1 focus:ring-primary outline-none"
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="font-semibold uppercase tracking-wider">To</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="bg-accent/30 border border-border rounded-lg py-1 px-2 text-xs focus:ring-1 focus:ring-primary outline-none"
+              />
+            </label>
             {costCenters.length > 0 && (
               <select
                 value={costCenterFilter}

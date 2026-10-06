@@ -2,7 +2,6 @@
 
 import {
   getBills,
-  getAllBills,
   createBill,
   payBill,
   settleVendorBills,
@@ -14,7 +13,7 @@ import {
   type PayBillRequest,
   type SettleVendorBillsRequest,
 } from '@/lib/api/bills';
-import { arpaKeys } from '@/hooks/use-arpa';
+import { arpaKeys, invalidateVendorViews } from '@/hooks/use-arpa';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
@@ -35,19 +34,6 @@ export function useBills(
   return useQuery({
     queryKey: billKeys.list(tenantIdOrSlug ?? '', params),
     queryFn: () => getBills(tenantIdOrSlug!, params),
-    enabled: !!tenantIdOrSlug && enabled,
-    staleTime: STALE_MS,
-  });
-}
-
-// useAllBills fetches the tenant's COMPLETE bill history (pages through the backend until
-// exhausted) — for views that aggregate/derive over every bill rather than showing one page of
-// them (e.g. the Vendors page's per-vendor rollup). See getAllBills for why a plain useBills({})
-// call silently truncates this to the newest 20.
-export function useAllBills(tenantIdOrSlug: string | undefined, enabled = true) {
-  return useQuery({
-    queryKey: ['bills', 'all', tenantIdOrSlug ?? ''],
-    queryFn: () => getAllBills(tenantIdOrSlug!),
     enabled: !!tenantIdOrSlug && enabled,
     staleTime: STALE_MS,
   });
@@ -112,7 +98,7 @@ export function useVoidBillPayment(tenantIdOrSlug: string | undefined) {
       qc.invalidateQueries({ queryKey: ['bill-payments', tenantIdOrSlug, billId] });
       qc.invalidateQueries({ queryKey: ['bills', 'list', tenantIdOrSlug] });
       qc.invalidateQueries({ queryKey: ['bills', 'aging', tenantIdOrSlug] });
-      qc.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenantIdOrSlug ?? '') });
+      invalidateVendorViews(qc, tenantIdOrSlug);
     },
   });
 }
@@ -123,7 +109,7 @@ function invalidateVendorPaymentViews(qc: ReturnType<typeof useQueryClient>, ten
   qc.invalidateQueries({ queryKey: ['bills', 'list', tenant] });
   qc.invalidateQueries({ queryKey: ['bills', 'all', tenant ?? ''] });
   qc.invalidateQueries({ queryKey: ['bills', 'aging', tenant] });
-  qc.invalidateQueries({ queryKey: arpaKeys.vendorBalances(tenant ?? '') });
+  invalidateVendorViews(qc, tenant);
   qc.invalidateQueries({ queryKey: arpaKeys.apSummary(tenant ?? '') });
   qc.invalidateQueries({ queryKey: ['arpa', 'vendor-statement', tenant ?? ''] });
   qc.invalidateQueries({ queryKey: ['inventory', tenant, 'vendors'] });

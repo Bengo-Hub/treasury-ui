@@ -11,7 +11,9 @@ import { SubscriptionGate } from '@/components/subscription/subscription-gate';
 import { useAccounts } from '@/hooks/use-accounts';
 import { useCreateExpense } from '@/hooks/use-expenses';
 import { useInvoices } from '@/hooks/use-invoices';
-import { useVendors, useVendorSearch } from '@/hooks/use-inventory';
+import { useSelectedVendor, useVendors, useVendorSearch } from '@/hooks/use-inventory';
+import { vendorKraPin as kraPinOf } from '@/lib/api/inventory';
+import { VendorFormDialog } from '@/components/vendors/VendorFormDialog';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSupportedCurrencies } from '@/hooks/use-currencies';
 import { usePreviewNextNumber } from '@/hooks/use-sequences';
@@ -44,7 +46,11 @@ const RECURRING_FREQUENCIES = [
 const inputClass =
   'w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none transition-all';
 
-const today = () => new Date().toISOString().slice(0, 10);
+// The local calendar day; toISOString() is the UTC one, a day behind for EAT just after midnight.
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 const STEPS = [
   { n: 1, label: 'Add Details' },
@@ -192,20 +198,29 @@ export default function NewExpenditurePage() {
     setCostCenterId,
   );
 
+  // "+ Add New Vendor" opens the vendor dialog in place; the created vendor is selected on return.
+  const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
+  // The selected vendor, whether it came from the prefetched page, a remote search or the dialog.
+  const selectedVendor = useSelectedVendor(effectiveTenant, vendorId, vendorData?.vendors);
+  // Prefill name, email and KRA PIN from the supplier master once per selection. Adjusted during
+  // render rather than in an effect (the linter flags setState in effects); a vendor fetched by id
+  // after a remote-search pick fills in as soon as it resolves. Switching vendor replaces the
+  // previous vendor's PIN instead of leaving it behind.
+  const [prefilledFor, setPrefilledFor] = useState('');
+  if (selectedVendor && selectedVendor.id !== prefilledFor) {
+    setPrefilledFor(selectedVendor.id);
+    setVendorName(selectedVendor.business_name);
+    setVendorEmail(selectedVendor.email ?? '');
+    setVendorKraPin(kraPinOf(selectedVendor));
+  }
+
   const onSelectVendor = (value: string) => {
     if (value === ADD_NEW) {
-      router.push(`/${orgSlug}/vendors/new`);
+      setVendorDialogOpen(true);
       return;
     }
     setVendorId(value);
     setErrors((e) => ({ ...e, vendor: undefined }));
-    const v = vendorData?.vendors?.find((x) => x.id === value);
-    if (v) {
-      setVendorName(v.business_name);
-      if (v.email) setVendorEmail(v.email);
-      const pin = (v as any).kra_pin ?? (v as any).tax_pin ?? '';
-      if (pin) setVendorKraPin(pin);
-    }
   };
 
   const onAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -265,6 +280,7 @@ export default function NewExpenditurePage() {
     setVendorName('');
     setVendorEmail('');
     setVendorKraPin('');
+    setPrefilledFor('');
     setCategoryId('');
     setExpenseNo('');
     setInvoiceId('');
@@ -393,6 +409,7 @@ export default function NewExpenditurePage() {
                     options={vendorOptions}
                     value={vendorId}
                     onChange={onSelectVendor}
+                    valueLabel={selectedVendor?.business_name}
                     placeholder="Select Vendor"
                     searchPlaceholder="Search vendors…"
                     emptyText="No vendors yet"
@@ -408,11 +425,25 @@ export default function NewExpenditurePage() {
                   <input type="email" value={vendorEmail} onChange={(e) => setVendorEmail(e.target.value)} className={inputClass} />
                 </FormField>
 
-                <FormField label="Supplier KRA PIN" description="Optional — enables recording this expense as a KRA eTIMS purchase (input VAT) when paid.">
+                <FormField
+                  label="Supplier KRA PIN"
+                  description="Filled from the vendor's record when it has one. Lets this expense be recorded as a KRA eTIMS purchase (input VAT) when paid."
+                >
                   <input value={vendorKraPin} onChange={(e) => setVendorKraPin(e.target.value.toUpperCase())} placeholder="e.g. P051234567X" className={inputClass} />
                 </FormField>
               </div>
             )}
+            <VendorFormDialog
+              open={vendorDialogOpen}
+              tenant={effectiveTenant}
+              onClose={() => setVendorDialogOpen(false)}
+              onCreated={(vendor) => {
+                setVendorDialogOpen(false);
+                setVendorId(vendor.id);
+                setErrors((e) => ({ ...e, vendor: undefined }));
+              }}
+            />
+
           </section>
 
           <hr className="border-border" />

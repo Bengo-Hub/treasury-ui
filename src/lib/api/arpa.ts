@@ -4,7 +4,7 @@
  *
  * Backed by internal/http/handlers/arpa.go:
  *   GET  /{tenant}/ap/summary                      -> APSummary
- *   GET  /{tenant}/ap/vendors                      -> pagination envelope of VendorBalance
+ *   GET  /{tenant}/ap/vendors/bill-stats           -> bill activity for a page of suppliers
  *   POST /{tenant}/ap/vendors                      -> upsert a vendor opening/advance balance
  *   GET  /{tenant}/ap/vendors/{vendorID}/statement -> VendorStatement
  *   POST /{tenant}/ar/customers/opening-balance    -> set a customer's carried-in AR balance
@@ -12,7 +12,6 @@
  */
 
 import { apiClient } from './client';
-import { fetchAllViaApiClient } from './paginate';
 
 const BASE = '/api/v1';
 
@@ -194,13 +193,26 @@ export function getAPSummary(tenant: string): Promise<APSummary> {
   return apiClient.get<APSummary>(`${BASE}/${tenant}/ap/summary`);
 }
 
-// `/ap/vendors` is paginated (ListVendorBalances, shared Bengo-Hub/pagination lib) — this fetches
-// the tenant's COMPLETE vendor balance list, paging through the backend until exhausted. The
-// Vendors page needs every vendor's balance to merge against its bill-derived vendor rollup, not
-// just the first page; a plain single-page call silently dropped any vendor past it. Mirrors
-// getAllBills/getAllInvoices/getCustomerBalances for the identical truncation shape.
-export async function getVendorBalances(tenant: string): Promise<VendorBalance[]> {
-  return fetchAllViaApiClient<VendorBalance>(`${BASE}/${tenant}/ap/vendors`);
+/** One supplier's bill activity (treasury AP), keyed to the inventory supplier id. */
+export interface VendorBillStats {
+  vendor_id: string;
+  bill_count: number;
+  total_billed: string;
+  open_bill_count: number;
+  open_amount: string;
+  last_bill_date?: string;
+}
+
+/**
+ * Bill activity for the suppliers on one Vendors page, in one grouped query on the server
+ * (GET /ap/vendors/bill-stats). Suppliers without bills are absent. Capped at 200 ids.
+ */
+export async function getVendorBillStats(tenant: string, vendorIds: string[]): Promise<VendorBillStats[]> {
+  if (vendorIds.length === 0) return [];
+  const res = await apiClient.get<{ stats?: VendorBillStats[] }>(`${BASE}/${tenant}/ap/vendors/bill-stats`, {
+    vendor_ids: vendorIds.slice(0, 200).join(','),
+  });
+  return res.stats ?? [];
 }
 
 export function getVendorStatement(

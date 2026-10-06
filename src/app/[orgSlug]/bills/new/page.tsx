@@ -9,7 +9,9 @@ import { OverBudgetDialog } from '@/components/budgets/over-budget-dialog';
 import { budgetWarningOf, overBudgetOf, type BudgetCheckResult } from '@/lib/api/budgets';
 import { FormField } from '@/components/ui/form-field';
 import { useBills, useCreateBill } from '@/hooks/use-bills';
-import { useVendors, useVendorSearch } from '@/hooks/use-inventory';
+import { useSelectedVendor, useVendors, useVendorSearch } from '@/hooks/use-inventory';
+import { vendorKraPin as kraPinOf } from '@/lib/api/inventory';
+import { VendorFormDialog } from '@/components/vendors/VendorFormDialog';
 import { useOrgBranding } from '@/hooks/use-org-branding';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useSupportedCurrencies } from '@/hooks/use-currencies';
@@ -117,7 +119,10 @@ export default function NewPurchasePage() {
   const [showTaxSummary, setShowTaxSummary] = useState('hide');
   const [errors, setErrors] = useState<{ vendor?: string; lines?: string }>({});
 
-  const selectedVendor = vendorData?.vendors?.find((v) => v.id === vendorId);
+  // The selected vendor whether it came from the prefetched page, a remote search or the inline
+  // Add Vendor dialog (a remote pick is not in vendorData, so it is fetched by id).
+  const selectedVendor = useSelectedVendor(effectiveTenant ?? '', vendorId, vendorData?.vendors);
+  const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
 
   const totals = useMemo(() => {
     return lines.reduce(
@@ -154,6 +159,7 @@ export default function NewPurchasePage() {
     return {
       vendor_id: vendorId || undefined,
       vendor_name: selectedVendor?.business_name,
+      vendor_tin: kraPinOf(selectedVendor) || undefined,
       document_type: 'bill',
       bill_date: purchaseDate,
       due_date: dueDate,
@@ -307,6 +313,7 @@ export default function NewPurchasePage() {
                   setVendorId(v);
                   setErrors((e) => ({ ...e, vendor: undefined }));
                 }}
+                valueLabel={selectedVendor?.business_name}
                 placeholder="Select Vendor"
                 searchPlaceholder="Search vendors…"
                 emptyText="No vendors yet"
@@ -321,17 +328,30 @@ export default function NewPurchasePage() {
                       {[selectedVendor.city, selectedVendor.country].filter(Boolean).join(', ')}
                     </p>
                     {selectedVendor.email && <p className="text-xs text-muted-foreground">{selectedVendor.email}</p>}
+                    {kraPinOf(selectedVendor) && (
+                      <p className="text-xs text-muted-foreground">KRA PIN {kraPinOf(selectedVendor)}</p>
+                    )}
                   </div>
                 ) : (
                   <>
                     <p className="text-sm text-muted-foreground">Select Vendor/Business from the list</p>
                     <p className="text-xs text-muted-foreground my-1">OR</p>
-                    <Button variant="primary" size="sm" onClick={() => router.push(`/${orgSlug}/vendors/new`)}>
+                    <Button variant="primary" size="sm" onClick={() => setVendorDialogOpen(true)}>
                       <UserPlus className="h-4 w-4 mr-1.5" /> Add New Vendor
                     </Button>
                   </>
                 )}
               </div>
+              <VendorFormDialog
+                open={vendorDialogOpen}
+                tenant={effectiveTenant ?? ''}
+                onClose={() => setVendorDialogOpen(false)}
+                onCreated={(vendor) => {
+                  setVendorDialogOpen(false);
+                  setVendorId(vendor.id);
+                  setErrors((e) => ({ ...e, vendor: undefined }));
+                }}
+              />
             </div>
           </div>
 

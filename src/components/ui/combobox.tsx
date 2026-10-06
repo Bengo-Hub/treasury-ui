@@ -33,6 +33,7 @@ export function Combobox({
   className,
   onRemoteSearch,
   remoteThreshold = 5,
+  valueLabel,
 }: {
   options: ComboboxOption[];
   value: string | null | undefined;
@@ -52,6 +53,11 @@ export function Combobox({
    */
   onRemoteSearch?: (query: string) => Promise<ComboboxOption[]>;
   remoteThreshold?: number;
+  /**
+   * Display name for a preset `value` that is not in `options` (an edit form, or a record just
+   * created inline), so the trigger shows the name instead of the placeholder.
+   */
+  valueLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -118,7 +124,13 @@ export function Combobox({
     }
   }, [open]);
 
-  const selected = options.find((o) => o.value === value) ?? null;
+  // A pick from remote-search results is not in `options`; remember it so the trigger keeps
+  // showing its name after the menu closes.
+  const [picked, setPicked] = useState<ComboboxOption | null>(null);
+  const selected =
+    options.find((o) => o.value === value) ??
+    (picked && picked.value === value ? picked : null) ??
+    (value && valueLabel ? { value, label: valueLabel } : null);
 
   const localMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -247,6 +259,7 @@ export function Combobox({
                     key={opt.value}
                     type="button"
                     onClick={() => {
+                      setPicked(opt);
                       onChange(opt.value);
                       setOpen(false);
                     }}

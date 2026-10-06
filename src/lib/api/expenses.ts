@@ -86,6 +86,8 @@ export interface ExpensesParams {
   cost_center_id?: string;
   from?: string;
   to?: string;
+  /** Expense number, description or vendor name (server-side). */
+  search?: string;
   source_service?: string;
   // invoice_id + billable power the per-invoice linked-cost / margin view.
   invoice_id?: string;

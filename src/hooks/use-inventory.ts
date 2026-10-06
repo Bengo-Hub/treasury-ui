@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ComboboxOption } from '@bengo-hub/shared-ui-lib/combobox';
 import {
   createInventoryCategory,
@@ -20,6 +20,7 @@ import {
   type CreateVendorRequest,
   type ListVendorsParams,
   type SearchItemsParams,
+  type Vendor,
 } from '@/lib/api/inventory';
 import { vendorOptionHint } from '@/lib/vendor-balance';
 
@@ -120,6 +121,8 @@ export function useVendors(tenant: string, params?: ListVendorsParams, enabled =
     queryFn: () => listVendors(tenant, params),
     enabled: !!tenant && enabled,
     staleTime: STALE_MS,
+    // Keep the current page on screen while the next page or search loads.
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -151,11 +154,24 @@ export function useVendor(tenant: string, vendorId: string, enabled = true) {
   });
 }
 
+/**
+ * The vendor a picker has selected, whether it came from the prefetched first page or from a
+ * remote search result (which the prefetched list never holds). Falls back to GET by id only when
+ * the vendor is not already in `prefetched`, so forms can always read its name, email and KRA PIN.
+ */
+export function useSelectedVendor(tenant: string, vendorId: string, prefetched?: Vendor[]): Vendor | undefined {
+  const local = vendorId ? prefetched?.find((v) => v.id === vendorId) : undefined;
+  const { data } = useVendor(tenant, vendorId, !!vendorId && !local);
+  return local ?? (vendorId ? data : undefined);
+}
+
 export function useCreateVendor(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateVendorRequest) => createVendor(tenant, data),
-    onSuccess: () => {
+    onSuccess: (vendor) => {
+      // Seed the by-id cache so a form that selects the new vendor reads it without a refetch.
+      queryClient.setQueryData(inventoryKeys.vendor(tenant, vendor.id), vendor);
       queryClient.invalidateQueries({ queryKey: ['inventory', tenant, 'vendors'] });
     },
   });

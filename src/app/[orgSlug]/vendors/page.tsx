@@ -3,10 +3,13 @@
 import { Badge, Button, Card, CardContent } from '@/components/ui/base';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useOrgBranding } from '@/hooks/use-org-branding';
-import { useAllBills } from '@/hooks/use-bills';
-import { useAPSummary, useVendorBalances } from '@/hooks/use-arpa';
-import type { Bill } from '@/lib/api/bills';
-import type { VendorBalance } from '@/lib/api/arpa';
+import { useBills } from '@/hooks/use-bills';
+import { useAPSummary, useVendorBillStats } from '@/hooks/use-arpa';
+import { useVendors } from '@/hooks/use-inventory';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { getBills, type Bill } from '@/lib/api/bills';
+import { getVendorBillStats, type VendorBillStats } from '@/lib/api/arpa';
+import { listVendors, vendorKraPin, type Vendor } from '@/lib/api/inventory';
 import { StatementDialog } from '@/components/statement-dialog';
 import { OpeningBalanceDialog } from '@/components/opening-balance-dialog';
 import { VendorRefundDialog } from '@/components/vendor-refund-dialog';
@@ -14,37 +17,48 @@ import { PayoutVendorCreditDialog } from '@/components/payout-vendor-credit-dial
 import { PayBillDialog } from '@/components/bills/PayBillDialog';
 import { VendorOpenBillsDialog } from '@/components/bills/VendorOpenBillsDialog';
 import { SettleVendorDialog } from '@/components/bills/SettleVendorDialog';
-import { isBillPayable } from '../bills/bill-columns';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
-import {
-  DataTable,
-  compareValues,
-  type FilterMap,
-  type SortState,
-} from '@bengo-hub/shared-ui-lib/data-table';
-import { buildVendorColumns, VENDOR_ACCESSORS, type VendorSummary } from './vendor-columns';
-import {
-  ArrowLeft,
-  Banknote,
-  ChevronRight,
-  Filter,
-  Inbox,
-  Plus,
-  Search,
-  SlidersHorizontal,
-  X,
-} from 'lucide-react';
+import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
+import { buildVendorColumns, type VendorSummary } from './vendor-columns';
+import { ArrowLeft, Banknote, ChevronRight, Inbox, Loader2, Plus, Search } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
   draft: 'secondary',
-  pending: 'warning',
+  received: 'warning',
+  approved: 'warning',
+  partial: 'warning',
   paid: 'success',
   overdue: 'error',
   cancelled: 'outline',
 };
+
+/** Supplier master row + its AP balance (attached by inventory-api) + bill activity (treasury). */
+function toSummary(v: Vendor, stats?: VendorBillStats): VendorSummary {
+  return {
+    vendorId: v.id,
+    name: v.business_name,
+    kraPin: vendorKraPin(v),
+    industry: v.industry ?? '',
+    phone: v.phone ?? '',
+    email: v.email ?? '',
+    country: v.country ?? '',
+    billCount: stats?.bill_count ?? 0,
+    totalAmount: Number(stats?.total_billed ?? 0) || 0,
+    outstanding: Number(stats?.open_amount ?? 0) || 0,
+    currency: v.balance_currency || v.account_details?.currency || 'KES',
+    lastCommunication: stats?.last_bill_date ?? '',
+    archived: !!v.is_archived,
+    balanceOwed: v.balance_owed,
+    payableBillCount: stats?.open_bill_count ?? 0,
+  };
+}
+
+const EXPORT_PAGE = 100;
+const STATS_CHUNK = 200;
 
 export default function VendorsPage() {
   const params = useParams();
@@ -60,187 +74,94 @@ export default function VendorsPage() {
   const [topTab, setTopTab] = useState<'all' | 'reports'>('all');
   const [archivedTab, setArchivedTab] = useState<'active' | 'archived'>('active');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-  const [currencyFilter, setCurrencyFilter] = useState('all');
-  // DataTable header state — controlled so sort/funnel run over the whole vendor
-  // list before client pagination. Default order: biggest vendors (total billed) first.
-  const [sort, setSort] = useState<SortState | null>(null);
-  const [funnel, setFunnel] = useState<FilterMap>({});
+  const search = useDebouncedValue(searchQuery.trim(), 300);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
+  const [selectedVendor, setSelectedVendor] = useState<VendorSummary | null>(null);
+  const [detailPage, setDetailPage] = useState(1);
   const [statementVendor, setStatementVendor] = useState<{ id: string; name: string } | null>(null);
   const [openingVendor, setOpeningVendor] = useState<{ id?: string; name: string } | null>(null);
   const [refundVendor, setRefundVendor] = useState<{ id?: string; name: string } | null>(null);
   const [payoutVendor, setPayoutVendor] = useState<{ id?: string; name: string; creditAvailable: number; currency: string } | null>(null);
-  const [payPickerVendor, setPayPickerVendor] = useState<string | null>(null);
-  const [payBillId, setPayBillId] = useState<string | null>(null);
+  // One supplier's live payables, loaded on demand when Pay is clicked.
+  const [openBills, setOpenBills] = useState<{ vendor: VendorSummary; bills: Bill[] } | null>(null);
+  const [payPickerOpen, setPayPickerOpen] = useState(false);
+  const [payBill, setPayBill] = useState<Bill | null>(null);
   const [settleVendor, setSettleVendor] = useState<{ id?: string; name: string } | null>(null);
+  const [loadingPayFor, setLoadingPayFor] = useState<string | null>(null);
 
-  // Vendors have no dedicated backend resource — they're derived by grouping the tenant's ENTIRE
-  // bill history by vendor_name (below). useAllBills pages through the backend until exhausted so
-  // this rollup (and the search/pagination over it) is never silently computed from a truncated
-  // first page — see getAllBills's doc comment for the identical bug this mirrors.
-  const { data: bills = [], isLoading, error } = useAllBills(effectiveTenant, !!effectiveTenant);
-
-  // AP balances + summary (the operational AP ledger — opening/advance + owed per supplier).
-  const { data: apSummary } = useAPSummary(effectiveTenant, !!effectiveTenant);
-  const { data: vendorBalances } = useVendorBalances(effectiveTenant, !!effectiveTenant);
-
-  // name -> VendorBalance, so the derived (bill-history) vendor rows can surface a real
-  // balance_owed and a vendor_id (needed for the statement drill-down endpoint).
-  const balanceByName = useMemo(() => {
-    const m = new Map<string, VendorBalance>();
-    (vendorBalances ?? []).forEach((b) => {
-      if (b.vendor_name) m.set(b.vendor_name, b);
-    });
-    return m;
-  }, [vendorBalances]);
-
-  // Each vendor's currently payable bills, oldest due first — drives the row's Pay action.
-  const payableBillsByVendor = useMemo(() => {
-    const m = new Map<string, Bill[]>();
-    bills.forEach((b: Bill) => {
-      if (!isBillPayable(b)) return;
-      const name = b.vendor_name || 'Unknown Vendor';
-      m.set(name, [...(m.get(name) ?? []), b]);
-    });
-    m.forEach((list) => list.sort((a, b) => (a.due_date || a.bill_date).localeCompare(b.due_date || b.bill_date)));
-    return m;
-  }, [bills]);
-  const payTarget = useMemo(() => bills.find((b: Bill) => b.id === payBillId) ?? null, [bills, payBillId]);
-
-  // Derive vendors from bill history (no dedicated vendor service yet).
-  const vendors = useMemo(() => {
-    const map = new Map<string, VendorSummary & { _allCancelled: boolean }>();
-    bills.forEach((bill: Bill) => {
-      const name = bill.vendor_name || 'Unknown Vendor';
-      const amount = parseFloat(bill.total_amount) || 0;
-      const isCancelled = bill.status === 'cancelled';
-      const isOutstanding = ['pending', 'overdue', 'draft'].includes(bill.status);
-      const meta = bill.metadata ?? {};
-      const existing = map.get(name);
-      if (existing) {
-        existing.billCount += 1;
-        existing.totalAmount += amount;
-        if (isOutstanding) existing.outstanding += amount;
-        existing._allCancelled = existing._allCancelled && isCancelled;
-        if (bill.created_at > existing.lastCommunication) {
-          existing.lastCommunication = bill.created_at;
-        }
-      } else {
-        map.set(name, {
-          name,
-          industry: (meta.industry as string) || '',
-          phone: (meta.vendor_phone as string) || '',
-          email: (meta.vendor_email as string) || '',
-          country: (meta.country as string) || '',
-          billCount: 1,
-          totalAmount: amount,
-          outstanding: isOutstanding ? amount : 0,
-          currency: bill.currency || 'KES',
-          lastCommunication: bill.created_at,
-          archived: false,
-          _allCancelled: isCancelled,
-        });
-      }
-    });
-    return Array.from(map.values()).map(({ _allCancelled, ...v }) => {
-      const bal = balanceByName.get(v.name);
-      return {
-        ...v,
-        archived: _allCancelled,
-        vendorId: bal?.vendor_id,
-        balanceOwed: bal ? parseFloat(bal.balance_owed) || 0 : undefined,
-        payableBillCount: payableBillsByVendor.get(v.name)?.length ?? 0,
-      };
-    });
-  }, [bills, balanceByName, payableBillsByVendor]);
-
-  const currencies = useMemo(
-    () => Array.from(new Set(vendors.map((v) => v.currency))).sort(),
-    [vendors],
-  );
-
-  const activeFilterCount =
-    (searchQuery.trim() ? 1 : 0) + (currencyFilter !== 'all' ? 1 : 0);
-
-  const filteredVendors = useMemo(() => {
-    let list = vendors.filter((v) =>
-      archivedTab === 'archived' ? v.archived : !v.archived,
-    );
-
-    if (currencyFilter !== 'all') {
-      list = list.filter((v) => v.currency === currencyFilter);
-    }
-
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (v) =>
-          v.name.toLowerCase().includes(q) ||
-          v.email.toLowerCase().includes(q) ||
-          v.industry.toLowerCase().includes(q),
-      );
-    }
-
-    // Funnel filters from the DataTable headers.
-    for (const [key, st] of Object.entries(funnel)) {
-      const acc = VENDOR_ACCESSORS[key];
-      if (!acc || !st) continue;
-      const values = st.values ?? [];
-      const query = st.query?.trim().toLowerCase();
-      if (values.length === 0 && !query) continue;
-      list = list.filter((v) => {
-        const text = String(acc(v) ?? '');
-        if (values.length > 0 && !values.includes(text)) return false;
-        if (query && !text.toLowerCase().includes(query)) return false;
-        return true;
-      });
-    }
-
-    const acc = sort ? VENDOR_ACCESSORS[sort.key] : undefined;
-    if (sort && acc) {
-      const dir = sort.dir === 'asc' ? 1 : -1;
-      return [...list].sort((a, b) => dir * compareValues(acc(a), acc(b)));
-    }
-    // Default order: biggest vendors first.
-    return [...list].sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [vendors, archivedTab, currencyFilter, searchQuery, funnel, sort]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredVendors.length / pageSize));
-  const pagedVendors = filteredVendors.slice((page - 1) * pageSize, page * pageSize);
-
-  // Back to page 1 whenever the filters change, adjusted during render (same pattern as the
-  // platform audit/payouts pages; setState inside useMemo or an effect is flagged by the linter).
-  const filterKey = JSON.stringify([archivedTab, currencyFilter, searchQuery, funnel, pageSize]);
+  // Back to page 1 whenever the tab, search or page size changes (adjusted during render, the
+  // pattern the other list pages use; setState in an effect is flagged by the linter).
+  const filterKey = JSON.stringify([archivedTab, search, pageSize]);
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
     setPage(1);
   }
 
-  const clearAllFilters = () => {
-    setSearchQuery('');
-    setCurrencyFilter('all');
+  // The vendor master: one server page, searched and filtered by status on the server, so the
+  // cost follows the page size, not the number of suppliers or bills the tenant has.
+  const listParams = useMemo(
+    () => ({
+      q: search || undefined,
+      status: archivedTab === 'archived' ? ('inactive' as const) : ('active' as const),
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    }),
+    [search, archivedTab, page, pageSize],
+  );
+  const { data: vendorPage, isLoading, isFetching, error } = useVendors(effectiveTenant, listParams, !!effectiveTenant);
+  const pageVendors = useMemo(() => vendorPage?.vendors ?? [], [vendorPage]);
+  const total = vendorPage?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  // Bill activity for just the suppliers on this page (one grouped query).
+  const pageIds = useMemo(() => pageVendors.map((v) => v.id), [pageVendors]);
+  const { data: billStats } = useVendorBillStats(effectiveTenant, pageIds, !!effectiveTenant);
+  const rows = useMemo(() => {
+    const byId = new Map((billStats ?? []).map((s) => [s.vendor_id, s]));
+    return pageVendors.map((v) => toSummary(v, byId.get(v.id)));
+  }, [pageVendors, billStats]);
+
+  // AP headline (total payable / overdue / due this week / open bills) and the vendor counts.
+  const { data: apSummary } = useAPSummary(effectiveTenant, !!effectiveTenant);
+  const { data: activeCount } = useVendors(effectiveTenant, { status: 'active', limit: 1 }, !!effectiveTenant && topTab === 'reports');
+  const { data: archivedCount } = useVendors(effectiveTenant, { status: 'inactive', limit: 1 }, !!effectiveTenant && topTab === 'reports');
+
+  // Vendor detail: that supplier's bill history, paged on the server.
+  const { data: detailBills, isLoading: detailLoading } = useBills(
+    effectiveTenant,
+    selectedVendor ? { vendor_id: selectedVendor.vendorId, page: detailPage, limit: 20 } : undefined,
+    !!effectiveTenant && !!selectedVendor,
+  );
+
+  const startPay = async (vendor: VendorSummary) => {
+    setLoadingPayFor(vendor.vendorId);
+    try {
+      const res = await getBills(effectiveTenant, { vendor_id: vendor.vendorId, open: true, limit: 100 });
+      const bills = [...(res.data ?? [])].sort((a, b) => (a.due_date || a.bill_date).localeCompare(b.due_date || b.bill_date));
+      if (bills.length === 0) {
+        toast.info(`${vendor.name} has no open bills to pay.`);
+        return;
+      }
+      // Credit the bills don't reflect yet (e.g. a purchase return): the supplier balance is lower
+      // than what its open bills add up to. Offer the consolidated settle so that credit is
+      // applied instead of paying the full bill in cash.
+      const billsOpen = bills.reduce((sum, b) => sum + (Number(b.balance_due ?? b.total_amount) || 0), 0);
+      const hasCredit = vendor.balanceOwed !== undefined && billsOpen - vendor.balanceOwed > 0.009;
+      setOpenBills({ vendor, bills });
+      if (bills.length === 1 && !hasCredit) setPayBill(bills[0]);
+      else setPayPickerOpen(true);
+    } catch {
+      toast.error('Could not load this vendor\'s open bills. Please try again.');
+    } finally {
+      setLoadingPayFor(null);
+    }
   };
 
-  // Funnel checklists derived from the whole vendor set (controlled-filter mode
-  // would otherwise only see the current page slice).
-  const industryOptions = [...new Set(vendors.map((v) => v.industry || ''))]
-    .sort()
-    .map((v) => ({ value: v, label: v || '(none)' }));
-
-  const vendorColumns = buildVendorColumns(industryOptions, {
+  const vendorColumns = buildVendorColumns({
     onPay: (vendor) => {
-      const open = payableBillsByVendor.get(vendor.name) ?? [];
-      // Credit the bills don't reflect yet (e.g. a purchase return): the supplier balance is
-      // lower than what its open bills add up to. Offer the consolidated settle so that credit is
-      // applied instead of paying the full bill in cash.
-      const billsOpen = open.reduce((sum, b) => sum + (Number(b.balance_due ?? b.total_amount) || 0), 0);
-      const hasCredit = vendor.balanceOwed !== undefined && billsOpen - vendor.balanceOwed > 0.009;
-      if (open.length === 1 && !hasCredit) setPayBillId(open[0].id);
-      else if (open.length >= 1) setPayPickerVendor(vendor.name);
+      if (!loadingPayFor) void startPay(vendor);
     },
     onPayoutCredit: (vendor) =>
       setPayoutVendor({
@@ -251,21 +172,32 @@ export default function VendorsPage() {
       }),
     onOpeningBalance: (vendor) => setOpeningVendor({ id: vendor.vendorId, name: vendor.name }),
     onRefund: (vendor) => setRefundVendor({ id: vendor.vendorId, name: vendor.name }),
-    onStatement: (vendor) => {
-      if (vendor.vendorId) setStatementVendor({ id: vendor.vendorId, name: vendor.name });
-    },
+    onStatement: (vendor) => setStatementVendor({ id: vendor.vendorId, name: vendor.name }),
   });
 
-  // ---- Vendor detail (bill history) ----
-  const vendorBills = useMemo(() => {
-    if (!selectedVendor) return [];
-    return bills.filter(
-      (b: Bill) => (b.vendor_name || 'Unknown Vendor') === selectedVendor,
-    );
-  }, [bills, selectedVendor]);
+  // CSV export of every vendor matching the current tab + search: pages through the master, then
+  // joins bill activity in chunks, instead of downloading the tenant's bill history.
+  const exportAll = async (): Promise<VendorSummary[]> => {
+    const all: Vendor[] = [];
+    for (let offset = 0; ; offset += EXPORT_PAGE) {
+      const res = await listVendors(effectiveTenant, { ...listParams, limit: EXPORT_PAGE, offset });
+      all.push(...res.vendors);
+      if (res.vendors.length < EXPORT_PAGE || all.length >= res.total) break;
+    }
+    const stats = new Map<string, VendorBillStats>();
+    for (let i = 0; i < all.length; i += STATS_CHUNK) {
+      const chunk = await getVendorBillStats(effectiveTenant, all.slice(i, i + STATS_CHUNK).map((v) => v.id));
+      chunk.forEach((s) => stats.set(s.vendor_id, s));
+    }
+    return all.map((v) => toSummary(v, stats.get(v.id)));
+  };
 
+  // ---- Vendor detail (bill history) ----
   if (selectedVendor) {
-    const vendor = vendors.find((v) => v.name === selectedVendor);
+    const vendor = selectedVendor;
+    const bills = detailBills?.data ?? [];
+    const detailTotal = detailBills?.total ?? bills.length;
+    const detailPages = Math.max(1, Math.ceil(detailTotal / 20));
     return (
       <div className="p-6 space-y-6">
         <div className="flex items-center gap-4">
@@ -273,27 +205,28 @@ export default function VendorsPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">{selectedVendor}</h1>
-            <p className="text-muted-foreground mt-1">Bill history for this vendor.</p>
+            <h1 className="text-3xl font-bold tracking-tight">{vendor.name}</h1>
+            <p className="text-muted-foreground mt-1">
+              {vendor.kraPin ? `KRA PIN ${vendor.kraPin} · ` : ''}Bill history for this vendor.
+            </p>
           </div>
         </div>
 
-        {vendor && (
-          <div className="grid gap-4 md:grid-cols-3">
-            {[
-              { label: 'Total Billed', value: formatCurrency(vendor.totalAmount, vendor.currency) },
-              { label: 'Outstanding', value: formatCurrency(vendor.outstanding, vendor.currency) },
-              { label: 'Bills', value: String(vendor.billCount) },
-            ].map(({ label, value }) => (
-              <Card key={label}>
-                <CardContent className="pt-4">
-                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-1">{label}</p>
-                  <p className="text-2xl font-black">{value}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        <div className="grid gap-4 md:grid-cols-4">
+          {[
+            { label: 'Total Billed', value: formatCurrency(vendor.totalAmount, vendor.currency) },
+            { label: 'Open Bills Owe', value: formatCurrency(vendor.outstanding, vendor.currency) },
+            { label: 'Balance Owed', value: vendor.balanceOwed !== undefined ? formatCurrency(vendor.balanceOwed, vendor.currency) : '—' },
+            { label: 'Bills', value: String(vendor.billCount) },
+          ].map(({ label, value }) => (
+            <Card key={label}>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-1">{label}</p>
+                <p className="text-2xl font-black">{value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
         <Card>
           <CardContent className="p-0">
@@ -305,11 +238,11 @@ export default function VendorsPage() {
                     <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Amount</th>
                     <th className="text-left px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Due Date</th>
                     <th className="text-center px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Created</th>
+                    <th className="text-right px-6 py-3 font-bold text-xs uppercase tracking-wider text-muted-foreground">Bill Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {vendorBills.map((bill: Bill) => (
+                  {bills.map((bill: Bill) => (
                     <tr key={bill.id} className="hover:bg-accent/5 transition-colors">
                       <td className="px-6 py-4 font-mono text-xs font-bold">{bill.bill_number}</td>
                       <td className="px-6 py-4 text-right font-bold text-xs">{bill.currency} {bill.total_amount}</td>
@@ -318,25 +251,31 @@ export default function VendorsPage() {
                         <Badge variant={statusVariant[bill.status] ?? 'outline'}>{bill.status}</Badge>
                       </td>
                       <td className="px-6 py-4 text-right text-xs text-muted-foreground">
-                        {new Date(bill.created_at).toLocaleDateString()}
+                        {new Date(bill.bill_date).toLocaleDateString()}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {vendorBills.length === 0 && (
-                <div className="p-12 text-center text-muted-foreground">No bills found for this vendor.</div>
+              {detailLoading && (
+                <div className="p-12 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              )}
+              {!detailLoading && bills.length === 0 && (
+                <div className="p-12 text-center text-muted-foreground">No bills recorded for this vendor yet.</div>
               )}
             </div>
+            {detailPages > 1 && (
+              <div className="flex items-center justify-end gap-2 px-6 py-3 border-t border-border text-sm">
+                <Button variant="outline" size="sm" disabled={detailPage <= 1} onClick={() => setDetailPage((p) => p - 1)}>Previous</Button>
+                <span className="text-muted-foreground">Page {detailPage} of {detailPages}</span>
+                <Button variant="outline" size="sm" disabled={detailPage >= detailPages} onClick={() => setDetailPage((p) => p + 1)}>Next</Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
     );
   }
-
-  const totalBilled = vendors.reduce((sum, v) => sum + v.totalAmount, 0);
-  const totalOutstanding = vendors.reduce((sum, v) => sum + v.outstanding, 0);
-  const reportCurrency = vendors[0]?.currency ?? 'KES';
 
   return (
     <div className="p-6 space-y-6">
@@ -390,7 +329,7 @@ export default function VendorsPage() {
         </div>
       )}
 
-      {/* AP summary strip — total payable / overdue / due-this-week from /ap/summary. */}
+      {/* AP summary strip: total payable / overdue / due this week from /ap/summary. */}
       {apSummary && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
@@ -415,9 +354,9 @@ export default function VendorsPage() {
       {topTab === 'reports' ? (
         <div className="grid gap-4 md:grid-cols-3">
           {[
-            { label: 'Total Vendors', value: String(vendors.length) },
-            { label: 'Total Billed', value: formatCurrency(totalBilled, reportCurrency) },
-            { label: 'Outstanding', value: formatCurrency(totalOutstanding, reportCurrency) },
+            { label: 'Active Vendors', value: activeCount ? String(activeCount.total) : '…' },
+            { label: 'Archived Vendors', value: archivedCount ? String(archivedCount.total) : '…' },
+            { label: 'Total Payable', value: formatCurrency(parseFloat(apSummary?.total_payable ?? '0') || 0) },
           ].map(({ label, value }) => (
             <Card key={label}>
               <CardContent className="pt-4">
@@ -452,76 +391,34 @@ export default function VendorsPage() {
               ))}
             </div>
 
-            {/* Toolbar: search (CSV export lives in the DataTable toolbar below) */}
+            {/* Toolbar: server-side search (CSV export lives in the DataTable toolbar below) */}
             <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-end px-6 py-4">
               <div className="relative w-full sm:max-w-xs group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                 <input
-                  placeholder="Search Vendors"
-                  className="w-full bg-accent/30 border border-border rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary focus:outline-none transition-all"
+                  placeholder="Search name, email, phone or KRA PIN"
+                  className="w-full bg-accent/30 border border-border rounded-lg py-2 pl-10 pr-9 text-sm focus:ring-1 focus:ring-primary focus:outline-none transition-all"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
-              </div>
-            </div>
-
-            {/* Filters row */}
-            <div className="flex flex-wrap items-center gap-4 px-6 pb-2">
-              <button
-                type="button"
-                onClick={() => setShowFilters((s) => !s)}
-                className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
-              >
-                <ChevronRight className={cn('h-4 w-4 transition-transform', showFilters && 'rotate-90')} />
-                <SlidersHorizontal className="h-4 w-4" />
-                Filters
-                {activeFilterCount > 0 && (
-                  <span className="ml-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5">
-                    {activeFilterCount}
-                  </span>
+                {isFetching && !isLoading && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
                 )}
-              </button>
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                disabled={activeFilterCount === 0}
-                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
-              >
-                <X className="h-3.5 w-3.5" />
-                Clear All Filters
-              </button>
+              </div>
             </div>
 
-            {showFilters && (
-              <div className="flex flex-wrap items-end gap-4 px-6 pb-4 pt-2">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                    <Filter className="h-3 w-3" /> Currency
-                  </span>
-                  <select
-                    value={currencyFilter}
-                    onChange={(e) => setCurrencyFilter(e.target.value)}
-                    className="bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  >
-                    <option value="all">All currencies</option>
-                    {currencies.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            )}
-
-            {/* Table — shared DataTable: sortable headers, funnel filters, column
-                visibility (storageKey), CSV export, entries selector + pagination. */}
+            {/* Table: shared DataTable, rows are one server page of the vendor master. */}
             <div className="px-6 py-4 border-t border-border">
               <DataTable<VendorSummary>
                 columns={vendorColumns}
-                rows={pagedVendors}
-                rowKey={(v) => v.name}
+                rows={rows}
+                rowKey={(v) => v.vendorId}
                 loading={isLoading}
                 loadingRows={8}
-                onRowClick={(v) => setSelectedVendor(v.name)}
+                onRowClick={(v) => {
+                  setDetailPage(1);
+                  setSelectedVendor(v);
+                }}
                 rowClassName={() => 'group'}
                 emptyState={
                   <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -530,30 +427,27 @@ export default function VendorsPage() {
                     </div>
                     <p className="text-lg font-semibold text-foreground">No Data</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {archivedTab === 'archived'
-                        ? 'No archived vendors found.'
-                        : 'No vendors found. They appear here once you record bills.'}
+                      {search
+                        ? 'No vendors match your search.'
+                        : archivedTab === 'archived'
+                          ? 'No archived vendors.'
+                          : 'No vendors yet. Add one with the Add Vendor button.'}
                     </p>
                   </div>
                 }
-                sort={sort}
-                onSortChange={setSort}
-                filters={funnel}
-                onFiltersChange={setFunnel}
                 storageKey="vendors-table"
                 showExportCsv
                 exportFileName={`vendors-${orgSlug || 'export'}`}
-                onExportAll={() => Promise.resolve(filteredVendors)}
+                onExportAll={exportAll}
                 pageSize={pageSize}
                 onPageSizeChange={setPageSize}
                 page={page}
                 totalPages={totalPages}
                 onPageChange={setPage}
-                total={filteredVendors.length}
+                total={total}
                 toolbar={
                   <p className="text-sm text-muted-foreground">
-                    <span className="font-bold text-foreground">{filteredVendors.length}</span>{' '}
-                    Vendor{filteredVendors.length !== 1 ? 's' : ''} Found
+                    <span className="font-bold text-foreground">{total}</span> Vendor{total !== 1 ? 's' : ''} Found
                   </p>
                 }
               />
@@ -609,17 +503,16 @@ export default function VendorsPage() {
         />
       )}
 
-      {payPickerVendor && (
+      {payPickerOpen && openBills && (
         <VendorOpenBillsDialog
-          vendorName={payPickerVendor}
-          bills={payableBillsByVendor.get(payPickerVendor) ?? []}
-          onPick={(bill) => { setPayPickerVendor(null); setPayBillId(bill.id); }}
+          vendorName={openBills.vendor.name}
+          bills={openBills.bills}
+          onPick={(bill) => { setPayPickerOpen(false); setPayBill(bill); }}
           onSettleAll={() => {
-            const name = payPickerVendor;
-            setPayPickerVendor(null);
-            setSettleVendor({ id: balanceByName.get(name)?.vendor_id, name });
+            setPayPickerOpen(false);
+            setSettleVendor({ id: openBills.vendor.vendorId, name: openBills.vendor.name });
           }}
-          onClose={() => setPayPickerVendor(null)}
+          onClose={() => setPayPickerOpen(false)}
         />
       )}
 
@@ -628,15 +521,15 @@ export default function VendorsPage() {
         tenant={effectiveTenant}
         orgSlug={orgSlug}
         vendor={settleVendor}
-        bills={settleVendor ? payableBillsByVendor.get(settleVendor.name) ?? [] : []}
+        bills={settleVendor ? openBills?.bills ?? [] : []}
         onClose={() => setSettleVendor(null)}
       />
 
       <PayBillDialog
         tenant={effectiveTenant}
         orgSlug={orgSlug}
-        bill={payTarget}
-        onClose={() => setPayBillId(null)}
+        bill={payBill}
+        onClose={() => setPayBill(null)}
       />
     </div>
   );
