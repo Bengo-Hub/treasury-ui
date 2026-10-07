@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import { PhoneInputField } from '@bengo-hub/shared-ui-lib/contact';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowUpRight, ExternalLink, Landmark, Loader2, Plus, Send, Wallet } from 'lucide-react';
+import { ArrowUpRight, Landmark, Loader2, Plus, Send, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { errMessage, usePayHeroMutation } from './use-payhero';
@@ -21,6 +21,35 @@ const STATUS: Record<PayHeroWithdrawal['status'], { label: string; variant: 'suc
   awaiting_approval: { label: 'Awaiting approval', variant: 'secondary' },
   failed: { label: 'Failed', variant: 'error' },
 };
+
+/** Top up the account's service wallet: an M-Pesa prompt to a phone, credited once approved. */
+function TopUpServiceWallet({ tenantSlug, onDone }: { tenantSlug: string; onDone: () => void }) {
+  const [phone, setPhone] = useState('');
+  const [amount, setAmount] = useState('');
+  const topUp = useMutation({
+    mutationFn: () => payheroApi.topUpServiceWallet(tenantSlug, { amount: Math.round(Number(amount)), phone }),
+    onSuccess: (r) => { toast.success(r.message); setAmount(''); setTimeout(onDone, 30_000); },
+    onError: (e: any) => toast.error(errMessage(e, 'Could not send the top up prompt')),
+  });
+  return (
+    <SettingsSection icon={<Plus className="h-4 w-4" />} title="Top up the service wallet"
+      description="Sends an M-Pesa prompt to the phone; once approved, the amount is added to the service wallet that pays PayHero's costs.">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-[2fr_1fr_auto] md:items-end">
+        <label className="space-y-1">
+          <span className="text-xs font-medium">Phone to prompt</span>
+          <PhoneInputField value={phone} onChange={setPhone} defaultCountry="KE" />
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs font-medium">Amount (KES, whole)</span>
+          <Input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} placeholder="500" />
+        </label>
+        <Button className="gap-1.5" onClick={() => topUp.mutate()} disabled={topUp.isPending || Number(amount) < 1 || phone.length < 9}>
+          {topUp.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send prompt
+        </Button>
+      </div>
+    </SettingsSection>
+  );
+}
 
 /**
  * The Team wallet from treasury, without the PayHero dashboard: both balances, which account the
@@ -77,16 +106,19 @@ export function WalletSection({ tenantSlug, st }: { tenantSlug: string; st: PayH
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <StatCard label="Payments wallet" value={balance.isError ? 'Unavailable' : formatCurrency(Number(balance.data?.balance ?? 0), cur)} loading={balance.isLoading} icon={<Wallet className="h-4 w-4" />} tone="primary"
           hint="Escrow, commission and wallet collections" />
         <StatCard label="Service wallet" value={balance.isError ? 'Unavailable' : formatCurrency(Number(balance.data?.service_balance ?? 0), cur)} loading={balance.isLoading} icon={<Landmark className="h-4 w-4" />}
-          tone={Number(balance.data?.service_balance ?? 0) > 0 ? 'default' : 'warning'} hint="Pays PayHero's costs" />
-        <a href="https://b2b.payhero.africa/dashboard" target="_blank" rel="noreferrer" className="flex flex-col justify-center gap-1 rounded-2xl border border-dashed border-border p-4 text-sm hover:bg-accent/40">
-          <span className="flex items-center gap-1.5 font-medium">Top up the service wallet <ExternalLink className="h-3.5 w-3.5" /></span>
-          <span className="text-xs text-muted-foreground">Only the PayHero dashboard can add service credit. Collections stop when it is empty.</span>
-        </a>
+          tone={Number(balance.data?.service_balance ?? 0) > 0 ? 'default' : 'warning'} hint="Pays PayHero's costs; collections stop when it is empty" />
       </div>
+      {balance.isError && (
+        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+          {errMessage(balance.error, 'PayHero did not return the balances.')}
+        </p>
+      )}
+
+      {st.mode !== 'platform_root' && <TopUpServiceWallet tenantSlug={tenantSlug} onDone={() => qc.invalidateQueries({ queryKey: ['payhero-balance', tenantSlug] })} />}
 
       <SettingsSection icon={<Landmark className="h-4 w-4" />} title="Wallet in your books" description="The account the Team wallet is in your accounts and ledger. Money collected into the wallet lands here; withdrawals move it out.">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
