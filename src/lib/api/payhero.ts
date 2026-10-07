@@ -96,6 +96,12 @@ export interface PayHeroStatus {
   is_platform?: boolean;
   /** Who pays PayHero's fee on this tenant's payments. */
   fee_bearer?: PayHeroFeeBearer;
+  /** How M-Pesa payments reach the tenant's channels (always relay on the shared platform account). */
+  collection_route?: PayHeroCollectionRoute;
+  /** The tenant runs on the platform's shared root account. */
+  shared_account?: boolean;
+  /** The tenant's own wallet may carry its relays (PayHero KYC tier 3); otherwise the platform's does. */
+  wallet_carrier?: boolean;
   /** The account's own API key is stored (required for a Team; values are never returned). */
   api_key_set?: boolean;
   /** The account's webhook signing secret is stored. */
@@ -119,6 +125,8 @@ export interface EnablePayHeroRequest {
   offline_paybill?: boolean;
   /** Who pays PayHero's fee: the customer on top of the amount (default) or the business. */
   fee_bearer?: PayHeroFeeBearer;
+  /** auto (cheapest, relay as fallback), relay (always) or channel (always; keep the service wallet topped up). */
+  collection_route?: PayHeroCollectionRoute;
 }
 
 /**
@@ -202,6 +210,8 @@ export const payheroApi = {
 };
 
 export type PayHeroFeeBearer = 'payer' | 'merchant';
+
+export type PayHeroCollectionRoute = 'auto' | 'relay' | 'channel';
 
 export interface PayHeroPlatformSettings {
   organization_id: number;

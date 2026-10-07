@@ -5,7 +5,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { CountrySelect } from '@bengo-hub/shared-ui-lib/contact';
 import { SettingsSection } from '@/components/ui/settings-section';
-import { payheroApi, type EnablePayHeroRequest, type PayHeroMode, type PayHeroStatus } from '@/lib/api/payhero';
+import { payheroApi, type EnablePayHeroRequest, type PayHeroCollectionRoute, type PayHeroMode, type PayHeroStatus } from '@/lib/api/payhero';
 import { cn } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Building2, Check, Loader2, Plus, Save, Settings2, UserPlus } from 'lucide-react';
@@ -13,12 +13,33 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { MODES, errMessage, payheroKey, usePayHeroMutation } from './use-payhero';
 
+/** The collection routes a business can choose (treasury-api payments.planRoute). */
+const COLLECTION_ROUTES: { value: PayHeroCollectionRoute; label: string; help: string }[] = [
+  {
+    value: 'auto',
+    label: 'Let the system decide (recommended)',
+    help: 'Straight to your account while your PayHero service wallet covers the fee; through a PayHero wallet when that is measured to be cheaper, or when the service wallet runs short, so no payment is refused.',
+  },
+  {
+    value: 'relay',
+    label: 'Always relay through a PayHero wallet',
+    help: 'PayHero takes its charges out of each payment and your account is then paid, so you never top up the service wallet.',
+  },
+  {
+    value: 'channel',
+    label: 'Always straight to my account',
+    help: 'You keep the PayHero service wallet topped up; the fee charged to the customer lands in your account with the payment. Payments are refused while the service wallet is empty.',
+  },
+];
+
 /** How the tenant uses PayHero (account mode, country, offline paybill) and its Team. */
 export function SetupSection({ tenantSlug, st }: { tenantSlug: string; st?: PayHeroStatus }) {
   const qc = useQueryClient();
   // Stored setup until edited (draft), then the draft.
   const [draft, setForm] = useState<EnablePayHeroRequest | null>(null);
-  const form: EnablePayHeroRequest = draft ?? { mode: st?.mode ?? 'platform_team', country: st?.country || st?.tenant_profile?.country || 'KE', offline_paybill: st?.offline_paybill, fee_bearer: st?.fee_bearer ?? 'payer' };
+  const form: EnablePayHeroRequest = draft ?? { mode: st?.mode ?? 'platform_team', country: st?.country || st?.tenant_profile?.country || 'KE', offline_paybill: st?.offline_paybill, fee_bearer: st?.fee_bearer ?? 'payer', collection_route: st?.collection_route ?? 'auto' };
+  // A tenant on the platform's shared root account always relays (the channel fee would land on the platform).
+  const sharedAccount = form.mode === 'platform_root' && !st?.is_platform;
   const enable = usePayHeroMutation(tenantSlug, (b: EnablePayHeroRequest) => payheroApi.enable(tenantSlug, b).then((s) => { setForm(null); return s; }), 'PayHero saved', 'Could not save PayHero');
   const [confirmDisable, setConfirmDisable] = useState(false);
   const disable = useMutation({
@@ -133,8 +154,32 @@ export function SetupSection({ tenantSlug, st }: { tenantSlug: string; st?: PayH
                 </span>
               </label>
             ))}
-            {form.mode === 'platform_root' && (
-              <p className="text-xs text-muted-foreground">On the shared platform account, PayHero charges its fee to the platform, which bills you the month&apos;s fees once a month.</p>
+          </fieldset>
+
+          <fieldset className="space-y-2 rounded-xl border border-border p-3">
+            <legend className="px-1 text-sm font-medium">How M-Pesa payments reach your account</legend>
+            {sharedAccount ? (
+              <p className="text-xs text-muted-foreground">
+                On the shared platform account every payment is relayed: it is collected into the platform&apos;s PayHero wallet, where PayHero takes its
+                charges out of the payment, and your account is then paid. Nothing is billed to you later.
+              </p>
+            ) : (
+              COLLECTION_ROUTES.map((r) => (
+                <label key={r.value} className="flex cursor-pointer items-start gap-3">
+                  <input type="radio" name="payhero-collection-route" className="mt-0.5 h-4 w-4 accent-primary" checked={(form.collection_route ?? 'auto') === r.value} onChange={() => setForm({ ...form, collection_route: r.value })} />
+                  <span>
+                    <span className="block text-sm font-medium">{r.label}</span>
+                    <span className="block text-xs text-muted-foreground">{r.help}</span>
+                  </span>
+                </label>
+              ))
+            )}
+            {!sharedAccount && (form.collection_route ?? 'auto') !== 'channel' && (
+              <p className="text-xs text-muted-foreground">
+                {st?.wallet_carrier
+                  ? 'Relayed payments pass through your own PayHero wallet.'
+                  : 'Relayed payments pass through the platform’s PayHero wallet until your account reaches PayHero KYC tier 3 (PayHero only lets a wallet take customers’ payments from tier 3).'}
+              </p>
             )}
           </fieldset>
 

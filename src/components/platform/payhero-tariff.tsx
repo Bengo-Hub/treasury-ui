@@ -36,7 +36,7 @@ export function PayHeroTariff() {
     <SettingsSection
       icon={<Coins className="h-4 w-4" />}
       title="PayHero fees"
-      description={`PayHero's published fee per payment, mirrored daily${syncedAt ? `; last synced ${new Date(syncedAt).toLocaleString()}` : ''}. Shared-account tenants are billed these monthly.`}
+      description={`PayHero's published fee per payment, mirrored daily${syncedAt ? `; last synced ${new Date(syncedAt).toLocaleString()}` : ''}. Channel collections are priced from it; relayed payments carry PayHero's wallet charges instead.`}
       action={
         <Button size="sm" variant="outline" className="gap-1.5" onClick={() => sync.mutate()} disabled={sync.isPending}>
           {sync.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Sync now
