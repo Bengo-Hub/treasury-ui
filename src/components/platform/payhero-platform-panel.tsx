@@ -90,12 +90,12 @@ export function PayHeroPlatformPanel() {
   );
   const setupColumns = buildTenantSetupColumns(tenantName, teamActions, withBalances);
   const escrowColumns = useMemo(() => buildEscrowColumns(tenantName), [tenantName]);
-  // Every tenant that can hold escrow (its own Team or PayHero account), with zeros until it has
-  // pots, plus any tenant the overview reports.
+  // Every tenant entitled to escrow (a plan with escrow_management and its own Team or PayHero
+  // account), with zeros until it has pots, plus any tenant the overview reports with pots.
   const escrowRows = useMemo<EscrowTenantRow[]>(() => {
-    const byTenant = new Map((escrow.data?.tenants ?? []).map((r) => [r.totals.tenant_id, r]));
+    const byTenant = new Map((escrow.data?.tenants ?? []).filter((r) => r.totals.pots > 0).map((r) => [r.totals.tenant_id, r]));
     for (const t of rows) {
-      if (hasPayHeroAccount(t) && t.mode !== 'platform_root' && !byTenant.has(t.tenant_id)) {
+      if (t.escrow_entitled && !byTenant.has(t.tenant_id)) {
         byTenant.set(t.tenant_id, { totals: { tenant_id: t.tenant_id, pots: 0, open_pots: 0, held: '0', in_flight: '0', released_gross: '0', commission: '0' } });
       }
     }

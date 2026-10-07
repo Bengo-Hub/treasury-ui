@@ -96,6 +96,10 @@ export interface PayHeroStatus {
   is_platform?: boolean;
   /** Who pays PayHero's fee on this tenant's payments. */
   fee_bearer?: PayHeroFeeBearer;
+  /** The account's own API key is stored (required for a Team; values are never returned). */
+  api_key_set?: boolean;
+  /** The account's webhook signing secret is stored. */
+  webhook_secret_set?: boolean;
   offline_paybill: boolean;
   payment_links: PayHeroPaymentLink[];
   channels_synced_at?: string;
@@ -107,8 +111,11 @@ export interface PayHeroStatus {
 export interface EnablePayHeroRequest {
   mode?: PayHeroMode;
   country?: string;
+  /** own_account's key, or the Team's own key in platform_team. Blank keeps the stored one. */
   api_username?: string;
   api_password?: string;
+  /** The account's webhook signing secret (PayHero dashboard, Developers, Webhooks). Blank keeps it. */
+  webhook_secret?: string;
   offline_paybill?: boolean;
   /** Who pays PayHero's fee: the customer on top of the amount (default) or the business. */
   fee_bearer?: PayHeroFeeBearer;
@@ -156,12 +163,10 @@ export const payheroApi = {
     apiClient.put<PayHeroStatus>(`${tenantBase(tenant)}/payment-links`, { links }),
   balance: (tenant: string) =>
     apiClient.get<{ currency: string; balance: string; service_balance?: string }>(`${tenantBase(tenant)}/balance`),
-  kycPricing: (tenant: string) => apiClient.get<Record<string, unknown>>(`${tenantBase(tenant)}/kyc/pricing`),
-  kycChecks: (tenant: string) => apiClient.get<Record<string, unknown>>(`${tenantBase(tenant)}/kyc/checks`),
-  verify: (tenant: string, check: string, fields: Record<string, unknown>, confirm: boolean) =>
-    apiClient.post<PayHeroVerification>(`${tenantBase(tenant)}/kyc/verify/${encodeURIComponent(check)}`, { fields, confirm }, PAYHERO_CALL),
-  submitKYC: (tenant: string, body: { entity_type?: string; upgrade_information?: string }) =>
-    apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/kyc`, body, PAYHERO_CALL),
+  /** M-Pesa prompt that tops up the account's service wallet (pays PayHero's costs). */
+  topUpServiceWallet: (tenant: string, body: { amount: number; phone: string }) =>
+    apiClient.post<{ message: string }>(`${tenantBase(tenant)}/service-wallet/topup`, body, PAYHERO_CALL),
+  // Verification is done on the PayHero dashboard; treasury only reads the tier back.
   refreshKYC: (tenant: string) => apiClient.post<PayHeroStatus>(`${tenantBase(tenant)}/kyc/refresh`, undefined, PAYHERO_CALL),
 
   // Platform owner.
@@ -250,4 +255,6 @@ export interface PayHeroTeamRow {
   service_balance?: string;
   currency?: string;
   balance_error?: string;
+  /** The plan includes escrow and the tenant has an account that can hold money. */
+  escrow_entitled?: boolean;
 }

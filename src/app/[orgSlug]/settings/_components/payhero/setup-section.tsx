@@ -73,18 +73,38 @@ export function SetupSection({ tenantSlug, st }: { tenantSlug: string; st?: PayH
                 payments are charged in; other currencies are converted at your stored exchange rate.
               </span>
             </div>
-            {form.mode === 'own_account' && (
+            {(form.mode === 'own_account' || form.mode === 'platform_team') && (
               <>
+                <div className="space-y-1 sm:col-span-2">
+                  <span className="flex items-center gap-2 text-xs font-medium">
+                    {form.mode === 'platform_team' ? "Team's API key" : 'API key'}
+                    {st?.api_key_set ? <Badge variant="success">Saved</Badge> : form.mode === 'platform_team' && <Badge variant="warning">Needed</Badge>}
+                  </span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {form.mode === 'platform_team'
+                      ? "PayHero only takes a Team's payments, channels and balance with the Team's own key: on the PayHero dashboard switch to the Team, then Developers, API Keys."
+                      : 'Your PayHero account key (PayHero dashboard, Developers, API Keys).'}
+                  </span>
+                </div>
                 <label className="space-y-1">
                   <span className="text-xs font-medium">API username</span>
-                  <Input value={form.api_username ?? ''} onChange={(e) => setForm({ ...form, api_username: e.target.value })} autoComplete="off" />
+                  <Input value={form.api_username ?? ''} onChange={(e) => setForm({ ...form, api_username: e.target.value })} autoComplete="off" placeholder={st?.api_key_set ? 'Saved; leave blank to keep' : ''} />
                 </label>
-                <label className="space-y-1 sm:col-span-2">
+                <label className="space-y-1">
                   <span className="text-xs font-medium">API password</span>
-                  <Input type="password" value={form.api_password ?? ''} onChange={(e) => setForm({ ...form, api_password: e.target.value })} autoComplete="new-password" placeholder={st?.mode === 'own_account' ? 'Leave blank to keep the current key' : ''} />
+                  <Input type="password" value={form.api_password ?? ''} onChange={(e) => setForm({ ...form, api_password: e.target.value })} autoComplete="new-password" placeholder={st?.api_key_set ? 'Saved; leave blank to keep' : ''} />
                 </label>
               </>
             )}
+            <label className="space-y-1 sm:col-span-2">
+              <span className="flex items-center gap-2 text-xs font-medium">
+                Webhook signing secret {st?.webhook_secret_set && <Badge variant="success">Saved</Badge>}
+              </span>
+              <Input type="password" value={form.webhook_secret ?? ''} onChange={(e) => setForm({ ...form, webhook_secret: e.target.value })} autoComplete="new-password" placeholder={st?.webhook_secret_set ? 'Saved; leave blank to keep' : 'From the PayHero dashboard, Developers, Webhooks'} />
+              <span className="block text-[11px] text-muted-foreground">
+                Set the account&apos;s webhook URL on PayHero to https://booksapi.codevertexafrica.com/api/v1/webhooks/payhero.
+              </span>
+            </label>
           </div>
 
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3">
