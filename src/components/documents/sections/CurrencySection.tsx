@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useSupportedCurrencies, useExchangeRates, useSetExchangeRate } from '@/hooks/use-currencies';
+import { FALLBACK_CURRENCY_CODES } from '@/lib/currency/config';
 
 interface CurrencySectionProps {
   tenant: string;
@@ -26,7 +27,10 @@ export function CurrencySection({
   const [customRate, setCustomRate] = useState('');
   const [editing, setEditing] = useState(false);
 
-  const currencies = supported?.currencies ?? [];
+  // Full names when the list loaded; bare codes from the shared fallback otherwise.
+  const currencies = supported?.currencies?.length
+    ? supported.currencies
+    : FALLBACK_CURRENCY_CODES.map((code) => ({ code, symbol: '', name: code }));
   const txCurrency = transactionCurrency ?? currency;
 
   const existingRate = ratesData?.rates.find(
@@ -57,20 +61,9 @@ export function CurrencySection({
           Currency
         </label>
         <select value={currency} onChange={e => onCurrencyChange(e.target.value)} className={selectCls}>
-          {currencies.length > 0 ? (
-            currencies.map(c => (
-              <option key={c.code} value={c.code}>{c.symbol} {c.code} — {c.name}</option>
-            ))
-          ) : (
-            <>
-              <option value="KES">KES — Kenyan Shilling</option>
-              <option value="USD">USD — US Dollar</option>
-              <option value="EUR">EUR — Euro</option>
-              <option value="GBP">GBP — British Pound</option>
-              <option value="UGX">UGX — Ugandan Shilling</option>
-              <option value="TZS">TZS — Tanzanian Shilling</option>
-            </>
-          )}
+          {currencies.map(c => (
+            <option key={c.code} value={c.code}>{c.name === c.code ? c.code : `${c.symbol} ${c.code} — ${c.name}`}</option>
+          ))}
         </select>
       </div>
 
@@ -81,20 +74,9 @@ export function CurrencySection({
             Transaction Currency
           </label>
           <select value={txCurrency} onChange={e => onTransactionCurrencyChange(e.target.value)} className={selectCls}>
-            {currencies.length > 0 ? (
-              currencies.map(c => (
-                <option key={c.code} value={c.code}>{c.symbol} {c.code}</option>
-              ))
-            ) : (
-              <>
-                <option value="KES">KES</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="UGX">UGX</option>
-                <option value="TZS">TZS</option>
-              </>
-            )}
+            {currencies.map(c => (
+              <option key={c.code} value={c.code}>{c.symbol ? `${c.symbol} ${c.code}` : c.code}</option>
+            ))}
           </select>
         </div>
       )}

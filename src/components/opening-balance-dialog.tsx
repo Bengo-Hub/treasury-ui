@@ -8,6 +8,7 @@ import {
   useSetCustomerOpeningBalance,
   useUpsertVendorBalance,
 } from '@/hooks/use-arpa';
+import { useTenantCurrency } from '@/hooks/use-currencies';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 
@@ -55,7 +56,9 @@ export function OpeningBalanceDialog(props: OpeningBalanceDialogProps) {
   const [openingBalance, setOpeningBalance] = useState('');
   const [advanceBalance, setAdvanceBalance] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('');
-  const [currency, setCurrency] = useState('KES');
+  const tenantCurrency = useTenantCurrency(tenant);
+  const [pickedCurrency, setCurrency] = useState('');
+  const currency = pickedCurrency || tenantCurrency;
   const [error, setError] = useState('');
 
   const submit = () => {

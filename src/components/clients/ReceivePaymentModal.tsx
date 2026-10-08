@@ -6,8 +6,14 @@ import { SettlementModal, RECEIVE_METHODS, resolveDefaultAccount } from '@bengo-
 import { useRecordCustomerPayment } from '@/hooks/use-invoices';
 import { useBankAccounts } from '@/hooks/use-bank-accounts';
 import { bankAccountHint } from '@/lib/api/bank-accounts';
-import { useSupportedCurrencies } from '@/hooks/use-currencies';
+import { useTenantCurrency } from '@/hooks/use-currencies';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
+import {
+  ReceivedCurrencyFields,
+  receivedCurrencyPayload,
+  SAME_CURRENCY,
+  type ReceivedCurrency,
+} from '@/components/currency/ReceivedCurrencyFields';
 import type { CustomerBalance } from '@/lib/api/invoices';
 
 interface ReceivePaymentModalProps {
@@ -52,17 +58,13 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
   const [pickedAccount, setPickedAccount] = useState('');
   const accountId = pickedAccount || resolveDefaultAccount(bankAccountsData?.bank_accounts, method)?.id || '';
 
-  // Optional — for a payment actually received in a different currency (e.g. Uganda MTN Mobile
-  // Money against a KES AR ledger). Recorded structurally (exchange_rate/base_amount on the
-  // ledger line) instead of the Reference field being used to note the conversion math by hand —
-  // confirmed live: a tenant typed "1850000/29.2" (UGX amount / rate) into Reference because
-  // there was nowhere else to put it, leaving the customer's statement with no real transaction
-  // ID to cross-check against their own MTN SMS.
-  const { data: currenciesData } = useSupportedCurrencies();
-  const foreignCurrencyOptions = (currenciesData?.currencies ?? []).filter((c) => c.code !== target.currency);
-  const [foreignCurrency, setForeignCurrency] = useState('');
-  const [foreignAmount, setForeignAmount] = useState('');
-  const [exchangeRate, setExchangeRate] = useState('');
+  // What the payer actually handed over. Defaults to the books' currency (the ledger's, else the
+  // tenant's default_currency setting); another currency records the real amount and rate
+  // structurally (exchange_rate/base_amount on the ledger line) instead of a tenant typing
+  // "1850000/29.2" into Reference, which left the statement with no real transaction ID.
+  const tenantCurrency = useTenantCurrency(tenant);
+  const baseCurrency = target.currency || tenantCurrency;
+  const [received, setReceived] = useState<ReceivedCurrency>(SAME_CURRENCY);
 
   return (
     <SettlementModal
@@ -74,7 +76,7 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
       amountValue={parseFloat(target.outstanding_debit) || 0}
       defaultAmount={parseFloat(target.outstanding_debit) || 0}
       allowOverpayment
-      currency={target.currency}
+      currency={baseCurrency}
       methods={RECEIVE_METHODS}
       onMethodChange={setMethod}
       isPending={recordPay.isPending}
@@ -94,45 +96,7 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
               />
             </div>
           </div>
-          <div className="rounded-lg border border-gray-200 p-2.5">
-            <p className="text-xs font-semibold text-gray-500">Received in a different currency? (optional)</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">
-              The Amount above should still be the {target.currency} equivalent you&apos;re crediting —
-              record the real amount and rate you converted here, and put the real transaction ID
-              (not the conversion) in Reference.
-            </p>
-            <div className="grid grid-cols-3 gap-2 mt-2">
-              <div>
-                <label className="text-[11px] text-gray-500">Currency</label>
-                <select
-                  value={foreignCurrency}
-                  onChange={(e) => setForeignCurrency(e.target.value)}
-                  className="w-full mt-0.5 bg-gray-50 border-none rounded-lg py-1.5 px-2 text-xs focus:ring-1 focus:ring-black"
-                >
-                  <option value="">—</option>
-                  {foreignCurrencyOptions.map((c) => (
-                    <option key={c.code} value={c.code}>{c.code}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-[11px] text-gray-500">Amount received</label>
-                <input
-                  type="number" inputMode="decimal" value={foreignAmount}
-                  onChange={(e) => setForeignAmount(e.target.value)}
-                  className="w-full mt-0.5 bg-gray-50 border-none rounded-lg py-1.5 px-2 text-xs focus:ring-1 focus:ring-black"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-gray-500">Rate (1 {target.currency} = ?)</label>
-                <input
-                  type="number" inputMode="decimal" value={exchangeRate}
-                  onChange={(e) => setExchangeRate(e.target.value)}
-                  className="w-full mt-0.5 bg-gray-50 border-none rounded-lg py-1.5 px-2 text-xs focus:ring-1 focus:ring-black"
-                />
-              </div>
-            </div>
-          </div>
+          <ReceivedCurrencyFields tenant={tenant} baseCurrency={baseCurrency} value={received} onChange={setReceived} />
         </div>
       }
       onSubmit={({ amount, method, reference, effectiveAt, overpaymentAction }) =>
@@ -141,20 +105,20 @@ export function ReceivePaymentModal({ tenant, target, onClose }: ReceivePaymentM
             reject(new Error('Select which account this payment landed in.'));
             return;
           }
-          const fAmount = parseFloat(foreignAmount);
-          const fRate = parseFloat(exchangeRate);
-          const hasForeign = foreignAmount.trim() !== '' && exchangeRate.trim() !== '';
-          if (hasForeign && (!fAmount || fAmount <= 0 || !fRate || fRate <= 0)) {
-            reject(new Error('Enter a valid foreign amount and exchange rate, or leave both blank.'));
+          let foreign: ReturnType<typeof receivedCurrencyPayload>;
+          try {
+            foreign = receivedCurrencyPayload(received, baseCurrency);
+          } catch (e) {
+            reject(e);
             return;
           }
           recordPay.mutate(
             {
               contactId, amount, paymentMethod: method, reference, paidAt: effectiveAt, accountId,
               surplusAction: overpaymentAction === 'store_credit' ? 'store_credit' : undefined,
-              foreignAmount: hasForeign ? fAmount : undefined,
-              exchangeRate: hasForeign ? fRate : undefined,
-              foreignCurrency: hasForeign ? (foreignCurrency || undefined) : undefined,
+              foreignAmount: foreign?.foreignAmount,
+              exchangeRate: foreign?.exchangeRate,
+              foreignCurrency: foreign?.foreignCurrency,
             },
             {
               onSuccess: (res) => {

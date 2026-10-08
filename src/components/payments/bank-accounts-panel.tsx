@@ -21,6 +21,7 @@ import type { AccountType, BankAccount, BankAccountRequest } from '@/lib/api/ban
 import { money } from '@/components/charts/chart-theme';
 import { cn } from '@/lib/utils';
 import { useMe } from '@/hooks/useMe';
+import { useTenantCurrency } from '@/hooks/use-currencies';
 import { Banknote, FileText, Landmark, Loader2, Pencil, Plus, RotateCcw, Smartphone, Tag, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -93,7 +94,10 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
   const [openingBalance, setOpeningBalance] = useState('');
   // Only used for mobile_money/cash — the bank type's own currency lives on bankValue.currency
   // (BankAccountForm's own picker) since a bank account is picked together with its country.
-  const [currency, setCurrency] = useState('KES');
+  // The tenant's currency until the user picks another.
+  const tenantCurrency = useTenantCurrency(tenant);
+  const [pickedCurrency, setCurrency] = useState('');
+  const currency = pickedCurrency || tenantCurrency;
 
   const [methodsAccount, setMethodsAccount] = useState<BankAccount | null>(null);
   const [methodsValues, setMethodsValues] = useState<string[]>([]);
@@ -222,7 +226,7 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
     setAccountName('');
     setMobileNumber('');
     setOpeningBalance('');
-    setCurrency('KES');
+    setCurrency('');
   }
 
   function handleCreate() {

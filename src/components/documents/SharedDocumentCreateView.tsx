@@ -17,6 +17,8 @@ import { cn } from '@/lib/utils';
 import { ArrowLeft, Loader2, Pencil, Search, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTenantCurrency } from '@/hooks/use-currencies';
+import { FALLBACK_CURRENCY } from '@/lib/currency/config';
 import { LineItemsSection, newLineRow, lineCompletionFactor, type LineRow } from './sections/LineItemsSection';
 import { TotalsSection, type AdditionalCharge } from './sections/TotalsSection';
 import { ShippingTransportSection, type TransportDetails } from './sections/ShippingTransportSection';
@@ -25,6 +27,14 @@ import { TermsNotesSection } from './sections/TermsNotesSection';
 import { CreateItemModal } from './CreateItemModal';
 import { CreateClientModal } from './CreateClientModal';
 import { BankDetailsPicker, type BankDetailsSnapshot } from './BankDetailsPicker';
+import {
+  PersonalCollectionPicker,
+  applyPersonalToMetadata,
+  personalFromMetadata,
+  usePersonalAccounts,
+  type PersonalCollection,
+} from './PersonalCollectionPicker';
+import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { vendorOptionHint } from '@/lib/vendor-balance';
 import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
 import { useCostCenterDefault } from '@/hooks/use-cost-centers';
@@ -143,6 +153,9 @@ export const DOC_CONFIGS: Record<string, DocTypeConfig> = {
   },
 };
 
+/** Document types that can be the platform owner's personal (off-books) engagement. */
+const PERSONAL_DOC_TYPES = new Set(['standard', 'quotation', 'proforma_invoice', 'sales_order']);
+
 interface Props {
   effectiveTenant: string;
   docType: keyof typeof DOC_CONFIGS;
@@ -155,6 +168,13 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   const config = DOC_CONFIGS[docType] ?? DOC_CONFIGS.invoice;
   const isEdit = !!editId;
   const isQuotation = config.apiFamily === 'quotation';
+  // Personal (off-books) documents: the platform owner on the platform tenant, for the documents a
+  // client is billed or quoted with (never notes, receipts or delivery notes).
+  const { isPlatformOwner } = useResolvedTenant();
+  const personalDocType = PERSONAL_DOC_TYPES.has(config.invoiceType);
+  const { available: personalAvailable } = usePersonalAccounts(effectiveTenant, isPlatformOwner && personalDocType);
+  const canBePersonal = isPlatformOwner && personalDocType && personalAvailable;
+  const [personal, setPersonal] = useState<PersonalCollection>({ personal: false, channelId: 0 });
 
   // Always call all hooks unconditionally (Rules of Hooks)
   const invCreateMutation = useCreateInvoice(effectiveTenant);
@@ -204,7 +224,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     customer_phone: '',
     primary_date:   today,
     secondary_date: defaultSecondary,
-    currency:       'KES',
+    currency:       FALLBACK_CURRENCY,
     reference:      '', // contract / tender / PO number → metadata.reference (meta box "Reference")
     // Budget dimensions → metadata.project_id / cost_center_id; the revenue journal carries them.
     project_id:     '',
@@ -212,6 +232,14 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     terms:          '',
     notes:          '',
   });
+  // A new document starts in the tenant's currency (Settings > default_currency) once that loads,
+  // unless the user already picked another one.
+  const tenantCurrency = useTenantCurrency(effectiveTenant);
+  const [currencySeed, setCurrencySeed] = useState<string>(FALLBACK_CURRENCY);
+  if (!isEdit && tenantCurrency !== currencySeed) {
+    setCurrencySeed(tenantCurrency);
+    if (form.currency === currencySeed) setForm((p) => ({ ...p, currency: tenantCurrency }));
+  }
   // New documents start on the revenue default (Sales, Projects for a project document), the same
   // centre the issuance journal would use; editing keeps the stored value.
   const costCenterDefault = useCostCenterDefault(
@@ -266,7 +294,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       customer_phone: (existing as { customer_phone?: string }).customer_phone ?? '',
       primary_date:   primaryDate,
       secondary_date: secondaryDate,
-      currency:       existing.currency ?? 'KES',
+      currency:       existing.currency ?? tenantCurrency,
       reference:      (existing.metadata?.reference as string) ?? '',
       project_id:     (existing.metadata?.project_id as string) ?? '',
       cost_center_id: (existing.metadata?.cost_center_id as string) ?? '',
@@ -286,6 +314,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     if (savedBank && savedBank.account_number) {
       setBankDetails(savedBank.account_id ? savedBank : { ...savedBank, account_id: settlementAccountId });
     }
+    setPersonal(personalFromMetadata(existing.metadata as Record<string, unknown> | undefined));
 
     const srcLines = existing.lines ?? [];
     setLines(srcLines.map(l => ({
@@ -467,6 +496,10 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       if (form[key]) mergedMeta[key] = form[key];
       else delete mergedMeta[key];
     }
+    // Personal collection: off the books and payable into the chosen personal account only. The
+    // server ignores it unless the platform owner raises it on the platform tenant.
+    const isPersonal = canBePersonal && personal.personal;
+    if (canBePersonal) applyPersonalToMetadata(mergedMeta, { ...personal, personal: isPersonal });
     const metadata = Object.keys(mergedMeta).length ? mergedMeta : undefined;
 
     // Originating outlet: prefer the header-selected branch; on edit fall back to the
@@ -520,7 +553,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         // The real BankAccount this invoice is raised against, when an existing account (not a
         // freshly-typed one with no id yet) was picked in BankDetailsPicker — lets Record Payment
         // default to crediting the same account later instead of a blank picker every time.
-        settlement_account_id: includeBankDetails ? bankDetails?.account_id : undefined,
+        settlement_account_id: includeBankDetails && !isPersonal ? bankDetails?.account_id : undefined,
         metadata,
         lines:          linePayload,
         discount_amount: globalDiscountAmt > 0 ? globalDiscountAmt : undefined,
@@ -538,7 +571,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         );
       }
     }
-  }, [form, customerDetails, buildLinePayload, buildAdditionalChargesPayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, handleSaveError, addShipping, shippingAmount, transport, selectedOutlet, subtotal, globalDiscount, globalDiscountMode]);
+  }, [form, customerDetails, buildLinePayload, buildAdditionalChargesPayload, customerId, crmCustomerId, isEdit, editId, existing, config, isQuotation, createMutation, updateMutation, onClose, handleSaveError, addShipping, shippingAmount, transport, selectedOutlet, subtotal, globalDiscount, globalDiscountMode, includeBankDetails, bankDetails, canBePersonal, personal]);
 
   if (isEdit && existingLoading) {
     return (
@@ -765,14 +798,32 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
             />
           )}
 
+          {/* Personal (off-books) switch: a personal document is payable only into a personal
+              account, so it replaces the company bank-account picker. An invoice keeps how it was
+              booked once saved (Move off the books handles an open business one). */}
+          {canBePersonal && (
+            <PersonalCollectionPicker
+              tenant={effectiveTenant}
+              orgSlug={effectiveTenant}
+              value={personal}
+              onChange={setPersonal}
+              locked={isEdit && !isQuotation}
+              lockedReason={personal.personal
+                ? 'This invoice is personal. You can still change the personal account.'
+                : 'A saved invoice keeps how it was booked.'}
+            />
+          )}
+
           {/* Bank details — pick an existing business bank account, add a new one, or exclude. */}
-          <BankDetailsPicker
-            orgSlug={effectiveTenant}
-            include={includeBankDetails}
-            onIncludeChange={setIncludeBankDetails}
-            value={bankDetails}
-            onChange={setBankDetails}
-          />
+          {!(canBePersonal && personal.personal) && (
+            <BankDetailsPicker
+              orgSlug={effectiveTenant}
+              include={includeBankDetails}
+              onIncludeChange={setIncludeBankDetails}
+              value={bankDetails}
+              onChange={setBankDetails}
+            />
+          )}
 
           {/* Totals + Terms */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">

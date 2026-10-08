@@ -14,8 +14,9 @@ import { useInvoices } from '@/hooks/use-invoices';
 import { useSelectedVendor, useVendors, useVendorSearch } from '@/hooks/use-inventory';
 import { vendorKraPin as kraPinOf } from '@/lib/api/inventory';
 import { VendorFormDialog } from '@/components/vendors/VendorFormDialog';
+import { ExpenseWizardFollowUp } from '@/components/expenses/ExpenseWizardFollowUp';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { useSupportedCurrencies } from '@/hooks/use-currencies';
+import { useCurrencyOptions, useTenantCurrency } from '@/hooks/use-currencies';
 import { usePreviewNextNumber } from '@/hooks/use-sequences';
 import type { CreateExpenseRequest } from '@/lib/api/expenses';
 import { cn } from '@/lib/utils';
@@ -52,10 +53,12 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+// The steps the page really walks through: save the details, move the expense through
+// approval and payment (ExpenseWizardFollowUp), then a summary.
 const STEPS = [
-  { n: 1, label: 'Add Details' },
-  { n: 2, label: 'Mark Payments' },
-  { n: 3, label: 'Customise & Share' },
+  { n: 1, label: 'Details' },
+  { n: 2, label: 'Approve & pay' },
+  { n: 3, label: 'Done' },
 ];
 
 function Stepper({ current = 1 }: { current?: number }) {
@@ -123,7 +126,6 @@ export default function NewExpenditurePage() {
   const { data: vendorData } = useVendors(effectiveTenant, undefined, !!effectiveTenant);
   const searchVendors = useVendorSearch(effectiveTenant);
   const { data: accountsData } = useAccounts(effectiveTenant);
-  const { data: currencyData } = useSupportedCurrencies();
   const { data: invoiceData } = useInvoices(effectiveTenant, undefined, !!effectiveTenant);
   // Real server-authoritative preview (document-sequence service) — same source of truth the
   // backend uses at create time. Display-only: never sent as the actual number unless the user
@@ -157,11 +159,8 @@ export default function NewExpenditurePage() {
     [invoiceData],
   );
 
-  const currencyOptions = useMemo(() => {
-    const codes = (currencyData?.currencies ?? []).map((c) => c.code).filter(Boolean);
-    const list = codes.length ? codes : ['KES', 'USD', 'EUR', 'GBP', 'UGX', 'TZS'];
-    return list.map((code) => ({ value: code, label: code }));
-  }, [currencyData]);
+  const currencyOptions = useCurrencyOptions();
+  const tenantCurrency = useTenantCurrency(effectiveTenant);
 
   const suggestedExpenseNo = expenseNoPreview?.next_number ?? '';
 
@@ -181,7 +180,9 @@ export default function NewExpenditurePage() {
   // Real link to an existing invoice (invoice_id) — not a free-typed number with no relationship
   // to the actual record.
   const [invoiceId, setInvoiceId] = useState('');
-  const [currency, setCurrency] = useState('KES');
+  // The tenant's currency until the user picks another.
+  const [pickedCurrency, setCurrency] = useState('');
+  const currency = pickedCurrency || tenantCurrency;
   const [taxType, setTaxType] = useState('none');
   const [amount, setAmount] = useState('');
   const [ledgerId, setLedgerId] = useState('');
@@ -297,14 +298,23 @@ export default function NewExpenditurePage() {
     setErrors({});
   };
 
-  const save = (after: 'list' | 'new' | 'payment') => {
+  // After saving, "continue" walks on to approval and payment; "draft" goes back to the list;
+  // "new" clears the form for the next expense.
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [createdId, setCreatedId] = useState<string | null>(null);
+
+  const save = (after: 'continue' | 'draft' | 'new') => {
     const payload = buildPayload();
     if (!payload) return;
     createExpense.mutate(payload, {
       onSuccess: (expense) => {
-        toast.success(`Expenditure ${expense?.expense_number ?? ''} created`);
+        toast.success(`Expenditure ${expense?.expense_number ?? ''} saved`);
         if (after === 'new') reset();
-        else router.push(`/${orgSlug}/expenses`);
+        else if (after === 'continue' && expense?.id) {
+          setCreatedId(expense.id);
+          setStep(2);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else router.push(`/${orgSlug}/expenses`);
       },
       onError: (err: any) => {
         toast.error(err?.response?.data?.error ?? 'Failed to create expenditure. Please try again.');
@@ -327,10 +337,25 @@ export default function NewExpenditurePage() {
       {/* Step indicator in its own card so it reads as a clear progress band. */}
       <Card>
         <CardContent className="py-5">
-          <Stepper current={1} />
+          <Stepper current={step} />
         </CardContent>
       </Card>
 
+      {step > 1 && createdId ? (
+        <ExpenseWizardFollowUp
+          tenant={effectiveTenant ?? ''}
+          orgSlug={orgSlug}
+          expenseId={createdId}
+          step={step as 2 | 3}
+          onStep={setStep}
+          onCreateAnother={() => {
+            reset();
+            setCreatedId(null);
+            setStep(1);
+          }}
+        />
+      ) : (
+      <>
       {isPlatformOwner && !tenantQueryParam && (
         <div className="rounded-lg border border-border bg-accent/5 px-4 py-2.5 text-center text-xs text-muted-foreground">
           Creating for your own organization. Drill into a tenant via the filter above to create for theirs.
@@ -565,19 +590,21 @@ export default function NewExpenditurePage() {
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-6">
-            <Button variant="primary" onClick={() => save('list')} disabled={createExpense.isPending}>
+            <Button variant="primary" onClick={() => save('continue')} disabled={createExpense.isPending}>
               {createExpense.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save &amp; Continue
+              Save and continue
             </Button>
-            <Button variant="outline" onClick={() => save('new')} disabled={createExpense.isPending}>
-              Save &amp; Create New
+            <Button variant="outline" onClick={() => save('draft')} disabled={createExpense.isPending}>
+              Save as draft
             </Button>
-            <Button variant="outline" onClick={() => save('payment')} disabled={createExpense.isPending}>
-              Save &amp; Mark Payment
+            <Button variant="ghost" onClick={() => save('new')} disabled={createExpense.isPending}>
+              Save and add another
             </Button>
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }
