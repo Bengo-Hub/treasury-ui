@@ -17,7 +17,7 @@ import { BulkUploadStepper } from '@/components/documents/BulkUploadStepper';
 import { RecordPaymentModal, type PayableInvoice } from '@/components/documents/RecordPaymentModal';
 import { ViewPaymentsModal, type ViewPaymentsInvoiceRef } from '@/components/documents/ViewPaymentsModal';
 import { DocumentApprovalModal } from '@/components/documents/DocumentApprovalModal';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { SendDocumentDialog } from '@/components/documents/SendDocumentDialog';
 import { useDocumentListSource } from '@/hooks/use-document-list-source';
 import { useDocumentActions, type ActionRunner } from '@/hooks/use-document-actions';
 import { useDocRowAction } from '@/hooks/use-doc-row-action';
@@ -79,10 +79,10 @@ export default function InvoicesPage() {
   // Reused centralized approval modal (submit / approve / reject) — the SAME flow as the Approvals
   // inbox and the invoice detail page, opened right from a row so no one has to navigate away.
   const [approvalFor, setApprovalFor] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
-  // Confirm gate for Send (fiscalises + delivers) — warns about the KRA eTIMS sync via the shared
-  // ConfirmDialog. (Approval itself now runs through the centralized modal, which fiscalises on the
+  // Confirm gate for Send: the shared SendDocumentDialog asks whether to also transmit to KRA
+  // eTIMS (it used to send with no choice while saying it always would). (Approval itself now runs through the centralized modal, which fiscalises on the
   // final approval step server-side.)
-  const [confirmDialog, setConfirmDialog] = useState<{ kind: 'send'; tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ kind: 'send'; tenant: string; invoiceId: string; invoiceNumber: string; customerEmail?: string } | null>(null);
 
   // The Invoices page shows the invoice family: 'standard' for regular tenants, broadened
   // (subscription/platform invoices too) on the owner's own view, and scope-driven in the
@@ -142,7 +142,7 @@ export default function InvoicesPage() {
       approve: { label: 'Approve', icon: <Check className="h-3.5 w-3.5" />, onClick: openApproval } as ActionRunner,
       reject: { label: 'Reject', icon: <X className="h-3.5 w-3.5" />, destructive: true, onClick: openApproval } as ActionRunner,
     } : {}),
-    send: { label: 'Send / Resend', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => setConfirmDialog({ kind: 'send', tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) },
+    send: { label: 'Send / Resend', icon: <Send className="h-3.5 w-3.5" />, onClick: (r) => setConfirmDialog({ kind: 'send', tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number, customerEmail: r.customer_email }) },
     generate_delivery_note: { label: 'Generate Delivery Note', icon: <Truck className="h-3.5 w-3.5" />, onClick: (r) => run(() => generateDeliveryNote(src.rowTenant(r), r.id), `Delivery note generated for ${r.doc_number}`) },
     view_delivery_note: { label: 'View Delivery Note', icon: <Truck className="h-3.5 w-3.5" />, onClick: (r) => r.related_documents?.delivery_note_id && router.push(`/${src.detailHrefTenant(r)}/invoices/${r.related_documents.delivery_note_id}`) },
     record_payment: {
@@ -326,17 +326,17 @@ export default function InvoicesPage() {
         />
       )}
 
-      <ConfirmDialog
+      <SendDocumentDialog
+        tenant={confirmDialog?.tenant ?? ''}
         open={confirmDialog !== null}
         onOpenChange={(o) => { if (!o) setConfirmDialog(null); }}
-        title="Send this invoice?"
-        description={`${confirmDialog?.invoiceNumber ?? 'The invoice'} will be transmitted to KRA eTIMS (fiscalised) and delivered to the customer.`}
-        confirmLabel="Send"
+        documentNumber={confirmDialog?.invoiceNumber}
+        customerEmail={confirmDialog?.customerEmail}
         isPending={isPending}
-        onConfirm={() => {
+        onConfirm={(syncEtims) => {
           if (!confirmDialog) return;
           const { tenant, invoiceId, invoiceNumber } = confirmDialog;
-          run(() => sendInvoice(tenant, invoiceId), `Invoice ${invoiceNumber} sent to customer`);
+          run(() => sendInvoice(tenant, invoiceId, syncEtims), `Invoice ${invoiceNumber} sent to customer`);
           setConfirmDialog(null);
         }}
       />

@@ -44,10 +44,17 @@ export interface BankAccount {
    *  matches and no account was explicitly chosen. */
   default_invoice_types?: string[];
   opened_at?: string;
+  /** The platform owner's own account (platform tenant only): takes only personal invoices, is
+   *  never a business default and is left out of business account pickers. */
+  personal?: boolean;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
 }
+
+/** Which accounts a list returns: business ones (every business picker), the owner's personal
+ *  ones (a personal invoice), or both (the accounts settings and channel links). */
+export type AccountScope = 'business' | 'personal' | 'all';
 
 export interface BankAccountsResponse {
   bank_accounts: BankAccount[];
@@ -89,6 +96,8 @@ export interface BankAccountRequest {
    *  bank details) to this account when none is explicitly chosen at creation. Free-form, matches
    *  whatever invoice_type value the creating service sends. */
   default_invoice_types?: string[];
+  /** Platform owner only: the owner's own account, off the company books. */
+  personal?: boolean;
 }
 
 export interface AccountBalance {
@@ -120,8 +129,9 @@ export interface AccountStatement {
   total: number;
 }
 
-export function listBankAccounts(tenantIdOrSlug: string): Promise<BankAccountsResponse> {
-  return apiClient.get<BankAccountsResponse>(`${BASE}/${tenantIdOrSlug}/bank-accounts`);
+export function listBankAccounts(tenantIdOrSlug: string, scope: AccountScope = 'business'): Promise<BankAccountsResponse> {
+  const q = scope === 'personal' ? '?personal=true' : scope === 'all' ? '?personal=all' : '';
+  return apiClient.get<BankAccountsResponse>(`${BASE}/${tenantIdOrSlug}/bank-accounts${q}`);
 }
 
 export function createBankAccount(tenantIdOrSlug: string, data: BankAccountRequest): Promise<BankAccount> {

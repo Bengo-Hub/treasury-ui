@@ -46,6 +46,9 @@ interface BankDetailsPickerProps {
   /** The currently selected bank details snapshot (or null when none picked). */
   value: BankDetailsSnapshot | null;
   onChange: (value: BankDetailsSnapshot | null) => void;
+  /** A personal (off-books) document lists, and adds, only the owner's personal accounts; every
+   *  other document only business accounts. */
+  personal?: boolean;
 }
 
 function toSnapshot(a: BankAccount): BankDetailsSnapshot {
@@ -61,8 +64,8 @@ function toSnapshot(a: BankAccount): BankDetailsSnapshot {
   };
 }
 
-export function BankDetailsPicker({ orgSlug, include, onIncludeChange, value, onChange }: BankDetailsPickerProps) {
-  const { data, isLoading } = useBankAccounts(orgSlug);
+export function BankDetailsPicker({ orgSlug, include, onIncludeChange, value, onChange, personal = false }: BankDetailsPickerProps) {
+  const { data, isLoading } = useBankAccounts(orgSlug, true, personal ? 'personal' : 'business');
   const createMutation = useCreateBankAccount(orgSlug);
   // Bank details on a document mean an actual bank account — mobile-money/cash accounts (which
   // now share this same list, see the 2026-08-23 accounts-module work) have no bank_name/
@@ -106,6 +109,7 @@ export function BankDetailsPicker({ orgSlug, include, onIncludeChange, value, on
         branch_code: draft.branch_code || undefined,
         local_branch_code: draft.local_branch_code || undefined,
         currency: draft.currency || undefined,
+        ...(personal ? { personal: true } : {}),
       },
       {
         onSuccess: (created) => {
@@ -130,8 +134,12 @@ export function BankDetailsPicker({ orgSlug, include, onIncludeChange, value, on
           <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${include ? 'translate-x-5' : ''}`} />
         </span>
         <span>
-          <span className="block text-sm font-semibold">Include bank details</span>
-          <span className="block text-xs text-muted-foreground">Show a &quot;How to pay&quot; bank block on this document. Off = no bank details are printed.</span>
+          <span className="block text-sm font-semibold">{personal ? 'Include your personal account' : 'Include bank details'}</span>
+          <span className="block text-xs text-muted-foreground">
+            {personal
+              ? 'Payable into your own account. Only your personal accounts are listed.'
+              : 'Show a "How to pay" bank block on this document. Off = no bank details are printed.'}
+          </span>
         </span>
       </button>
 
@@ -145,9 +153,9 @@ export function BankDetailsPicker({ orgSlug, include, onIncludeChange, value, on
                   options={options}
                   value={selectedId}
                   onChange={onSelect}
-                  placeholder={isLoading ? 'Loading accounts…' : 'Select a bank account'}
+                  placeholder={isLoading ? 'Loading accounts…' : personal ? 'Select your personal account' : 'Select a bank account'}
                   searchPlaceholder="Search bank accounts…"
-                  emptyText="No bank accounts yet — add one"
+                  emptyText={personal ? 'No personal accounts yet — add one' : 'No bank accounts yet — add one'}
                 />
               </div>
               <Button type="button" variant="outline" size="sm" onClick={() => { setDraft(EMPTY_BANK_ACCOUNT); setAddOpen(true); }}>
@@ -165,7 +173,11 @@ export function BankDetailsPicker({ orgSlug, include, onIncludeChange, value, on
       )}
 
       <Dialog open={addOpen} onOpenChange={(o) => !o && setAddOpen(false)}>
-        <DialogContent title="Add Bank Account" description="Saved to your reusable bank-account list." onClose={() => setAddOpen(false)}>
+        <DialogContent
+          title={personal ? 'Add Personal Account' : 'Add Bank Account'}
+          description={personal ? 'Saved as your own account, off the company books.' : 'Saved to your reusable bank-account list.'}
+          onClose={() => setAddOpen(false)}
+        >
           <div className="space-y-4">
             <BankAccountForm orgSlug={orgSlug} value={draft} onChange={setDraft} />
             <div className="flex justify-end gap-3 pt-2">

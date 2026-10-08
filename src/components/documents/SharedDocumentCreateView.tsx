@@ -174,7 +174,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   const personalDocType = PERSONAL_DOC_TYPES.has(config.invoiceType);
   const { available: personalAvailable } = usePersonalAccounts(effectiveTenant, isPlatformOwner && personalDocType);
   const canBePersonal = isPlatformOwner && personalDocType && personalAvailable;
-  const [personal, setPersonal] = useState<PersonalCollection>({ personal: false, channelId: 0 });
+  const [personal, setPersonal] = useState<PersonalCollection>({ personal: false });
 
   // Always call all hooks unconditionally (Rules of Hooks)
   const invCreateMutation = useCreateInvoice(effectiveTenant);
@@ -499,7 +499,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     // Personal collection: off the books and payable into the chosen personal account only. The
     // server ignores it unless the platform owner raises it on the platform tenant.
     const isPersonal = canBePersonal && personal.personal;
-    if (canBePersonal) applyPersonalToMetadata(mergedMeta, { ...personal, personal: isPersonal });
+    if (canBePersonal) applyPersonalToMetadata(mergedMeta, { personal: isPersonal });
     const metadata = Object.keys(mergedMeta).length ? mergedMeta : undefined;
 
     // Originating outlet: prefer the header-selected branch; on edit fall back to the
@@ -553,7 +553,9 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
         // The real BankAccount this invoice is raised against, when an existing account (not a
         // freshly-typed one with no id yet) was picked in BankDetailsPicker — lets Record Payment
         // default to crediting the same account later instead of a blank picker every time.
-        settlement_account_id: includeBankDetails && !isPersonal ? bankDetails?.account_id : undefined,
+        // Explicitly chosen, so it beats every default: the server prints, and collects through, the
+        // PayHero channel linked to it (a personal account for a personal invoice, else business).
+        settlement_account_id: includeBankDetails ? bankDetails?.account_id : undefined,
         metadata,
         lines:          linePayload,
         discount_amount: globalDiscountAmt > 0 ? globalDiscountAmt : undefined,
@@ -798,15 +800,20 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
             />
           )}
 
-          {/* Personal (off-books) switch: a personal document is payable only into a personal
-              account, so it replaces the company bank-account picker. An invoice keeps how it was
-              booked once saved (Move off the books handles an open business one). */}
+          {/* Personal (off-books) switch: a personal document is payable only into one of the
+              owner's personal accounts, so the bank picker below then lists only those. An invoice
+              keeps how it was booked once saved (Move off the books handles an open business one). */}
           {canBePersonal && (
             <PersonalCollectionPicker
               tenant={effectiveTenant}
               orgSlug={effectiveTenant}
               value={personal}
-              onChange={setPersonal}
+              onChange={(v) => {
+                // The chosen account belongs to the other side of the books now.
+                if (v.personal !== personal.personal) setBankDetails(null);
+                setPersonal(v);
+              }}
+              accountId={includeBankDetails ? bankDetails?.account_id : undefined}
               locked={isEdit && !isQuotation}
               lockedReason={personal.personal
                 ? 'This invoice is personal. You can still change the personal account.'
@@ -814,16 +821,16 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
             />
           )}
 
-          {/* Bank details — pick an existing business bank account, add a new one, or exclude. */}
-          {!(canBePersonal && personal.personal) && (
-            <BankDetailsPicker
-              orgSlug={effectiveTenant}
-              include={includeBankDetails}
-              onIncludeChange={setIncludeBankDetails}
-              value={bankDetails}
-              onChange={setBankDetails}
-            />
-          )}
+          {/* Bank details: an existing account (personal ones only for a personal document,
+              business ones otherwise), a new one, or none. */}
+          <BankDetailsPicker
+            orgSlug={effectiveTenant}
+            include={includeBankDetails}
+            onIncludeChange={setIncludeBankDetails}
+            value={bankDetails}
+            onChange={setBankDetails}
+            personal={canBePersonal && personal.personal}
+          />
 
           {/* Totals + Terms */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">

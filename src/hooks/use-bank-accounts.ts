@@ -14,6 +14,7 @@ import {
   type AccountBalance,
   type AccountStatement,
   type BankAccount,
+  type AccountScope,
 } from '@/lib/api/bank-accounts';
 
 const STALE_MS = 5 * 60 * 1000;
@@ -25,10 +26,12 @@ export const bankAccountKeys = {
     ['bank-accounts', tenant, id, 'statement', from, to] as const,
 };
 
-export function useBankAccounts(tenant: string, enabled = true) {
+/** The tenant's accounts: business ones by default (every business picker), or the owner's
+ *  personal ones, or both (scope). Keys sit under bankAccountKeys.all so writes refresh every scope. */
+export function useBankAccounts(tenant: string, enabled = true, scope: AccountScope = 'business') {
   return useQuery<BankAccountsResponse>({
-    queryKey: bankAccountKeys.all(tenant),
-    queryFn: () => listBankAccounts(tenant),
+    queryKey: [...bankAccountKeys.all(tenant), 'list', scope],
+    queryFn: () => listBankAccounts(tenant, scope),
     enabled: !!tenant && enabled,
     staleTime: STALE_MS,
   });

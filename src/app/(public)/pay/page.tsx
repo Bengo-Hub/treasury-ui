@@ -110,6 +110,17 @@ function withRefType(url: string, refType: string): string {
   return `${url}${sep}reference_type=${encodeURIComponent(refType)}`;
 }
 
+// Name the intent being paid, so treasury-api offers only what can settle it: a personal
+// (off-books) invoice is paid by M-Pesa into the owner's personal channel and nothing else.
+function withIntent(url: string, intentId: string | undefined): string {
+  if (!intentId) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}intent_id=${encodeURIComponent(intentId)}`;
+}
+
+function intentIdFromInitiateUrl(initiateUrl: string | undefined): string | undefined {
+  return initiateUrl?.match(/\/intents\/([0-9a-f-]{36})\//i)?.[1];
+}
+
 function gatewaysUrlFromInitiateUrl(initiateUrl: string): string | null {
   // initiate_url: https://treasury.example.com/api/v1/pay/{tenantUUID}/intents/{intentID}/initiate
   // gateways URL: https://treasury.example.com/api/v1/pay/{tenantUUID}/gateways
@@ -280,7 +291,8 @@ function PayPageContent() {
         const to = setTimeout(() => ctrl.abort(), 12000);
         let r: Response;
         try {
-          r = await fetch(withCurrency(withRefType(gwUrl, refType), d.currency), { signal: ctrl.signal });
+          const intentId = d.intent_id || intentIdFromInitiateUrl(initiateUrlToUse);
+          r = await fetch(withIntent(withCurrency(withRefType(gwUrl, refType), d.currency), intentId), { signal: ctrl.signal });
         } finally {
           clearTimeout(to);
         }

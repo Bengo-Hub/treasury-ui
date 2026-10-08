@@ -22,6 +22,7 @@ import { money } from '@/components/charts/chart-theme';
 import { cn } from '@/lib/utils';
 import { useMe } from '@/hooks/useMe';
 import { useTenantCurrency } from '@/hooks/use-currencies';
+import { PersonalAccountSwitch, useCanMarkPersonal } from '@/components/payments/personal-account-switch';
 import { Banknote, FileText, Landmark, Loader2, Pencil, Plus, RotateCcw, Smartphone, Tag, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -77,7 +78,8 @@ interface BankAccountsPanelProps {
 export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankAccountsPanelProps) {
   const router = useRouter();
 
-  const { data, isLoading, isError } = useBankAccounts(tenant);
+  // Every account, the owner's personal ones included (marked), so they can be managed here.
+  const { data, isLoading, isError } = useBankAccounts(tenant, true, 'all');
   const { data: me } = useMe();
   const createMutation = useCreateBankAccount(tenant);
   const deleteMutation = useDeleteBankAccount(tenant);
@@ -92,6 +94,9 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
   const [accountName, setAccountName] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [openingBalance, setOpeningBalance] = useState('');
+  // The owner's own account (platform owner on the platform tenant only).
+  const canMarkPersonal = useCanMarkPersonal();
+  const [personal, setPersonal] = useState(false);
   // Only used for mobile_money/cash — the bank type's own currency lives on bankValue.currency
   // (BankAccountForm's own picker) since a bank account is picked together with its country.
   // The tenant's currency until the user picks another.
@@ -160,10 +165,11 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
     bank_code: string;
     branch_code: string;
     local_branch_code: string;
+    personal: boolean;
   }
   const EMPTY_EDIT: EditFormState = {
     account_name: '', bank_name: '', account_number: '', bank_branch: '',
-    bank_code: '', branch_code: '', local_branch_code: '',
+    bank_code: '', branch_code: '', local_branch_code: '', personal: false,
   };
   const [editAccount, setEditAccount] = useState<BankAccount | null>(null);
   const [editForm, setEditForm] = useState<EditFormState>(EMPTY_EDIT);
@@ -178,6 +184,7 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
       bank_code: account.bank_code ?? '',
       branch_code: account.branch_code ?? '',
       local_branch_code: account.local_branch_code ?? '',
+      personal: !!account.personal,
     });
   }
 
@@ -198,6 +205,7 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
           bank_code: editForm.bank_code,
           branch_code: editForm.branch_code,
           local_branch_code: editForm.local_branch_code,
+          ...(canMarkPersonal && editForm.personal !== !!editAccount.personal ? { personal: editForm.personal } : {}),
         },
       },
       {
@@ -205,7 +213,9 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
           toast.success('Account updated');
           setEditAccount(null);
         },
-        onError: () => toast.error('Failed to update account'),
+        // The server explains a refusal (e.g. money still on the company books).
+        onError: (err: unknown) =>
+          toast.error((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to update account'),
       },
     );
   }
@@ -227,6 +237,7 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
     setMobileNumber('');
     setOpeningBalance('');
     setCurrency('');
+    setPersonal(false);
   }
 
   function handleCreate() {
@@ -238,7 +249,9 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
       // accepts any currency its forex module can quote, and converts opening-balance/transfer
       // postings against the tenant's other (typically KES) accounts automatically.
       currency: accountType === 'bank' ? bankValue.currency : currency,
-      opening_balance: openingBalance ? parseFloat(openingBalance) : undefined,
+      // A personal account has no company ledger account, so no opening balance is posted for it.
+      opening_balance: openingBalance && !personal ? parseFloat(openingBalance) : undefined,
+      ...(canMarkPersonal && personal ? { personal: true } : {}),
     };
     if (accountType === 'bank') {
       if (!bankValue.account_name || !bankValue.bank_name || !bankValue.account_number) {
@@ -314,7 +327,10 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
             >
               <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span>
-                <span className="block font-bold">{a.account_name}</span>
+                <span className="flex items-center gap-1.5 font-bold">
+                  {a.account_name}
+                  {a.personal && <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">Personal</span>}
+                </span>
                 {a.bank_name && <span className="block text-xs text-muted-foreground">{a.bank_name}</span>}
               </span>
             </button>
@@ -381,26 +397,31 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
               <Pencil className="h-3.5 w-3.5" />
               Edit
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => openMethodsDialog(a)}
-              title="Which payment methods (paystack, mpesa, card...) automatically post to this account"
-            >
-              <Tag className="h-3.5 w-3.5" />
-              Payment Methods
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => openInvoiceTypesDialog(a)}
-              title="Which invoice types (subscription, etc.) default to this account for settlement and printed bank details"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              Invoice Types
-            </Button>
+            {/* A personal account is never a business default. */}
+            {!a.personal && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => openMethodsDialog(a)}
+                  title="Which payment methods (paystack, mpesa, card...) automatically post to this account"
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                  Payment Methods
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => openInvoiceTypesDialog(a)}
+                  title="Which invoice types (subscription, etc.) default to this account for settlement and printed bank details"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Invoice Types
+                </Button>
+              </>
+            )}
             {a.is_active ? (
               <Button variant="ghost" size="sm" onClick={() => handleDeactivate(a)} disabled={deleteMutation.isPending}>
                 Deactivate
@@ -524,17 +545,21 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
               </div>
             )}
 
-            <FormField label="Opening Balance (optional)" description="Posted as a real journal entry against Opening Balance Equity.">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={openingBalance}
-                onChange={(e) => setOpeningBalance(e.target.value)}
-                className={inputClass + ' sm:max-w-xs'}
-                placeholder="0.00"
-              />
-            </FormField>
+            {canMarkPersonal && <PersonalAccountSwitch value={personal} onChange={setPersonal} />}
+
+            {!personal && (
+              <FormField label="Opening Balance (optional)" description="Posted as a real journal entry against Opening Balance Equity.">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={openingBalance}
+                  onChange={(e) => setOpeningBalance(e.target.value)}
+                  className={inputClass + ' sm:max-w-xs'}
+                  placeholder="0.00"
+                />
+              </FormField>
+            )}
 
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -617,6 +642,9 @@ export function BankAccountsPanel({ tenant, orgSlug, allowCreate = true }: BankA
                   />
                 </FormField>
               </div>
+            )}
+            {canMarkPersonal && (
+              <PersonalAccountSwitch value={editForm.personal} onChange={(v) => setEditForm((p) => ({ ...p, personal: v }))} />
             )}
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setEditAccount(null)}>
