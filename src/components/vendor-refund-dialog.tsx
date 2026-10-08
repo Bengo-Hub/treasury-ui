@@ -5,6 +5,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/base';
 import { FormField } from '@/components/ui/form-field';
 import { useRecordVendorRefund } from '@/hooks/use-arpa';
+import { useTenantCurrency } from '@/hooks/use-currencies';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 
@@ -35,7 +36,9 @@ export function VendorRefundDialog(props: VendorRefundDialogProps) {
 
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
-  const [currency, setCurrency] = useState('KES');
+  const tenantCurrency = useTenantCurrency(tenant);
+  const [pickedCurrency, setCurrency] = useState('');
+  const currency = pickedCurrency || tenantCurrency;
   const [error, setError] = useState('');
 
   const submit = () => {

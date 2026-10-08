@@ -7,7 +7,7 @@ import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { ProjectCombobox } from '@/components/ui/project-combobox';
-import { useSupportedCurrencies } from '@/hooks/use-currencies';
+import { useCurrencyOptions, useTenantCurrency } from '@/hooks/use-currencies';
 import { useUpdateExpense } from '@/hooks/use-expenses';
 import { useSelectedVendor, useVendors, useVendorSearch } from '@/hooks/use-inventory';
 import type { Expense, UpdateExpenseRequest } from '@/lib/api/expenses';
@@ -66,7 +66,6 @@ export function EditExpenseModal({ tenant, expense, onClose, onSaved }: Props) {
 function EditExpenseForm({ tenant, expense, onClose, onSaved }: Props & { expense: Expense }) {
   const meta = expense.metadata as Record<string, unknown> | undefined;
   const updateExpense = useUpdateExpense(tenant);
-  const { data: currencyData } = useSupportedCurrencies();
   const { data: vendorData } = useVendors(tenant, undefined, !!tenant);
   const searchVendors = useVendorSearch(tenant);
 
@@ -74,7 +73,9 @@ function EditExpenseForm({ tenant, expense, onClose, onSaved }: Props & { expens
   const [categoryId, setCategoryId] = useState(expense.category_id ?? '');
   const [description, setDescription] = useState(expense.description ?? '');
   const [amount, setAmount] = useState(String(expense.amount ?? ''));
-  const [currency, setCurrency] = useState(expense.currency || 'KES');
+  const tenantCurrency = useTenantCurrency(tenant);
+  const [pickedCurrency, setCurrency] = useState(expense.currency || '');
+  const currency = pickedCurrency || tenantCurrency;
   const [taxType, setTaxType] = useState(() => {
     const t = metaString(meta, 'tax_type');
     return TAX_TYPES.some((x) => x.value === t) ? t : 'none';
@@ -99,11 +100,7 @@ function EditExpenseForm({ tenant, expense, onClose, onSaved }: Props & { expens
   // The expense's own vendor has no saved PIN yet: offer the master's.
   const pinPlaceholder = vendorKraPin(selectedVendor) || 'e.g. P051234567X';
 
-  const currencyOptions = useMemo(() => {
-    const codes = (currencyData?.currencies ?? []).map((c) => c.code).filter(Boolean);
-    const list = codes.length ? codes : ['KES', 'USD', 'EUR', 'GBP', 'UGX', 'TZS'];
-    return list.map((code) => ({ value: code, label: code }));
-  }, [currencyData]);
+  const currencyOptions = useCurrencyOptions();
   const vendorOptions = useMemo(
     () => (vendorData?.vendors ?? []).map((v) => ({ value: v.id, label: v.business_name, hint: vendorOptionHint(v) })),
     [vendorData],

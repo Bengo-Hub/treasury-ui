@@ -14,7 +14,7 @@ import { vendorKraPin as kraPinOf } from '@/lib/api/inventory';
 import { VendorFormDialog } from '@/components/vendors/VendorFormDialog';
 import { useOrgBranding } from '@/hooks/use-org-branding';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { useSupportedCurrencies } from '@/hooks/use-currencies';
+import { useCurrencyOptions, useTenantCurrency } from '@/hooks/use-currencies';
 import type { CreateBillRequest } from '@/lib/api/bills';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
@@ -90,12 +90,8 @@ export default function NewPurchasePage() {
   );
   const searchVendors = useVendorSearch(effectiveTenant);
 
-  const { data: currencyData } = useSupportedCurrencies();
-  const currencyOptions = useMemo(() => {
-    const codes = (currencyData?.currencies ?? []).map((c) => c.code).filter(Boolean);
-    const list = codes.length ? codes : ['KES', 'USD', 'EUR', 'GBP', 'UGX', 'TZS'];
-    return list.map((code) => ({ value: code, label: code }));
-  }, [currencyData]);
+  const currencyOptions = useCurrencyOptions();
+  const tenantCurrency = useTenantCurrency(effectiveTenant);
 
   // Auto-suggest the next expense number from existing bills count.
   const { data: existingBills } = useBills(effectiveTenant, undefined, !!effectiveTenant);
@@ -110,7 +106,9 @@ export default function NewPurchasePage() {
   const [purchaseDate, setPurchaseDate] = useState(today());
   const [dueDate, setDueDate] = useState(plusDays(15));
   const [vendorId, setVendorId] = useState<string>('');
-  const [currency, setCurrency] = useState('KES');
+  // The tenant's currency until the user picks another.
+  const [pickedCurrency, setCurrency] = useState('');
+  const currency = pickedCurrency || tenantCurrency;
   const [lines, setLines] = useState<PurchaseLine[]>([emptyLine()]);
   const [isRecurring, setIsRecurring] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
