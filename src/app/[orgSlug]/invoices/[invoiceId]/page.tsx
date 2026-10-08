@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { SendDocumentDialog, isFiscalDocumentType } from '@/components/documents/SendDocumentDialog';
 import { toast } from 'sonner';
 import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
 import { downloadPublicInvoicePdf } from '@/lib/api/documents';
@@ -123,14 +124,11 @@ export default function InvoiceDetailPage() {
   const [showPayModal, setShowPayModal]   = useState(false);
   const [showCreditNote, setShowCreditNote] = useState(false);
   const [creditNoteError, setCreditNoteError] = useState('');
-  // Confirm gate for the Send action (fiscalises + delivers) — the shared ConfirmDialog warns
-  // about the KRA eTIMS sync. Approve's own fiscal-consequence warning now lives in
+  // Confirm gate for the Send action: the shared SendDocumentDialog asks whether to also
+  // transmit to KRA eTIMS (defaulting to the tenant's auto-sync setting). Approve's own fiscal-consequence warning now lives in
   // DocumentApprovalCard's confirmApprove prop (below) — the centralized approval flow is the
   // only way to approve an invoice, so there is no separate legacy approve action here anymore.
   const [confirmAction, setConfirmAction] = useState<null | 'send'>(null);
-  // Send modal's explicit per-send eTIMS choice — defaults to syncing (today's behaviour);
-  // unchecking sends the invoice WITHOUT queuing an eTIMS sync for this document.
-  const [sendSyncEtims, setSendSyncEtims] = useState(true);
   const [showDeliverModal, setShowDeliverModal] = useState(false);
   const [receivedBy, setReceivedBy]       = useState('');
   const [deliverNote, setDeliverNote]     = useState('');
@@ -759,38 +757,22 @@ export default function InvoiceDetailPage() {
         ]}
       />
 
-      <ConfirmDialog
+      <SendDocumentDialog
+        tenant={effectiveTenant}
         open={confirmAction !== null}
         onOpenChange={(o) => { if (!o) setConfirmAction(null); }}
-        title="Send this document?"
-        description="This will deliver the document to the customer."
-        confirmLabel="Send"
+        documentNumber={invoice?.invoice_number}
+        customerEmail={invoice?.customer_email}
+        fiscal={isFiscalDocumentType(invoice?.invoice_type)}
+        offBooks={invoice?.metadata?.off_books === true}
         isPending={sendMutation.isPending}
-        onConfirm={() => {
-          sendMutation.mutate({ invoiceId, syncEtims: sendSyncEtims }, {
+        onConfirm={(syncEtims) => {
+          sendMutation.mutate({ invoiceId, syncEtims }, {
             onSuccess: () => setConfirmAction(null),
             onError: () => setConfirmAction(null),
           });
         }}
-      >
-        <label className="flex items-start gap-2 text-sm rounded border border-border/60 bg-muted/30 p-3">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            checked={sendSyncEtims}
-            onChange={(e) => setSendSyncEtims(e.target.checked)}
-          />
-          <span>
-            <span className="font-medium">Sync to KRA eTIMS</span>
-            <br />
-            <span className="text-muted-foreground">
-              {sendSyncEtims
-                ? 'This document will be transmitted to KRA eTIMS (fiscalised) when sent.'
-                : "This document will be sent WITHOUT syncing to eTIMS. You can fiscalise it later from the transaction's \"Generate ETR Receipt\" action."}
-            </span>
-          </span>
-        </label>
-      </ConfirmDialog>
+      />
 
       <ConfirmDialog
         open={deliveryConfirm !== null}

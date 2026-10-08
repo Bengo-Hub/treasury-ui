@@ -27,7 +27,8 @@ export function ChannelsSection({ tenantSlug, st }: { tenantSlug: string; st: Pa
   const toggle = usePayHeroMutation(tenantSlug, (v: { id: number; enabled: boolean }) => payheroApi.setChannelEnabled(tenantSlug, v.id, v.enabled), 'Channel updated', 'Could not update the channel');
   const mapAccount = usePayHeroMutation(tenantSlug, (v: { id: number; account: string }) => payheroApi.setChannelAccount(tenantSlug, v.id, v.account), 'Account saved', 'Could not save the account');
   // The tenant's financial accounts a channel can settle into (cash drawers excluded).
-  const { data: accountsData } = useBankAccounts(tenantSlug);
+  // Both sides: a personal channel links to a personal account, a business one to a business account.
+  const { data: accountsData } = useBankAccounts(tenantSlug, true, 'all');
   const accounts = (accountsData?.bank_accounts ?? []).filter((a) => a.account_type !== 'cash');
 
   return (
@@ -71,24 +72,23 @@ export function ChannelsSection({ tenantSlug, st }: { tenantSlug: string; st: Pa
                       <span className={`inline-block h-4 w-4 rounded-full bg-background shadow transition-transform ${c.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </label>
-                  {!c.personal && (
-                    <label className="flex w-full items-center gap-2 border-t border-border pt-2 text-xs">
-                      <span className="shrink-0 text-muted-foreground">Settles to</span>
-                      <Select
-                        value={c.bank_account_id ?? ''}
-                        disabled={mapAccount.isPending}
-                        onChange={(e) => mapAccount.mutate({ id: c.payhero_channel_id, account: e.target.value })}
-                        className="h-8 min-w-0 flex-1 text-xs"
-                        aria-label={`Account ${channelName(c)} settles to`}
-                      >
-                        <option value="">Not mapped (method default)</option>
-                        {accounts.map((a) => (
-                          <option key={a.id} value={a.id}>{[a.account_name, a.bank_name, a.account_number].filter(Boolean).join(' / ')}</option>
-                        ))}
-                      </Select>
-                      {c.bank_account_id && <Badge variant={c.account_matched_by === 'auto' ? 'outline' : 'secondary'}>{c.account_matched_by === 'auto' ? 'Matched' : 'Chosen'}</Badge>}
-                    </label>
-                  )}
+                  <label className="flex w-full items-center gap-2 border-t border-border pt-2 text-xs">
+                    <span className="shrink-0 text-muted-foreground">Settles to</span>
+                    <Select
+                      value={c.bank_account_id ?? ''}
+                      disabled={mapAccount.isPending}
+                      onChange={(e) => mapAccount.mutate({ id: c.payhero_channel_id, account: e.target.value })}
+                      className="h-8 min-w-0 flex-1 text-xs"
+                      aria-label={`Account ${channelName(c)} settles to`}
+                    >
+                      <option value="">{c.personal ? 'No personal account linked' : 'Not mapped (method default)'}</option>
+                      {/* A personal channel settles only into a personal account, a business one only into a business account. */}
+                      {accounts.filter((a) => !!a.personal === !!c.personal).map((a) => (
+                        <option key={a.id} value={a.id}>{[a.account_name, a.bank_name, a.account_number].filter(Boolean).join(' / ')}</option>
+                      ))}
+                    </Select>
+                    {c.bank_account_id && <Badge variant={c.account_matched_by === 'auto' ? 'outline' : 'secondary'}>{c.account_matched_by === 'auto' ? 'Matched' : 'Chosen'}</Badge>}
+                  </label>
                   {st.is_platform && <PersonalChannelControl tenantSlug={tenantSlug} channel={c} />}
                 </li>
               );
