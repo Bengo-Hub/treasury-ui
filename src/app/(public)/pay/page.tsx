@@ -8,7 +8,7 @@ import { PayHeroPaymentModal } from '@/components/payments/PayHeroPaymentModal';
 import { PaystackPaymentModal } from '@/components/payments/PaystackPaymentModal';
 import { WalletPaymentModal } from '@/components/payments/WalletPaymentModal';
 import type { GatewayType, PayHeroRail, PaymentDetails } from '@/components/payments/types';
-import { GATEWAY_LABELS, GATEWAY_ORDER, PAYHERO_RAIL_LABELS, PAYHERO_RAIL_ORDER } from '@/components/payments/types';
+import { GATEWAY_LABELS, GATEWAY_ORDER, PAYHERO_RAIL_LABELS, PAYHERO_RAIL_ORDER, PAYHERO_UNAVAILABLE_MESSAGE, payingIntentId } from '@/components/payments/types';
 import { Card } from '@/components/ui/base';
 import { sendToParent } from '@/lib/embed-messages';
 import { MpesaLogo, PayHeroLogo, PaystackLogo } from '@bengo-hub/shared-ui-lib';
@@ -111,14 +111,11 @@ function withRefType(url: string, refType: string): string {
 }
 
 // Name the intent being paid, so treasury-api offers only what can settle it: a personal
-// (off-books) invoice is paid by M-Pesa into the owner's personal channel and nothing else.
+// (off-books) invoice is paid by M-Pesa into the owner's personal channel and nothing else, and
+// PayHero is left out (payhero_unavailable) when it would refuse the prompt.
 function withIntent(url: string, intentId: string | undefined): string {
   if (!intentId) return url;
   return `${url}${url.includes('?') ? '&' : '?'}intent_id=${encodeURIComponent(intentId)}`;
-}
-
-function intentIdFromInitiateUrl(initiateUrl: string | undefined): string | undefined {
-  return initiateUrl?.match(/\/intents\/([0-9a-f-]{36})\//i)?.[1];
 }
 
 function gatewaysUrlFromInitiateUrl(initiateUrl: string): string | null {
@@ -143,6 +140,7 @@ function PayPageContent() {
   // PayHero's rails for this payment (treasury's payhero_methods), shown as tabs in its modal.
   const [payheroRails, setPayheroRails] = useState<PayHeroRail[]>([]);
   const [gatewayError, setGatewayError] = useState(false);
+  const [payheroUnavailable, setPayheroUnavailable] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const embed = searchParams.get('embed') === 'true';
@@ -291,7 +289,7 @@ function PayPageContent() {
         const to = setTimeout(() => ctrl.abort(), 12000);
         let r: Response;
         try {
-          const intentId = d.intent_id || intentIdFromInitiateUrl(initiateUrlToUse);
+          const intentId = payingIntentId({ intent_id: d.intent_id, initiate_url: initiateUrlToUse });
           r = await fetch(withIntent(withCurrency(withRefType(gwUrl, refType), d.currency), intentId), { signal: ctrl.signal });
         } finally {
           clearTimeout(to);
@@ -315,6 +313,7 @@ function PayPageContent() {
         if (!cancelled) {
           setGateways(list);
           setPayheroRails(rails);
+          setPayheroUnavailable((data.payhero_unavailable as string | undefined) || null);
           setGatewayError(list.length === 0);
           // Embedded (POS/ordering iframe) with exactly one gateway available — usually
           // because the caller's allowedMethods already narrowed it to one (e.g. the POS
@@ -396,6 +395,10 @@ function PayPageContent() {
             {gateways === null ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : gatewayError && gateways.length === 0 && payheroUnavailable ? (
+              <div role="alert" className="text-center py-6 text-sm text-muted-foreground">
+                <p>{PAYHERO_UNAVAILABLE_MESSAGE}</p>
               </div>
             ) : gatewayError && gateways.length === 0 ? (
               <div className="text-center py-6 text-sm text-muted-foreground">

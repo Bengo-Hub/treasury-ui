@@ -202,9 +202,12 @@ export const payheroApi = {
     apiClient.post<PayHeroStatus>(`${BASE}/platform/gateways/payhero/channels/${channelID}/assign`, { tenant_id: tenantID }, PAYHERO_CALL),
   unassignChannel: (channelID: number) =>
     apiClient.delete<void>(`${BASE}/platform/gateways/payhero/channels/${channelID}/assign`),
-  /** Public: what a PayHero payment will prompt for (fee 0 when the merchant bears it; empty when no tariff). */
-  feeQuote: (tenant: string, amount: number, currency: string, referenceType?: string) =>
-    apiClient.get<PayHeroFeeQuote | ''>(`${BASE}/pay/${encodeURIComponent(tenant)}/fees/payhero`, { amount, currency, reference_type: referenceType }),
+  /**
+   * Public: what a PayHero payment will prompt for (fee 0 when the merchant bears it; empty when no
+   * tariff). With the intent, its routing is used and available says whether PayHero would take it.
+   */
+  feeQuote: (tenant: string, amount: number, currency: string, referenceType?: string, intentId?: string) =>
+    apiClient.get<PayHeroFeeQuote | ''>(`${BASE}/pay/${encodeURIComponent(tenant)}/fees/payhero`, { amount, currency, reference_type: referenceType, intent_id: intentId }),
   teams: (balances: boolean) =>
     apiClient.get<{ teams: PayHeroTeamRow[] }>(`${BASE}/platform/gateways/payhero/teams${balances ? '?balances=true' : ''}`),
 };
@@ -249,6 +252,9 @@ export interface PayHeroFeeQuote {
   total: string;
   currency: string;
   bearer: PayHeroFeeBearer;
+  /** False when PayHero would refuse the prompt; reason says why (service_wallet_short). */
+  available: boolean;
+  reason?: string;
 }
 
 export interface PayHeroTeamRow {

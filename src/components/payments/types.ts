@@ -31,6 +31,23 @@ export interface PaymentDetails {
 }
 
 /**
+ * The intent a payment is for: details.intent_id, else the id in its initiate_url
+ * (.../pay/{tenant}/intents/{id}/initiate). Treasury uses it to apply the intent's routing.
+ */
+export function payingIntentId(details: Pick<PaymentDetails, 'intent_id' | 'initiate_url'>): string | undefined {
+  if (details.intent_id) return details.intent_id;
+  const m = details.initiate_url?.match(/\/intents\/([0-9a-f-]{36})\/initiate/i);
+  return m?.[1];
+}
+
+/**
+ * Why treasury left PayHero out for this payment (gateway list `payhero_unavailable`, fee quote
+ * `reason`): the business's PayHero service wallet cannot pay the channel fee.
+ */
+export const PAYHERO_UNAVAILABLE_MESSAGE =
+  "M-Pesa payments to this business are paused for a moment. The business has been told; please try again later or pay another way.";
+
+/**
  * A pay-page gateway. PayHero is one gateway, like Paystack: its rails (PayHeroRail) are tabs in
  * the PayHero modal. mpesa is the tenant's own Daraja paybill or till.
  */
