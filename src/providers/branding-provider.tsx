@@ -1,5 +1,8 @@
 import { fetchTenantBySlug, type TenantBrand } from '@/lib/api/tenant';
 import { serviceAppName } from '@bengo-hub/shared-ui-lib/branding';
+
+/** This app's key in tenant metadata service_branding (same key as the app-switcher registry). */
+const SERVICE_KEY = 'treasury';
 import { useParams } from 'next/navigation';
 import { createContext, ReactNode, useContext, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -88,9 +91,15 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     }
   }, [effectiveBrand]);
 
-  // Shared rule (shared-ui-lib branding): "The Urban Loft Cafe" gives "The Urban Treasury".
+  // Shared rule (shared-ui-lib branding): the tenant's own name for this app (Accounts > Branding)
+  // wins, else "<brand word> <appName>" ("The Urban Loft Cafe" gives "The Urban Treasury").
   const getServiceTitle = (appName: string) =>
-    serviceAppName(effectiveBrand?.orgName || effectiveBrand?.name, appName, 'Codevertex');
+    serviceAppName(
+      effectiveBrand?.orgName || effectiveBrand?.name,
+      appName,
+      'Codevertex',
+      effectiveBrand?.serviceBranding?.[SERVICE_KEY],
+    );
 
   const value = useMemo(
     () => ({
