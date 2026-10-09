@@ -1,4 +1,5 @@
 import { fetchTenantBySlug, type TenantBrand } from '@/lib/api/tenant';
+import { serviceAppName } from '@bengo-hub/shared-ui-lib/branding';
 import { useParams } from 'next/navigation';
 import { createContext, ReactNode, useContext, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -87,11 +88,9 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     }
   }, [effectiveBrand]);
 
-  const getServiceTitle = (appName: string) => {
-    const tenantName = effectiveBrand?.orgName || effectiveBrand?.name || '';
-    const firstWord = tenantName.split(' ')[0] || 'Codevertex';
-    return `${firstWord} ${appName}`;
-  };
+  // Shared rule (shared-ui-lib branding): "The Urban Loft Cafe" gives "The Urban Treasury".
+  const getServiceTitle = (appName: string) =>
+    serviceAppName(effectiveBrand?.orgName || effectiveBrand?.name, appName, 'Codevertex');
 
   const value = useMemo(
     () => ({

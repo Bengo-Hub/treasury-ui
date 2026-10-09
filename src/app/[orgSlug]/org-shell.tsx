@@ -70,9 +70,8 @@ function ManifestInjector() {
  *  root-layout-mounted PWARegistration, whose useBranding() call always saw the no-provider
  *  fallback (`tenant: null`), so the prompt silently never showed real tenant name/logo). */
 function TenantPwaInstallPrompt() {
-  const { tenant } = useBranding();
-  const tenantFirstWord = tenant?.orgName?.trim().split(/\s+/)[0];
-  const appName = tenantFirstWord ? `${tenantFirstWord} Treasury` : 'Codevertex Treasury';
+  const { tenant, getServiceTitle } = useBranding();
+  const appName = getServiceTitle('Treasury');
   return (
     <PwaInstallPrompt
       appName={appName}
