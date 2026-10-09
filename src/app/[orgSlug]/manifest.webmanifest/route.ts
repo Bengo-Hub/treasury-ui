@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { serviceAppName } from '@bengo-hub/shared-ui-lib/branding';
+import { serviceBrandingEntry, serviceFullName, serviceShortName } from '@bengo-hub/shared-ui-lib/branding';
 
 const AUTH_API_BASE =
   process.env.NEXT_PUBLIC_SSO_URL ||
@@ -37,6 +37,7 @@ export async function GET(
   const tenant = await fetchTenant(orgSlug);
 
   const name = tenant?.name ?? 'Codevertex';
+  const entry = serviceBrandingEntry(tenant?.metadata as Record<string, unknown> | undefined, 'treasury');
   const primaryColor =
     tenant?.brand_colors?.primary ??
     (tenant?.metadata?.primary_color as string | undefined) ??
@@ -58,10 +59,10 @@ export async function GET(
       ];
 
   const manifest = {
-    name: `${name} Treasury`,
-    // Home-screen label = tenant brand word + service, e.g. "The Urban Treasury" (shared rule in
-    // shared-ui-lib branding), so a tenant's several installed Bengo apps stay distinguishable.
-    short_name: serviceAppName(name, 'Treasury', 'Bengo'),
+    // Shared rule (shared-ui-lib branding): the tenant's own app name wins, else "<Business>
+    // Treasury" with a "<brand word> Treasury" home-screen label ("The Urban Treasury").
+    name: serviceFullName(name, 'Treasury', 'Bengo', entry),
+    short_name: serviceShortName(name, 'Treasury', 'Bengo', entry),
     description: 'Financial management — invoices, expenses and reporting.',
     start_url: `/${orgSlug}/`,
     scope: `/${orgSlug}/`,
