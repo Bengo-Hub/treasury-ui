@@ -90,6 +90,14 @@ const NON_PHYSICAL_REF_TYPES = new Set([
   'membership_fee',
   'library_fine',
   'ebook_sale',
+  // maskani estate payments: bills, instalments and account payments. Cash and cheques are
+  // recorded as manual payments and verified, never offered at checkout.
+  'account_payment',
+  'maskani_bill',
+  'maskani_instalment',
+  'maskani_reservation',
+  'maskani_adhoc',
+  'maskani_late_charge',
 ]);
 
 function isNonPhysicalRefType(refType: string): boolean {
@@ -121,7 +129,10 @@ function withIntent(url: string, intentId: string | undefined): string {
 function gatewaysUrlFromInitiateUrl(initiateUrl: string): string | null {
   // initiate_url: https://treasury.example.com/api/v1/pay/{tenantUUID}/intents/{intentID}/initiate
   // gateways URL: https://treasury.example.com/api/v1/pay/{tenantUUID}/gateways
-  const match = initiateUrl.match(/^(https?:\/\/.+\/api\/v1\/pay\/[0-9a-f-]+)/i);
+  // The tenant segment may be a UUID or a slug (the page builds one from ?tenant=). Take it whole,
+  // up to the next slash: a hex-only pattern cut "codevertex-demo" to "c" and asked for the
+  // gateways of a tenant that does not exist, so the payer saw no payment methods.
+  const match = initiateUrl.match(/^(https?:\/\/.+?\/api\/v1\/pay\/[^/?#]+)/i);
   return match ? `${match[1]}/gateways` : null;
 }
 
