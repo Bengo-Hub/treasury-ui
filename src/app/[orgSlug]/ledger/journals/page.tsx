@@ -139,7 +139,6 @@ export default function JournalsPage() {
       )}
 
       <CreateLedgerEntryDialog
-        variant="journal"
         open={createOpen}
         onOpenChange={setCreateOpen}
         tenantSlug={effectiveTenant}

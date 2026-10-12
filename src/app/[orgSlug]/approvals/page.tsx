@@ -74,8 +74,12 @@ export default function ApprovalsInboxPage() {
     approve.mutate(
       { id: req.id, comment: comment.trim() || undefined, otpCode: needsOtp ? otpCode.trim() : undefined },
       {
-        onSuccess: () => {
-          toast.success('Step approved');
+        onSuccess: (res) => {
+          if (res?.document_error) {
+            toast.warning(`Approval recorded, but ${MODULE_LABEL[req.module] ?? 'the document'} ${req.object_reference} was not updated: ${res.document_error}`);
+          } else {
+            toast.success(res?.status === 'approved' ? 'Approved' : 'Step approved, waiting for the next approver');
+          }
           closeDetail();
         },
         onError: (e: unknown) => toast.error(errMsg(e, 'Failed to approve')),
@@ -87,7 +91,12 @@ export default function ApprovalsInboxPage() {
     reject.mutate(
       { id: req.id, comment: comment.trim() || undefined },
       {
-        onSuccess: () => {
+        onSuccess: (res) => {
+          if (res?.document_error) {
+            toast.warning(`Rejection recorded, but ${req.object_reference} was not updated: ${res.document_error}`);
+            closeDetail();
+            return;
+          }
           toast.success('Request rejected');
           closeDetail();
         },

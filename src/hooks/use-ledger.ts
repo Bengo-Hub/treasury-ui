@@ -44,29 +44,78 @@ export function useCreateJournalEntry() {
   });
 }
 
-export function useSubmitJournalEntry() {
+/** Error text for a ledger workflow call. A 409 approval_required means the decision belongs to
+ *  the Approvals queue (rules, step roles and OTP apply there). */
+export function ledgerWorkflowError(err: any, fallback: string): string {
+  const data = err?.response?.data;
+  if (data?.error === 'approval_required') {
+    return data.state === 'rejected'
+      ? 'Its approval request was rejected. Correct it and submit again.'
+      : 'This entry is waiting in the Approvals queue. Approve or reject it there.';
+  }
+  return data?.error || data?.message || err?.message || fallback;
+}
+
+function submitToast(res: ledgerApi.WorkflowResult | undefined, noun: string) {
+  if (res?.status === 'pending_approval') toast.success(`${noun} submitted. It is now in the Approvals queue.`);
+  else if (res?.status === 'approved') toast.success(`${noun} submitted and approved (no approval rule applies). You can post it now.`);
+  else toast.success(`${noun} submitted`);
+}
+
+export function useSubmitJournalEntry(noun = 'Journal entry') {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ tenantSlug, entryID }: { tenantSlug: string; entryID: string }) =>
       ledgerApi.submitJournalEntry(tenantSlug, entryID),
-    onSuccess: (_, vars) => {
+    onSuccess: (res, vars) => {
       qc.invalidateQueries({ queryKey: ['journal-entries', vars.tenantSlug] });
-      toast.success('Journal entry submitted');
+      qc.invalidateQueries({ queryKey: ['approval-requests'] });
+      submitToast(res, noun);
     },
-    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to submit'),
+    onError: (err: any) => toast.error(ledgerWorkflowError(err, 'Failed to submit')),
   });
 }
 
-export function useApproveJournalEntry() {
+export function useApproveJournalEntry(noun = 'Journal entry') {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ tenantSlug, entryID }: { tenantSlug: string; entryID: string }) =>
       ledgerApi.approveJournalEntry(tenantSlug, entryID),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['journal-entries', vars.tenantSlug] });
-      toast.success('Journal entry approved');
+      toast.success(`${noun} approved`);
     },
-    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to approve'),
+    onError: (err: any) => toast.error(ledgerWorkflowError(err, 'Failed to approve')),
+  });
+}
+
+export function useRejectJournalEntry(noun = 'Journal entry') {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, entryID }: { tenantSlug: string; entryID: string }) =>
+      ledgerApi.rejectJournalEntry(tenantSlug, entryID),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['journal-entries', vars.tenantSlug] });
+      toast.success(`${noun} sent back to draft`);
+    },
+    onError: (err: any) => toast.error(ledgerWorkflowError(err, 'Failed to reject')),
+  });
+}
+
+export function useCreateVoucher() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantSlug, data }: { tenantSlug: string; data: ledgerApi.CreateVoucherRequest }) =>
+      ledgerApi.createVoucher(tenantSlug, data),
+    onSuccess: (res, vars) => {
+      qc.invalidateQueries({ queryKey: ['journal-entries', vars.tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['approval-requests'] });
+      const num = String(res?.entry?.metadata?.voucher_number ?? 'Voucher');
+      if (res?.submit_error) toast.warning(`${num} saved as a draft, but it was not submitted: ${res.submit_error}`);
+      else if (vars.data.submit) submitToast(res, num);
+      else toast.success(`${num} saved as a draft`);
+    },
+    onError: (err: any) => toast.error(ledgerWorkflowError(err, 'Failed to save voucher')),
   });
 }
 
@@ -79,7 +128,7 @@ export function usePostJournalEntry() {
       qc.invalidateQueries({ queryKey: ['journal-entries', vars.tenantSlug] });
       toast.success('Journal entry posted');
     },
-    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to post'),
+    onError: (err: any) => toast.error(ledgerWorkflowError(err, 'Failed to post')),
   });
 }
 
@@ -92,7 +141,7 @@ export function useReverseJournalEntry() {
       qc.invalidateQueries({ queryKey: ['journal-entries', vars.tenantSlug] });
       toast.success('Journal entry reversed');
     },
-    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to reverse'),
+    onError: (err: any) => toast.error(ledgerWorkflowError(err, 'Failed to reverse')),
   });
 }
 

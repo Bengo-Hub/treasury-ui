@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { EtimsSyncSwitch } from './EtimsSyncSwitch';
 import { useTaxProfile } from '@/hooks/use-tax';
 import { sendInvoice } from '@/lib/api/invoices';
 
@@ -121,21 +122,7 @@ export function SendDocumentDialog({
       }}
     >
       {canSync ? (
-        <button
-          type="button"
-          role="switch"
-          aria-checked={sync}
-          onClick={() => setPicked(!sync)}
-          className="flex w-full items-start gap-3 rounded-lg border border-border/60 bg-muted/30 p-3 text-left"
-        >
-          <span className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${sync ? 'bg-primary' : 'bg-accent'}`}>
-            <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${sync ? 'translate-x-5' : ''}`} />
-          </span>
-          <span className="text-sm">
-            <span className="font-medium">Transmit to KRA eTIMS</span>
-            <span className="block text-muted-foreground">{etimsNote}</span>
-          </span>
-        </button>
+        <EtimsSyncSwitch checked={sync} onToggle={() => setPicked(!sync)} note={etimsNote} />
       ) : (
         <p className="rounded-lg border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">{etimsNote}</p>
       )}

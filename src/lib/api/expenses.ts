@@ -297,8 +297,22 @@ export function deleteExpense(tenantIdOrSlug: string, id: string): Promise<{ sta
 
 /** Submit and approve pass through the budget check: a Stop answers 409 over_budget unless a
  *  budget approver re-sends with override (see overBudgetOf / OverBudgetDialog). */
-export function submitExpense(tenantIdOrSlug: string, id: string, override?: boolean): Promise<{ status: string; budget?: BudgetCheckResult }> {
-  return apiClient.post(`${BASE}/${tenantIdOrSlug}/expenses/${id}/submit`, undefined, { params: budgetOverrideParams(override) });
+/** Submit result: pending_approval when the Approvals queue now holds the decision, approved when
+ *  no approval rule applies to the amount. */
+export interface ExpenseSubmitResult {
+  status: 'submitted' | 'pending_approval' | 'approved' | string;
+  approval_required?: boolean;
+  request_id?: string;
+  budget?: BudgetCheckResult;
+}
+
+/** syncEtims: false keeps the paid expense out of KRA eTIMS; undefined keeps the default. */
+export function submitExpense(tenantIdOrSlug: string, id: string, override?: boolean, syncEtims?: boolean): Promise<ExpenseSubmitResult> {
+  return apiClient.post(
+    `${BASE}/${tenantIdOrSlug}/expenses/${id}/submit`,
+    syncEtims === undefined ? undefined : { sync_etims: syncEtims },
+    { params: budgetOverrideParams(override) },
+  );
 }
 
 export function approveExpense(tenantIdOrSlug: string, id: string, override?: boolean): Promise<{ status: string; budget?: BudgetCheckResult }> {

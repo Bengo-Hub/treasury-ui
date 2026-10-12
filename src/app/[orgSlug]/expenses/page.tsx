@@ -55,6 +55,8 @@ import { usePageReset } from '@/hooks/use-page-reset';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { toast } from 'sonner';
 import { OverBudgetDialog } from '@/components/budgets/over-budget-dialog';
+import { EtimsSyncSwitch } from '@/components/documents/EtimsSyncSwitch';
+import { useTaxProfile } from '@/hooks/use-tax';
 import { budgetWarningOf, overBudgetOf, type BudgetCheckResult } from '@/lib/api/budgets';
 
 /** The local calendar day (YYYY-MM-DD), not the UTC one: near midnight they differ by a day. */
@@ -96,6 +98,8 @@ export default function ExpensesPage() {
   // Row-action dialog state (status-aware confirmations).
   const [confirmAction, setConfirmAction] = useState<{ kind: 'submit' | 'approve' | 'delete'; exp: Expense } | null>(null);
   const [overBudget, setOverBudget] = useState<{ kind: 'submit' | 'approve'; exp: Expense; result: BudgetCheckResult } | null>(null);
+  // The submitter's KRA eTIMS choice for the expense being submitted; undefined = tenant default.
+  const [etimsPick, setEtimsPick] = useState<boolean | undefined>(undefined);
   // Primary "Record Payment" flow: open the embedded checkout referencing the expense,
   // then link the settled intent via reimburse. `reimburseExp`/`paymentIntentId` back the
   // secondary power-user "link an existing intent ID" fallback.
@@ -192,6 +196,36 @@ export default function ExpensesPage() {
 
   const goToNewExpenditure = () => router.push(`/${orgSlug}/expenses/new`);
 
+  // KRA eTIMS: a paid expense with the supplier's PIN is recorded as a purchase (input VAT). The
+  // submit dialog offers the same switch as the invoice Send dialog when eTIMS is activated.
+  const submitting = confirmAction?.kind === 'submit' || overBudget?.kind === 'submit';
+  const { data: taxProfile } = useTaxProfile(submitting ? effectiveTenant : '');
+  const etimsActive = !!taxProfile?.etims_activated;
+  const etimsSync = etimsActive && (etimsPick ?? taxProfile?.metadata?.auto_sync_etims !== false);
+  const submitTarget = confirmAction?.kind === 'submit' ? confirmAction.exp : overBudget?.kind === 'submit' ? overBudget.exp : null;
+  const supplierPin = String((submitTarget?.metadata as Record<string, unknown> | undefined)?.supplier_kra_pin ?? '').trim();
+  const etimsNote = !etimsActive
+    ? 'KRA eTIMS is not activated for this business, so nothing is sent to KRA.'
+    : etimsSync
+      ? supplierPin
+        ? 'When it is paid, it is recorded on KRA eTIMS as a purchase so the input VAT can be claimed.'
+        : "When it is paid it will be sent to KRA eTIMS, but only once the supplier's KRA PIN is added to the expense."
+      : 'It will not be sent to KRA eTIMS.';
+
+  // A decision that belongs to the Approvals queue (an approval rule applies): say so and offer
+  // the way there instead of a generic failure.
+  const approvalRequired = (err: any) => {
+    const data = err?.response?.data;
+    if (data?.error !== 'approval_required') return false;
+    toast.info(
+      data.state === 'rejected'
+        ? 'Its approval request was rejected.'
+        : 'This expense is decided in the Approvals queue, where the approver role and OTP are checked.',
+      { action: { label: 'Open Approvals', onClick: () => router.push(`/${orgSlug}/approvals`) } },
+    );
+    return true;
+  };
+
   const handleReject = async () => {
     if (!rejectOpen) return;
     try {
@@ -200,6 +234,10 @@ export default function ExpensesPage() {
       setRejectOpen(null);
       setRejectReason('');
     } catch (err: any) {
+      if (approvalRequired(err)) {
+        setRejectOpen(null);
+        return;
+      }
       toast.error(err?.response?.data?.error ?? 'Failed to reject expense.');
     }
   };
@@ -211,8 +249,17 @@ export default function ExpensesPage() {
     const { kind, exp } = target;
     try {
       if (kind === 'submit' || kind === 'approve') {
-        const res = await (kind === 'submit' ? submitMutation : approveMutation).mutateAsync({ id: exp.id, override });
-        toast.success(`Expense ${exp.expense_number} ${kind === 'submit' ? 'submitted' : 'approved'}`);
+        const res = kind === 'submit'
+          ? await submitMutation.mutateAsync({ id: exp.id, override, syncEtims: etimsActive ? etimsSync : undefined })
+          : await approveMutation.mutateAsync({ id: exp.id, override });
+        if (kind === 'submit' && res?.status === 'pending_approval') {
+          toast.success(`Expense ${exp.expense_number} submitted. It is now in the Approvals queue.`);
+        } else if (kind === 'submit' && res?.status === 'approved') {
+          toast.success(`Expense ${exp.expense_number} submitted and approved (no approval rule applies to this amount).`);
+        } else {
+          toast.success(`Expense ${exp.expense_number} ${kind === 'submit' ? 'submitted' : 'approved'}`);
+        }
+        if (kind === 'submit') setEtimsPick(undefined);
         const warn = budgetWarningOf(res);
         if (warn) toast.warning(`Over budget: ${warn.lines.filter((l) => l.action !== 'ok').map((l) => l.line_name).join(', ')}`);
         setOverBudget(null);
@@ -226,6 +273,10 @@ export default function ExpensesPage() {
       if (blocked && (kind === 'submit' || kind === 'approve')) {
         // A budget set to Stop: offer the override to budget approvers instead of failing.
         setOverBudget({ kind, exp, result: blocked });
+        setConfirmAction(null);
+        return;
+      }
+      if (approvalRequired(err)) {
         setConfirmAction(null);
         return;
       }
@@ -508,7 +559,7 @@ export default function ExpensesPage() {
       {/* Submit / Approve / Delete confirmation */}
       <ConfirmDialog
         open={!!confirmAction}
-        onOpenChange={(o) => { if (!o) setConfirmAction(null); }}
+        onOpenChange={(o) => { if (!o) { setConfirmAction(null); setEtimsPick(undefined); } }}
         title={
           confirmAction?.kind === 'delete'
             ? 'Delete expense'
@@ -521,7 +572,7 @@ export default function ExpensesPage() {
             ? `Delete ${confirmAction?.exp.expense_number}? This permanently removes the draft and cannot be undone.`
             : confirmAction?.kind === 'approve'
               ? `Approve ${confirmAction?.exp.expense_number}? This posts the expense to the general ledger.`
-              : `Submit ${confirmAction?.exp.expense_number} for approval?`
+              : `Submit ${confirmAction?.exp.expense_number}? It goes to the Approvals queue when one of your approval rules covers its amount.`
         }
         confirmLabel={
           confirmAction?.kind === 'delete' ? 'Delete' : confirmAction?.kind === 'approve' ? 'Approve' : 'Submit'
@@ -529,7 +580,13 @@ export default function ExpensesPage() {
         destructive={confirmAction?.kind === 'delete'}
         isPending={submitMutation.isPending || approveMutation.isPending || deleteMutation.isPending}
         onConfirm={() => runConfirm()}
-      />
+      >
+        {confirmAction?.kind === 'submit' && (etimsActive ? (
+          <EtimsSyncSwitch checked={etimsSync} onToggle={() => setEtimsPick(!etimsSync)} note={etimsNote} />
+        ) : (
+          <p className="rounded-lg border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">{etimsNote}</p>
+        ))}
+      </ConfirmDialog>
 
       <OverBudgetDialog
         result={overBudget?.result ?? null}

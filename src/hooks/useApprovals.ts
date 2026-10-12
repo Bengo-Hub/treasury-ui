@@ -75,12 +75,24 @@ function invalidateRequests(tenant: string | undefined, qc: ReturnType<typeof us
   qc.invalidateQueries({ queryKey: [REQS_KEY, tenant ?? ''] });
 }
 
+// A final decision in the queue runs the document's own approve/reject, so the document lists
+// change too (expense status and GL posting, journal entries and vouchers, invoices, bills).
+function invalidateDecidedDocuments(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['expenses'] });
+  qc.invalidateQueries({ queryKey: ['journal-entries'] });
+  qc.invalidateQueries({ queryKey: ['journal-entry'] });
+  qc.invalidateQueries({ queryKey: ['invoices'] });
+}
+
 export function useApproveRequest(tenant: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, comment, otpCode }: { id: string; comment?: string; otpCode?: string }) =>
       approvalsApi.approve(tenant!, id, comment, otpCode),
-    onSuccess: () => invalidateRequests(tenant, qc),
+    onSuccess: () => {
+      invalidateRequests(tenant, qc);
+      invalidateDecidedDocuments(qc);
+    },
   });
 }
 
@@ -96,7 +108,10 @@ export function useRejectRequest(tenant: string | undefined) {
   return useMutation({
     mutationFn: ({ id, comment }: { id: string; comment?: string }) =>
       approvalsApi.reject(tenant!, id, comment),
-    onSuccess: () => invalidateRequests(tenant, qc),
+    onSuccess: () => {
+      invalidateRequests(tenant, qc);
+      invalidateDecidedDocuments(qc);
+    },
   });
 }
 

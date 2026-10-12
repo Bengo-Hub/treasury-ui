@@ -26,7 +26,8 @@ export type ApprovalModule =
   | 'vendor_bill'
   | 'credit_note'
   | 'debit_note'
-  | 'quotation';
+  | 'quotation'
+  | 'voucher';
 
 export type PayoutFlow = 'escrow_release' | 'settlement' | 'equity_payout' | 'disbursement';
 export type PayoutPolicy = 'threshold' | 'always' | 'auto';
@@ -89,6 +90,9 @@ export interface ApprovalRequest {
   actions?: ApprovalAction[];
   created_at: string;
   decided_at?: string;
+  /** Set when the decision was recorded but the document's own action failed (for example its
+   *  accounting period is closed); the document can be finished from its own page. */
+  document_error?: string;
 }
 
 export interface ApprovalRequestListParams {
@@ -146,23 +150,31 @@ export const approvalsApi = {
 
   submitForApproval: (tenant: string, module: ApprovalModule, objectId: string) =>
     apiClient.post<SubmitForApprovalResult>(
-      `${BASE}/${tenant}/${MODULE_PATH[module]}/${objectId}/submit-for-approval`,
+      `${BASE}/${tenant}/${MODULE_PATH[module]}/${objectId}/${SUBMIT_ACTION[module] ?? 'submit-for-approval'}`,
       {},
     ),
 };
 
 /**
- * URL segment per module for the submit-for-approval endpoint. Mirrors the
- * treasury document route families.
+ * URL segment per module for the document's submit endpoint. Mirrors the treasury document route
+ * families.
  */
 const MODULE_PATH: Record<ApprovalModule, string> = {
   invoice: 'invoices',
   expense: 'expenses',
   payout: 'payouts',
-  journal_entry: 'ledger/journals',
+  journal_entry: 'ledger/journal-entries',
   budget: 'budgets',
   vendor_bill: 'ap/bills',
   credit_note: 'credit-notes',
   debit_note: 'debit-notes',
   quotation: 'quotations',
+  voucher: 'ledger/journal-entries',
+};
+
+/** Documents whose submit action is their plain workflow submit (it opens the approval request). */
+const SUBMIT_ACTION: Partial<Record<ApprovalModule, string>> = {
+  expense: 'submit',
+  journal_entry: 'submit',
+  voucher: 'submit',
 };

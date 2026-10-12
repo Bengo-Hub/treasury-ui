@@ -63,6 +63,61 @@ export interface ListJournalEntriesParams {
   /** 1-based page and page size (server max 100). */
   page?: number;
   limit?: number;
+  /** 'true' lists only voucher-book entries; search then also matches voucher number, payee and
+   *  reference. */
+  vouchers?: 'true';
+  /** One voucher type (implies vouchers). */
+  voucher_type?: VoucherType;
+}
+
+// ---- Vouchers ----
+
+export type VoucherType = 'payment' | 'receipt' | 'contra' | 'journal' | 'sales' | 'purchase';
+
+export type PayeeType = 'supplier' | 'customer' | 'staff';
+
+export interface VoucherLineInput {
+  account_id: string;
+  /** Payment and receipt lines: the amount paid for or received for this account. */
+  amount?: number;
+  /** Journal, sales and purchase lines. */
+  debit_amount?: number;
+  credit_amount?: number;
+  description?: string;
+  cost_center_id?: string;
+  project_id?: string;
+}
+
+export interface CreateVoucherRequest {
+  voucher_type: VoucherType;
+  voucher_date: string;
+  reference?: string;
+  description?: string;
+  payee?: string;
+  /** Set when the payee was picked from a list; a name typed for someone not in the system has none. */
+  payee_id?: string;
+  payee_type?: PayeeType;
+  payment_method?: string;
+  /** Real cash/bank/mobile money account (bank_accounts id): paid from, or received into. */
+  cash_account_id?: string;
+  /** Contra destination account and amount. */
+  to_cash_account_id?: string;
+  amount?: number;
+  lines?: VoucherLineInput[];
+  /** Submit straight away (approval rules apply). */
+  submit?: boolean;
+}
+
+/** Workflow responses: pending_approval means the approvals queue now holds the decision. */
+export interface WorkflowResult {
+  status: string;
+  approval_required?: boolean;
+  request_id?: string;
+  submit_error?: string;
+}
+
+export interface CreateVoucherResult extends WorkflowResult {
+  entry: JournalEntry;
 }
 
 export interface TrialBalanceRow {
@@ -205,10 +260,28 @@ export function getJournalEntry(
   return apiClient.get(`${BASE}/${tenantSlug}/ledger/journal-entries/${entryID}`);
 }
 
+export function createVoucher(tenantSlug: string, body: CreateVoucherRequest): Promise<CreateVoucherResult> {
+  return apiClient.post(`${BASE}/${tenantSlug}/ledger/vouchers`, body);
+}
+
+export interface StaffPayee {
+  id: string;
+  email: string;
+}
+
+/** The business's own users, for the voucher payee picker. */
+export function listStaffPayees(tenantSlug: string, search?: string): Promise<{ staff: StaffPayee[] }> {
+  return apiClient.get(`${BASE}/${tenantSlug}/ledger/staff-payees`, { search: search || undefined, limit: 20 });
+}
+
+export function rejectJournalEntry(tenantSlug: string, entryID: string): Promise<{ status: string }> {
+  return apiClient.post(`${BASE}/${tenantSlug}/ledger/journal-entries/${entryID}/reject`);
+}
+
 export function submitJournalEntry(
   tenantSlug: string,
   entryID: string,
-): Promise<{ status: string }> {
+): Promise<WorkflowResult> {
   return apiClient.post(`${BASE}/${tenantSlug}/ledger/journal-entries/${entryID}/submit`);
 }
 

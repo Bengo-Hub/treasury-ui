@@ -17,6 +17,7 @@ export const MODULE_LABEL: Record<string, string> = {
   credit_note: 'Credit Note',
   debit_note: 'Debit Note',
   quotation: 'Quotation',
+  voucher: 'Voucher',
 };
 
 // Grouped, ordered module options for the rules-editor dropdown. Every value is a valid backend
@@ -34,7 +35,7 @@ export const APPROVAL_MODULE_GROUPS: { group: string; items: { value: ApprovalMo
   },
   {
     group: 'Money out & Ledger',
-    items: (['payout', 'journal_entry', 'budget'] as ApprovalModule[]).map((v) => ({ value: v, label: MODULE_LABEL[v] })),
+    items: (['payout', 'voucher', 'journal_entry', 'budget'] as ApprovalModule[]).map((v) => ({ value: v, label: MODULE_LABEL[v] })),
   },
 ];
 
@@ -82,6 +83,8 @@ export function moduleForDocType(docType: DocType | string): ApprovalModule | un
     case 'journal':
     case 'journal_entry':
       return 'journal_entry';
+    case 'voucher':
+      return 'voucher';
     // proforma invoices are an invoice variant; sales orders have no treasury approval module.
     case 'proforma':
     case 'proforma_invoice':
