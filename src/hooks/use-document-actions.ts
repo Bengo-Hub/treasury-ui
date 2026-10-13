@@ -1,13 +1,36 @@
 import type { ReactNode } from 'react';
 import { allowedActions, type ActionKey, type DocType, type DocContext } from '@/lib/documents/actions';
 import type { DocAction, DocumentRow } from '@/components/documents/SharedDocumentList';
+import type { RowAction } from '@/components/ui/action-menu';
 import type { RelatedDocuments } from '@/lib/api/invoices';
 
-export interface ActionRunner {
+export interface ActionRunner<T = DocumentRow> {
   label: string;
   icon: ReactNode;
-  onClick: (row: DocumentRow) => void;
+  onClick: (row: T) => void;
   destructive?: boolean;
+}
+
+/**
+ * Binds action handlers (runners) to the centralized policy for ANY row type: `docTypeOf` and
+ * `contextOf` say what the row is and what state it is in, and `allowedActions` decides which
+ * runners show (menu order follows the runners). The one binder behind invoice-family lists (useDocumentActions)
+ * and accounts-payable bills, so every row menu is gated by the same policy.
+ */
+export function bindDocumentActions<T>(
+  docTypeOf: (row: T) => DocType,
+  contextOf: (row: T) => DocContext,
+  runners: Partial<Record<ActionKey, ActionRunner<T>>>,
+): (RowAction<T> & { icon: ReactNode })[] {
+  const order = (row: T) => allowedActions(docTypeOf(row), contextOf(row));
+  return (Object.entries(runners) as [ActionKey, ActionRunner<T>][])
+    .map(([key, r]) => ({
+      label: r.label,
+      icon: r.icon,
+      destructive: r.destructive,
+      onClick: r.onClick,
+      visible: (row: T) => order(row).includes(key),
+    }));
 }
 
 /**
@@ -22,13 +45,7 @@ export function useDocumentActions(
   docType: DocType,
   runners: Partial<Record<ActionKey, ActionRunner>>,
 ): DocAction[] {
-  return (Object.entries(runners) as [ActionKey, ActionRunner][]).map(([key, r]) => ({
-    label: r.label,
-    icon: r.icon,
-    destructive: r.destructive,
-    onClick: r.onClick,
-    visible: (row: DocumentRow) => allowedActions(docType, docContextFromRow(row)).includes(key),
-  }));
+  return bindDocumentActions<DocumentRow>(() => docType, docContextFromRow, runners);
 }
 
 /** Minimal shape both a list DocumentRow and a full Invoice/Quotation satisfy. */

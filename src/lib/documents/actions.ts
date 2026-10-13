@@ -14,7 +14,11 @@ export type DocType =
   | 'delivery_challan'
   | 'payment_receipt'
   | 'subscription'
-  | 'quotation';
+  | 'quotation'
+  // Accounts payable (vendor_bill rows): a supplier's bill, and a supplier credit (a debit note we
+  // raised against a bill, or a purchase-return credit), which is stored as a negative bill.
+  | 'vendor_bill'
+  | 'vendor_credit';
 
 export type ActionKey =
   | 'view_details'
@@ -44,7 +48,8 @@ export type ActionKey =
   | 'duplicate'
   | 'void'
   | 'cancel'
-  | 'delete';
+  | 'delete'
+  | 'transmit_etims';
 
 export interface DocContext {
   status: string;
@@ -63,6 +68,13 @@ export interface DocContext {
   /** Server amount_due is known and zero: payments plus credit notes already cover the total,
    *  so there is nothing left to pay or to credit (even while payment_status catches up). */
   nothingDue?: boolean;
+  // Accounts payable only.
+  /** Amount already paid on a bill, or applied from a supplier credit. */
+  amountPaid?: number;
+  /** Money is still owed on the bill. */
+  payable?: boolean;
+  /** The tenant has an active eTIMS device, so a purchase can be transmitted. */
+  etimsActive?: boolean;
 }
 
 const isVoided = (s: string) => s === 'void' || s === 'cancelled';
@@ -167,6 +179,24 @@ export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
       out.push('duplicate');
       if (!isVoided(ctx.status)) out.push('void');
       if (draft) out.push('delete');
+      break;
+    }
+    case 'vendor_bill': {
+      // Bills have no edit/send/public view here; the page supplies runners only for these.
+      const paid = (ctx.amountPaid ?? 0) > 0;
+      if (draft) out.push('submit_for_approval');
+      if (ctx.payable) out.push('record_payment');
+      if (paid) out.push('view_payments');
+      if (ctx.etimsActive && !draft && !isVoided(ctx.status)) out.push('transmit_etims');
+      // A debit note reduces what is owed on a received bill; the server caps the total.
+      if (!draft && !isVoided(ctx.status)) out.push('create_debit_note');
+      // The server also refuses a bill already sent to eTIMS (raise a debit note instead).
+      if (!isVoided(ctx.status) && !paid) out.push('void');
+      break;
+    }
+    case 'vendor_credit': {
+      // An applied credit is undone through its bill's payments, not voided directly.
+      if (!isVoided(ctx.status) && !((ctx.amountPaid ?? 0) > 0)) out.push('void');
       break;
     }
     case 'quotation': {

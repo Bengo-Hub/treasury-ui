@@ -8,6 +8,9 @@ import {
   getAPAging,
   listBillPayments,
   voidBillPayment,
+  voidBill,
+  createBillDebitNote,
+  type BillDebitNoteRequest,
   type BillsParams,
   type CreateBillRequest,
   type PayBillRequest,
@@ -100,6 +103,31 @@ export function useVoidBillPayment(tenantIdOrSlug: string | undefined) {
       qc.invalidateQueries({ queryKey: ['bills', 'aging', tenantIdOrSlug] });
       invalidateVendorViews(qc, tenantIdOrSlug);
     },
+  });
+}
+
+export function useVoidBill(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ billId, reason }: { billId: string; reason?: string }) => voidBill(tenantIdOrSlug!, billId, reason),
+    onSuccess: (b) => {
+      invalidateVendorPaymentViews(qc, tenantIdOrSlug);
+      toast.success(`${b.bill_number} voided`);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to void'),
+  });
+}
+
+export function useCreateBillDebitNote(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ billId, data }: { billId: string; data: BillDebitNoteRequest }) =>
+      createBillDebitNote(tenantIdOrSlug!, billId, data),
+    onSuccess: (n) => {
+      invalidateVendorPaymentViews(qc, tenantIdOrSlug);
+      toast.success(`Debit note ${n.bill_number} raised`);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to raise the debit note'),
   });
 }
 

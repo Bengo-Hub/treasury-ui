@@ -2,25 +2,36 @@
 
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { PayBillDialog } from '@/components/bills/PayBillDialog';
+import { RaiseDebitNoteDialog } from '@/components/bills/RaiseDebitNoteDialog';
 import { ViewBillPaymentsModal } from '@/components/bills/ViewBillPaymentsModal';
 import { DocumentApprovalModal } from '@/components/documents/DocumentApprovalModal';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
-import { buildAgingColumns, buildBillColumns } from './bill-columns';
+import { PdfPreview, useDocumentPreview } from '@bengo-hub/shared-ui-lib/documents';
+import { billDocContext, billDocType, buildAgingColumns, buildBillColumns } from './bill-columns';
+import { bindDocumentActions } from '@/hooks/use-document-actions';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
-import { useBills, useAPAging } from '@/hooks/use-bills';
+import { useBills, useAPAging, useVoidBill } from '@/hooks/use-bills';
 import { useTransmitVendorBill, useIsEtimsActive } from '@/hooks/use-tax';
-import type { Bill } from '@/lib/api/bills';
+import { isDebitNote, type Bill } from '@/lib/api/bills';
+import { downloadBillPdf } from '@/lib/api/documents';
 import { cn } from '@/lib/utils';
 import {
+  Ban,
+  CreditCard,
+  FileMinus,
+  FileText,
   Filter,
   Plus,
   Receipt,
   Search,
+  ShieldCheck,
   ShoppingBag,
   Upload,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -33,15 +44,16 @@ export default function BillsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'bill' | 'credit_note'>('all');
   const [page, setPage] = useState(1);
-  const [payBillId, setPayBillId] = useState<string | null>(null);
+  // Deep link from the dashboard payables list: /bills?pay=<billID> opens the Pay dialog on load.
+  const searchParams = useSearchParams();
+  const [payBillId, setPayBillId] = useState<string | null>(() => searchParams?.get('pay') ?? null);
   const [approvalFor, setApprovalFor] = useState<{ tenant: string; billId: string; billNumber: string } | null>(null);
   const [viewPaymentsBill, setViewPaymentsBill] = useState<Bill | null>(null);
-  // Deep link from the dashboard payables list: /bills?pay=<billID> opens the Pay dialog.
-  const searchParams = useSearchParams();
-  useEffect(() => {
-    const payParam = searchParams?.get('pay');
-    if (payParam) setPayBillId(payParam);
-  }, [searchParams]);
+  const [debitNoteBill, setDebitNoteBill] = useState<Bill | null>(null);
+  const [voidTarget, setVoidTarget] = useState<Bill | null>(null);
+  const [voidReason, setVoidReason] = useState('');
+  const voidBill = useVoidBill(effectiveTenant);
+  const { openPreview, previewProps } = useDocumentPreview({ onError: (m) => toast.error(m) });
 
   // Search/status/page all go straight to the backend — ListBills already runs this through
   // pagination.Parse with a true total, and now supports a real DB-level `search` (matches the
@@ -58,7 +70,7 @@ export default function BillsPage() {
   const { data, isLoading, error } = useBills(effectiveTenant, queryParams, !!effectiveTenant);
   const { data: agingData } = useAPAging(effectiveTenant, !!effectiveTenant);
 
-  const list = data?.data ?? [];
+  const list = useMemo(() => data?.data ?? [], [data]);
   const agingRows = agingData?.rows ?? [];
 
   // Note: the bills list endpoint does not support a document_type query filter (BillFilters has
@@ -72,13 +84,13 @@ export default function BillsPage() {
   const total = data?.total ?? filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
 
-  useMemo(() => { setPage(1); }, [searchQuery, statusFilter, typeFilter]);
 
-  const statusOptions = ['all', 'draft', 'pending', 'partial', 'paid', 'overdue'];
+  // The bill statuses the backend stores (ent vendor_bill.status); "cancelled" is a voided bill.
+  const statusOptions = ['all', 'draft', 'received', 'approved', 'partial', 'paid', 'overdue', 'cancelled'];
   const typeOptions: { value: 'all' | 'bill' | 'credit_note'; label: string }[] = [
     { value: 'all', label: 'All' },
     { value: 'bill', label: 'Bills' },
-    { value: 'credit_note', label: 'Credit Notes' },
+    { value: 'credit_note', label: 'Credit / Debit Notes' },
   ];
 
   const transmit = useTransmitVendorBill();
@@ -92,21 +104,50 @@ export default function BillsPage() {
 
   const goToNewPurchase = () => router.push(`/${orgSlug}/bills/new`);
 
-  const billColumns = useMemo(
+  // Row actions, gated by the central policy (lib/documents/actions.ts, vendor_bill/vendor_credit)
+  // and rendered in the same three-dot menu as the invoices list.
+  const billActions = useMemo(
     () =>
-      buildBillColumns({
-        onPay: (bill) => setPayBillId(bill.id),
-        // Centralized approval (submit / approve / reject) — reused from the same
-        // DocumentApprovalModal invoices uses, module="vendor_bill".
-        onApprove: (bill) => setApprovalFor({ tenant: effectiveTenant, billId: bill.id, billNumber: bill.bill_number }),
-        onTransmit: (bill) => transmit.mutate({ tenantSlug: effectiveTenant, billId: bill.id }),
-        onViewPayments: (bill) => setViewPaymentsBill(bill),
-        transmitPending: transmit.isPending,
-        transmitPendingBillId: transmit.variables?.billId,
-        etimsActive,
+      bindDocumentActions<Bill>(billDocType, (b) => billDocContext(b, etimsActive), {
+        download_pdf: {
+          label: 'View PDF',
+          icon: <FileText className="h-4 w-4" />,
+          onClick: (b) => {
+            const name = b.bill_number || 'bill';
+            openPreview(() => downloadBillPdf(effectiveTenant, b.id, name).then((r) => r.blob), {
+              fileName: `${name}.pdf`,
+              title: isDebitNote(b) ? `Debit note ${name}` : `Bill ${name}`,
+            });
+          },
+        },
+        submit_for_approval: {
+          label: 'Submit for approval',
+          icon: <ShieldCheck className="h-4 w-4" />,
+          // Centralized approval (submit / approve / reject), the same DocumentApprovalModal
+          // invoices use, module="vendor_bill".
+          onClick: (b) => setApprovalFor({ tenant: effectiveTenant, billId: b.id, billNumber: b.bill_number }),
+        },
+        record_payment: { label: 'Pay', icon: <CreditCard className="h-4 w-4" />, onClick: (b) => setPayBillId(b.id) },
+        view_payments: { label: 'View payments', icon: <Receipt className="h-4 w-4" />, onClick: (b) => setViewPaymentsBill(b) },
+        transmit_etims: {
+          label: 'Send to KRA eTIMS',
+          icon: <Upload className="h-4 w-4" />,
+          onClick: (b) => transmit.mutate({ tenantSlug: effectiveTenant, billId: b.id }),
+        },
+        create_debit_note: { label: 'Raise debit note', icon: <FileMinus className="h-4 w-4" />, onClick: (b) => setDebitNoteBill(b) },
+        void: {
+          label: 'Void',
+          icon: <Ban className="h-4 w-4" />,
+          destructive: true,
+          onClick: (b) => {
+            setVoidReason('');
+            setVoidTarget(b);
+          },
+        },
       }),
-    [effectiveTenant, transmit, etimsActive],
+    [effectiveTenant, etimsActive, openPreview, transmit],
   );
+  const billColumns = useMemo(() => buildBillColumns(billActions), [billActions]);
   const agingColumns = useMemo(() => buildAgingColumns(), []);
 
   // The Refrens-style landing only shows before any bills exist — i.e. no bills
@@ -211,7 +252,10 @@ export default function BillsPage() {
               placeholder="Search by bill number or vendor..."
               className="w-full bg-accent/30 border-none rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary transition-all"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -222,7 +266,10 @@ export default function BillsPage() {
             {statusOptions.map((s) => (
               <button
                 key={s}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => {
+                  setStatusFilter(s);
+                  setPage(1);
+                }}
                 className={cn("px-3 py-1 rounded-full text-xs font-bold capitalize transition-all",
                   statusFilter === s ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:text-foreground"
                 )}
@@ -237,7 +284,10 @@ export default function BillsPage() {
             {typeOptions.map((t) => (
               <button
                 key={t.value}
-                onClick={() => setTypeFilter(t.value)}
+                onClick={() => {
+                  setTypeFilter(t.value);
+                  setPage(1);
+                }}
                 className={cn("px-3 py-1 rounded-full text-xs font-bold transition-all",
                   typeFilter === t.value ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:text-foreground"
                 )}
@@ -284,6 +334,31 @@ export default function BillsPage() {
           onClose={() => setViewPaymentsBill(null)}
         />
       )}
+
+      <PdfPreview {...previewProps} />
+
+      <RaiseDebitNoteDialog key={debitNoteBill?.id ?? 'none'} tenant={effectiveTenant} bill={debitNoteBill} onClose={() => setDebitNoteBill(null)} />
+
+      <ConfirmDialog
+        open={!!voidTarget}
+        onOpenChange={(o) => !o && !voidBill.isPending && setVoidTarget(null)}
+        title={voidTarget ? `Void ${isDebitNote(voidTarget) ? 'debit note' : voidTarget.document_type === 'credit_note' ? 'credit note' : 'bill'} ${voidTarget.bill_number}?` : 'Void'}
+        description="This reverses its journal and takes it off the supplier's balance. A bill already sent to KRA eTIMS cannot be voided; raise a debit note against it instead."
+        confirmLabel="Void"
+        destructive
+        isPending={voidBill.isPending}
+        onConfirm={() =>
+          voidTarget &&
+          voidBill.mutate({ billId: voidTarget.id, reason: voidReason.trim() || undefined }, { onSuccess: () => setVoidTarget(null) })
+        }
+      >
+        <textarea
+          className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none min-h-[64px]"
+          placeholder="Reason (optional)"
+          value={voidReason}
+          onChange={(e) => setVoidReason(e.target.value)}
+        />
+      </ConfirmDialog>
 
       {approvalFor && (
         <DocumentApprovalModal

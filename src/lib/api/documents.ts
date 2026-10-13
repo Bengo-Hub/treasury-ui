@@ -26,6 +26,15 @@ export function downloadQuotationPdf(
   return apiClient.getBlob(`${BASE}/${tenant}/quotations/${quotationId}/pdf`, `${fallbackName}.pdf`);
 }
 
+/** A vendor bill, debit note or supplier credit, rendered by the same document generator. */
+export function downloadBillPdf(
+  tenant: string,
+  billId: string,
+  fallbackName = 'bill'
+): Promise<{ blob: Blob; fileName: string }> {
+  return apiClient.getBlob(`${BASE}/${tenant}/ap/bills/${billId}/pdf`, `${fallbackName}.pdf`);
+}
+
 /** Payment receipts are invoices of type payment_receipt — same PDF endpoint. */
 export function downloadReceiptPdf(
   tenant: string,

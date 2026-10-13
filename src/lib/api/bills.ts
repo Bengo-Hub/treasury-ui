@@ -27,6 +27,10 @@ export interface Bill {
   document_type: 'bill' | 'credit_note';
   vendor_id?: string;
   vendor_name?: string;
+  /** Supplier KRA PIN the bill's eTIMS purchase is matched on. */
+  vendor_tin?: string;
+  /** Branch that received the goods (decides the eTIMS device). */
+  outlet_id?: string;
   bill_date: string;
   due_date: string;
   subtotal: string;
@@ -250,6 +254,25 @@ export function getAPAging(tenantIdOrSlug: string): Promise<AgingReport> {
 export function listBillPayments(tenantIdOrSlug: string, billId: string): Promise<{ data: BillPayment[] }> {
   return apiClient.get<{ data: BillPayment[] }>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/payments`);
 }
+
+/** A debit note against a bill: lines are positive amounts in the bill's terms (net unit price,
+ * tax per line); none means the whole bill. The server caps all debit notes at the bill total. */
+export interface BillDebitNoteRequest {
+  lines?: { description: string; quantity: string; unit_price: string; tax_amount: string }[];
+  reason?: string;
+}
+
+export function createBillDebitNote(tenantIdOrSlug: string, billId: string, data: BillDebitNoteRequest): Promise<Bill> {
+  return apiClient.post<Bill>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/debit-note`, data);
+}
+
+/** Voids an unpaid bill or supplier credit (reverses its journal and supplier balance). */
+export function voidBill(tenantIdOrSlug: string, billId: string, reason?: string): Promise<Bill> {
+  return apiClient.post<Bill>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/void`, { reason });
+}
+
+/** A supplier credit raised by us against a bill prints and lists as a Debit Note. */
+export const isDebitNote = (b: Bill): boolean => b.document_type === 'credit_note' && b.metadata?.kind === 'debit_note';
 
 export function voidBillPayment(tenantIdOrSlug: string, billId: string, paymentId: string, reason?: string): Promise<BillPayment> {
   return apiClient.delete<BillPayment>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/payments/${paymentId}`, { data: { reason } });

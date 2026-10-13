@@ -3,11 +3,12 @@
 // DataTable column definitions for the Bills list — split out of page.tsx to
 // mirror the vendors/expenses/budgets list convention.
 
-import { Badge, Button } from '@/components/ui/base';
+import { Badge } from '@/components/ui/base';
+import { RowActionMenu, type RowAction } from '@/components/ui/action-menu';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
-import type { AgingRow, Bill } from '@/lib/api/bills';
+import { isDebitNote, type AgingRow, type Bill } from '@/lib/api/bills';
+import type { DocContext, DocType } from '@/lib/documents/actions';
 import { formatCurrency } from '@/lib/utils/currency';
-import { CreditCard, Loader2, Receipt, ShieldCheck, Upload } from 'lucide-react';
 
 export const billStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline' | 'secondary'> = {
   draft: 'secondary',
@@ -27,19 +28,18 @@ export const billStatusVariant: Record<string, 'default' | 'success' | 'warning'
 const PAYABLE_STATUSES = new Set(['draft', 'received', 'approved', 'pending', 'partial', 'overdue']);
 export const isBillPayable = (b: Bill): boolean => b.document_type !== 'credit_note' && PAYABLE_STATUSES.has(b.status);
 
-export interface BillColumnCallbacks {
-  onPay: (bill: Bill) => void;
-  onApprove: (bill: Bill) => void;
-  onTransmit: (bill: Bill) => void;
-  onViewPayments: (bill: Bill) => void;
-  transmitPending: boolean;
-  transmitPendingBillId?: string;
-  /** Whether this tenant has an active (initialized) eTIMS device — the eTIMS action only
-   *  renders when true, so a non-integrated tenant never sees a button that can only fail. */
-  etimsActive: boolean;
-}
+/** Which policy (lib/documents/actions.ts) governs a bills-table row. */
+export const billDocType = (b: Bill): DocType => (b.document_type === 'credit_note' ? 'vendor_credit' : 'vendor_bill');
 
-export function buildBillColumns(cb: BillColumnCallbacks): DataTableColumn<Bill>[] {
+/** The row's state for the policy: what is paid, whether money is owed, and eTIMS availability. */
+export const billDocContext = (b: Bill, etimsActive: boolean): DocContext => ({
+  status: b.status,
+  amountPaid: Number(b.amount_paid ?? 0),
+  payable: isBillPayable(b),
+  etimsActive,
+});
+
+export function buildBillColumns(actions: RowAction<Bill>[]): DataTableColumn<Bill>[] {
   return [
     {
       key: 'bill_number',
@@ -51,7 +51,7 @@ export function buildBillColumns(cb: BillColumnCallbacks): DataTableColumn<Bill>
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs font-bold">{b.bill_number}</span>
           {b.document_type === 'credit_note' ? (
-            <Badge variant="warning">Credit Note</Badge>
+            <Badge variant="warning">{isDebitNote(b) ? 'Debit Note' : 'Credit Note'}</Badge>
           ) : (
             <Badge variant="outline">Bill</Badge>
           )}
@@ -125,43 +125,11 @@ export function buildBillColumns(cb: BillColumnCallbacks): DataTableColumn<Bill>
       header: 'Actions',
       align: 'center',
       exportable: false,
+      // The shared three-dot menu, same as the invoices list; which actions show is decided by the
+      // central policy (billDocType/billDocContext + allowedActions) in the page's bound actions.
       render: (bill) => (
-        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-          {bill.status === 'draft' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1 text-xs"
-              title="Submit this bill for sign-off before it can be paid"
-              onClick={() => cb.onApprove(bill)}
-            >
-              <ShieldCheck className="h-3 w-3" /> Approval
-            </Button>
-          )}
-          {isBillPayable(bill) && (
-            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => cb.onPay(bill)}>
-              <CreditCard className="h-3 w-3" /> Pay
-            </Button>
-          )}
-          {bill.document_type !== 'credit_note' && Number(bill.amount_paid) > 0 && (
-            <Button variant="ghost" size="sm" className="gap-1 text-xs" title="View recorded payments" onClick={() => cb.onViewPayments(bill)}>
-              <Receipt className="h-3 w-3" /> Payments
-            </Button>
-          )}
-          {cb.etimsActive && bill.status !== 'draft' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1 text-xs"
-              title="Transmit this purchase to KRA eTIMS (buyer-initiated / self-billed for non-eTIMS suppliers)"
-              disabled={cb.transmitPending}
-              onClick={() => cb.onTransmit(bill)}
-            >
-              {cb.transmitPending && cb.transmitPendingBillId === bill.id
-                ? <Loader2 className="h-3 w-3 animate-spin" />
-                : <Upload className="h-3 w-3" />} eTIMS
-            </Button>
-          )}
+        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+          <RowActionMenu row={bill} actions={actions} />
         </div>
       ),
     },
