@@ -434,17 +434,20 @@ export function setEtimsDeviceInvoiceCounter(
   return apiClient.patch(`${BASE}/${tenantSlug}/tax/etims/devices/${deviceId}/invoice-counter`, { value });
 }
 
-/** Fast-forwards a device's local invoice-number counter to match KRA's own transmitted-sales
- * history for this device's own branch when it's drifted behind (the real source of truth).
- * affected_devices lists every OTHER device row on the same TIN and branch whose counter also
- * moved - the sync is forward-only (it never silently moves a row backward). */
+/** Sets a device's invoice-number counter from KRA's own sales list for the device's branch: the
+ * number of KRA's most recent sale by confirmation time (never simply the highest number), or a
+ * higher number a local sale is still holding. It can move the counter down (e.g. 167 back to 58).
+ * kra_numbers_ahead are numbers KRA already holds above the counter; a send that reaches one moves
+ * past it automatically. affected_devices lists every device row on the same TIN and branch. */
 export function syncEtimsDeviceInvoiceCounter(
   tenantSlug: string,
   deviceId: string,
 ): Promise<{
   device: EtimsDevice;
   previous_no: number;
-  kra_max_no: number;
+  new_no: number;
+  kra_last_no: number;
+  kra_numbers_ahead?: number[];
   changed: boolean;
   affected_devices?: DeviceCounterChange[];
 }> {

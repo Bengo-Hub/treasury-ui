@@ -273,10 +273,13 @@ export function useSyncDeviceInvoiceCounter() {
       taxApi.syncEtimsDeviceInvoiceCounter(tenantSlug, deviceId),
     onSuccess: (result, vars) => {
       qc.invalidateQueries({ queryKey: ['etims-devices', vars.tenantSlug] });
+      const ahead = result.kra_numbers_ahead?.length
+        ? ` KRA already holds ${result.kra_numbers_ahead.join(', ')} further on; those are skipped automatically.`
+        : '';
       toast.success(
-        result.changed
-          ? `Invoice counter synced: ${result.previous_no} → ${result.kra_max_no}`
-          : `Already in sync (${result.previous_no})`,
+        (result.changed
+          ? `Invoice counter synced: ${result.previous_no} → ${result.new_no} (KRA's latest sale is ${result.kra_last_no}).`
+          : `Already in sync (${result.previous_no}).`) + ahead,
       );
       describeSiblingCounterChanges(result.affected_devices, vars.deviceId);
     },
