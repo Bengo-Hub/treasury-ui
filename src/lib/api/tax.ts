@@ -791,11 +791,14 @@ export interface TaxProfile {
   // default (true, today's always-on behaviour) — only an explicit `false` turns it off.
   // paye_registered (employer) and wht_agent (withholding agent) are obligation switches kept in
   // the same bag.
-  metadata?: { auto_sync_etims?: boolean; paye_registered?: boolean; wht_agent?: boolean; [key: string]: unknown };
+  // etims_enabled is the business's eTIMS on/off switch: an explicit false sends nothing to KRA
+  // at all (automatic or manual) until it is switched back on. Absent means on.
+  metadata?: { auto_sync_etims?: boolean; etims_enabled?: boolean; paye_registered?: boolean; wht_agent?: boolean; [key: string]: unknown };
 }
 
 export type UpdateTaxProfileRequest = Partial<Pick<TaxProfile, 'kra_pin' | 'vat_registered' | 'tot_registered' | 'auto_charge_vat'>> & {
   auto_sync_etims?: boolean;
+  etims_enabled?: boolean;
   paye_registered?: boolean;
   wht_agent?: boolean;
 };

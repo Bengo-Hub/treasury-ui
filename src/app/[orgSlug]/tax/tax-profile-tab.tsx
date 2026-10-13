@@ -17,6 +17,7 @@ import {
   useTaxPositionEstimate,
 } from '@/hooks/use-tax';
 import { formatDateRange } from '@/lib/utils/date';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { TaxObligations } from '@/lib/api/tax';
 
 interface Props { tenantSlug: string }
@@ -60,6 +61,8 @@ export function TaxProfileTab({ tenantSlug }: Props) {
   const itExm = useCheckITExemption();
   const office = useTaxServiceOffice();
 
+  const [confirmEtimsOff, setConfirmEtimsOff] = useState(false);
+  const etimsOn = profile?.metadata?.etims_enabled !== false;
   const [pin, setPin] = useState('');
   const [vatCert, setVatCert] = useState('');
   const [itPin, setItPin] = useState('');
@@ -223,7 +226,30 @@ export function TaxProfileTab({ tenantSlug }: Props) {
 
         <div className="rounded border border-border/60 bg-muted/30 p-3 pt-2">
           <label className="flex items-center gap-2 text-sm font-medium">
-            <input type="checkbox" checked={profile?.metadata?.auto_sync_etims !== false}
+            <input type="checkbox" checked={etimsOn} disabled={update.isPending}
+              onChange={(e) => (e.target.checked ? update.mutate({ etims_enabled: true }) : setConfirmEtimsOff(true))} />
+            eTIMS integration
+          </label>
+          <p className={`${label} pl-6`}>
+            {etimsOn
+              ? 'On (default). Sales, invoices, credit notes, purchases and stock movements are sent to KRA eTIMS.'
+              : 'Off. Nothing is sent to KRA eTIMS, including manual sends, purchases, stock and item sync. Records already queued wait and go out once this is switched back on.'}
+          </p>
+        </div>
+        <ConfirmDialog
+          open={confirmEtimsOff}
+          onOpenChange={setConfirmEtimsOff}
+          title="Switch off eTIMS?"
+          description="Nothing will be sent to KRA for this business until you switch it back on: no ETR receipts, no invoice or purchase fiscalising, no stock or item sync. Sales made while it is off are not fiscalised later."
+          confirmLabel="Switch off"
+          destructive
+          isPending={update.isPending}
+          onConfirm={() => update.mutate({ etims_enabled: false }, { onSettled: () => setConfirmEtimsOff(false) })}
+        />
+
+        <div className={`rounded border border-border/60 bg-muted/30 p-3 pt-2 ${etimsOn ? '' : 'opacity-60'}`}>
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" disabled={!etimsOn} checked={profile?.metadata?.auto_sync_etims !== false}
               onChange={(e) => update.mutate({ auto_sync_etims: e.target.checked })} />
             Automatically sync sales, invoices &amp; receipts to KRA eTIMS
           </label>

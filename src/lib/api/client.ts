@@ -18,6 +18,7 @@ class ApiClient {
   private tenantSlug: string | null = null;
   private platformOwner = false;
   private outletId: string | null = null;
+  private etimsCertification = false;
 
   constructor() {
     this.instance = axios.create({
@@ -48,6 +49,9 @@ class ApiClient {
     if (this.outletId) {
       config.headers['X-Outlet-ID'] = this.outletId;
     }
+    if (this.etimsCertification) {
+      config.headers['X-Etims-Certification'] = '1';
+    }
     return config;
   };
 
@@ -62,6 +66,15 @@ class ApiClient {
 
   public setOutletID(outletId: string | null) {
     this.outletId = outletId;
+  }
+
+  /**
+   * While on, eTIMS calls go through KRA's GavaConnect proxy, the only route the certification
+   * portal scores (treasury-api honours it for platform owners only). Set by the certification
+   * wizard while it is open; all other eTIMS traffic goes straight to KRA's eTIMS host.
+   */
+  public setEtimsCertification(on: boolean) {
+    this.etimsCertification = on;
   }
 
   private handleResponse = (response: AxiosResponse) => response;

@@ -3,6 +3,7 @@
 import { Badge, Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   usePlatformFeeRules,
   useCreatePlatformFeeRule,
@@ -1145,9 +1146,12 @@ function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
   const [apigeeAppId, setApigeeAppId] = useState('');
   const [gavaBaseUrl, setGavaBaseUrl] = useState('');
   const [apps, setApps] = useState<GcApp[]>([]);
-  const [status, setStatus] = useState<{ etims_configured: boolean; gavaconnect_configured: boolean } | null>(null);
+  const [status, setStatus] = useState<{ etims_configured: boolean; gavaconnect_configured: boolean; etims_enabled?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Platform eTIMS master switch (service_config etims.enabled). Absent means on.
+  const [etimsEnabled, setEtimsEnabled] = useState(true);
+  const [confirmEtimsOff, setConfirmEtimsOff] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -1160,6 +1164,7 @@ function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
       setEtimsBaseUrl(byKey['etims.base_url'] ?? '');
       setApigeeAppId(byKey['etims.apigee_app_id'] ?? '');
       setGavaBaseUrl(byKey['gavaconnect.base_url'] ?? '');
+      setEtimsEnabled((byKey['etims.enabled'] ?? '').toLowerCase() !== 'false');
       // group gavaconnect.<PRODUCT>.consumer_key/secret into apps
       const appMap: Record<string, GcApp> = {};
       Object.keys(byKey).forEach((k) => {
@@ -1211,6 +1216,24 @@ function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
     }
   };
 
+  // Saves the master switch and applies it at once on this pod; every other pod re-reads it within
+  // 30s. Off means no eTIMS call leaves treasury-api for any business.
+  const setEtimsSwitch = async (on: boolean) => {
+    setSaving(true);
+    try {
+      await putSetting('etims.enabled', on ? 'true' : 'false', false, 'KRA eTIMS master switch (false = nothing is sent to KRA eTIMS)');
+      const st = await apiClient.post<{ etims_configured: boolean; gavaconnect_configured: boolean; etims_enabled?: boolean }>(`/api/v1/platform/etims/config-reload`, {});
+      setStatus(st);
+      setEtimsEnabled(on);
+      toast.success(on ? 'eTIMS switched on for the platform' : 'eTIMS switched off for the platform');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Failed to change the eTIMS switch');
+    } finally {
+      setSaving(false);
+      setConfirmEtimsOff(false);
+    }
+  };
+
   const handleReloadOnly = async () => {
     setSaving(true);
     try {
@@ -1248,14 +1271,16 @@ function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
           <div className="flex-1">
             <h3 className="font-bold text-sm uppercase tracking-tight">KRA eTIMS OSCU Integrator</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Shared endpoint for invoice signing. Sandbox <span className="font-mono">https://sbx.kra.go.ke/etims-oscu/api/v1</span> ·
-              Production <span className="font-mono">https://api.kra.go.ke/etims-oscu/api/v1</span>.
+              Sales, invoices, purchases and stock go straight to KRA&apos;s eTIMS host with each device&apos;s own key: sandbox{' '}
+              <span className="font-mono">https://etims-api-sbx.kra.go.ke/etims-api</span>, production{' '}
+              <span className="font-mono">https://etims-api.kra.go.ke/etims-api</span>. The GavaConnect URL below is used only for
+              certification (the wizard and certification runs), the route KRA&apos;s test portal scores.
             </p>
           </div>
           {status && (
-            <Badge className={cn('gap-1', status.etims_configured ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400')}>
-              {status.etims_configured ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-              eTIMS {status.etims_configured ? 'ready' : 'not configured'}
+            <Badge className={cn('gap-1', status.etims_enabled !== false && status.etims_configured ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400')}>
+              {status.etims_enabled !== false && status.etims_configured ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+              eTIMS {status.etims_enabled === false ? 'switched off' : status.etims_configured ? 'ready' : 'not configured'}
             </Badge>
           )}
         </CardHeader>
@@ -1265,13 +1290,36 @@ function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
               <Loader2 className="h-4 w-4 animate-spin" /> Loading configuration…
             </div>
           ) : (
+            <>
+            <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={etimsEnabled} disabled={saving}
+                  onChange={(e) => (e.target.checked ? setEtimsSwitch(true) : setConfirmEtimsOff(true))} />
+                eTIMS enabled for the platform
+              </label>
+              <p className="text-[11px] text-muted-foreground pl-6">
+                {etimsEnabled
+                  ? 'On. Each business can still switch eTIMS off for itself under Tax > Tax Profile.'
+                  : 'Off. Nothing is sent to KRA eTIMS for any business: no receipts, background sync, purchases, stock or certification runs. Queued records wait.'}
+              </p>
+            </div>
+            <ConfirmDialog
+              open={confirmEtimsOff}
+              onOpenChange={setConfirmEtimsOff}
+              title="Switch off eTIMS for every business?"
+              description="No eTIMS call will leave treasury-api for any business until this is switched back on. Other servers pick this up within 30 seconds."
+              confirmLabel="Switch off"
+              destructive
+              isPending={saving}
+              onConfirm={() => setEtimsSwitch(false)}
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">eTIMS Base URL</label>
+                <label className="text-xs font-medium text-muted-foreground">GavaConnect certification URL</label>
                 <input type="url" value={etimsBaseUrl} onChange={(e) => setEtimsBaseUrl(e.target.value)}
                   placeholder="https://sbx.kra.go.ke/etims-oscu/api/v1"
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono" />
-                <p className="text-[10px] text-muted-foreground">Per-tenant devices set to <span className="font-mono">sandbox</span> route here automatically.</p>
+                <p className="text-[10px] text-muted-foreground">Used only by the certification wizard and certification runs. Real traffic never goes through it.</p>
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">apigee_app_id <span className="text-[10px] text-muted-foreground">(optional)</span></label>
@@ -1281,6 +1329,7 @@ function EtimsConfigSection({ orgSlug }: { orgSlug: string }) {
                 <p className="text-[10px] text-muted-foreground">Leave blank — the OSCU consumer key below is used automatically.</p>
               </div>
             </div>
+            </>
           )}
         </CardContent>
       </Card>

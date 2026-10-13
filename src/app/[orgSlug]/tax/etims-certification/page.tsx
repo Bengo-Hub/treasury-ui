@@ -287,6 +287,13 @@ export default function EtimsCertificationPage() {
   useEffect(() => {
     if (!selectedDeviceId && activeDevice) setSelectedDeviceId(activeDevice.id);
   }, [selectedDeviceId, activeDevice]);
+  // Every eTIMS call this wizard makes must score on the certification session, so it goes
+  // through KRA's GavaConnect proxy (X-Etims-Certification) for as long as the wizard is open.
+  useEffect(() => {
+    apiClient.setEtimsCertification(true);
+    return () => apiClient.setEtimsCertification(false);
+  }, []);
+
   // Every step's lookup/action call is outlet-scoped server-side via the X-Outlet-ID header
   // (ResolveOutletForRequest) — apiClient.setOutletID is the same mechanism the header's own
   // outlet filter drives, kept in sync with whichever branch is selected here so a step
