@@ -40,9 +40,24 @@ export interface TransactionItem {
   /** The gateway the payment ran on (paystack, mpesa_paybill, payhero, ...) and the PayHero channel. */
   gateway_type?: string;
   payhero_channel_id?: number;
+  /** What the gateway charged for the payment (PayHero: the real charge once read from its ledger).
+   *  `transaction_cost` above is the platform's service charge, a different amount. */
+  gateway_cost?: string;
+  /** Who bore the gateway fee when the payment started: "payer" (added to the prompt) or "merchant". */
+  gateway_fee_bearer?: string;
+  /** How far PayHero's real charge ran from its tariff (positive: it charged more), once known. */
+  gateway_cost_variance?: string;
   /** Set when the payment arrived short or in another currency; the intent stays open. */
   amount_mismatch?: { reason?: string; paid?: string; paid_currency?: string; due?: string; due_currency?: string };
   created_at: string;
+}
+
+/** The fee shown for a transaction: what the gateway charged, else the platform's service charge. */
+export function transactionFee(t: Pick<TransactionItem, 'gateway_cost' | 'transaction_cost'>): number {
+  const gateway = parseFloat(t.gateway_cost ?? '');
+  if (Number.isFinite(gateway) && gateway > 0) return gateway;
+  const service = parseFloat(t.transaction_cost ?? '');
+  return Number.isFinite(service) && service > 0 ? service : 0;
 }
 
 export interface TransactionsResponse {

@@ -6,7 +6,7 @@
 import { Badge, Button } from '@/components/ui/base';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { getPaymentMethodLabel } from '@bengo-hub/shared-ui-lib';
-import type { TransactionItem } from '@/lib/api/analytics';
+import { transactionFee, type TransactionItem } from '@/lib/api/analytics';
 import { ArrowUpRight, CheckCircle2, Eye, Loader2, RefreshCw, UserRound } from 'lucide-react';
 
 const MARKETFLOW_UI_URL = process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexafrica.com';
@@ -116,8 +116,8 @@ export function buildTransactionColumns(cb: TransactionColumnCallbacks): DataTab
       align: 'right',
       mobileHidden: true,
       cellClassName: 'text-muted-foreground',
-      accessor: (t) => Number(t.transaction_cost ?? 0),
-      render: (t) => (t.transaction_cost && parseFloat(t.transaction_cost) > 0 ? `${t.currency} ${t.transaction_cost}` : '—'),
+      accessor: (t) => transactionFee(t),
+      render: (t) => (transactionFee(t) > 0 ? `${t.currency} ${transactionFee(t).toFixed(2)}` : '—'),
     },
     {
       key: 'status',

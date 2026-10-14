@@ -6,7 +6,7 @@ import { usePlatformTransactions, getTransactionsExportURL } from '@/hooks/use-p
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { usePageReset } from '@/hooks/use-page-reset';
 import { useAuthStore } from '@/store/auth';
-import { exportTransactionsCSV, type TransactionItem } from '@/lib/api/analytics';
+import { exportTransactionsCSV, transactionFee, type TransactionItem } from '@/lib/api/analytics';
 import { apiClient } from '@/lib/api/client';
 import { DataTable } from '@bengo-hub/shared-ui-lib/data-table';
 import { buildTransactionColumns } from './transaction-columns';
@@ -201,7 +201,7 @@ export default function TransactionsPage() {
         pendingAmount += amt;
         pendingCount += 1;
       }
-      fees += parseFloat(t.transaction_cost || '0') || 0;
+      fees += transactionFee(t);
     }
     const total = filtered.length;
     return {
@@ -466,10 +466,16 @@ export default function TransactionsPage() {
               <div>
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Fee</p>
                 <p className="text-sm text-muted-foreground">
-                  {detailTxn.transaction_cost && parseFloat(detailTxn.transaction_cost) > 0
-                    ? `${detailTxn.currency} ${detailTxn.transaction_cost}`
-                    : '—'}
+                  {transactionFee(detailTxn) > 0 ? `${detailTxn.currency} ${transactionFee(detailTxn).toFixed(2)}` : '—'}
                 </p>
+                {detailTxn.gateway_cost && detailTxn.gateway_fee_bearer && (
+                  <p className="text-xs text-muted-foreground">
+                    {detailTxn.gateway_fee_bearer === 'payer' ? 'Paid by the customer on top of the amount' : 'Paid by the business'}
+                    {detailTxn.gateway_cost_variance && Number(detailTxn.gateway_cost_variance) !== 0
+                      ? `; the gateway charged ${detailTxn.currency} ${Math.abs(Number(detailTxn.gateway_cost_variance)).toFixed(2)} ${Number(detailTxn.gateway_cost_variance) > 0 ? 'more' : 'less'} than its tariff`
+                      : ''}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Method</p>
