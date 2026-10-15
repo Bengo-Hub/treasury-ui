@@ -8,6 +8,7 @@ import {
   getAPAging,
   listBillPayments,
   voidBillPayment,
+  voidVendorSettlement,
   voidBill,
   createBillDebitNote,
   type BillDebitNoteRequest,
@@ -97,12 +98,17 @@ export function useVoidBillPayment(tenantIdOrSlug: string | undefined) {
   return useMutation({
     mutationFn: ({ billId, paymentId, reason }: { billId: string; paymentId: string; reason?: string }) =>
       voidBillPayment(tenantIdOrSlug!, billId, paymentId, reason),
-    onSuccess: (_d, { billId }) => {
-      qc.invalidateQueries({ queryKey: ['bill-payments', tenantIdOrSlug, billId] });
-      qc.invalidateQueries({ queryKey: ['bills', 'list', tenantIdOrSlug] });
-      qc.invalidateQueries({ queryKey: ['bills', 'aging', tenantIdOrSlug] });
-      invalidateVendorViews(qc, tenantIdOrSlug);
-    },
+    onSuccess: () => invalidateVendorPaymentViews(qc, tenantIdOrSlug),
+  });
+}
+
+/** Voids a whole consolidated supplier settlement (every bill it paid). */
+export function useVoidVendorSettlement(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ settlementId, reason }: { settlementId: string; reason?: string }) =>
+      voidVendorSettlement(tenantIdOrSlug!, settlementId, reason),
+    onSuccess: () => invalidateVendorPaymentViews(qc, tenantIdOrSlug),
   });
 }
 

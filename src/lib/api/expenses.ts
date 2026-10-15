@@ -339,6 +339,13 @@ export function payExpense(
   return apiClient.post<{ status: string }>(`${BASE}/${tenantIdOrSlug}/expenses/${id}/pay`, body ?? {});
 }
 
+// voidExpense undoes an approved or paid expense recorded by mistake: its journals are reversed and
+// an eTIMS purchase that never reached KRA is withdrawn. 409 when it cannot be voided (its purchase
+// is at KRA, or it was posted automatically by another document).
+export function voidExpense(tenantIdOrSlug: string, id: string, reason?: string): Promise<Expense> {
+  return apiClient.post<Expense>(`${BASE}/${tenantIdOrSlug}/expenses/${id}/void`, { reason });
+}
+
 // reconcileExpenseJournals posts any missing GL journals for approved/paid expenses (idempotent).
 export function reconcileExpenseJournals(tenantIdOrSlug: string): Promise<{ scanned: number; accruals_posted: number; settlements_posted: number; skipped_no_account: number }> {
   return apiClient.post(`${BASE}/${tenantIdOrSlug}/expenses/reconcile-journals`, {});

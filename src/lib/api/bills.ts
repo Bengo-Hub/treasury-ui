@@ -277,3 +277,21 @@ export const isDebitNote = (b: Bill): boolean => b.document_type === 'credit_not
 export function voidBillPayment(tenantIdOrSlug: string, billId: string, paymentId: string, reason?: string): Promise<BillPayment> {
   return apiClient.delete<BillPayment>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/payments/${paymentId}`, { data: { reason } });
 }
+
+export interface VendorSettlementVoid {
+  settlement_id: string;
+  payments: BillPayment[];
+  bills: string[];
+}
+
+/** Voids every payment a consolidated supplier settlement recorded, across all its bills. */
+export function voidVendorSettlement(tenantIdOrSlug: string, settlementId: string, reason?: string): Promise<VendorSettlementVoid> {
+  return apiClient.delete<VendorSettlementVoid>(`${BASE}/${tenantIdOrSlug}/ap/vendors/settlements/${settlementId}`, { data: { reason } });
+}
+
+/** The settlement a payment row belongs to: settlement rows carry
+ * "Consolidated settlement VSET-XXXXXXXX (<settlement id>)" in their note. */
+export function settlementIdOf(p: Pick<BillPayment, 'note'>): string | null {
+  const m = /^Consolidated settlement \S+ \(([0-9a-f-]{36})\)$/i.exec(p.note ?? '');
+  return m ? m[1] : null;
+}

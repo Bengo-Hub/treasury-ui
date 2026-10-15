@@ -31,6 +31,7 @@ import {
   usePayExpense,
   useReconcileExpenseJournals,
   useDeleteExpense,
+  useVoidExpense,
 } from '@/hooks/use-expenses';
 import { useRouter } from 'next/navigation';
 import { useCostCenters } from '@/hooks/use-cost-centers';
@@ -47,6 +48,7 @@ import {
   Search,
   Send,
   Trash2,
+  Undo2,
   Wallet,
   X,
 } from 'lucide-react';
@@ -95,6 +97,8 @@ export default function ExpensesPage() {
   const [page, setPage] = usePageReset([search, dateFrom, dateTo, statusFilter, costCenterFilter, funnel, pageSize]);
   const [rejectOpen, setRejectOpen] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [voidExp, setVoidExp] = useState<Expense | null>(null);
+  const [voidReason, setVoidReason] = useState('');
   // Row-action dialog state (status-aware confirmations).
   const [confirmAction, setConfirmAction] = useState<{ kind: 'submit' | 'approve' | 'delete'; exp: Expense } | null>(null);
   const [overBudget, setOverBudget] = useState<{ kind: 'submit' | 'approve'; exp: Expense; result: BudgetCheckResult } | null>(null);
@@ -174,7 +178,7 @@ export default function ExpensesPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
 
-  const statusOptions = ['all', 'draft', 'submitted', 'approved', 'rejected', 'paid'];
+  const statusOptions = ['all', 'draft', 'submitted', 'approved', 'rejected', 'paid', 'cancelled'];
 
   // Mutations
   const submitMutation = useSubmitExpense(effectiveTenant);
@@ -193,6 +197,21 @@ export default function ExpensesPage() {
     }
   };
   const deleteMutation = useDeleteExpense(effectiveTenant);
+  const voidMutation = useVoidExpense(effectiveTenant);
+
+  // Void an approved or paid expense recorded by mistake. The server refuses (409, with the reason)
+  // when its eTIMS purchase may already be at KRA or another document posted it.
+  const handleVoid = async () => {
+    if (!voidExp) return;
+    try {
+      await voidMutation.mutateAsync({ id: voidExp.id, reason: voidReason.trim() || undefined });
+      toast.success(`Expense ${voidExp.expense_number} voided`);
+      setVoidExp(null);
+      setVoidReason('');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? 'Failed to void the expense.');
+    }
+  };
 
   const goToNewExpenditure = () => router.push(`/${orgSlug}/expenses/new`);
 
@@ -401,6 +420,13 @@ export default function ExpensesPage() {
       destructive: true,
       visible: (exp) => exp.status === 'draft',
       onClick: (exp) => setConfirmAction({ kind: 'delete', exp }),
+    },
+    {
+      label: 'Void',
+      icon: <Undo2 className="h-3.5 w-3.5" />,
+      destructive: true,
+      visible: (exp) => exp.status === 'approved' || exp.status === 'paid' || exp.status === 'reimbursed',
+      onClick: (exp) => { setVoidReason(''); setVoidExp(exp); },
     },
   ];
 
@@ -671,6 +697,39 @@ export default function ExpensesPage() {
               >
                 {rejectMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
                 Reject
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Void Dialog */}
+      <Dialog open={!!voidExp} onOpenChange={() => setVoidExp(null)}>
+        <DialogContent
+          title={`Void ${voidExp?.expense_number ?? 'expense'}`}
+          description="For an expense recorded by mistake. Its ledger entries are reversed and it stops counting as spend."
+          onClose={() => setVoidExp(null)}
+        >
+          <div className="space-y-4">
+            <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1">
+              {voidExp?.status !== 'approved' && (
+                <li>The payment is reversed in the books only. Money already sent to the supplier has to be recovered from them.</li>
+              )}
+              <li>If it was queued for KRA eTIMS and has not reached KRA, it is withdrawn and never sent. Once KRA has it, it cannot be voided.</li>
+            </ul>
+            <FormField label="Reason">
+              <textarea
+                className="w-full bg-accent/30 border border-border rounded-lg py-2 px-3 text-sm focus:ring-1 focus:ring-primary min-h-[80px]"
+                placeholder="Why is it being voided?"
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+              />
+            </FormField>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setVoidExp(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleVoid} disabled={voidMutation.isPending}>
+                {voidMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                Void expense
               </Button>
             </div>
           </div>

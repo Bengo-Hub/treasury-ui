@@ -17,6 +17,7 @@ import {
   rejectExpense,
   reimburseExpense,
   payExpense,
+  voidExpense,
   reconcileExpenseJournals,
   createExpenseCategory,
   updateExpenseCategory,
@@ -220,6 +221,18 @@ export function usePayExpense(tenantIdOrSlug: string | undefined) {
       payExpense(tenantIdOrSlug!, id, { paid_from_account_id: paidFromAccountId, payment_intent_id: paymentIntentId, paid_at: paidAt }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
+    },
+  });
+}
+
+/** Voids an approved or paid expense recorded by mistake (journals reversed, unsent eTIMS purchase withdrawn). */
+export function useVoidExpense(tenantIdOrSlug: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) => voidExpense(tenantIdOrSlug!, id, reason),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: ['expenses', 'list', tenantIdOrSlug] });
+      qc.invalidateQueries({ queryKey: expenseKeys.detail(tenantIdOrSlug ?? '', id) });
     },
   });
 }

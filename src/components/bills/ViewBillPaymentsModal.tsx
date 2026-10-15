@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { getPaymentMethodLabel } from '@bengo-hub/shared-ui-lib';
 import { Loader2, Printer, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { useBillPayments, useVoidBillPayment } from '@/hooks/use-bills';
-import type { Bill, BillPayment } from '@/lib/api/bills';
+import { useBillPayments, useVoidBillPayment, useVoidVendorSettlement } from '@/hooks/use-bills';
+import { settlementIdOf, type Bill, type BillPayment } from '@/lib/api/bills';
+import { isOnlineMethod } from '@/components/bills/use-bill-payment-form';
 import { formatCurrency } from '@/lib/utils/currency';
 
 // Labels that mean something specific here; every other method uses the shared registry.
@@ -40,7 +41,10 @@ export function ViewBillPaymentsModal({ tenant, bill, onClose, canManage = true 
   const payments: BillPayment[] = data?.data ?? [];
   const paidSum = payments.filter((p) => p.status === 'active').reduce((s, p) => s + Number(p.amount || 0), 0);
   const voidPayment = useVoidBillPayment(tenant);
+  const voidSettlement = useVoidVendorSettlement(tenant);
   const [voiding, setVoiding] = useState<BillPayment | null>(null);
+  const voidingSettlement = voiding ? settlementIdOf(voiding) : null;
+  const busy = voidPayment.isPending || voidSettlement.isPending;
 
   const printPayments = () => {
     const rows = payments.map((p) =>
@@ -133,10 +137,34 @@ export function ViewBillPaymentsModal({ tenant, bill, onClose, canManage = true 
                 Void {formatCurrency(Number(voiding.amount), voiding.currency)} on {bill.bill_number}? A reversing journal is
                 posted, the paid total is recomputed, and the bill reopens if it was fully paid.
               </p>
-              <div className="flex justify-end gap-2">
+              {isOnlineMethod(voiding.method) && (
+                <p className="text-xs text-red-700 font-semibold">
+                  This payment was sent through {methodLabel(voiding.method)}. Voiding reverses it in the books only; the
+                  money has to be recovered from the supplier.
+                </p>
+              )}
+              {voidingSettlement && (
+                <p className="text-xs text-red-700">
+                  It is part of a consolidated settlement. Void the whole settlement to reverse it on every bill it paid.
+                </p>
+              )}
+              <div className="flex flex-wrap justify-end gap-2">
                 <button className="px-3 py-1.5 text-xs font-bold rounded-lg border border-border bg-background hover:bg-accent" onClick={() => setVoiding(null)}>Cancel</button>
+                {voidingSettlement && (
+                  <button className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-red-600 text-red-700 bg-background hover:bg-red-100 disabled:opacity-50"
+                    disabled={busy}
+                    onClick={() => voidSettlement.mutate(
+                      { settlementId: voidingSettlement, reason: 'Voided from View Payments' },
+                      {
+                        onSuccess: (r) => { toast.success(`Settlement voided on ${r.bills.join(', ')}`); setVoiding(null); },
+                        onError: (e: any) => toast.error(e?.response?.data?.error || 'Void failed'),
+                      },
+                    )}>
+                    {voidSettlement.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />} Void whole settlement
+                  </button>
+                )}
                 <button className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                  disabled={voidPayment.isPending}
+                  disabled={busy}
                   onClick={() => voidPayment.mutate(
                     { billId: bill.id, paymentId: voiding.id, reason: 'Voided from View Payments' },
                     {
