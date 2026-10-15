@@ -195,6 +195,9 @@ export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
       break;
     }
     case 'vendor_credit': {
+      // A debit note or purchase-return credit note goes to KRA as a purchase credit note against
+      // the purchase it reverses; it is queued when raised, and sent here once that purchase lands.
+      if (ctx.etimsActive && !isVoided(ctx.status)) out.push('transmit_etims');
       // An applied credit is undone through its bill's payments, not voided directly.
       if (!isVoided(ctx.status) && !((ctx.amountPaid ?? 0) > 0)) out.push('void');
       break;
