@@ -60,10 +60,14 @@ export function buildVoucherColumns(cb: VoucherColumnCallbacks): DataTableColumn
       render: (e) => {
         const payee = voucherMeta(e, 'payee');
         const kind = voucherMeta(e, 'payee_type');
+        // A voucher paying several people lists them; payee_count says how many.
+        const count = Number((e.metadata as Record<string, unknown> | undefined)?.payee_count ?? 0);
         return payee ? (
-          <span className="flex flex-col">
-            <span className="font-medium">{payee}</span>
-            {kind && <span className="text-[10px] capitalize text-muted-foreground">{kind}</span>}
+          <span className="flex max-w-56 flex-col">
+            <span className="truncate font-medium" title={payee}>{payee}</span>
+            {count > 1
+              ? <span className="text-[10px] text-muted-foreground">{count} payees</span>
+              : kind && <span className="text-[10px] capitalize text-muted-foreground">{kind}</span>}
           </span>
         ) : <span className="text-muted-foreground">-</span>;
       },

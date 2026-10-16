@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/base';
 import { InfoTip } from '@/components/ui/info-tip';
 import { SearchableCombobox, type ComboboxOption } from '@bengo-hub/shared-ui-lib/combobox';
 import { Plus, Trash2 } from 'lucide-react';
+import { emptyPayee, PayeePicker, type PayeeSource, type PayeeValue } from './PayeePicker';
 
 export interface VoucherLineState {
   account_id: string;
@@ -11,9 +12,13 @@ export interface VoucherLineState {
   debit: string;
   credit: string;
   description: string;
+  /** Payment and receipt lines: who this line was paid to or received from. */
+  payee: PayeeValue;
 }
 
-export const emptyVoucherLine = (): VoucherLineState => ({ account_id: '', amount: '', debit: '', credit: '', description: '' });
+export const emptyVoucherLine = (payeeSource: PayeeSource = 'other'): VoucherLineState => ({
+  account_id: '', amount: '', debit: '', credit: '', description: '', payee: emptyPayee(payeeSource),
+});
 
 export const toNumber = (v: string) => {
   const n = parseFloat(v);
@@ -37,11 +42,16 @@ const TIP = {
   credit:
     'Enter an amount here to increase a liability, equity or income account, or to reduce an asset or expense account (money leaving a bank account is a credit). Leave Debit empty on the same line.',
   memo: 'A short note for this line, shown on the account statement. For example "Casual labour, 3 days" or "CCTV installation, office".',
+  payeePayment:
+    'Who this line was paid to: a supplier, a customer, a staff member, or Not in system to type a name (for example a casual worker). One voucher can pay several people; the voucher total still leaves the Paid from account once.',
+  payeeReceipt:
+    'Who this line was received from. One voucher can record money from several people; the total still lands in the Received into account once.',
 };
 
 /**
- * Lines of a voucher. "amount" mode (payment and receipt) asks only for account and amount: the
- * balancing cash line is built by the API. "grid" mode (journal, sales, purchase) is a full
+ * Lines of a voucher. "amount" mode (payment and receipt) asks for account, payee and amount: the
+ * balancing cash line is built by the API, and each line names who it was paid to, so one voucher
+ * can pay five casual workers and a supplier. "grid" mode (journal, sales, purchase) is a full
  * double entry grid that must balance.
  */
 export function VoucherLinesEditor({
@@ -50,6 +60,7 @@ export function VoucherLinesEditor({
   lines,
   accountOptions,
   cashLabel,
+  tenant,
   onChange,
 }: {
   mode: 'amount' | 'grid';
@@ -58,8 +69,14 @@ export function VoucherLinesEditor({
   accountOptions: ComboboxOption[];
   /** Name of the cash account the total is booked to (amount mode), for the totals row. */
   cashLabel?: string;
+  /** Tenant slug; when set in amount mode each line gets a payee. */
+  tenant?: string;
   onChange: (lines: VoucherLineState[]) => void;
 }) {
+  const withPayee = mode === 'amount' && !!tenant;
+  const payeeLabel = kind === 'receipt' ? 'Received from' : 'Paid to';
+  // A new line starts with the previous line's payee type: casual workers are listed one after another.
+  const addLine = () => onChange([...lines, emptyVoucherLine(lines[lines.length - 1]?.payee.source ?? 'other')]);
   const minLines = mode === 'amount' ? 1 : 2;
   const update = (i: number, patch: Partial<VoucherLineState>) =>
     onChange(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -82,18 +99,23 @@ export function VoucherLinesEditor({
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {mode === 'amount' ? (kind === 'receipt' ? 'Received for' : 'Paid for') : 'Lines'}
         </p>
-        <Button size="sm" variant="ghost" onClick={() => onChange([...lines, emptyVoucherLine()])} className="gap-1">
+        <Button size="sm" variant="ghost" onClick={addLine} className="gap-1">
           <Plus className="h-3 w-3" /> Add line
         </Button>
       </div>
 
-      <div className="rounded-lg border border-border">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className={withPayee ? 'w-full min-w-4xl text-sm' : 'w-full text-sm'}>
           <thead>
             <tr className="border-b border-border bg-accent/5">
               <th className="px-3 py-2 text-left text-xs font-bold text-muted-foreground">
                 <span className="inline-flex items-center gap-1">Account <InfoTip text={accountTip} align="left" /></span>
               </th>
+              {withPayee && (
+                <th className="w-64 px-3 py-2 text-left text-xs font-bold text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">{payeeLabel} <InfoTip text={kind === 'receipt' ? TIP.payeeReceipt : TIP.payeePayment} align="left" /></span>
+                </th>
+              )}
               {mode === 'amount' ? (
                 <th className="w-36 px-3 py-2 text-right text-xs font-bold text-muted-foreground">
                   <span className="inline-flex items-center gap-1">Amount <InfoTip text={amountTip} align="right" /></span>
@@ -128,6 +150,11 @@ export function VoucherLinesEditor({
                     clearable
                   />
                 </td>
+                {withPayee && (
+                  <td className="px-3 py-2 align-top">
+                    <PayeePicker compact tenant={tenant!} label={payeeLabel} value={line.payee} onChange={(payee) => update(i, { payee })} />
+                  </td>
+                )}
                 {mode === 'amount' ? (
                   <td className="px-3 py-2">
                     <input
@@ -180,6 +207,7 @@ export function VoucherLinesEditor({
             {mode === 'amount' ? (
               <tr className="bg-accent/10 font-bold">
                 <td className="px-3 py-2 text-xs uppercase">Total</td>
+                {withPayee && <td />}
                 <td className="px-3 py-2 text-right text-xs tabular-nums">{money(totalAmount)}</td>
                 <td colSpan={2} className="px-3 py-2 text-xs font-normal text-muted-foreground">
                   {totalAmount > 0 && (kind === 'receipt'

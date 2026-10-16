@@ -17,6 +17,8 @@ export interface JournalLine {
   credit_amount: number | string;
   currency?: string;
   description?: string;
+  /** A voucher line's own payee when one voucher pays several people. */
+  metadata?: { payee?: string; payee_id?: string; payee_type?: PayeeType } | null;
 }
 
 export interface JournalEntry {
@@ -86,6 +88,10 @@ export interface VoucherLineInput {
   description?: string;
   cost_center_id?: string;
   project_id?: string;
+  /** Payment and receipt lines: who this line was paid to or received from. */
+  payee?: string;
+  payee_id?: string;
+  payee_type?: PayeeType;
 }
 
 export interface CreateVoucherRequest {

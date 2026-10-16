@@ -22,9 +22,9 @@ const todayLocal = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+// The voucher-level party. Payment and receipt vouchers name the payee on each line instead, so
+// one voucher can pay several people (five casual workers and a supplier).
 const PAYEE_LABEL: Partial<Record<VoucherType, string>> = {
-  payment: 'Paid to',
-  receipt: 'Received from',
   sales: 'Customer',
   purchase: 'Supplier',
 };
@@ -36,13 +36,23 @@ const DEFAULT_PAYEE_SOURCE: Partial<Record<VoucherType, PayeeSource>> = {
   purchase: 'supplier',
 };
 
-const linesFor = (t: VoucherType): VoucherLineState[] =>
-  isCashVoucher(t) ? [emptyVoucherLine()] : [emptyVoucherLine(), emptyVoucherLine()];
+const linesFor = (t: VoucherType): VoucherLineState[] => {
+  const source = DEFAULT_PAYEE_SOURCE[t] ?? 'other';
+  return isCashVoucher(t) ? [emptyVoucherLine(source)] : [emptyVoucherLine(source), emptyVoucherLine(source)];
+};
+
+/** A line's payee as the API takes it: the name, and the link when it was picked from a list. */
+const linePayee = (p: VoucherLineState['payee']) => {
+  const name = p.name.trim();
+  if (!name) return {};
+  return p.id && p.source !== 'other' ? { payee: name, payee_id: p.id, payee_type: p.source } : { payee: name };
+};
 
 /**
  * The voucher book's entry form. Payment and receipt vouchers ask for the cash, bank or M-Pesa
- * account once and the accounts the money was for; the API adds the balancing cash line, so they
- * always balance. Contra moves money between two of the business's accounts. Journal, sales and
+ * account once and, per line, the account the money was for and who it was paid to (so one
+ * voucher can pay several casual workers and a supplier); the API adds the balancing cash line,
+ * so they always balance. Contra moves money between two of the business's accounts. Journal, sales and
  * purchase vouchers use a debit and credit grid that must balance. Every pick from existing data
  * (accounts, cash accounts, payee) is a searchable combobox.
  */
@@ -132,7 +142,7 @@ export function VoucherDialog({
       if (amt <= 0) return 'Enter the amount moved.';
       return { ...req, cash_account_id: effectiveCash, to_cash_account_id: toCashAccountId, amount: amt };
     }
-    const used = lines.filter((l) => l.account_id || l.amount || l.debit || l.credit || l.description.trim());
+    const used = lines.filter((l) => l.account_id || l.amount || l.debit || l.credit || l.description.trim() || l.payee.name.trim());
     if (isCashVoucher(type)) {
       if (!effectiveCash) return type === 'payment' ? 'Choose the account the money was paid from.' : 'Choose the account the money was received into.';
       if (used.length === 0) return 'Add at least one line.';
@@ -143,7 +153,9 @@ export function VoucherDialog({
       return {
         ...req,
         cash_account_id: effectiveCash,
-        lines: used.map((l) => ({ account_id: l.account_id, amount: toNumber(l.amount), description: l.description.trim() || undefined })),
+        lines: used.map((l) => ({
+          account_id: l.account_id, amount: toNumber(l.amount), description: l.description.trim() || undefined, ...linePayee(l.payee),
+        })),
       };
     }
     if (used.length < 2) return 'A voucher needs at least two lines.';
@@ -198,7 +210,7 @@ export function VoucherDialog({
         title="New Voucher"
         description="Record money paid, received or moved. Saved vouchers follow the approval rules before they are posted."
         onClose={() => onOpenChange(false)}
-        className="max-w-3xl"
+        className="max-w-6xl"
       >
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
@@ -291,6 +303,7 @@ export function VoucherDialog({
               lines={lines}
               accountOptions={accountOptions}
               cashLabel={cashLabel}
+              tenant={isCashVoucher(type) ? tenantSlug : undefined}
               onChange={setLines}
             />
           )}

@@ -38,11 +38,14 @@ export function PayeePicker({
   label,
   value,
   onChange,
+  compact = false,
 }: {
   tenant: string;
   label: string;
   value: PayeeValue;
   onChange: (v: PayeeValue) => void;
+  /** For a table cell (a voucher line): the type is a small select above the field, with no heading. */
+  compact?: boolean;
 }) {
   const { data: vendorData } = useVendors(tenant, undefined, !!tenant && value.source === 'supplier');
   const searchVendors = useVendorSearch(tenant);
@@ -80,6 +83,48 @@ export function PayeePicker({
   const pick = (id: string, option?: ComboboxOption) =>
     onChange({ source: value.source, id, name: id ? option?.label ?? value.name : '' });
 
+  const field = value.source === 'other' ? (
+    <input
+      value={value.name}
+      onChange={(e) => onChange({ source: 'other', id: '', name: e.target.value })}
+      placeholder={compact ? 'Name, e.g. John Otieno' : 'Full name, for example John Otieno (casual)'}
+      aria-label={compact ? `${label} name` : undefined}
+      className={compact
+        ? 'w-full rounded border border-input bg-transparent px-2 py-1.5 text-xs'
+        : 'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm'}
+    />
+  ) : (
+    <SearchableCombobox
+      key={value.source}
+      options={value.source === 'supplier' ? supplierOptions : value.source === 'staff' ? staffOptions : []}
+      value={value.id}
+      valueLabel={value.name || undefined}
+      onChange={pick}
+      onRemoteSearch={value.source === 'supplier' ? searchVendors : value.source === 'customer' ? searchCustomers : searchStaff}
+      remoteThreshold={value.source === 'customer' ? 1000 : 5}
+      placeholder={value.source === 'supplier' ? 'Search suppliers' : value.source === 'customer' ? 'Type a customer name' : 'Search staff by email'}
+      searchPlaceholder="Type to search"
+      emptyText="No match. Choose Not in system to type a name."
+      clearable
+    />
+  );
+
+  if (compact) {
+    return (
+      <div className="space-y-1">
+        <select
+          value={value.source}
+          onChange={(e) => onChange(emptyPayee(e.target.value as PayeeSource))}
+          aria-label={`${label}: type`}
+          className="w-full rounded border border-input bg-transparent px-1.5 py-1 text-[11px] text-muted-foreground"
+        >
+          {SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+        {field}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
@@ -107,28 +152,7 @@ export function PayeePicker({
           ))}
         </div>
       </div>
-      {value.source === 'other' ? (
-        <input
-          value={value.name}
-          onChange={(e) => onChange({ source: 'other', id: '', name: e.target.value })}
-          placeholder="Full name, for example John Otieno (casual)"
-          className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
-        />
-      ) : (
-        <SearchableCombobox
-          key={value.source}
-          options={value.source === 'supplier' ? supplierOptions : value.source === 'staff' ? staffOptions : []}
-          value={value.id}
-          valueLabel={value.name || undefined}
-          onChange={pick}
-          onRemoteSearch={value.source === 'supplier' ? searchVendors : value.source === 'customer' ? searchCustomers : searchStaff}
-          remoteThreshold={value.source === 'customer' ? 1000 : 5}
-          placeholder={value.source === 'supplier' ? 'Search suppliers' : value.source === 'customer' ? 'Type a customer name' : 'Search staff by email'}
-          searchPlaceholder="Type to search"
-          emptyText="No match. Choose Not in system to type a name."
-          clearable
-        />
-      )}
+      {field}
     </div>
   );
 }
