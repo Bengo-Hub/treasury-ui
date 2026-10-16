@@ -2,7 +2,7 @@
 
 **Duration:** 2026-05-23 → ongoing
 **Goal:** Centralized config-driven financial documents UI for all document types (Quotation, Invoice, Proforma Invoice, Credit Note, Sales Order, Delivery Challan, Payment Receipt) with shared components, integrations, and public share pages.
-**Status:** Partially done (verified against code 2026-09-27). All document pages, the shared list and create views, payments, downloads and delivery challans are live. The config-file system, shared public page shell, number format and column modals, signature and advanced-option sections, per-line sales ledger and the ordering S2S call were not built. See `docs/backlog.md`.
+**Status:** Partially done (verified against code 2026-09-27). All document pages, the shared list and create views, payments, downloads and delivery challans are live. Number format, line columns and the per-line sales ledger were built on 2026-10-16. The config-file system, shared public page shell and signature section are still open; the ordering S2S call was dropped (sales orders stay in treasury). See `docs/backlog.md`.
 **Last Updated:** 2026-09-27
 
 **Builds on:** Sprint 1 (Payment Orchestration) — SSO, gateways, transaction monitoring complete.
@@ -67,8 +67,8 @@ Create `src/components/documents/` structure:
 - [x] `SharedDocumentPreview.tsx`: shipped as `DocPreview.tsx`
 - [ ] `SharedPublicPage.tsx`: public page shell (used by /q/[token] and /i/[token]). Not built; each public page has its own layout.
 - [x] `RecordPaymentModal.tsx`: 3-step: Select Client → Add Payment Records → Settle Unpaid Invoices
-- [ ] `NumberFormatModal.tsx` — Number/Currency Format (4 formats, 6 decimal opts, 2 round-off toggles)
-- [ ] `ShowHideColumnsModal.tsx` — CSV + Table toggles per column, drag-to-reorder
+- [x] `NumberFormatModal.tsx`: built as `PresentationEditor.tsx` (4 number styles, 0 to 4 decimals), on Settings > Document Presentation and the form's Layout section, 2026-10-16. Round-off toggles left out by user decision.
+- [x] `ShowHideColumnsModal.tsx`: part of `PresentationEditor.tsx` (show, hide and reorder; the same columns drive the PDF, CSV and XLSX), 2026-10-16.
 
 #### Sections
 - [x] `sections/LineItemsSection.tsx`: line items table + product catalog combobox per row
@@ -80,7 +80,7 @@ Create `src/components/documents/` structure:
 - [ ] `sections/SignatureSection.tsx` — Upload + Use Signature Pad + label
 - [x] `sections/TermsSection.tsx`: shipped as `TermsNotesSection.tsx`
 - [x] `sections/NotesSection.tsx`: part of `TermsNotesSection.tsx`
-- [ ] `sections/AdvancedOptionsSection.tsx` — display toggles (Show SKU, Show Serial Numbers, etc.)
+- [x] `sections/AdvancedOptionsSection.tsx`: the SKU and Unit columns are toggles in `sections/PresentationSection.tsx` (2026-10-16). Serial numbers are not stored on lines.
 
 #### Config system
 
@@ -118,7 +118,7 @@ Create `src/components/documents/` structure:
 
 #### Sales Ledger (Invoice form only)
 - [x] `src/hooks/use-accounts.ts`: `useChartOfAccounts(tenant)`
-- [ ] Wire per-line "Select Sales Ledger" in invoice form via `LineItemsSection.tsx`
+- [x] Wire per-line "Select Sales Ledger" in invoice form via `LineItemsSection.tsx` (`188a1ce`, 2026-10-16)
 
 #### Bank Accounts (Payment Receipts)
 - [x] Wire `RecordPaymentModal.tsx` "Deposited To" → `GET /{tenant}/banking/accounts`
