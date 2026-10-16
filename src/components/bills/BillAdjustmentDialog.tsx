@@ -2,10 +2,10 @@
 
 import { Button } from '@/components/ui/base';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { useCreateBillDebitNote } from '@/hooks/use-bills';
+import { useCreateBillAdjustment, type BillAdjustmentKind } from '@/hooks/use-bills';
 import type { Bill } from '@/lib/api/bills';
 import { formatCurrency } from '@/lib/utils/currency';
-import { FileMinus, Loader2 } from 'lucide-react';
+import { FileMinus, FilePlus, Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const inputClass =
@@ -13,24 +13,46 @@ const inputClass =
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-interface RaiseDebitNoteDialogProps {
+interface BillAdjustmentDialogProps {
   tenant: string;
+  kind: BillAdjustmentKind;
   bill: Bill | null;
   onClose: () => void;
-  onRaised?: (note: Bill) => void;
+  onRaised?: (doc: Bill) => void;
 }
 
+const COPY: Record<BillAdjustmentKind, { title: string; intro: string; column: string; total: string; reasonHint: string }> = {
+  vendor_credit: {
+    title: 'Raise vendor credit',
+    intro:
+      'Enter how much of each line to credit (returned, overcharged or not delivered). The credit reduces what you owe this supplier and is applied first when you settle their bills. Its PDF is the Debit Note you send the supplier.',
+    column: 'Credit qty',
+    total: 'Vendor credit total',
+    reasonHint: 'e.g. 2 cartons returned damaged',
+  },
+  supplementary_bill: {
+    title: 'Raise supplementary bill',
+    intro:
+      'Enter the amount the supplier undercharged on each line, before VAT. VAT is added at the line’s own rate. The supplementary bill is owed on top of this bill, on its terms.',
+    column: 'Extra (excl. VAT)',
+    total: 'Supplementary bill total',
+    reasonHint: 'e.g. price increase confirmed by the supplier',
+  },
+};
+
 /**
- * Raises a debit note against a received bill: the buyer's document to the supplier for goods
- * returned, an overcharge or a short delivery. Each of the bill's lines can be debited by quantity
- * (net unit price kept, the line's VAT pro-rated). The note becomes a supplier credit that nets
- * against the supplier's open bills; the server caps all debit notes at the bill total. Mount it
- * with key={bill.id} so each bill starts with a clean form.
+ * Raises an adjustment against a received bill, as QuickBooks and Zoho Books name them:
+ * - a vendor credit picks a quantity of each line (net unit price kept, the line's VAT pro-rated);
+ *   the server caps all vendor credits at the bill total;
+ * - a supplementary bill takes the undercharged amount per line, with VAT at the line's own rate.
+ * Either is queued for KRA eTIMS against the bill's purchase when that purchase is already there.
+ * Mount it with key={bill.id + kind} so each opening starts with a clean form.
  */
-export function RaiseDebitNoteDialog({ tenant, bill, onClose, onRaised }: RaiseDebitNoteDialogProps) {
-  const create = useCreateBillDebitNote(tenant);
-  const [qty, setQty] = useState<Record<string, string>>({});
+export function BillAdjustmentDialog({ tenant, kind, bill, onClose, onRaised }: BillAdjustmentDialogProps) {
+  const create = useCreateBillAdjustment(tenant, kind);
+  const [input, setInput] = useState<Record<string, string>>({});
   const [reason, setReason] = useState('');
+  const copy = COPY[kind];
 
   const lines = useMemo(() => bill?.lines ?? [], [bill]);
   const picked = useMemo(
@@ -38,13 +60,22 @@ export function RaiseDebitNoteDialog({ tenant, bill, onClose, onRaised }: RaiseD
       lines
         .map((l) => {
           const lineQty = Number(l.quantity) || 1;
-          const q = Math.min(Math.max(Number(qty[l.id] ?? 0) || 0, 0), lineQty);
           const unit = Number(l.unit_price);
-          const tax = round2((Number(l.tax_amount) / lineQty) * q);
-          return { line: l, q, unit, tax, total: round2(unit * q + tax) };
+          const value = Math.max(Number(input[l.id] ?? 0) || 0, 0);
+          if (kind === 'vendor_credit') {
+            const q = Math.min(value, lineQty);
+            const tax = round2((Number(l.tax_amount) / lineQty) * q);
+            return { line: l, description: l.description, q, unit, tax, total: round2(unit * q + tax) };
+          }
+          // Supplementary: one line per undercharged line, VAT at that line's rate.
+          const base = unit * lineQty;
+          const rate = base > 0 ? Number(l.tax_amount) / base : 0;
+          const extra = round2(value);
+          const tax = round2(extra * rate);
+          return { line: l, description: `${l.description} (undercharge)`, q: extra > 0 ? 1 : 0, unit: extra, tax, total: round2(extra + tax) };
         })
         .filter((p) => p.q > 0),
-    [lines, qty],
+    [lines, input, kind],
   );
   const total = round2(picked.reduce((sum, p) => sum + p.total, 0));
 
@@ -60,7 +91,7 @@ export function RaiseDebitNoteDialog({ tenant, bill, onClose, onRaised }: RaiseD
         data: {
           reason: reason.trim() || undefined,
           lines: picked.map((p) => ({
-            description: p.line.description,
+            description: p.description,
             quantity: String(p.q),
             unit_price: String(p.unit),
             tax_amount: p.tax.toFixed(2),
@@ -68,8 +99,8 @@ export function RaiseDebitNoteDialog({ tenant, bill, onClose, onRaised }: RaiseD
         },
       },
       {
-        onSuccess: (note) => {
-          onRaised?.(note);
+        onSuccess: (doc) => {
+          onRaised?.(doc);
           onClose();
         },
       },
@@ -80,16 +111,13 @@ export function RaiseDebitNoteDialog({ tenant, bill, onClose, onRaised }: RaiseD
     <Dialog open={!!bill} onOpenChange={(o) => !o && close()}>
       {bill && (
         <DialogContent
-          title="Raise debit note"
+          title={copy.title}
           description={`Against ${bill.bill_number} · ${bill.vendor_name ?? ''} · ${formatCurrency(Number(bill.total_amount), bill.currency)}`}
           onClose={close}
           className="max-w-2xl"
         >
           <div className="space-y-4">
-            <p className="text-xs text-muted-foreground">
-              Enter how much of each line to debit (returned, overcharged or not delivered). The note reduces what
-              you owe this supplier and is applied first when you settle their bills.
-            </p>
+            <p className="text-xs text-muted-foreground">{copy.intro}</p>
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-accent/30 text-xs text-muted-foreground">
@@ -97,7 +125,7 @@ export function RaiseDebitNoteDialog({ tenant, bill, onClose, onRaised }: RaiseD
                     <th className="px-3 py-2 text-left font-semibold">Item</th>
                     <th className="px-3 py-2 text-right font-semibold">Billed qty</th>
                     <th className="px-3 py-2 text-right font-semibold">Unit price</th>
-                    <th className="px-3 py-2 text-right font-semibold w-28">Debit qty</th>
+                    <th className="px-3 py-2 text-right font-semibold w-32">{copy.column}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -110,13 +138,13 @@ export function RaiseDebitNoteDialog({ tenant, bill, onClose, onRaised }: RaiseD
                         <input
                           type="number"
                           min={0}
-                          max={Number(l.quantity) || 1}
+                          max={kind === 'vendor_credit' ? Number(l.quantity) || 1 : undefined}
                           step="any"
                           inputMode="decimal"
                           className={`${inputClass} text-right`}
-                          value={qty[l.id] ?? ''}
+                          value={input[l.id] ?? ''}
                           placeholder="0"
-                          onChange={(e) => setQty((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                          onChange={(e) => setInput((prev) => ({ ...prev, [l.id]: e.target.value }))}
                         />
                       </td>
                     </tr>
@@ -129,21 +157,27 @@ export function RaiseDebitNoteDialog({ tenant, bill, onClose, onRaised }: RaiseD
               <textarea
                 className={`${inputClass} min-h-[64px]`}
                 value={reason}
-                placeholder="e.g. 2 cartons returned damaged"
+                placeholder={copy.reasonHint}
                 onChange={(e) => setReason(e.target.value)}
               />
             </div>
             <div className="flex items-center justify-between gap-2 pt-1">
               <span className="text-sm">
-                Debit note total: <span className="font-bold tabular-nums">{formatCurrency(total, bill.currency)}</span>
+                {copy.total}: <span className="font-bold tabular-nums">{formatCurrency(total, bill.currency)}</span>
               </span>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={close} disabled={create.isPending}>
                   Cancel
                 </Button>
                 <Button onClick={submit} disabled={create.isPending || picked.length === 0}>
-                  {create.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileMinus className="h-4 w-4 mr-1" />}
-                  Raise debit note
+                  {create.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : kind === 'vendor_credit' ? (
+                    <FileMinus className="h-4 w-4 mr-1" />
+                  ) : (
+                    <FilePlus className="h-4 w-4 mr-1" />
+                  )}
+                  {copy.title}
                 </Button>
               </div>
             </div>

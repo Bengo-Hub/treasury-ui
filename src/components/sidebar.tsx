@@ -195,6 +195,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           feature: 'credit_notes',
         },
         {
+          // Debit notes we issue to customers (an undercharge on an invoice); supplier-side
+          // adjustments are Vendor Credits and Supplementary bills under Purchases.
+          section: 'Invoicing',
+          label: 'Debit Notes',
+          icon: FilePlus,
+          href: `/${orgSlug}/debit-notes`,
+          active: pathname.startsWith(`/${orgSlug}/debit-notes`),
+          feature: 'credit_notes',
+        },
+        {
           section: 'Invoicing',
           label: 'Delivery Notes',
           icon: Truck,
@@ -233,10 +243,11 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         },
         {
           section: 'Bills',
-          label: 'Debit Notes',
-          icon: FilePlus,
-          href: `/${orgSlug}/debit-notes`,
-          active: pathname.startsWith(`/${orgSlug}/debit-notes`),
+          label: 'Vendor Credits',
+          hint: 'Supplier credits and returns',
+          icon: FileMinus,
+          href: `/${orgSlug}/vendor-credits`,
+          active: pathname.startsWith(`/${orgSlug}/vendor-credits`),
           feature: 'ap_tracking',
         },
         {

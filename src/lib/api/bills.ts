@@ -96,6 +96,8 @@ export interface BillsParams {
   vendor_id?: string;
   /** Only live payables (received, approved, partial, overdue). */
   open?: boolean;
+  /** Bills (including supplementary bills) or vendor credits; omitted lists both. */
+  document_type?: 'bill' | 'credit_note';
   limit?: number;
   offset?: number;
   page?: number;
@@ -255,15 +257,22 @@ export function listBillPayments(tenantIdOrSlug: string, billId: string): Promis
   return apiClient.get<{ data: BillPayment[] }>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/payments`);
 }
 
-/** A debit note against a bill: lines are positive amounts in the bill's terms (net unit price,
- * tax per line); none means the whole bill. The server caps all debit notes at the bill total. */
-export interface BillDebitNoteRequest {
+/** An adjustment raised against a received bill: lines are positive amounts in the bill's terms
+ * (net unit price, tax per line). For a vendor credit none means the whole bill, and the server caps
+ * all vendor credits at the bill total; a supplementary bill needs at least one line. */
+export interface BillAdjustmentRequest {
   lines?: { description: string; quantity: string; unit_price: string; tax_amount: string }[];
   reason?: string;
 }
 
-export function createBillDebitNote(tenantIdOrSlug: string, billId: string, data: BillDebitNoteRequest): Promise<Bill> {
+/** Raises a vendor credit (what reduces the bill; its PDF is the Debit Note sent to the supplier). */
+export function createVendorCredit(tenantIdOrSlug: string, billId: string, data: BillAdjustmentRequest): Promise<Bill> {
   return apiClient.post<Bill>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/debit-note`, data);
+}
+
+/** Raises a supplementary bill (what the supplier undercharged, owed on top of the bill). */
+export function createSupplementaryBill(tenantIdOrSlug: string, billId: string, data: BillAdjustmentRequest): Promise<Bill> {
+  return apiClient.post<Bill>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/supplementary-bill`, data);
 }
 
 /** Voids an unpaid bill or supplier credit (reverses its journal and supplier balance). */
@@ -271,8 +280,16 @@ export function voidBill(tenantIdOrSlug: string, billId: string, reason?: string
   return apiClient.post<Bill>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/void`, { reason });
 }
 
-/** A supplier credit raised by us against a bill prints and lists as a Debit Note. */
-export const isDebitNote = (b: Bill): boolean => b.document_type === 'credit_note' && b.metadata?.kind === 'debit_note';
+/** A supplementary bill: adds to a bill what the supplier undercharged. */
+export const isSupplementaryBill = (b: Bill): boolean => b.document_type === 'bill' && b.metadata?.kind === 'supplementary_bill';
+
+/** The document's name in lists and dialogs, as QuickBooks / Zoho Books name them: every supplier
+ * credit is a Vendor credit (its PDF to the supplier is titled Debit Note when raised against a bill),
+ * an undercharge is a Supplementary bill, the rest are Bills. */
+export function billDocLabel(b: Bill): string {
+  if (b.document_type === 'credit_note') return b.metadata?.kind === 'purchase_return' ? 'Vendor credit (return)' : 'Vendor credit';
+  return isSupplementaryBill(b) ? 'Supplementary bill' : 'Bill';
+}
 
 export function voidBillPayment(tenantIdOrSlug: string, billId: string, paymentId: string, reason?: string): Promise<BillPayment> {
   return apiClient.delete<BillPayment>(`${BASE}/${tenantIdOrSlug}/ap/bills/${billId}/payments/${paymentId}`, { data: { reason } });

@@ -15,8 +15,8 @@ export type DocType =
   | 'payment_receipt'
   | 'subscription'
   | 'quotation'
-  // Accounts payable (vendor_bill rows): a supplier's bill, and a supplier credit (a debit note we
-  // raised against a bill, or a purchase-return credit), which is stored as a negative bill.
+  // Accounts payable (vendor_bill rows): a supplier's bill (including a supplementary bill), and a
+  // vendor credit (raised against a bill, or a purchase-return credit), stored as a negative bill.
   | 'vendor_bill'
   | 'vendor_credit';
 
@@ -49,7 +49,10 @@ export type ActionKey =
   | 'void'
   | 'cancel'
   | 'delete'
-  | 'transmit_etims';
+  | 'transmit_etims'
+  // Accounts payable adjustments against a received bill (QuickBooks / Zoho Books names).
+  | 'create_vendor_credit'
+  | 'create_supplementary_bill';
 
 export interface DocContext {
   status: string;
@@ -75,6 +78,9 @@ export interface DocContext {
   payable?: boolean;
   /** The tenant has an active eTIMS device, so a purchase can be transmitted. */
   etimsActive?: boolean;
+  /** An original bill, which can take a vendor credit or a supplementary bill (a supplementary
+   *  bill cannot: adjustments go against the original). */
+  adjustable?: boolean;
 }
 
 const isVoided = (s: string) => s === 'void' || s === 'cancelled';
@@ -188,15 +194,16 @@ export function allowedActions(docType: DocType, ctx: DocContext): ActionKey[] {
       if (ctx.payable) out.push('record_payment');
       if (paid) out.push('view_payments');
       if (ctx.etimsActive && !draft && !isVoided(ctx.status)) out.push('transmit_etims');
-      // A debit note reduces what is owed on a received bill; the server caps the total.
-      if (!draft && !isVoided(ctx.status)) out.push('create_debit_note');
-      // The server also refuses a bill already sent to eTIMS (raise a debit note instead).
+      // A vendor credit reduces what is owed on a received bill (the server caps it at the bill); a
+      // supplementary bill adds what the supplier undercharged. Both go against the original bill.
+      if (!draft && !isVoided(ctx.status) && ctx.adjustable !== false) out.push('create_vendor_credit', 'create_supplementary_bill');
+      // The server also refuses a bill already sent to eTIMS (raise a vendor credit instead).
       if (!isVoided(ctx.status) && !paid) out.push('void');
       break;
     }
     case 'vendor_credit': {
-      // A debit note or purchase-return credit note goes to KRA as a purchase credit note against
-      // the purchase it reverses; it is queued when raised, and sent here once that purchase lands.
+      // A vendor credit goes to KRA as a purchase credit note against the purchase it reduces; it is
+      // queued when raised, and sent here once that purchase lands.
       if (ctx.etimsActive && !isVoided(ctx.status)) out.push('transmit_etims');
       // An applied credit is undone through its bill's payments, not voided directly.
       if (!isVoided(ctx.status) && !((ctx.amountPaid ?? 0) > 0)) out.push('void');

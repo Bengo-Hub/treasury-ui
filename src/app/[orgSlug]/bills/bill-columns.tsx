@@ -6,7 +6,7 @@
 import { Badge } from '@/components/ui/base';
 import { RowActionMenu, type RowAction } from '@/components/ui/action-menu';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
-import { isDebitNote, type AgingRow, type Bill } from '@/lib/api/bills';
+import { billDocLabel, isSupplementaryBill, type AgingRow, type Bill } from '@/lib/api/bills';
 import type { DocContext, DocType } from '@/lib/documents/actions';
 import { formatCurrency } from '@/lib/utils/currency';
 
@@ -37,24 +37,23 @@ export const billDocContext = (b: Bill, etimsActive: boolean): DocContext => ({
   amountPaid: Number(b.amount_paid ?? 0),
   payable: isBillPayable(b),
   etimsActive,
+  adjustable: !isSupplementaryBill(b),
 });
 
 export function buildBillColumns(actions: RowAction<Bill>[]): DataTableColumn<Bill>[] {
   return [
     {
       key: 'bill_number',
-      header: 'Bill #',
+      header: 'Number',
       primary: true,
       sortable: true,
       accessor: (b) => b.bill_number,
       render: (b) => (
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs font-bold">{b.bill_number}</span>
-          {b.document_type === 'credit_note' ? (
-            <Badge variant="warning">{isDebitNote(b) ? 'Debit Note' : 'Credit Note'}</Badge>
-          ) : (
-            <Badge variant="outline">Bill</Badge>
-          )}
+          <Badge variant={b.document_type === 'credit_note' ? 'warning' : isSupplementaryBill(b) ? 'secondary' : 'outline'}>
+            {billDocLabel(b)}
+          </Badge>
         </div>
       ),
     },

@@ -10,8 +10,9 @@ import {
   voidBillPayment,
   voidVendorSettlement,
   voidBill,
-  createBillDebitNote,
-  type BillDebitNoteRequest,
+  createVendorCredit,
+  createSupplementaryBill,
+  type BillAdjustmentRequest,
   type BillsParams,
   type CreateBillRequest,
   type PayBillRequest,
@@ -124,16 +125,23 @@ export function useVoidBill(tenantIdOrSlug: string | undefined) {
   });
 }
 
-export function useCreateBillDebitNote(tenantIdOrSlug: string | undefined) {
+/** The two adjustments a received bill takes, by their QuickBooks / Zoho Books names. */
+export type BillAdjustmentKind = 'vendor_credit' | 'supplementary_bill';
+
+const adjustmentLabel: Record<BillAdjustmentKind, string> = { vendor_credit: 'Vendor credit', supplementary_bill: 'Supplementary bill' };
+
+/** Raises a vendor credit or a supplementary bill against a bill; each is queued for KRA eTIMS
+ * against the bill's purchase when that purchase is already there. */
+export function useCreateBillAdjustment(tenantIdOrSlug: string | undefined, kind: BillAdjustmentKind) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ billId, data }: { billId: string; data: BillDebitNoteRequest }) =>
-      createBillDebitNote(tenantIdOrSlug!, billId, data),
-    onSuccess: (n) => {
+    mutationFn: ({ billId, data }: { billId: string; data: BillAdjustmentRequest }) =>
+      (kind === 'vendor_credit' ? createVendorCredit : createSupplementaryBill)(tenantIdOrSlug!, billId, data),
+    onSuccess: (doc) => {
       invalidateVendorPaymentViews(qc, tenantIdOrSlug);
-      toast.success(`Debit note ${n.bill_number} raised`);
+      toast.success(`${adjustmentLabel[kind]} ${doc.bill_number} raised`);
     },
-    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to raise the debit note'),
+    onError: (err: any) => toast.error(err?.response?.data?.error || `Failed to raise the ${adjustmentLabel[kind].toLowerCase()}`),
   });
 }
 
