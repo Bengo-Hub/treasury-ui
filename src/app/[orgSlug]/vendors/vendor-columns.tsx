@@ -7,7 +7,7 @@
 import { Badge, Button } from '@/components/ui/base';
 import type { DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { formatCurrency } from '@/lib/utils/currency';
-import { CreditCard, FileText, HandCoins, Undo2, Wallet } from 'lucide-react';
+import { Archive, ArchiveRestore, CreditCard, FileText, HandCoins, Pencil, Undo2, Wallet } from 'lucide-react';
 
 export interface VendorSummary {
   /** Inventory supplier id (the vendor master); also the AP ledger's vendor_id. */
@@ -53,6 +53,9 @@ export interface VendorColumnCallbacks {
   onOpeningBalance: (v: VendorSummary) => void;
   onRefund: (v: VendorSummary) => void;
   onStatement: (v: VendorSummary) => void;
+  onEdit: (v: VendorSummary) => void;
+  onArchive: (v: VendorSummary) => void;
+  onRestore: (v: VendorSummary) => void;
 }
 
 export function buildVendorColumns(cb: VendorColumnCallbacks): DataTableColumn<VendorSummary>[] {
@@ -212,6 +215,45 @@ export function buildVendorColumns(cb: VendorColumnCallbacks): DataTableColumn<V
             <FileText className="h-3.5 w-3.5 mr-1" />
             Statement
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            title="Edit this vendor's details"
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              cb.onEdit(vendor);
+            }}
+          >
+            <Pencil className="h-3.5 w-3.5 mr-1" />
+            Edit
+          </Button>
+          {vendor.archived ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              title="Bring this vendor back to the active list and pickers"
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                cb.onRestore(vendor);
+              }}
+            >
+              <ArchiveRestore className="h-3.5 w-3.5 mr-1" />
+              Restore
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              title="Hide this vendor from lists and pickers; its bills and history are kept"
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                cb.onArchive(vendor);
+              }}
+            >
+              <Archive className="h-3.5 w-3.5 mr-1" />
+              Archive
+            </Button>
+          )}
         </div>
       ),
     },

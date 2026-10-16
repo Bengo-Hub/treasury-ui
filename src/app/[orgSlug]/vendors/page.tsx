@@ -5,7 +5,8 @@ import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { useOrgBranding } from '@/hooks/use-org-branding';
 import { useBills } from '@/hooks/use-bills';
 import { useAPSummary, useVendorBillStats } from '@/hooks/use-arpa';
-import { useVendors } from '@/hooks/use-inventory';
+import { useArchiveVendor, useRestoreVendor, useVendors } from '@/hooks/use-inventory';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { getBills, type Bill } from '@/lib/api/bills';
 import { getVendorBillStats, type VendorBillStats } from '@/lib/api/arpa';
@@ -75,6 +76,8 @@ export default function VendorsPage() {
   const [topTab, setTopTab] = useState<'all' | 'reports'>('all');
   // Add Vendor dialog; ?add=1 (the old /vendors/new route redirects here) opens it on arrival.
   const [addOpen, setAddOpen] = useState(searchParams?.get('add') === '1');
+  const [editVendorId, setEditVendorId] = useState<string | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<VendorSummary | null>(null);
   const [archivedTab, setArchivedTab] = useState<'active' | 'archived'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   const search = useDebouncedValue(searchQuery.trim(), 300);
@@ -162,6 +165,8 @@ export default function VendorsPage() {
     }
   };
 
+  const archiveVendor = useArchiveVendor(effectiveTenant);
+  const restoreVendor = useRestoreVendor(effectiveTenant);
   const vendorColumns = buildVendorColumns({
     onPay: (vendor) => {
       if (!loadingPayFor) void startPay(vendor);
@@ -176,6 +181,13 @@ export default function VendorsPage() {
     onOpeningBalance: (vendor) => setOpeningVendor({ id: vendor.vendorId, name: vendor.name }),
     onRefund: (vendor) => setRefundVendor({ id: vendor.vendorId, name: vendor.name }),
     onStatement: (vendor) => setStatementVendor({ id: vendor.vendorId, name: vendor.name }),
+    onEdit: (vendor) => setEditVendorId(vendor.vendorId),
+    onArchive: (vendor) => setArchiveTarget(vendor),
+    onRestore: (vendor) =>
+      restoreVendor.mutate(vendor.vendorId, {
+        onSuccess: () => toast.success(`${vendor.name} is active again`),
+        onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Could not restore the vendor.'),
+      }),
   });
 
   // CSV export of every vendor matching the current tab + search: pages through the master, then
@@ -535,6 +547,38 @@ export default function VendorsPage() {
         onClose={() => setAddOpen(false)}
         onCreated={() => setAddOpen(false)}
       />
+      <VendorFormDialog
+        open={!!editVendorId}
+        tenant={effectiveTenant}
+        vendorId={editVendorId}
+        description="Changes are saved to your supplier list, shared with Inventory and POS."
+        onClose={() => setEditVendorId(null)}
+        onCreated={() => setEditVendorId(null)}
+      />
+      {archiveTarget && (
+        <ConfirmDialog
+          open
+          onOpenChange={(o) => !o && setArchiveTarget(null)}
+          title={`Archive ${archiveTarget.name}?`}
+          description={
+            archiveTarget.outstanding > 0.009
+              ? `They still have ${formatCurrency(archiveTarget.outstanding, archiveTarget.currency)} in open bills, which stay payable. Archiving hides the vendor from lists and pickers; you can restore it from Archived Vendors.`
+              : 'Archiving hides the vendor from lists and pickers. Its bills and history are kept, and you can restore it from Archived Vendors.'
+          }
+          confirmLabel="Archive"
+          destructive
+          isPending={archiveVendor.isPending}
+          onConfirm={() =>
+            archiveVendor.mutate(archiveTarget.vendorId, {
+              onSuccess: () => {
+                toast.success(`${archiveTarget.name} archived`);
+                setArchiveTarget(null);
+              },
+              onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Could not archive the vendor.'),
+            })
+          }
+        />
+      )}
 
       <PayBillDialog
         tenant={effectiveTenant}

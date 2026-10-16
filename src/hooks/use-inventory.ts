@@ -3,10 +3,15 @@
 import { useCallback } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ComboboxOption } from '@bengo-hub/shared-ui-lib/combobox';
+import type { SupplierFormValues } from '@bengo-hub/shared-ui-lib/suppliers';
 import {
+  archiveVendor,
   createInventoryCategory,
   createInventoryUnit,
   createVendor,
+  getSupplierRecord,
+  restoreVendor,
+  updateVendor,
   getInventoryItem,
   getVendor,
   listCarriers,
@@ -17,7 +22,6 @@ import {
   searchInventoryItems,
   type CreateInventoryCategoryRequest,
   type CreateInventoryUnitRequest,
-  type CreateVendorRequest,
   type ListVendorsParams,
   type SearchItemsParams,
   type Vendor,
@@ -168,11 +172,47 @@ export function useSelectedVendor(tenant: string, vendorId: string, prefetched?:
 export function useCreateVendor(tenant: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: CreateVendorRequest) => createVendor(tenant, data),
+    mutationFn: ({ values, country }: { values: SupplierFormValues; country: string }) => createVendor(tenant, values, country),
     onSuccess: (vendor) => {
       // Seed the by-id cache so a form that selects the new vendor reads it without a refetch.
       queryClient.setQueryData(inventoryKeys.vendor(tenant, vendor.id), vendor);
       queryClient.invalidateQueries({ queryKey: ['inventory', tenant, 'vendors'] });
     },
   });
+}
+
+/** The stored supplier record (every field), for the edit form. */
+export function useSupplierRecord(tenant: string, vendorId: string | null) {
+  return useQuery({
+    queryKey: ['inventory', tenant, 'supplier-record', vendorId],
+    queryFn: () => getSupplierRecord(tenant, vendorId as string),
+    enabled: !!tenant && !!vendorId,
+    staleTime: 0,
+  });
+}
+
+function useVendorMutation<TArgs>(tenant: string, fn: (args: TArgs) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory', tenant, 'vendors'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory', tenant, 'vendor'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory', tenant, 'supplier-record'] });
+    },
+  });
+}
+
+export function useUpdateVendor(tenant: string) {
+  return useVendorMutation(tenant, ({ id, values, country }: { id: string; values: SupplierFormValues; country: string }) =>
+    updateVendor(tenant, id, values, country),
+  );
+}
+
+export function useArchiveVendor(tenant: string) {
+  return useVendorMutation(tenant, (id: string) => archiveVendor(tenant, id));
+}
+
+export function useRestoreVendor(tenant: string) {
+  return useVendorMutation(tenant, (id: string) => restoreVendor(tenant, id));
 }

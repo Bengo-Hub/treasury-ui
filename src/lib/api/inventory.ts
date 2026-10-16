@@ -387,22 +387,6 @@ export interface ListVendorsParams {
   offset?: number;
 }
 
-export interface CreateVendorRequest {
-  business_name: string;
-  country: string;
-  industry?: string;
-  city?: string;
-  email?: string;
-  phone?: string;
-  website?: string;
-  notes?: string;
-  logo_url?: string;
-  tax_info?: VendorTaxInfo;
-  address?: VendorAddress;
-  bank_details?: VendorBankDetails;
-  account_details?: VendorAccountDetails;
-  linked_contact_ids?: string[];
-}
 
 // The vendor master is inventory-api's flat `Supplier` resource, proxied by
 // treasury-api at /{tenant}/inventory/suppliers. The UI keeps the richer nested
@@ -480,33 +464,6 @@ function supplierToVendor(s: SupplierDTO): Vendor {
   };
 }
 
-function vendorToSupplierPayload(v: CreateVendorRequest): Record<string, unknown> {
-  return {
-    name: v.business_name,
-    country: v.country,
-    industry: v.industry,
-    city: v.city,
-    email: v.email,
-    phone: v.phone,
-    website: v.website,
-    notes: v.notes,
-    logo_url: v.logo_url,
-    tax_pin: v.tax_info?.tax_id,
-    vat_number: v.tax_info?.vat_number,
-    address_line1: v.address?.line1,
-    address_line2: v.address?.line2,
-    address_state: v.address?.state,
-    address_postal_code: v.address?.postal_code,
-    bank_name: v.bank_details?.bank_name,
-    bank_account_name: v.bank_details?.account_name,
-    bank_account_number: v.bank_details?.account_number,
-    bank_branch: v.bank_details?.branch,
-    swift_bic: v.bank_details?.swift_bic,
-    currency: v.account_details?.currency,
-    payment_terms_days: v.account_details?.payment_terms_days,
-  };
-}
-
 export async function listVendors(tenant: string, params?: ListVendorsParams): Promise<VendorsResponse> {
   // inventory-api list is a paginated envelope: { data, total, ... } and takes
   // `search` (name, contact, email, phone, KRA PIN) and `status`.
@@ -528,46 +485,103 @@ export async function getVendor(tenant: string, vendorId: string): Promise<Vendo
   return supplierToVendor(s);
 }
 
-export async function createVendor(tenant: string, data: CreateVendorRequest): Promise<Vendor> {
-  const s = await apiClient.post<SupplierDTO>(
-    `${BASE}/${tenant}/inventory/suppliers`,
-    vendorToSupplierPayload(data),
-  );
-  return supplierToVendor(s);
-}
-
 /** The vendor's KRA PIN (inventory-api `tax_pin`, mapped to tax_info.tax_id). */
 export function vendorKraPin(v?: Pick<Vendor, 'tax_info'> | null): string {
   return v?.tax_info?.tax_id?.trim() ?? '';
 }
 
 /**
- * Maps the shared SupplierForm payload onto CreateVendorRequest. One mapper for every place a
- * vendor is created in treasury-ui (the Add Vendor page and the inline vendor dialog), so the
- * captured fields, including the KRA PIN, never drift between them.
+ * Maps the shared SupplierForm onto inventory-api's flat supplier fields (the form's names are the
+ * supplier master's own). One mapper for create and edit, so every field the form captures, the
+ * KRA PIN and payment settings included, reaches the master. Cleared text fields are sent empty so
+ * an edit can blank them; an empty payment method is left out (the API keeps the stored one).
  */
-export function supplierFormToVendorRequest(v: SupplierFormValues, country: string): CreateVendorRequest {
-  const payload: CreateVendorRequest = {
-    business_name: v.name.trim(),
-    country: country.trim() || 'Kenya',
+export function supplierFormToPayload(v: SupplierFormValues, country: string): Record<string, unknown> {
+  const t = (s?: string) => (s ?? '').trim();
+  const payload: Record<string, unknown> = {
+    name: t(v.name),
+    country: t(country) || 'Kenya',
+    contact_person: t(v.contact_person),
+    email: t(v.email),
+    phone: t(v.phone),
+    address_line1: t(v.address),
+    tax_pin: t(v.tax_pin || v.tax_number).toUpperCase(),
+    notes: t(v.notes),
+    mpesa_phone: t(v.mpesa_phone),
+    mpesa_business_name: t(v.mpesa_business_name),
+    bank_account_number: t(v.bank_account_number),
+    bank_name: t(v.bank_name),
+    bank_branch: t(v.bank_branch),
+    auto_pay_enabled: !!v.auto_pay_enabled,
+    requires_invoice_before_payment: !!v.requires_invoice_before_payment,
+    payment_terms_days: v.payment_terms_days ?? 0,
   };
-  if (v.phone?.trim()) payload.phone = v.phone.trim();
-  if (v.email?.trim()) payload.email = v.email.trim();
-  if (v.notes?.trim()) payload.notes = v.notes.trim();
-
-  const pin = (v.tax_pin || v.tax_number || '').trim().toUpperCase();
-  if (pin) payload.tax_info = { tax_id: pin };
-
-  if (v.address?.trim()) payload.address = { line1: v.address.trim() };
-
-  const bank: NonNullable<CreateVendorRequest['bank_details']> = {};
-  if (v.bank_name?.trim()) bank.bank_name = v.bank_name.trim();
-  if (v.bank_account_number?.trim()) bank.account_number = v.bank_account_number.trim();
-  if (v.bank_branch?.trim()) bank.branch = v.bank_branch.trim();
-  if (Object.keys(bank).length) payload.bank_details = bank;
-
-  if (v.payment_terms_days != null) {
-    payload.account_details = { payment_terms_days: v.payment_terms_days };
-  }
+  if (v.payment_method_type) payload.payment_method_type = v.payment_method_type;
+  if (v.credit_limit != null && v.credit_limit > 0) payload.credit_limit = v.credit_limit;
   return payload;
+}
+
+/** Creates a supplier in the inventory master from the shared form. */
+export async function createVendor(tenant: string, values: SupplierFormValues, country: string): Promise<Vendor> {
+  const s = await apiClient.post<SupplierDTO>(`${BASE}/${tenant}/inventory/suppliers`, supplierFormToPayload(values, country));
+  return supplierToVendor(s);
+}
+
+/** The stored supplier exactly as inventory-api returns it (every field, for edits). */
+export function getSupplierRecord(tenant: string, vendorId: string): Promise<Record<string, unknown>> {
+  return apiClient.get<Record<string, unknown>>(`${BASE}/${tenant}/inventory/suppliers/${vendorId}`);
+}
+
+/** Seeds the shared form (edit mode) from a stored supplier, plus its country. */
+export function supplierRecordToForm(r: Record<string, unknown>): { values: Partial<SupplierFormValues>; country: string } {
+  const s = (k: string) => (typeof r[k] === 'string' ? (r[k] as string) : '');
+  const n = (k: string) => (typeof r[k] === 'number' ? (r[k] as number) : undefined);
+  return {
+    country: s('country') || 'Kenya',
+    values: {
+      name: s('name'),
+      contact_person: s('contact_person'),
+      email: s('email'),
+      phone: s('phone'),
+      address: s('address_line1') || s('address'),
+      tax_pin: s('tax_pin'),
+      notes: s('notes'),
+      payment_method_type: (s('payment_method_type') || undefined) as SupplierFormValues['payment_method_type'],
+      mpesa_phone: s('mpesa_phone'),
+      mpesa_business_name: s('mpesa_business_name'),
+      bank_account_number: s('bank_account_number'),
+      bank_name: s('bank_name'),
+      bank_branch: s('bank_branch'),
+      auto_pay_enabled: r.auto_pay_enabled === true,
+      requires_invoice_before_payment: r.requires_invoice_before_payment === true,
+      payment_terms_days: n('payment_terms_days'),
+      credit_limit: n('credit_limit'),
+    },
+  };
+}
+
+/**
+ * Saves an edit. inventory-api's update replaces every supplier field, so the edit starts from the
+ * stored record and overlays only what the form manages; city, website, SWIFT code, currency and
+ * the rest are sent back unchanged instead of being wiped.
+ */
+export async function updateVendor(tenant: string, vendorId: string, values: SupplierFormValues, country: string): Promise<Vendor> {
+  const current = await getSupplierRecord(tenant, vendorId);
+  const s = await apiClient.put<SupplierDTO>(`${BASE}/${tenant}/inventory/suppliers/${vendorId}`, {
+    ...current,
+    ...supplierFormToPayload(values, country),
+  });
+  return supplierToVendor(s);
+}
+
+/** Archives a vendor (kept for its bills and history; hidden from pickers). */
+export function archiveVendor(tenant: string, vendorId: string): Promise<unknown> {
+  return apiClient.delete(`${BASE}/${tenant}/inventory/suppliers/${vendorId}`);
+}
+
+/** Restores an archived vendor, leaving every other field as stored. */
+export async function restoreVendor(tenant: string, vendorId: string): Promise<Vendor> {
+  const current = await getSupplierRecord(tenant, vendorId);
+  const s = await apiClient.put<SupplierDTO>(`${BASE}/${tenant}/inventory/suppliers/${vendorId}`, { ...current, is_active: true });
+  return supplierToVendor(s);
 }
