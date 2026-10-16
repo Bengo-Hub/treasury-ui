@@ -1,22 +1,20 @@
 # Treasury UI Backlog
 
-**Last updated:** 2026-09-27. Built by checking every open item in `docs/plan.md`, `docs/sprints/*.md`, `docs/INTEGRATIONS.md` and `docs/mvp-critical-path.md` against the code. Each item names the doc it came from. Items marked **In progress (plan budgets-planning-projects-bi-2026-09-27)** are being built now under `.claude/plans/budgets-planning-projects-bi-2026-09-27.md`; do not start them separately. Backend gaps live in `finance-service/treasury-api/docs/backlog.md`.
+**Last updated:** 2026-10-16. Built by checking every open item in `docs/plan.md`, `docs/sprints/*.md`, `docs/INTEGRATIONS.md` and `docs/mvp-critical-path.md` against the code. Each item names the doc it came from. Commit hashes are the ones after the 2026-10-14 history rewrite. Backend gaps live in `finance-service/treasury-api/docs/backlog.md`.
 
 ## Budgets, planning and BI
 
-All In progress (plan budgets-planning-projects-bi-2026-09-27):
+Done (plan budgets-planning-projects-bi-2026-09-27, verified 2026-10-16); the workflow is in `finance-service/treasury-api/docs/budgets-and-planning.md`:
 
-- Sidebar and page gating (decided 2026-09-27): Budgets gate on the feature `budgeting`, Planning on `financial_planning` and BI reports on `bi_reports`, plus the matching `treasury.budgets.*` and `treasury.planning.*` permissions. Source: the plan's Progress section.
+- Gating: Budgets on `budgeting`, Planning on `financial_planning`, BI on `bi_reports`, with the `treasury.budgets.*` and `treasury.planning.*` permissions.
+- Budgets list, builder (accounts, cost centres, months, spread evenly or like last year, templates, control and alert settings, cost-centre hint), detail (lifecycle actions, variance chart and table, drill-down from an actual to its ledger lines, version history, sub-budgets, open commitments, PDF/XLSX/CSV export), edit and delete of drafts. Commits `9244630`, `9a58a54`, `4ecffe2`, `52f1c80`, `dadfc43`.
+- Planning: 13-week cash forecast with tax payments, saved scenarios, rolling forecast, tax calendar. Commits `9244630`, `cc4b15e`, `a8a6152`, `1145d32`.
+- BI: Profitability by cost centre or project (outlet filter, export) and Budget Health. The other planned reports (trends, margins, working capital, burn, runway) are in Business Insights rather than a separate shell.
+- Project and cost-centre pickers on expense, bill and invoice forms; over-budget dialog with approver override on expenses and bills (inventory-ui handles purchase orders). Commits `9a58a54`, `aa1d371`.
 
-- Budgets page has no edit or delete, and treasury-api has no update or delete route. Source: sprint-mvp-launch.md (was wrongly ticked as full CRUD).
-- Budget form never sends `account_id`, `cost_center_id` or `project_id`, so every UI-created budget shows 0 actuals; the account picker imports in `budgets/page.tsx` are dead code. Source: sprint-mvp-launch.md.
-- Missing badge variants for `submitted` and `rejected` budgets. Source: budgets plan Phase 0.
-- Budget builder grid (accounts by months), spread tools, control and alert settings, versions and approval timeline. Source: budgets plan Phase 6.
-- Budget detail with variance chart, drill-down to ledger lines and export. Source: budgets plan Phase 6.
-- Planning section: 13-week cash forecast, rolling forecast, scenarios. Source: budgets plan Phase 6.
-- BI section with nine reports on a shared `ReportShell`. Source: budgets plan Phase 6.
-- Project and cost center pickers on expense, bill and invoice forms. Source: budgets plan Phase 2.
-- Over-budget warn and stop banners on expense, bill and PO flows. Source: budgets plan Phase 6.
+## Vendors
+
+Done 2026-10-16: Edit, Archive and Restore on the vendors list (`45b33db`, needs inventory-api `ec37463`); adding a vendor keeps the M-Pesa and other payment settings; a warning when a vendor matches the business's own name or KRA PIN (`e7524e1`). Create Expenditure now walks through approval and payment (`65b4aab`).
 
 ## Documents
 
