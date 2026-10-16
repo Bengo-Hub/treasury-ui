@@ -14,6 +14,7 @@ import {
   Banknote,
   Bell,
   CalendarRange,
+  Columns3,
   CreditCard,
   FileDigit,
   Globe,
@@ -210,6 +211,26 @@ function SettingsView() {
                       <p className="font-semibold text-sm">Document Numbering</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Configure prefixes, separators, date formats and reset rules for invoices, receipts, quotations and all other document types.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0 ml-4">Configure →</span>
+                </CardContent>
+              </Card>
+            </Link>
+
+            {/* Document Presentation shortcut */}
+            <Link href={`/${orgSlug}/settings/document-presentation`}>
+              <Card className="cursor-pointer hover:border-primary/50 transition-colors">
+                <CardContent className="p-5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Columns3 className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">Document Presentation</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Number format, decimals and which line columns show, in what order, on each document type.
                       </p>
                     </div>
                   </div>

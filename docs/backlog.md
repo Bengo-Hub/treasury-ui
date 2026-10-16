@@ -18,12 +18,18 @@ Done 2026-10-16: Edit, Archive and Restore on the vendors list (`45b33db`, needs
 
 ## Documents
 
+Done 2026-10-16:
+
+- Per-line sales ledger on invoices, notes, proformas and sales orders (`188a1ce`, needs treasury-api `de109968`). Source: sprint-2 Phase 4.
+- Number format and line columns. Settings > Document Presentation sets the default per document type (number style, decimals, which columns show and their order, with a live sample row), saved in the tenant setting `documents.presentation`. The document form's Layout section can give one document its own layout (`metadata.presentation`). Needs treasury-api `aa130f8b`. Code: `src/lib/documents/presentation.ts`, `src/components/documents/PresentationEditor.tsx`. Source: sprint-2 Phase 1.
+- Convert to sales order through ordering-backend: closed. The user decided sales orders stay in treasury. Source: sprint-2 Phase 4.
+
+Open:
+
 - Shared public page shell for `/q/[token]` and `/i/[token]`. Source: sprint-2-financial-docs-platform.md Phase 1 and 2.
-- Number and currency format modal; show and hide columns modal with reordering. Source: sprint-2 Phase 1.
-- Dates, signature and advanced options sections in the document form. Source: sprint-2 Phase 1.
+- Signature (upload or draw) and a configurable second date on documents. Source: sprint-2 Phase 1.
 - Config-file system for document types (was replaced by props; only needed if the props approach becomes unwieldy). Source: sprint-2 Phase 1.
-- Per-line "Select Sales Ledger" on the invoice form. Source: sprint-2 Phase 4.
-- Convert to sales order through ordering-backend (needs the treasury-api call first). Source: sprint-2 Phase 4.
+- The form's Layout preview shows the tenant default only to users with `treasury.config.view`; others see a note instead (the PDF still uses the default).
 
 ## Payments
 

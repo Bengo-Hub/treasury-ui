@@ -24,6 +24,8 @@ import { TotalsSection, type AdditionalCharge } from './sections/TotalsSection';
 import { ShippingTransportSection, type TransportDetails } from './sections/ShippingTransportSection';
 import { CurrencySection } from './sections/CurrencySection';
 import { TermsNotesSection } from './sections/TermsNotesSection';
+import { PresentationSection } from './sections/PresentationSection';
+import { applyPresentationToMetadata, presentationFromMetadata, type Presentation } from '@/lib/documents/presentation';
 import { CreateItemModal } from './CreateItemModal';
 import { CreateClientModal } from './CreateClientModal';
 import { BankDetailsPicker, type BankDetailsSnapshot } from './BankDetailsPicker';
@@ -277,6 +279,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   // was always shown) but now user-controllable and pickable per document.
   const [includeBankDetails, setIncludeBankDetails] = useState(true);
   const [bankDetails, setBankDetails] = useState<BankDetailsSnapshot | null>(null);
+  // This document's own layout (metadata.presentation); null prints the tenant's layout.
+  const [ownLayout, setOwnLayout] = useState<Presentation | null>(null);
 
   useEffect(() => {
     if (!isEdit || !existing || initialized) return;
@@ -318,6 +322,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       setBankDetails(savedBank.account_id ? savedBank : { ...savedBank, account_id: settlementAccountId });
     }
     setPersonal(personalFromMetadata(existing.metadata as Record<string, unknown> | undefined));
+    setOwnLayout(presentationFromMetadata(existing.metadata as Record<string, unknown> | undefined));
 
     const srcLines = existing.lines ?? [];
     setLines(srcLines.map(l => ({
@@ -508,6 +513,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     // server ignores it unless the platform owner raises it on the platform tenant.
     const isPersonal = canBePersonal && personal.personal;
     if (canBePersonal) applyPersonalToMetadata(mergedMeta, { personal: isPersonal });
+    applyPresentationToMetadata(mergedMeta, ownLayout);
     const metadata = Object.keys(mergedMeta).length ? mergedMeta : undefined;
 
     // Originating outlet: prefer the header-selected branch; on edit fall back to the
@@ -840,6 +846,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
             onChange={setBankDetails}
             personal={canBePersonal && personal.personal}
           />
+
+          <PresentationSection tenant={effectiveTenant} docType={docType} value={ownLayout} onChange={setOwnLayout} />
 
           {/* Totals + Terms */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
