@@ -2,6 +2,7 @@
 
 import { Button, Card, CardContent, CardHeader } from '@/components/ui/base';
 import { PresentationEditor } from '@/components/documents/PresentationEditor';
+import { SignatureCard } from '@/components/documents/SignatureCard';
 import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { getSettingValue, useSettings, useUpdateSetting } from '@/hooks/use-settings';
 import {
@@ -69,8 +70,8 @@ export default function DocumentPresentationPage() {
         <div>
           <h1 className="text-2xl font-semibold">Document Presentation</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            How amounts print and which line columns show on each document type, in PDFs and in CSV and
-            Excel exports. A single document can still use its own layout from its form.
+            The signature, how amounts print and which line columns show on each document type, in PDFs
+            and in CSV and Excel exports. A single document can still use its own layout from its form.
           </p>
         </div>
         <Button onClick={save} disabled={!dirty || update.isPending}>
@@ -78,6 +79,8 @@ export default function DocumentPresentationPage() {
           Save
         </Button>
       </div>
+
+      <SignatureCard tenant={tenant} docTypes={DOC_TYPES} />
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

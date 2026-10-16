@@ -97,6 +97,37 @@ export function updateInventoryPolicy(tenantSlug: string, body: InventoryPolicy)
   return apiClient.put<InventoryPolicy>(`${BASE}/${tenantSlug}/settings/inventory-policy`, body);
 }
 
+/** The tenant's authorised signature printed above the Prepared By line on documents. */
+export interface DocumentSignature {
+  configured: boolean;
+  /** Replaces the Prepared By name when set. */
+  name?: string;
+  /** Document types it prints on; empty means every document. */
+  doc_types: string[];
+  /** Short-lived link to the stored image, for previews. */
+  image_url?: string;
+}
+
+export function getDocumentSignature(tenantSlug: string): Promise<DocumentSignature> {
+  return apiClient.get<DocumentSignature>(`${BASE}/${tenantSlug}/settings/document-signature`);
+}
+
+/** Saves the name and document types, and the image when one is given (needed the first time). */
+export function saveDocumentSignature(
+  tenantSlug: string,
+  body: { name: string; doc_types: string[]; image?: Blob },
+): Promise<DocumentSignature> {
+  const form = new FormData();
+  form.append('name', body.name);
+  form.append('doc_types', body.doc_types.join(','));
+  if (body.image) form.append('file', body.image, 'signature.png');
+  return apiClient.put<DocumentSignature>(`${BASE}/${tenantSlug}/settings/document-signature`, form);
+}
+
+export function deleteDocumentSignature(tenantSlug: string): Promise<DocumentSignature> {
+  return apiClient.delete<DocumentSignature>(`${BASE}/${tenantSlug}/settings/document-signature`);
+}
+
 // ── Fiscal Year-End Close ───────────────────────────────────────────────────────
 
 /** One proposed (or posted) journal line of the close. Amounts are pre-formatted strings. */

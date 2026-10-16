@@ -281,6 +281,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
   const [bankDetails, setBankDetails] = useState<BankDetailsSnapshot | null>(null);
   // This document's own layout (metadata.presentation); null prints the tenant's layout.
   const [ownLayout, setOwnLayout] = useState<Presentation | null>(null);
+  // An optional further date the user labels (Delivery Date, PO Date, ...): metadata.extra_date.
+  const [extraDate, setExtraDate] = useState({ label: '', date: '' });
 
   useEffect(() => {
     if (!isEdit || !existing || initialized) return;
@@ -323,6 +325,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     }
     setPersonal(personalFromMetadata(existing.metadata as Record<string, unknown> | undefined));
     setOwnLayout(presentationFromMetadata(existing.metadata as Record<string, unknown> | undefined));
+    const savedExtra = existing.metadata?.extra_date as { label?: string; date?: string } | undefined;
+    setExtraDate({ label: savedExtra?.label ?? '', date: savedExtra?.date?.slice(0, 10) ?? '' });
 
     const srcLines = existing.lines ?? [];
     setLines(srcLines.map(l => ({
@@ -514,6 +518,11 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
     const isPersonal = canBePersonal && personal.personal;
     if (canBePersonal) applyPersonalToMetadata(mergedMeta, { personal: isPersonal });
     applyPresentationToMetadata(mergedMeta, ownLayout);
+    if (extraDate.label.trim() && extraDate.date) {
+      mergedMeta.extra_date = { label: extraDate.label.trim(), date: extraDate.date };
+    } else {
+      delete mergedMeta.extra_date;
+    }
     const metadata = Object.keys(mergedMeta).length ? mergedMeta : undefined;
 
     // Originating outlet: prefer the header-selected branch; on edit fall back to the
@@ -774,6 +783,30 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
               className="w-full rounded-lg py-2 px-3 text-xs border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
             <p className="text-[10px] text-muted-foreground">Appears as the “Reference” row on the document — for tender, contract or purchase-order numbers.</p>
+          </div>
+
+          {/* Optional extra date with its own label, printed in the document's details box. */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-foreground">Extra Date Label</label>
+              <input
+                value={extraDate.label}
+                maxLength={40}
+                onChange={e => setExtraDate(p => ({ ...p, label: e.target.value }))}
+                placeholder="e.g. Delivery Date, PO Date"
+                className="w-full rounded-lg py-2 px-3 text-xs border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-foreground">Extra Date</label>
+              <input
+                type="date"
+                value={extraDate.date}
+                onChange={e => setExtraDate(p => ({ ...p, date: e.target.value }))}
+                className="w-full rounded-lg py-2 px-3 text-xs border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground sm:col-span-2">Optional. Printed with its label when both are filled.</p>
           </div>
 
           {/* Budget dimensions: invoiced revenue counts toward the project and cost centre. */}

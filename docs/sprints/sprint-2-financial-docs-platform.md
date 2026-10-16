@@ -74,10 +74,10 @@ Create `src/components/documents/` structure:
 - [x] `sections/LineItemsSection.tsx`: line items table + product catalog combobox per row
 - [x] `sections/TotalsSection.tsx`: Amount, TAX, Add Discounts (Total/Item-wise, Divide Equally/Weighted), Add Additional Charges (With/Without Tax), Summarise Total Qty
 - [ ] `sections/PartiesSection.tsx`: configurable From/For labels + CRM contact combobox. Not a separate section; parties are picked inside the create views with `CreateClientModal`.
-- [ ] `sections/DatesSection.tsx` — primary + optional secondary date pickers with configurable labels
+- [x] `sections/DatesSection.tsx`: an optional labelled Extra Date in the create form (`metadata.extra_date`), 2026-10-16
 - [x] `sections/TransportSection.tsx`: Transporter, Distance, Mode, Doc No/Date, Vehicle Type/Number
 - [x] `sections/ShippingSection.tsx`: shipped as `ShippingTransportSection.tsx`
-- [ ] `sections/SignatureSection.tsx` — Upload + Use Signature Pad + label
+- [x] `sections/SignatureSection.tsx`: built as `SignatureCard.tsx` (upload or draw, tenant level by user decision), 2026-10-16
 - [x] `sections/TermsSection.tsx`: shipped as `TermsNotesSection.tsx`
 - [x] `sections/NotesSection.tsx`: part of `TermsNotesSection.tsx`
 - [x] `sections/AdvancedOptionsSection.tsx`: the SKU and Unit columns are toggles in `sections/PresentationSection.tsx` (2026-10-16). Serial numbers are not stored on lines.
