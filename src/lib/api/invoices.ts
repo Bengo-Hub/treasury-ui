@@ -27,6 +27,8 @@ export interface LineRequest {
   /** Progress/milestone billing: bill this % of qty×rate (0<pct<100). Transient — the backend
    *  folds it into the billed line total; not stored as its own field. */
   completion_percent?: number;
+  /** Revenue account the line is sold to (sales ledger). Omitted uses the document's default. */
+  ledger_account_id?: string;
 }
 
 /** One labeled extra charge on an invoice's "Additional Charges" block, sent in a create/update
@@ -65,6 +67,8 @@ export interface InvoiceLine {
   discount_amount: string;
   line_total: string;
   sort_order: number;
+  /** Revenue account the line is sold to (sales ledger), when one was chosen. */
+  ledger_account_id?: string;
 }
 
 export interface Invoice {

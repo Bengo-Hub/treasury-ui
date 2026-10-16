@@ -6,6 +6,7 @@ import { SearchableCombobox, type ComboboxOption } from '@bengo-hub/shared-ui-li
 import { useInventoryItems } from '@/hooks/use-inventory';
 import { itemTypeKind, type InventoryItem } from '@/lib/api/inventory';
 import { useTaxCodes } from '@/hooks/use-tax';
+import { useAccounts } from '@/hooks/use-accounts';
 import type { TaxCode } from '@/lib/api/tax';
 import { MarginPanel } from '../MarginPanel';
 
@@ -32,6 +33,8 @@ export interface LineRow {
    *  Especially useful for SERVICE items (e.g. "40% of the contract amount"). Sent to the
    *  backend as completion_percent (transient) which folds it into the billed line total. */
   completion_percent?: number;
+  /** Revenue account this line is sold to ("sales ledger"); unset uses the document's default. */
+  ledger_account_id?: string;
 }
 
 /**
@@ -279,12 +282,37 @@ interface LineItemsSectionProps {
   onChange: (lines: LineRow[]) => void;
   currency?: string;
   onRequestCreateItem?: (query: string, lineIndex: number) => void;
+  /** Show the per-line sales ledger picker (documents whose issuance posts revenue). */
+  showSalesLedger?: boolean;
 }
 
-export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', onRequestCreateItem }: LineItemsSectionProps) {
+export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', onRequestCreateItem, showSalesLedger = false }: LineItemsSectionProps) {
   const updateLine = useCallback((idx: number, patch: Partial<LineRow>) => {
     onChange(lines.map((l, i) => i === idx ? { ...l, ...patch } : l));
   }, [lines, onChange]);
+
+  // Revenue accounts for the per-line sales ledger (blank = the document's default revenue account).
+  const { data: accountsData } = useAccounts(showSalesLedger ? tenant : '');
+  const ledgerOptions: ComboboxOption[] = useMemo(
+    () =>
+      (accountsData?.accounts ?? [])
+        .filter(a => a.account_type === 'revenue' && a.is_active !== false)
+        .map(a => ({ value: a.id, label: `${a.account_code} ${a.account_name}` })),
+    [accountsData],
+  );
+  const ledgerPicker = (idx: number, line: LineRow, compact: boolean) =>
+    showSalesLedger ? (
+      <SearchableCombobox
+        options={ledgerOptions}
+        value={line.ledger_account_id ?? ''}
+        onChange={v => updateLine(idx, { ledger_account_id: v || undefined })}
+        placeholder="Default sales ledger"
+        searchPlaceholder="Search revenue accounts"
+        emptyText="No revenue accounts"
+        clearable
+        className={compact ? 'min-w-44 text-[10px]' : ''}
+      />
+    ) : null;
 
   const { data: taxCodesData } = useTaxCodes(tenant);
   const activeTaxCodes = useMemo(
@@ -399,6 +427,12 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
                       Billing {line.completion_percent}% of {currency} {fmt(line.quantity * line.unit_price)}
                     </span>
                   )}
+                  {showSalesLedger && (
+                    <label className="flex items-center gap-1 text-[10px] text-muted-foreground" title="Revenue account this line is sold to. Blank uses the default.">
+                      <span className="font-bold">Sales ledger</span>
+                      {ledgerPicker(idx, line, true)}
+                    </label>
+                  )}
                 </div>
               </div>
               <div className="col-span-1 pt-5">
@@ -495,6 +529,13 @@ export function LineItemsSection({ tenant, lines, onChange, currency = 'KES', on
             </div>
 
             {line.unit && <div className="text-[11px] text-muted-foreground">Unit: {line.unit}</div>}
+
+            {showSalesLedger && (
+              <div className="space-y-1">
+                <span className="text-[11px] font-bold text-muted-foreground">Sales ledger</span>
+                {ledgerPicker(idx, line, false)}
+              </div>
+            )}
 
             <div className="flex items-center justify-between pt-2 border-t border-border/60">
               <span className="text-xs text-muted-foreground">

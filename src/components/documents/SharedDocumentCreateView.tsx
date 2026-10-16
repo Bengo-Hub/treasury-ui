@@ -155,6 +155,9 @@ export const DOC_CONFIGS: Record<string, DocTypeConfig> = {
 
 /** Document types that can be the platform owner's personal (off-books) engagement. */
 const PERSONAL_DOC_TYPES = new Set(['standard', 'quotation', 'proforma_invoice', 'sales_order']);
+// Documents whose lines carry a sales ledger: the ones that post revenue on issue (standard,
+// debit and credit notes) and the ones that become invoices (proforma, sales order).
+const SALES_LEDGER_DOC_TYPES = new Set(['standard', 'debit_note', 'credit_note', 'proforma_invoice', 'sales_order']);
 
 interface Props {
   effectiveTenant: string;
@@ -331,6 +334,8 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
       tax_code:       l.tax_code,
       tax_rate:       Number(l.tax_rate),
       discount_amount: Number(l.discount_amount) || 0,
+      // Quotation lines carry no sales ledger; invoice-family lines may.
+      ledger_account_id: (l as { ledger_account_id?: string }).ledger_account_id,
     })) || [newLineRow()]);
 
     // Rehydrate shipping/transport on edit.
@@ -430,8 +435,11 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
           l.completion_percent != null && l.completion_percent > 0 && l.completion_percent < 100
             ? l.completion_percent
             : undefined,
+        // Quotations keep no ledger; every invoice-family document carries it (a proforma or
+        // sales order passes it on to the invoice it becomes).
+        ledger_account_id: isQuotation ? undefined : l.ledger_account_id,
       })),
-  [lines]);
+  [lines, isQuotation]);
 
   // Always sent as an array (never omitted/undefined) — an UPDATE must be able to send back an
   // EMPTY array to actually clear previously-saved charges when the user removes them all; the
@@ -783,6 +791,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
             onChange={setLines}
             currency={form.currency}
             onRequestCreateItem={(_, idx) => setCreateItemTarget(idx)}
+            showSalesLedger={SALES_LEDGER_DOC_TYPES.has(config.invoiceType) && !personalDocType}
           />
 
           {/* Shipping & Transport capture (invoices/delivery docs) */}
