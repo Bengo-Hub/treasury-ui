@@ -8,8 +8,9 @@ import { useDocRowAction } from '@/hooks/use-doc-row-action';
 import { useAdminStatusOverride } from '@/hooks/use-admin-status-override';
 import {
   sendInvoice, voidInvoice, duplicateInvoice, markPaid, recordPayment,
-  convertToInvoice, createCreditNote,
+  convertToInvoice,
 } from '@/lib/api/invoices';
+import { CreditNoteLauncher } from '@/components/documents/CreditNoteLauncher';
 import { Ban, CheckCircle, Copy, DollarSign, ExternalLink, FileText, FileMinus, Loader2, Pencil, Send, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMemo, useState } from 'react';
@@ -26,6 +27,8 @@ export default function ProformaInvoicesPage() {
   const [edit, setEdit] = useState<{ id: string; tenant: string } | null>(null);
   const [paymentDialog, setPaymentDialog] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  // Credit note: opens the line picker (whole invoice or selected items) for the row's document.
+  const [creditNoteFor, setCreditNoteFor] = useState<{ tenant: string; invoiceId: string } | null>(null);
 
   const src = useDocumentListSource({ family: 'invoice', invoiceType: 'proforma_invoice', status: statusFilter, page, limit: ITEMS_PER_PAGE, withStats: true });
   const { run, isPending } = useDocRowAction();
@@ -52,7 +55,7 @@ export default function ProformaInvoicesPage() {
     convert_to_invoice: { label: 'Convert to Invoice', icon: <FileText className="h-3.5 w-3.5" />, onClick: (r) => run(() => convertToInvoice(src.rowTenant(r), r.id), `Converted ${r.doc_number} to invoice`) },
     record_payment: { label: 'Record Payment', icon: <DollarSign className="h-3.5 w-3.5" />, onClick: (r) => setPaymentDialog({ tenant: src.rowTenant(r), invoiceId: r.id, invoiceNumber: r.doc_number }) },
     mark_paid: { label: 'Mark as Paid', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (r) => run(() => markPaid(src.rowTenant(r), r.id), `${r.doc_number} marked paid`) },
-    create_credit_note: { label: 'Create Credit Note', icon: <FileMinus className="h-3.5 w-3.5" />, onClick: (r) => run(() => createCreditNote(src.rowTenant(r), r.id), `Credit note created for ${r.doc_number}`) },
+    create_credit_note: { label: 'Create Credit Note', icon: <FileMinus className="h-3.5 w-3.5" />, onClick: (r) => setCreditNoteFor({ tenant: src.rowTenant(r), invoiceId: r.id }) },
     duplicate: { label: 'Duplicate', icon: <Copy className="h-3.5 w-3.5" />, onClick: (r) => run(() => duplicateInvoice(src.rowTenant(r), r.id), 'Proforma duplicated') },
     void: { label: 'Void', icon: <Ban className="h-3.5 w-3.5" />, destructive: true, onClick: (r) => run(() => voidInvoice(src.rowTenant(r), r.id), `Proforma ${r.doc_number} voided`) },
   });
@@ -97,6 +100,14 @@ export default function ProformaInvoicesPage() {
       />
 
       {statusModal}
+
+      {creditNoteFor && (
+        <CreditNoteLauncher
+          tenant={creditNoteFor.tenant}
+          invoiceId={creditNoteFor.invoiceId}
+          onClose={() => setCreditNoteFor(null)}
+        />
+      )}
 
       {paymentDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/75" onClick={(e) => { if (e.target === e.currentTarget) setPaymentDialog(null); }}>

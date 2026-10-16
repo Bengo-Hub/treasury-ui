@@ -1,9 +1,11 @@
 'use client';
 
 /**
- * CreditNoteDialog — line-level credit-note creation. Pick the lines (and quantities) to
- * credit; submitting all lines at full quantity issues the legacy FULL credit note (empty
- * request body), anything less posts a PARTIAL credit note with the selected lines. The
+ * CreditNoteDialog — credit-note creation with an explicit choice: credit the WHOLE invoice,
+ * or PICK the items (and quantities) to credit. The user must choose; nothing is pre-selected
+ * for the pick mode, so a credit note never silently covers the full amount. The whole-invoice
+ * mode (and picking every line at full quantity) issues the legacy FULL credit note (empty
+ * request body); anything less posts a PARTIAL credit note with the selected lines. The
  * backend rejects credits above the source's un-credited remainder — that error surfaces
  * inside the dialog.
  */
@@ -42,13 +44,17 @@ export function CreditNoteDialog({
   error?: string;
 }) {
   const lines = useMemo(() => invoice.lines ?? [], [invoice.lines]);
-  const [picks, setPicks] = useState<LinePick[]>(() => lines.map(() => ({ selected: true, qty: '' })));
+  // 'pick' is the default and starts with nothing selected: the user has to choose items, or
+  // switch to 'full' deliberately, rather than a one-click credit of the whole invoice.
+  const [mode, setMode] = useState<'full' | 'pick'>('pick');
+  const [picks, setPicks] = useState<LinePick[]>(() => lines.map(() => ({ selected: false, qty: '' })));
 
   // Re-derive defaults when the dialog opens for a different invoice.
   const [seenId, setSeenId] = useState(invoice.id);
   if (seenId !== invoice.id) {
     setSeenId(invoice.id);
-    setPicks(lines.map(() => ({ selected: true, qty: '' })));
+    setMode('pick');
+    setPicks(lines.map(() => ({ selected: false, qty: '' })));
   }
 
   const fmt = (v: number) =>
@@ -56,7 +62,8 @@ export function CreditNoteDialog({
 
   const rows = lines.map((l, i) => {
     const originalQty = Number(l.quantity) || 0;
-    const pick = picks[i] ?? { selected: true, qty: '' };
+    // Whole-invoice mode credits every line at full quantity, whatever the pick state is.
+    const pick = mode === 'full' ? { selected: true, qty: '' } : (picks[i] ?? { selected: false, qty: '' });
     const qty = pick.qty === '' ? originalQty : Math.min(Math.max(Number(pick.qty) || 0, 0), originalQty);
     return { line: l, pick, qty, originalQty };
   });
@@ -71,7 +78,7 @@ export function CreditNoteDialog({
 
   function submit() {
     if (!anySelected) return;
-    if (isFull) {
+    if (mode === 'full' || isFull) {
       onSubmit(undefined); // legacy full credit note
       return;
     }
@@ -99,9 +106,27 @@ export function CreditNoteDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent title={`Credit note for ${invoice.invoice_number}`} onClose={onClose}>
         <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted/40 p-1 text-xs font-semibold">
+            {([['pick', 'Pick items to credit'], ['full', 'Whole invoice']] as const).map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                aria-pressed={mode === m}
+                className={`rounded-md px-3 py-1.5 transition-colors ${mode === m ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-accent'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <p className="text-xs text-muted-foreground">
-            Select the lines (and quantities) to credit. Crediting everything issues a full
-            credit note; the total may never exceed the invoice&apos;s un-credited remainder.
+            {mode === 'pick'
+              ? 'Tick the lines and set the quantity to credit. Nothing is selected until you choose.'
+              : 'Credits every line at full quantity as one full credit note.'}{' '}
+            The total may never exceed the invoice&apos;s un-credited remainder.
+            {Number(invoice.amount_credited) > 0 && (
+              <> Already credited: <span className="font-semibold text-foreground">{fmt(Number(invoice.amount_credited))}</span>.</>
+            )}
           </p>
 
           <div className="max-h-72 overflow-y-auto rounded-lg border border-border">
@@ -121,6 +146,7 @@ export function CreditNoteDialog({
                       <input
                         type="checkbox"
                         checked={r.pick.selected}
+                        disabled={mode === 'full'}
                         onChange={(e) => setPicks((p) => p.map((x, j) => (j === i ? { ...x, selected: e.target.checked } : x)))}
                       />
                     </td>
@@ -136,7 +162,7 @@ export function CreditNoteDialog({
                         min={0.01}
                         max={r.originalQty}
                         step="any"
-                        disabled={!r.pick.selected}
+                        disabled={mode === 'full' || !r.pick.selected}
                         value={r.pick.qty === '' ? r.originalQty : r.pick.qty}
                         onChange={(e) => setPicks((p) => p.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))}
                         className="w-20 rounded-md border border-input bg-transparent px-2 py-1 text-right text-xs tabular-nums disabled:opacity-50"
@@ -165,13 +191,15 @@ export function CreditNoteDialog({
           )}
 
           <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => setPicks(lines.map(() => ({ selected: true, qty: '' })))}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent"
-            >
-              Select all (full)
-            </button>
+            {mode === 'pick' && (
+              <button
+                type="button"
+                onClick={() => setPicks(lines.map(() => ({ selected: true, qty: '' })))}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent"
+              >
+                Select all lines
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}

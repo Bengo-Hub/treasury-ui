@@ -18,6 +18,7 @@ import { RecordPaymentModal, type PayableInvoice } from '@/components/documents/
 import { ViewPaymentsModal, type ViewPaymentsInvoiceRef } from '@/components/documents/ViewPaymentsModal';
 import { DocumentApprovalModal } from '@/components/documents/DocumentApprovalModal';
 import { SendDocumentDialog } from '@/components/documents/SendDocumentDialog';
+import { CreditNoteLauncher } from '@/components/documents/CreditNoteLauncher';
 import { useDocumentListSource } from '@/hooks/use-document-list-source';
 import { useDocumentActions, type ActionRunner } from '@/hooks/use-document-actions';
 import { useDocRowAction } from '@/hooks/use-doc-row-action';
@@ -26,7 +27,6 @@ import {
   sendInvoice,
   voidInvoice,
   markPaid,
-  createCreditNote,
   createDebitNote,
   generateReceiptFromInvoice,
   generateDeliveryNote,
@@ -76,6 +76,8 @@ export default function InvoicesPage() {
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [paymentFor, setPaymentFor] = useState<{ tenant: string; invoice: PayableInvoice } | null>(null);
   const [viewPaymentsFor, setViewPaymentsFor] = useState<{ tenant: string; invoice: ViewPaymentsInvoiceRef } | null>(null);
+  // Credit note: opens the line picker (whole invoice or selected items) for the row's invoice.
+  const [creditNoteFor, setCreditNoteFor] = useState<{ tenant: string; invoiceId: string } | null>(null);
   // Reused centralized approval modal (submit / approve / reject) — the SAME flow as the Approvals
   // inbox and the invoice detail page, opened right from a row so no one has to navigate away.
   const [approvalFor, setApprovalFor] = useState<{ tenant: string; invoiceId: string; invoiceNumber: string } | null>(null);
@@ -161,7 +163,7 @@ export default function InvoicesPage() {
       onClick: (r) => setViewPaymentsFor({ tenant: src.rowTenant(r), invoice: { id: r.id, invoice_number: r.doc_number, total_amount: r.total_amount, currency: r.currency } }),
     },
     mark_paid: { label: 'Mark as Paid', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (r) => run(() => markPaid(src.rowTenant(r), r.id), `Invoice ${r.doc_number} marked paid`) },
-    create_credit_note: { label: 'Create Credit Note', icon: <FileMinus className="h-3.5 w-3.5" />, onClick: (r) => run(() => createCreditNote(src.rowTenant(r), r.id), `Credit note created for ${r.doc_number}`) },
+    create_credit_note: { label: 'Create Credit Note', icon: <FileMinus className="h-3.5 w-3.5" />, onClick: (r) => setCreditNoteFor({ tenant: src.rowTenant(r), invoiceId: r.id }) },
     view_credit_note: { label: 'View Credit Note', icon: <FileMinus className="h-3.5 w-3.5" />, onClick: (r) => r.related_documents?.credit_note_ids?.[0] && router.push(`/${src.detailHrefTenant(r)}/invoices/${r.related_documents.credit_note_ids[0]}`) },
     create_debit_note: { label: 'Create Debit Note', icon: <FilePlus className="h-3.5 w-3.5" />, onClick: (r) => run(() => createDebitNote(src.rowTenant(r), r.id), `Debit note created for ${r.doc_number}`) },
     view_debit_note: { label: 'View Debit Note', icon: <FilePlus className="h-3.5 w-3.5" />, onClick: (r) => r.related_documents?.debit_note_ids?.[0] && router.push(`/${src.detailHrefTenant(r)}/invoices/${r.related_documents.debit_note_ids[0]}`) },
@@ -299,6 +301,14 @@ export default function InvoicesPage() {
           tenant={paymentFor.tenant}
           invoice={paymentFor.invoice}
           onClose={() => setPaymentFor(null)}
+        />
+      )}
+
+      {creditNoteFor && (
+        <CreditNoteLauncher
+          tenant={creditNoteFor.tenant}
+          invoiceId={creditNoteFor.invoiceId}
+          onClose={() => setCreditNoteFor(null)}
         />
       )}
 
