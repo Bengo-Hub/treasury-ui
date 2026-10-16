@@ -3,7 +3,13 @@
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { useCreateVendor, useSupplierRecord, useUpdateVendor } from '@/hooks/use-inventory';
+import { useResolvedTenant } from '@/hooks/use-resolved-tenant';
 import { supplierRecordToForm, type Vendor } from '@/lib/api/inventory';
+import { fetchTenantDefaults } from '@/lib/api/tenant';
+import { selfVendorReason } from '@/lib/vendor-self';
+import { useQuery } from '@tanstack/react-query';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 import { CountrySelect, countryName } from '@bengo-hub/shared-ui-lib/contact';
 import { SupplierForm } from '@bengo-hub/shared-ui-lib/suppliers';
 import { Loader2 } from 'lucide-react';
@@ -46,6 +52,18 @@ export function VendorFormDialog({
   const [country, setCountry] = useState('Kenya');
   const saved = useRef<Vendor | null>(null);
 
+  // The business's own name and KRA PIN, to warn (not block) when a vendor is the business itself.
+  const { orgSlug } = useResolvedTenant();
+  const ownSlug = tenant && !UUID_RE.test(tenant) ? tenant : orgSlug;
+  const { data: own } = useQuery({
+    queryKey: ['tenant-defaults', ownSlug],
+    queryFn: () => fetchTenantDefaults(ownSlug ?? ''),
+    enabled: open && !!ownSlug,
+    staleTime: 10 * 60 * 1000,
+  });
+  const [selfWarning, setSelfWarning] = useState<{ key: string; reason: string } | null>(null);
+  useEffect(() => setSelfWarning(null), [open, vendorId]);
+
   useEffect(() => {
     if (seeded) setCountry(seeded.country);
     else if (!editing) setCountry('Kenya');
@@ -68,6 +86,12 @@ export function VendorFormDialog({
           </div>
         ) : (
           <div className="space-y-5">
+            {selfWarning && (
+              <div role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+                This vendor looks like your own business: {selfWarning.reason}. Buying from yourself is unusual; if this is
+                right (for example a branch billing head office), press save again.
+              </div>
+            )}
             <FormField label="Country" required className="max-w-md">
               <CountrySelect
                 value={country}
@@ -81,6 +105,17 @@ export function VendorFormDialog({
               initialValues={editing ? seeded?.values : initialName ? { name: initialName } : undefined}
               submitLabel={editing ? 'Save Changes' : 'Save Vendor'}
               onSubmit={async (values) => {
+                // A vendor that matches the business itself needs a second Save with the same details.
+                // An edit of a vendor that already matched was kept on purpose; do not ask again.
+                const ownBiz = own ? { name: own.name, taxPin: own.taxPin } : null;
+                const alreadyKept =
+                  editing && !!seeded && !!selfVendorReason({ name: seeded.values.name, taxPin: seeded.values.tax_pin }, ownBiz);
+                const reason = alreadyKept ? null : selfVendorReason({ name: values.name, taxPin: values.tax_pin }, ownBiz);
+                const key = `${values.name}|${values.tax_pin ?? ''}`;
+                if (reason && selfWarning?.key !== key) {
+                  setSelfWarning({ key, reason });
+                  throw new Error('This vendor looks like your own business. Check the details, then save again to keep it.');
+                }
                 const vendor = editing
                   ? await updateVendor.mutateAsync({ id: vendorId as string, values, country })
                   : await createVendor.mutateAsync({ values, country });
