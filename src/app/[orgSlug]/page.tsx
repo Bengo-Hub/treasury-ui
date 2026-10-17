@@ -17,6 +17,7 @@ import { PlatformMoneyFlow } from '@/components/dashboard/PlatformMoneyFlow';
 import { TopCustomers } from '@/components/dashboard/TopCustomers';
 import { BooksBalancedBadge } from '@/components/dashboard/BooksBalancedBadge';
 import { PeriodCloseReminder } from '@/components/dashboard/PeriodCloseReminder';
+import { KraNoticesBanner } from '@/components/dashboard/KraNoticesBanner';
 import { RangePicker, useRange, type RangeState } from '@/components/dashboard/RangePicker';
 import { Banknote, CheckCircle2, Activity, Users, Loader2 } from 'lucide-react';
 import { ExportMenu } from '@/components/documents/ExportMenu';
@@ -93,6 +94,8 @@ export default function DashboardPage() {
         isAdmin={isSettingsAdmin}
         flags={isSettingsAdmin ? { payhero_active: payheroActive } : undefined}
       />
+      {/* KRA notices for the taxpayer: newest first, rotating, cached a week, expired ones hidden. */}
+      <KraNoticesBanner tenant={dashTenant} />
       <PeriodCloseReminder tenant={dashTenant} orgSlug={orgSlug} />
       <KpiCards tenant={dashTenant} from={from} to={to} outletId={outletId} />
       <FinancialPerformanceChart tenant={dashTenant} from={from} to={to} outletId={outletId} />

@@ -12,6 +12,13 @@ Done (plan budgets-planning-projects-bi-2026-09-27, verified 2026-10-16); the wo
 - BI: Profitability by cost centre or project (outlet filter, export) and Budget Health. The other planned reports (trends, margins, working capital, burn, runway) are in Business Insights rather than a separate shell.
 - Project and cost-centre pickers on expense, bill and invoice forms; over-budget dialog with approver override on expenses and bills (inventory-ui handles purchase orders). Commits `9a58a54`, `aa1d371`.
 
+## Tax and eTIMS
+
+Done 2026-10-17:
+
+- The eTIMS Items tab lists only the selected outlet's catalogue. It sends `outlet_strict=1` to inventory-api (stocked at the outlet's or a shared warehouse, or made to order in a category relevant to the outlet's use case) and keys the query on the outlet, so switching outlet refetches. Needs inventory-api `ded7be0`.
+- KRA notices on the dashboard (`KraNoticesBanner`): newest first, rotating every 8 seconds when there is more than one (paused on hover), cached in the browser for a week and fetched from KRA again only after that, expired notices hidden. KRA sends no end date, so a notice shows for 30 days from its registration unless the payload carries an end date (`lib/kra-notices.ts`).
+
 ## Vendors
 
 Done 2026-10-16: Edit, Archive and Restore on the vendors list (`45b33db`, needs inventory-api `ec37463`); adding a vendor keeps the M-Pesa and other payment settings; a warning when a vendor matches the business's own name or KRA PIN (`e7524e1`). Create Expenditure now walks through approval and payment (`65b4aab`).
