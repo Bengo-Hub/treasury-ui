@@ -100,7 +100,7 @@ export interface RegisterDeviceRequest {
 export interface EtimsTransmissionRecord {
   id: string;
   tenant_id: string;
-  source: 'invoice' | 'pos_sale' | 'ordering_sale' | 'vendor_bill';
+  source: 'invoice' | 'pos_sale' | 'ordering_sale' | 'vendor_bill' | 'expense' | 'external_api' | 'hospital_sale';
   invoice_id?: string;
   source_id?: string;
   transmission_status: 'pending' | 'transmitted' | 'failed' | 'retrying' | 'dead_letter';
@@ -109,6 +109,12 @@ export interface EtimsTransmissionRecord {
   rcpt_sign?: string;
   /** KRA eTIMS invoice number (invcNo) — the per-device sequential number. 0/absent = not assigned. */
   invc_no?: number;
+  /** Outlet whose branch device signed the document; absent for the tenant's main device. */
+  outlet_id?: string;
+  /** KRA's id for the signing device (SCU), for example KRACU0400001154. */
+  sdc_id?: string;
+  /** The device's running receipt count at signing, not the invoice number. */
+  cur_rcpt_no?: number;
   error_message?: string;
   retry_count: number;
   transmitted_at?: string;
@@ -349,6 +355,52 @@ export function calculateTaxLiability(
   periodID: string,
 ): Promise<TaxPeriod> {
   return apiClient.post(`${BASE}/${tenantSlug}/tax/periods/${periodID}/calculate`);
+}
+
+/** A period with its VAT return, due date and (once paid) the payment details. */
+export interface TaxPeriodSummary {
+  period: TaxPeriod;
+  vat_return: VATReturnSummary;
+  due_date: string;
+  overdue: boolean;
+  payment?: { prn?: string; paid_at?: string; amount?: string };
+}
+
+export type TaxPeriodType = 'monthly' | 'quarterly' | 'semi_annual' | 'annual';
+
+/** Opens a period. startDate is YYYY-MM-DD; the backend derives the end date from the type. */
+export function createTaxPeriod(
+  tenantSlug: string,
+  body: { period_type: TaxPeriodType; start_date: string },
+): Promise<TaxPeriod> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/periods`, body);
+}
+
+export function getTaxPeriodSummary(tenantSlug: string, periodID: string): Promise<TaxPeriodSummary> {
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/periods/${periodID}/summary`);
+}
+
+/** Records the KRA acknowledgement for a return filed on iTax. The reference is required. */
+export function fileTaxPeriod(
+  tenantSlug: string,
+  periodID: string,
+  body: { reference: string; filed_at?: string },
+): Promise<TaxPeriod> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/periods/${periodID}/file`, body);
+}
+
+/** Records the payment made against a filed period. */
+export function markTaxPeriodPaid(
+  tenantSlug: string,
+  periodID: string,
+  body: { prn: string; amount: string; paid_at?: string },
+): Promise<TaxPeriod> {
+  return apiClient.post(`${BASE}/${tenantSlug}/tax/periods/${periodID}/mark-paid`, body);
+}
+
+/** The VAT return figures for a date range as a CSV file. from and to are YYYY-MM-DD. */
+export function exportVATReturn(tenantSlug: string, params: { from: string; to: string }) {
+  return apiClient.getBlob(`${BASE}/${tenantSlug}/tax/vat-return/export`, `vat-return-${params.from}.csv`, params);
 }
 
 export function listEtimsDevices(

@@ -37,6 +37,9 @@ export const SOURCE_LABELS: Record<string, string> = {
   pos_sale: 'POS Sale',
   ordering_sale: 'Order',
   vendor_bill: 'Purchase Bill',
+  expense: 'Expense',
+  external_api: 'External API',
+  hospital_sale: 'Hospital Sale',
 };
 
 export interface TransmissionColumnCallbacks {
@@ -57,6 +60,7 @@ export function buildTransmissionColumns(cb: TransmissionColumnCallbacks): DataT
     { key: 'invc_no', header: 'Invc No', cellClassName: 'font-mono text-xs', accessor: (r) => r.invc_no ?? '', render: (r) => (r.invc_no ? r.invc_no : '—') },
     { key: 'etims_receipt_number', header: 'Receipt #', mobileHidden: true, cellClassName: 'font-mono text-xs', accessor: (r) => r.etims_receipt_number ?? '', render: (r) => r.etims_receipt_number || '—' },
     { key: 'etims_cu_number', header: 'CU Number', mobileHidden: true, cellClassName: 'font-mono text-xs text-muted-foreground', accessor: (r) => r.etims_cu_number ?? '', render: (r) => r.etims_cu_number || '—' },
+    { key: 'sdc_id', header: 'SCU ID', mobileHidden: true, cellClassName: 'font-mono text-xs text-muted-foreground', accessor: (r) => r.sdc_id ?? '', render: (r) => r.sdc_id || '—' },
     {
       key: 'transmission_status', header: 'Status', mobileAction: true,
       accessor: (r) => r.transmission_status,
@@ -130,6 +134,9 @@ export function TransmissionExpanded({ record, tenantSlug }: { record: EtimsTran
           { label: 'eTIMS Invc No', value: record.invc_no || undefined, mono: true },
           { label: 'KRA Receipt No', value: record.etims_receipt_number, mono: true },
           { label: 'CU Number', value: record.etims_cu_number, mono: true },
+          { label: 'SCU ID', value: record.sdc_id, mono: true },
+          { label: 'Device receipt count', value: record.cur_rcpt_no || undefined },
+          { label: 'Outlet', value: record.outlet_id, mono: true },
           { label: 'Receipt signature', value: record.rcpt_sign, mono: true },
           { label: 'Error', value: record.error_message, danger: true },
           { label: 'Retry count', value: record.retry_count },

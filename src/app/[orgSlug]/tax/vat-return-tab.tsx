@@ -8,6 +8,7 @@ import { useVATReturnSummary, useTaxProfile } from '@/hooks/use-tax';
 import { ObligationGate } from '@/components/tax/obligation-gate';
 import { CalendarClock } from 'lucide-react';
 import { useState } from 'react';
+import { TaxPeriodsPanel } from './tax-periods-panel';
 
 interface Props { tenantSlug: string }
 
@@ -126,6 +127,8 @@ export function VATReturnTab({ tenantSlug }: Props) {
         </div>
         {data?.notes?.map((n, i) => <p key={i} className="text-xs text-muted-foreground">{n}</p>)}
       </Card>
+
+      <TaxPeriodsPanel tenantSlug={tenantSlug} />
     </div>
     </ObligationGate>
   );

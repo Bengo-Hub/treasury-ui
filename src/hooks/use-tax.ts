@@ -53,6 +53,58 @@ export function useCalculateTaxLiability() {
   });
 }
 
+export function useTaxPeriodSummary(tenantSlug: string, periodID?: string) {
+  return useQuery({
+    queryKey: ['tax-period-summary', tenantSlug, periodID],
+    queryFn: () => taxApi.getTaxPeriodSummary(tenantSlug, periodID as string),
+    enabled: !!tenantSlug && !!periodID,
+  });
+}
+
+/** Refreshes the period list and every open summary after a period changes. */
+function invalidatePeriods(qc: ReturnType<typeof useQueryClient>, tenantSlug: string) {
+  qc.invalidateQueries({ queryKey: ['tax-periods', tenantSlug] });
+  qc.invalidateQueries({ queryKey: ['tax-period-summary', tenantSlug] });
+}
+
+export function useCreateTaxPeriod(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { period_type: taxApi.TaxPeriodType; start_date: string }) => taxApi.createTaxPeriod(tenantSlug, body),
+    onSuccess: () => {
+      invalidatePeriods(qc, tenantSlug);
+      toast.success('Period opened');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to open the period'),
+  });
+}
+
+export function useFileTaxPeriod(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ periodID, ...body }: { periodID: string; reference: string; filed_at?: string }) =>
+      taxApi.fileTaxPeriod(tenantSlug, periodID, body),
+    onSuccess: () => {
+      invalidatePeriods(qc, tenantSlug);
+      toast.success('Return recorded as filed');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to record the filing'),
+  });
+}
+
+export function useMarkTaxPeriodPaid(tenantSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ periodID, ...body }: { periodID: string; prn: string; amount: string; paid_at?: string }) =>
+      taxApi.markTaxPeriodPaid(tenantSlug, periodID, body),
+    onSuccess: () => {
+      invalidatePeriods(qc, tenantSlug);
+      toast.success('Payment recorded');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to record the payment'),
+  });
+}
+
 export function useEtimsDevices(tenantSlug: string) {
   return useQuery({
     queryKey: ['etims-devices', tenantSlug],
