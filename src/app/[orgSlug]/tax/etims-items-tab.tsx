@@ -107,12 +107,13 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
   const { data: etimsData, isLoading: etimsLoading } = useEtimsItems(tenantSlug);
   // Page through the WHOLE catalogue (inventory-api caps each page at 100) so the "Catalogue
   // items (N)" count and the sync list reflect every item, not just the first page.
-  const { data: catalogData, isLoading: catalogLoading } = useInventoryItems(tenantSlug, { all: true });
+  // With an outlet selected, list only that outlet's own catalogue (inventory-api strict scope).
+  const selectedOutlet = useOutletFilterStore((s) => s.selectedOutlet);
+  const { data: catalogData, isLoading: catalogLoading } = useInventoryItems(tenantSlug, { all: true, outletId: selectedOutlet?.id });
   const { data: profile } = useTaxProfile(tenantSlug);
   // Which branch a sync registers on: the selected outlet's device, else the main device. On a
   // business with several branches that choice matters, because the item's opening stock lands on
   // that branch's stock master at KRA.
-  const selectedOutlet = useOutletFilterStore((s) => s.selectedOutlet);
   const { data: deviceData } = useEtimsDevices(tenantSlug);
   const syncScope = useMemo(() => {
     const active = (deviceData?.devices ?? []).filter((d) => d.status === 'active');

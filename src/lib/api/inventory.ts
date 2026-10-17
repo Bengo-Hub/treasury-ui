@@ -115,6 +115,13 @@ export interface SearchItemsParams {
    * item-master sync surface must see all items, not page 1).
    */
   all?: boolean;
+  /**
+   * The outlet whose own catalogue to list. Sets `outlet_strict=1` so inventory-api returns only
+   * that outlet's items (stocked there, or made-to-order for its use case) instead of the lenient
+   * browse rule. The outlet itself travels in X-Outlet-ID; carrying the id here also keys the
+   * query cache, so switching outlet refetches instead of showing the previous outlet's list.
+   */
+  outletId?: string;
 }
 
 // inventory-api ItemDTO — the shape inventory actually returns (and the list is a
@@ -166,6 +173,7 @@ export async function searchInventoryItems(tenant: string, params?: SearchItemsP
   const baseQuery: Record<string, unknown> = {};
   if (params?.q) baseQuery.search = params.q;
   if (params?.type) baseQuery.type = params.type;
+  if (params?.outletId) baseQuery.outlet_strict = 1;
 
   // Paging mode: inventory-api caps every page at 100 rows, so walk pages until the reported
   // total is reached (or a short/empty page) rather than trusting a single oversized `limit`.
