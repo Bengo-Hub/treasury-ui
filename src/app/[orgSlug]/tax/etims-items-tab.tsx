@@ -4,8 +4,9 @@ import { CodeListSelect } from '@/components/tax/code-list-select';
 import { Card } from '@/components/ui/base';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Pagination } from '@/components/ui/pagination';
-import { useBulkRegisterEtimsItems, useDeregisterEtimsItem, useEtimsItems, useReconcileEtimsStock, useRegisterEtimsItem, useTaxProfile } from '@/hooks/use-tax';
+import { useBulkRegisterEtimsItems, useDeregisterEtimsItem, useEtimsDevices, useEtimsItems, useReconcileEtimsStock, useRegisterEtimsItem, useTaxProfile } from '@/hooks/use-tax';
 import { useInventoryItems } from '@/hooks/use-inventory';
+import { useOutletFilterStore } from '@/store/outlet-filter';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, Info, Loader2, Package, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -108,6 +109,22 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
   // items (N)" count and the sync list reflect every item, not just the first page.
   const { data: catalogData, isLoading: catalogLoading } = useInventoryItems(tenantSlug, { all: true });
   const { data: profile } = useTaxProfile(tenantSlug);
+  // Which branch a sync registers on: the selected outlet's device, else the main device. On a
+  // business with several branches that choice matters, because the item's opening stock lands on
+  // that branch's stock master at KRA.
+  const selectedOutlet = useOutletFilterStore((s) => s.selectedOutlet);
+  const { data: deviceData } = useEtimsDevices(tenantSlug);
+  const syncScope = useMemo(() => {
+    const active = (deviceData?.devices ?? []).filter((d) => d.status === 'active');
+    if (active.length < 2) return null; // one branch: nothing to choose
+    if (!selectedOutlet) {
+      return { warn: true, text: 'No outlet is selected, so items register on the main branch and their opening stock goes there. Pick an outlet in the header to register for that branch instead.' };
+    }
+    const device = active.find((d) => d.outlet_id === selectedOutlet.id);
+    return device
+      ? { warn: false, text: `Registering for ${selectedOutlet.name}, branch ${device.branch_id}.` }
+      : { warn: true, text: `${selectedOutlet.name} has no eTIMS device of its own, so items register on the main branch.` };
+  }, [deviceData, selectedOutlet]);
   const register = useRegisterEtimsItem();
   const bulkRegister = useBulkRegisterEtimsItems();
   const deregister = useDeregisterEtimsItem();
@@ -362,6 +379,12 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
               {polling ? `Syncing… (${counts.queued + counts.unsynced} left)` : `Sync all (${counts.queued + counts.unsynced})`}
             </button>
           </div>
+          {syncScope && (
+            <p className={`mb-3 flex items-start gap-1.5 text-xs ${syncScope.warn ? 'text-amber-600' : 'text-muted-foreground'}`}>
+              {syncScope.warn ? <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+              <span>{syncScope.text}</span>
+            </p>
+          )}
 
           {/* Filters */}
           <div className="mb-3 flex flex-wrap items-center gap-2">
