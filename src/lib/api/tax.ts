@@ -711,6 +711,30 @@ export function listEtimsTransmissions(
   return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/transmissions${query}`);
 }
 
+/** eTIMS transmission counts for a date range, by status and by document source. */
+export interface TransmissionStats {
+  from: string;
+  to: string;
+  total: number;
+  transmitted: number;
+  /** transmitted / total, 0 when there are none. */
+  success_rate: number;
+  by_status: Record<string, number>;
+  by_source: Record<string, Record<string, number>>;
+}
+
+/** from and to are YYYY-MM-DD; the backend defaults to the last 30 days. */
+export function getEtimsTransmissionStats(
+  tenantSlug: string,
+  params?: { from?: string; to?: string },
+): Promise<TransmissionStats> {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  const query = qs.toString() ? `?${qs}` : '';
+  return apiClient.get(`${BASE}/${tenantSlug}/tax/etims/transmissions/stats${query}`);
+}
+
 // retryTransmission requeues a failed OR dead_letter transmission record.
 export function retryTransmission(tenantSlug: string, recordId: string): Promise<{ status: string }> {
   return apiClient.post(`${BASE}/${tenantSlug}/tax/etims/retry/${recordId}`);

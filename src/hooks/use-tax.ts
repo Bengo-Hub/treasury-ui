@@ -151,6 +151,15 @@ export function useEtimsTransmissions(tenantSlug: string, status?: string, limit
   });
 }
 
+export function useEtimsTransmissionStats(tenantSlug: string, params: { from: string; to: string }) {
+  return useQuery({
+    queryKey: ['etims-transmission-stats', tenantSlug, params.from, params.to],
+    queryFn: () => taxApi.getEtimsTransmissionStats(tenantSlug, params),
+    enabled: !!tenantSlug,
+    staleTime: 30_000,
+  });
+}
+
 export function useRetryTransmission() {
   const qc = useQueryClient();
   return useMutation({
@@ -158,6 +167,7 @@ export function useRetryTransmission() {
       taxApi.retryTransmission(tenantSlug, recordId),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['etims-transmissions', vars.tenantSlug] });
+      qc.invalidateQueries({ queryKey: ['etims-transmission-stats', vars.tenantSlug] });
       toast.success('Transmission queued for retry');
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Retry failed'),
