@@ -94,8 +94,8 @@ export default function DashboardPage() {
         isAdmin={isSettingsAdmin}
         flags={isSettingsAdmin ? { payhero_active: payheroActive } : undefined}
       />
-      {/* KRA notices for the taxpayer: newest first, rotating, cached a week, expired ones hidden. */}
-      <KraNoticesBanner tenant={dashTenant} />
+      {/* KRA notices for the taxpayer: newest first, rotating every 15s, dismissible, cached a week, expired ones hidden. */}
+      <KraNoticesBanner tenant={dashTenant} viewerKey={me?.id || me?.email} />
       <PeriodCloseReminder tenant={dashTenant} orgSlug={orgSlug} />
       <KpiCards tenant={dashTenant} from={from} to={to} outletId={outletId} />
       <FinancialPerformanceChart tenant={dashTenant} from={from} to={to} outletId={outletId} />

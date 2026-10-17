@@ -1,7 +1,7 @@
 'use client';
 
 // KRA Branch & Compliance Tools — UI for the 9 previously-missing OSCU endpoints
-// (branch admin, taxpayer info, notices, item composition, imported items). These are
+// (branch admin, taxpayer info, notices, imported items). These are
 // one-time/occasional admin operations, not everyday transactions, so this is a compact
 // utility panel rather than a full wizard — reuses the same FormField/Card/Button
 // primitives and mutation-hook pattern as the rest of the Tax & Compliance page.
@@ -15,7 +15,6 @@ import {
   useRegisterEtimsBranchCustomer,
   useRegisterEtimsBranchUser,
   useRegisterEtimsBranchInsurance,
-  useRegisterEtimsItemComposition,
   useEtimsImportedItems,
   useUpdateEtimsImportedItem,
 } from '@/hooks/use-tax-etims-branch';
@@ -73,7 +72,6 @@ export function KraBranchToolsTab({ tenantSlug }: { tenantSlug: string }) {
   const registerCustomer = useRegisterEtimsBranchCustomer();
   const registerUser = useRegisterEtimsBranchUser();
   const registerInsurance = useRegisterEtimsBranchInsurance();
-  const registerComposition = useRegisterEtimsItemComposition();
 
   const [custTin, setCustTin] = useState('');
   const [custNm, setCustNm] = useState('');
@@ -82,9 +80,6 @@ export function KraBranchToolsTab({ tenantSlug }: { tenantSlug: string }) {
   const [isrccCd, setIsrccCd] = useState('');
   const [isrccNm, setIsrccNm] = useState('');
   const [isrcRt, setIsrcRt] = useState('');
-  const [itemCd, setItemCd] = useState('');
-  const [cpstItemCd, setCpstItemCd] = useState('');
-  const [cpstQty, setCpstQty] = useState('');
 
   const [importedExpanded, setImportedExpanded] = useState(false);
   const importedItems = useEtimsImportedItems(tenantSlug, importedExpanded);
@@ -96,8 +91,8 @@ export function KraBranchToolsTab({ tenantSlug }: { tenantSlug: string }) {
         <h2 className="text-lg font-semibold">KRA Branch &amp; Compliance Tools</h2>
         <p className="text-sm text-muted-foreground">
           One-time / occasional KRA OSCU admin operations — branch registration, taxpayer
-          lookups, item composition, and imported-item processing. Everyday transactions
-          (items, sales, stock) stay on the eTIMS Devices / eTIMS Items tabs.
+          lookups and imported-item processing. Everyday transactions (items, item
+          composition, sales, stock) stay on the eTIMS Devices / eTIMS Items tabs.
         </p>
       </div>
 
@@ -188,37 +183,6 @@ export function KraBranchToolsTab({ tenantSlug }: { tenantSlug: string }) {
               }
             >
               {registerInsurance.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Register
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <h3 className="text-sm font-semibold">Item Composition</h3>
-          <p className="text-xs text-muted-foreground">
-            Declares a finished good's raw-material component. The component item must
-            already carry KRA stock (an adjustment-in stock movement) before this call.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <FormField label="Finished Good itemCd"><input className={inputClass} value={itemCd} onChange={(e) => setItemCd(e.target.value)} /></FormField>
-            <FormField label="Component itemCd"><input className={inputClass} value={cpstItemCd} onChange={(e) => setCpstItemCd(e.target.value)} /></FormField>
-            <FormField label="Quantity"><input type="number" className={inputClass} value={cpstQty} onChange={(e) => setCpstQty(e.target.value)} /></FormField>
-          </div>
-          <div className="mt-3">
-            <Button
-              size="sm"
-              disabled={!itemCd.trim() || !cpstItemCd.trim() || !cpstQty || registerComposition.isPending}
-              onClick={() =>
-                registerComposition.mutate(
-                  { tenantSlug, body: { item_cd: itemCd.trim(), cpst_item_cd: cpstItemCd.trim(), cpst_qty: Number(cpstQty) } },
-                  { onSuccess: () => { setItemCd(''); setCpstItemCd(''); setCpstQty(''); } },
-                )
-              }
-            >
-              {registerComposition.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Save Composition
             </Button>
           </div>
         </CardContent>

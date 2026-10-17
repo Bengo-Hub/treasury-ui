@@ -59,10 +59,15 @@ export function useRegisterEtimsBranchInsurance() {
 }
 
 export function useRegisterEtimsItemComposition() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ tenantSlug, body }: { tenantSlug: string; body: taxApi.RegisterItemCompositionBody }) =>
       taxApi.registerEtimsItemComposition(tenantSlug, body),
-    onSuccess: () => toast.success('Item composition saved with KRA'),
+    onSuccess: (_d, vars) => {
+      toast.success('Item composition saved with KRA');
+      // The item list carries the saved components, so refresh it.
+      qc.invalidateQueries({ queryKey: ['tax-etims-items', vars.tenantSlug] });
+    },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to save item composition — the component item must already carry KRA stock'),
   });
 }

@@ -8,8 +8,10 @@ import { useBulkRegisterEtimsItems, useDeregisterEtimsItem, useEtimsDevices, use
 import { useInventoryItems } from '@/hooks/use-inventory';
 import { useOutletFilterStore } from '@/store/outlet-filter';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Info, Loader2, Package, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import type { EtimsComposition } from '@/lib/api/tax';
+import { AlertTriangle, CheckCircle2, Info, Layers, Loader2, Package, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { EtimsCompositionDialog } from './etims-composition-dialog';
 
 interface Props { tenantSlug: string }
 
@@ -163,6 +165,8 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
   type Row = {
     key: string; id?: string; sku?: string; name: string; type?: string; band: string; catalogBand: string;
     status: SyncStatus; itemCd?: string; price?: number; category: string; onHand?: number; etimsStock?: number;
+    /** eTIMS item type (2 = finished product) and the components KRA accepted for it. */
+    itemTy?: string; composition: EtimsComposition[];
   };
   const rows: Row[] = useMemo(() => catalog.map((c) => {
     const e = (c.sku && etimsBySku.get(c.sku)) || etimsByName.get(c.name.toLowerCase());
@@ -176,8 +180,14 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
       category: c.category_name || 'Uncategorised',
       onHand: c.on_hand,
       etimsStock: e?.cum_stock_in,
+      itemTy: e?.item_ty_cd,
+      composition: e?.metadata?.composition ?? [],
     };
   }), [catalog, etimsBySku, etimsByName]);
+
+  // Composition is declared on a registered finished product (eTIMS item type 2).
+  const canCompose = (r: Row) => r.status === 'registered' && r.itemTy === '2' && !!r.itemCd;
+  const [composing, setComposing] = useState<Row | null>(null);
 
   // A stock-bearing item is a GOODS/EQUIPMENT/INGREDIENT — only these carry a KRA stock master, so
   // only these get an on-hand vs eTIMS-stock comparison + Reconcile action. Services/recipes/vouchers
@@ -439,6 +449,16 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                       <td className="px-2 py-2">
                         <div className="font-medium">{r.name}</div>
                         {r.sku && <div className="font-mono text-[11px] text-muted-foreground">{r.sku}</div>}
+                        {r.composition.length > 0 && (
+                          <div className="mt-1 flex flex-wrap items-center gap-1" title="Raw-material components saved with KRA">
+                            <Layers className="h-3 w-3 text-muted-foreground" />
+                            {r.composition.map((c) => (
+                              <span key={c.item_cd} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                                {c.name || c.item_cd} x {c.qty}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="px-2 py-2 text-xs text-muted-foreground">{r.category}</td>
                       <td className="px-2 py-2">
@@ -486,11 +506,20 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
                             <RefreshCw className="h-3 w-3" /> {r.status === 'queued' ? 'Retry' : 'Sync'}
                           </button>
                         ) : r.id ? (
-                          <button type="button" disabled={deregister.isPending} onClick={() => setToDeregister(r)}
-                            className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-0.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                            title="Deregister this item at KRA (useYn=N) and retire its stock">
-                            <Trash2 className="h-3 w-3" /> Deregister
-                          </button>
+                          <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                            {canCompose(r) && (
+                              <button type="button" onClick={() => setComposing(r)}
+                                className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/10"
+                                title="Declare the raw materials this finished product is made from">
+                                <Layers className="h-3 w-3" /> {r.composition.length > 0 ? 'Composition' : 'Add composition'}
+                              </button>
+                            )}
+                            <button type="button" disabled={deregister.isPending} onClick={() => setToDeregister(r)}
+                              className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-0.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                              title="Deregister this item at KRA (useYn=N) and retire its stock">
+                              <Trash2 className="h-3 w-3" /> Deregister
+                            </button>
+                          </span>
                         ) : null}
                       </td>
                     </tr>
@@ -553,6 +582,20 @@ export function EtimsItemsTab({ tenantSlug }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {composing?.itemCd && (
+        <EtimsCompositionDialog
+          tenantSlug={tenantSlug}
+          // Read from the live row so a component saved in the dialog shows up at once.
+          parent={{
+            itemCd: composing.itemCd,
+            name: composing.name,
+            composition: rows.find((r) => r.key === composing.key)?.composition ?? composing.composition,
+          }}
+          etimsItems={etimsItems}
+          onClose={() => setComposing(null)}
+        />
       )}
 
       <ConfirmDialog

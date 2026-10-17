@@ -1263,6 +1263,16 @@ export interface EtimsItem {
   last_synced_at?: string;
   /** Cumulative stock transmitted to KRA (the eTIMS stock master residual) — the "E" in L:x E:y. */
   cum_stock_in?: number;
+  /** Open-ended item facts; composition is the components KRA accepted for a finished good. */
+  metadata?: { composition?: EtimsComposition[]; [key: string]: unknown };
+}
+
+/** One raw-material component KRA accepted for a finished good (saveItemComposition). */
+export interface EtimsComposition {
+  item_cd: string;
+  name?: string;
+  qty: number;
+  saved_at?: string;
 }
 
 /** Reconcile an item's KRA stock master to its current inventory on-hand (transmits the delta). */

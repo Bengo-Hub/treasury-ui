@@ -16,8 +16,9 @@ Done (plan budgets-planning-projects-bi-2026-09-27, verified 2026-10-16); the wo
 
 Done 2026-10-17:
 
-- The eTIMS Items tab lists only the selected outlet's catalogue. It sends `outlet_strict=1` to inventory-api (stocked at the outlet's or a shared warehouse, or made to order in a category relevant to the outlet's use case) and keys the query on the outlet, so switching outlet refetches. Needs inventory-api `ded7be0`.
-- KRA notices on the dashboard (`KraNoticesBanner`): newest first, rotating every 8 seconds when there is more than one (paused on hover), cached in the browser for a week and fetched from KRA again only after that, expired notices hidden. KRA sends no end date, so a notice shows for 30 days from its registration unless the payload carries an end date (`lib/kra-notices.ts`).
+- The eTIMS Items tab lists only the selected outlet's catalogue. It sends `outlet_strict=1` to inventory-api and keys the query on the outlet, so switching outlet refetches. The strict rule (inventory-api `5483ce1`): stock items need a balance in the outlet's own warehouse (a shared central store does not count), a recipe shows when one of its ingredients is stocked there, and services or vouchers follow their category's use case (untagged categories are universal, so a service in an untagged category still shows everywhere).
+- Item composition moved here from the KRA branch tools tab. A registered finished product (eTIMS type 2) gets an Add composition action with a component picker limited to items KRA holds stock for; the saved components show under the item name (treasury-api runbook 3.37).
+- KRA notices on the dashboard (`KraNoticesBanner`) use the shared `NoticeCarousel` (shared-ui-lib v0.1.111): newest first, rotating every 15 seconds when there is more than one (paused on hover), dismissible per person on the device, cached in the browser for a week and fetched from KRA again only after that, expired notices hidden. KRA sends no end date, so a notice shows for 30 days from its registration unless the payload carries one (`lib/kra-notices.ts`).
 
 ## Vendors
 
