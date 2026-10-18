@@ -16,7 +16,6 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
-  DatabaseBackup,
   FileCheck,
   FileMinus,
   FilePlus,
@@ -500,12 +499,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             pathname.startsWith(`/${orgSlug}/settings`) &&
             !pathname.startsWith(`/${orgSlug}/settings/gl-account-mappings`) &&
             !pathname.startsWith(`/${orgSlug}/settings/cost-centers`),
-        },
-        {
-          label: 'Backups',
-          icon: DatabaseBackup,
-          href: `/${orgSlug}/backups`,
-          active: pathname.startsWith(`/${orgSlug}/backups`),
         },
       ],
     },
