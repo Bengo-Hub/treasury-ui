@@ -33,9 +33,12 @@ Done 2026-10-16:
 - Signature and extra date. Settings > Document Presentation has a Signature card (upload or draw, optional signatory name, which documents it prints on); the server keeps it as a PNG in object storage and prints it above the Prepared By line. The document form has an optional Extra Date with its own label (`metadata.extra_date`). Needs treasury-api `f210dd5d`. Code: `src/components/documents/SignatureCard.tsx`.
 - Convert to sales order through ordering-backend: closed. The user decided sales orders stay in treasury. Source: sprint-2 Phase 4.
 
+Done 2026-10-21:
+
+- One public page shell for `/q/[token]` and `/i/[token]` (`f48e932`, `35af468`). `src/components/public/PublicDocShell.tsx` (server component) gives every share link the issuing tenant's brand colour and logo (resized at the edge), a sticky action bar (Download, Open, plus the page's own buttons), a summary header and the document as its PDF, so the page shows exactly what the customer downloads. The quotation page no longer re-renders the document in HTML; Accept and Decline take the tenant colour. The invoice page names the document by `invoice_type` and shows Pay now only on bills (never on credit notes, receipts or delivery documents). The public tenant lookup lives in `src/lib/api/tenant-public.ts` (no session store, safe for server components; `tenant.ts` re-exports it). Needs treasury-api `19425851`. Source: sprint-2 Phase 1 and 2.
+
 Open:
 
-- Shared public page shell for `/q/[token]` and `/i/[token]`. Source: sprint-2-financial-docs-platform.md Phase 1 and 2.
 - Config-file system for document types (was replaced by props; only needed if the props approach becomes unwieldy). Source: sprint-2 Phase 1.
 - The form's Layout preview shows the tenant default only to users with `treasury.config.view`; others see a note instead (the PDF still uses the default).
 
