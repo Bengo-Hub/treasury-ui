@@ -9,6 +9,7 @@ import { useTaxCodes } from '@/hooks/use-tax';
 import { useAccounts } from '@/hooks/use-accounts';
 import type { TaxCode } from '@/lib/api/tax';
 import { MarginPanel } from '../MarginPanel';
+import { MediaImage } from '@bengo-hub/shared-ui-lib/media';
 
 type SearchState = 'EMPTY' | 'SEARCHING' | 'RESULTS_FOUND' | 'LINKED';
 
@@ -194,8 +195,7 @@ function ItemCombobox({ tenant, line, onUpdate, onRequestCreate }: ComboboxProps
               className="w-full text-left px-3 py-2 hover:bg-accent transition-colors">
               <div className="flex items-center gap-2">
                 {item.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.image_url} alt="" className="h-6 w-6 rounded object-cover shrink-0" />
+                  <MediaImage src={item.image_url} displayWidth={24} fit="cover" aspect={1} alt="" className="h-6 w-6 rounded object-cover shrink-0" />
                 ) : (
                   <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
                 )}

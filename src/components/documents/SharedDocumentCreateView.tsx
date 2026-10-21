@@ -41,6 +41,7 @@ import { vendorOptionHint } from '@/lib/vendor-balance';
 import { CostCenterCombobox } from '@/components/ui/cost-center-combobox';
 import { useCostCenterDefault } from '@/hooks/use-cost-centers';
 import { ProjectCombobox } from '@/components/ui/project-combobox';
+import { MediaImage } from '@bengo-hub/shared-ui-lib/media';
 
 export interface DocTypeConfig {
   invoiceType: string;
@@ -671,8 +672,7 @@ export function SharedDocumentCreateView({ effectiveTenant, docType, onClose, ed
             </div>
             <div className="border-2 border-dashed border-border rounded-xl p-3 flex flex-col items-center justify-center text-center w-64 h-36 shrink-0 bg-accent/20 overflow-hidden">
               {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt={orgName} className="max-h-24 max-w-full object-contain" />
+                <MediaImage src={logoUrl} displayWidth={240} loading="eager" alt={orgName} className="max-h-24 max-w-full object-contain" />
               ) : brandLoading ? (
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               ) : (
