@@ -30,10 +30,19 @@ export async function generateMetadata({ params }: Props) {
 // The share link serves every invoice-family document; name it by its type.
 const DOC_LABEL: Record<string, string> = {
   proforma: 'Proforma invoice',
+  proforma_invoice: 'Proforma invoice',
   credit_note: 'Credit note',
   debit_note: 'Debit note',
   tax: 'Tax invoice',
+  payment_receipt: 'Payment receipt',
+  pos_receipt: 'Receipt',
+  sales_order: 'Sales order',
+  delivery_note: 'Delivery note',
+  delivery_challan: 'Delivery challan',
 };
+
+// Documents that are not a bill to pay: no pay button and no due date, dated by issue.
+const NOT_PAYABLE = new Set(['credit_note', 'payment_receipt', 'pos_receipt', 'delivery_note', 'delivery_challan', 'sales_order']);
 
 function statusBadge(status: string, paymentStatus: string): PublicDocBadge {
   if (paymentStatus === 'paid') return { label: 'Paid', className: 'bg-green-100 text-green-700' };
@@ -61,14 +70,15 @@ export default async function PublicInvoicePage({ params }: Props) {
 
   const docType = invoice.invoice_type || 'standard';
   const docLabel = DOC_LABEL[docType] ?? 'Invoice';
-  // A credit note is money owed to the customer, not a bill: no pay button, no due date.
+  // A credit note, receipt or delivery document is not a bill: no pay button, no due date.
   const isCreditNote = docType === 'credit_note';
+  const notPayable = NOT_PAYABLE.has(docType);
   const isVoid = invoice.status === 'cancelled' || invoice.status === 'void';
 
   // Durable pay link (reuses the /pay page; a fresh Paystack session per visit).
   const isClosed = invoice.payment_status === 'paid' || isVoid;
   let payUrl: string | undefined;
-  if (!isCreditNote && !isClosed && balanceDue > 0) {
+  if (!notPayable && !isClosed && balanceDue > 0) {
     const q = new URLSearchParams({
       tenant: invoice.tenant_slug,
       amount: String(balanceDue),
@@ -83,7 +93,7 @@ export default async function PublicInvoicePage({ params }: Props) {
 
   const longDate = (d: string) => new Date(d).toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' });
   let dateLine: string | undefined;
-  if (isCreditNote) dateLine = invoice.invoice_date ? `Issued ${longDate(invoice.invoice_date)}` : undefined;
+  if (notPayable) dateLine = invoice.invoice_date ? `Issued ${longDate(invoice.invoice_date)}` : undefined;
   else if (invoice.due_date) dateLine = `Due ${longDate(invoice.due_date)}`;
 
   const badge: PublicDocBadge = isCreditNote
