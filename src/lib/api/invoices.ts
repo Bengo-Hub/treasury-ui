@@ -395,6 +395,8 @@ export interface PublicQuotation {
 
 export interface PublicInvoice {
   invoice_number: string;
+  /** standard, tax, proforma, recurring, credit_note, debit_note (older API builds omit it). */
+  invoice_type?: string;
   public_token: string;
   customer_name?: string;
   invoice_date: string;
@@ -417,11 +419,13 @@ export interface PublicInvoice {
   lines?: InvoiceLine[];
 }
 
+/** treasury-api's base URL for the public (no auth) document routes: share pages, PDFs, exports. */
+export const PUBLIC_TREASURY_API_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexafrica.com';
+
 /** Fetch a public invoice by share token — no auth required. */
 export async function fetchPublicInvoice(token: string): Promise<PublicInvoice> {
-  const TREASURY_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexafrica.com';
-  const res = await fetch(`${TREASURY_URL}/api/v1/public/invoices/${token}`, {
+  const res = await fetch(`${PUBLIC_TREASURY_API_URL}/api/v1/public/invoices/${token}`, {
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(`Failed to fetch invoice: ${res.status}`);
@@ -430,9 +434,7 @@ export async function fetchPublicInvoice(token: string): Promise<PublicInvoice> 
 
 /** Fetch a public quotation by share token — no auth required. */
 export async function fetchPublicQuotation(token: string): Promise<PublicQuotation> {
-  const TREASURY_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexafrica.com';
-  const res = await fetch(`${TREASURY_URL}/api/v1/public/quotations/${token}`, {
+  const res = await fetch(`${PUBLIC_TREASURY_API_URL}/api/v1/public/quotations/${token}`, {
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(`Failed to fetch quotation: ${res.status}`);
@@ -440,9 +442,7 @@ export async function fetchPublicQuotation(token: string): Promise<PublicQuotati
 }
 
 async function postPublicQuotationAction(token: string, action: 'accept' | 'decline'): Promise<void> {
-  const TREASURY_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'https://booksapi.codevertexafrica.com';
-  const res = await fetch(`${TREASURY_URL}/api/v1/public/quotations/${token}/${action}`, {
+  const res = await fetch(`${PUBLIC_TREASURY_API_URL}/api/v1/public/quotations/${token}/${action}`, {
     method: 'POST',
   });
   if (!res.ok) {
